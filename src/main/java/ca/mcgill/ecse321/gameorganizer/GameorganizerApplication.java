@@ -8,6 +8,8 @@ public class GameorganizerApplication {
 
 	public static void main(String[] args) {
 		SpringApplication.run(GameorganizerApplication.class, args);
+		System.out.println("My First Java Program.");
 	}
+
 
 }
