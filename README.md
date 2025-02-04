@@ -6,7 +6,7 @@
 ***passes tests*** and/or has been ***peer-reviewed*** by teammates.
 
 ```dev-{your_username}``` is the branch where you will work on your own tasks assigned to you for the deliverable so that if 
-you write bad code here, it won't affect ```main``` or ```main-development```.
+you write bad code here (we all do at one point), it won't affect ```main``` or ```main-development```.
 
 # Commit Message Names
 
