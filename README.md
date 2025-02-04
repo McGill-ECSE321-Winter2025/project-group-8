@@ -1,6 +1,6 @@
 # Info on Project Branches
 
-```main``` is the legacy branch of our project, it will capture the state of our project at ***deliverable submission*** time.
+```main``` is the stable branch of our project, it will capture the state of our project at ***deliverable submission*** time.
 
 ```main-development``` is where we push working features/code for our *current deliverable* that 
 ***passes tests*** and/or has been ***peer-reviewed*** by teammates.
