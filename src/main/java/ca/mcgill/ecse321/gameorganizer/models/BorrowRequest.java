@@ -1,4 +1,4 @@
-package ca.mcgill.ecse321.gameorganizer.model;
+package ca.mcgill.ecse321.gameorganizer.models;
 
 import java.util.Date;
 
@@ -9,14 +9,11 @@ public class BorrowRequest
 
     private static int nextId = 1;
 
-
-
     //BorrowRequest Attributes
     private Date startDate;
     private Date endDate;
     private String status;
     private Date requestDate;
-
 
     private int id;
 
@@ -24,8 +21,6 @@ public class BorrowRequest
     private Account requestedBy;
     private GameOwner managedBy;
     private Game requestedGame;
-
-
 
     public BorrowRequest(Date aStartDate, Date aEndDate, String aStatus, Date aRequestDate, Account aRequestedBy, GameOwner aManagedBy, Game aRequestedGame)
     {
@@ -47,8 +42,6 @@ public class BorrowRequest
             throw new RuntimeException("Unable to create BorrowRequest due to aRequestedGame. See https://manual.umple.org?RE002ViolationofAssociationMultiplicity.html");
         }
     }
-
-
 
     public boolean setStartDate(Date aStartDate)
     {
@@ -161,10 +154,6 @@ public class BorrowRequest
         managedBy = null;
         requestedGame = null;
     }
-
-
-
-
 
     public String toString()
     {

@@ -1,4 +1,4 @@
-package ca.mcgill.ecse321.gameorganizer.model;
+package ca.mcgill.ecse321.gameorganizer.models;
 
 public class GameOwner extends Account
 {
