@@ -26,15 +26,11 @@ public class LendingRecord {
     @OneToOne
     private BorrowRequest request;
 
-    @ManyToOne
-    private GameOwner owner;
-
     public LendingRecord(Date aStartDate, Date aEndDate, String aStatus, BorrowRequest aRequest, GameOwner aOwner) {
         startDate = aStartDate;
         endDate = aEndDate;
         status = aStatus;
         request = aRequest;
-        owner = aOwner;
     }
 
     public String toString() {
@@ -43,8 +39,7 @@ public class LendingRecord {
                 "status" + ":" + getStatus() + "]" + System.getProperties().getProperty("line.separator") +
                 "  " + "startDate" + "=" + (getStartDate() != null ? !getStartDate().equals(this) ? getStartDate().toString().replaceAll("  ", "    ") : "this" : "null") + System.getProperties().getProperty("line.separator") +
                 "  " + "endDate" + "=" + (getEndDate() != null ? !getEndDate().equals(this) ? getEndDate().toString().replaceAll("  ", "    ") : "this" : "null") + System.getProperties().getProperty("line.separator") +
-                "  " + "request = " + (getRequest() != null ? Integer.toHexString(System.identityHashCode(getRequest())) : "null") + System.getProperties().getProperty("line.separator") +
-                "  " + "owner = " + (getOwner() != null ? Integer.toHexString(System.identityHashCode(getOwner())) : "null");
+                "  " + "request = " + (getRequest() != null ? Integer.toHexString(System.identityHashCode(getRequest())) : "null") + System.getProperties().getProperty("line.separator");
     }
 }
 

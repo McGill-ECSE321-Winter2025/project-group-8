@@ -5,6 +5,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.List;
+
 @Entity
 @Getter
 @Setter
@@ -20,6 +22,22 @@ public class Account {
     private String email;
 
     private String password;
+
+    // Associations
+
+    @OneToMany
+    private List<Registration> registrations;
+
+    @OneToMany
+    private List<Event> eventsCreated;
+
+    @OneToMany
+    private List<Review> gameReviews;
+
+    @OneToMany
+    private List<BorrowRequest> requestsMade;
+
+    // Methods
 
     public Account(String aName, String aEmail, String aPassword) {
         name = aName;

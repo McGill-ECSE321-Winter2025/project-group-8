@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.util.Date;
+import java.util.List;
 
 @Entity
 @NoArgsConstructor
@@ -27,25 +28,23 @@ public class Event {
 
     private int maxParticipants;
 
-    @ManyToOne
-    private Account createdBy;
+    // Associations
 
     @ManyToOne
     private Game featuredGame;
 
-    public Event(String aTitle, Date aDateTime, String aLocation, String aDescription, int aMaxParticipants, Account aCreatedBy, Game aFeaturedGame) {
+    @OneToMany
+    private List<Event> registrations;
+
+    // Methods
+
+    public Event(String aTitle, Date aDateTime, String aLocation, String aDescription, int aMaxParticipants, Game aFeaturedGame) {
         title = aTitle;
         dateTime = aDateTime;
         location = aLocation;
         description = aDescription;
         maxParticipants = aMaxParticipants;
-        createdBy = aCreatedBy;
         featuredGame = aFeaturedGame;
-    }
-
-    public void delete() {
-        createdBy = null;
-        featuredGame = null;
     }
 
     public String toString() {
@@ -56,7 +55,6 @@ public class Event {
                 "description" + ":" + getDescription() + "," +
                 "maxParticipants" + ":" + getMaxParticipants() + "]" + System.getProperties().getProperty("line.separator") +
                 "  " + "dateTime" + "=" + (getDateTime() != null ? !getDateTime().equals(this) ? getDateTime().toString().replaceAll("  ", "    ") : "this" : "null") + System.getProperties().getProperty("line.separator") +
-                "  " + "createdBy = " + (getCreatedBy() != null ? Integer.toHexString(System.identityHashCode(getCreatedBy())) : "null") + System.getProperties().getProperty("line.separator") +
                 "  " + "featuredGame = " + (getFeaturedGame() != null ? Integer.toHexString(System.identityHashCode(getFeaturedGame())) : "null");
     }
 }

@@ -23,18 +23,10 @@ public class Review {
 
     private Date dateSubmitted;
 
-    @ManyToOne
-    private Game reviewedGame;
-
-    @ManyToOne
-    private Account reviewer;
-
-    public Review(int aRating, String aComment, Date aDateSubmitted, Game aReviewedGame, Account aReviewer) {
+    public Review(int aRating, String aComment, Date aDateSubmitted) {
         rating = aRating;
         comment = aComment;
         dateSubmitted = aDateSubmitted;
-        reviewedGame = aReviewedGame;
-        reviewer = aReviewer;
     }
 
     public String toString() {
@@ -42,8 +34,6 @@ public class Review {
                 "id" + ":" + getId() + "," +
                 "rating" + ":" + getRating() + "," +
                 "comment" + ":" + getComment() + "]" + System.getProperties().getProperty("line.separator") +
-                "  " + "dateSubmitted" + "=" + (getDateSubmitted() != null ? !getDateSubmitted().equals(this) ? getDateSubmitted().toString().replaceAll("  ", "    ") : "this" : "null") + System.getProperties().getProperty("line.separator") +
-                "  " + "reviewedGame = " + (getReviewedGame() != null ? Integer.toHexString(System.identityHashCode(getReviewedGame())) : "null") + System.getProperties().getProperty("line.separator") +
-                "  " + "reviewer = " + (getReviewer() != null ? Integer.toHexString(System.identityHashCode(getReviewer())) : "null");
+                "  " + "dateSubmitted" + "=" + (getDateSubmitted() != null ? !getDateSubmitted().equals(this) ? getDateSubmitted().toString().replaceAll("  ", "    ") : "this" : "null") + System.getProperties().getProperty("line.separator");
     }
 }

@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.util.Date;
+import java.util.List;
 
 @Entity
 @NoArgsConstructor
@@ -27,16 +28,15 @@ public class Game {
 
     private Date dateAdded;
 
-    @ManyToOne
-    private GameOwner owner;
+    @OneToMany
+    private List<Review> reviews;
 
-    public Game(String aName, int aMinPlayers, int aMaxPlayers, String aImage, Date aDateAdded, GameOwner aOwner) {
+    public Game(String aName, int aMinPlayers, int aMaxPlayers, String aImage, Date aDateAdded) {
         name = aName;
         minPlayers = aMinPlayers;
         maxPlayers = aMaxPlayers;
         image = aImage;
         dateAdded = aDateAdded;
-        owner = aOwner;
     }
 
     public String toString() {
@@ -46,7 +46,6 @@ public class Game {
                 "minPlayers" + ":" + getMinPlayers() + "," +
                 "maxPlayers" + ":" + getMaxPlayers() + "," +
                 "image" + ":" + getImage() + "]" + System.getProperties().getProperty("line.separator") +
-                "  " + "dateAdded" + "=" + (getDateAdded() != null ? !getDateAdded().equals(this) ? getDateAdded().toString().replaceAll("  ", "    ") : "this" : "null") + System.getProperties().getProperty("line.separator") +
-                "  " + "owner = " + (getOwner() != null ? Integer.toHexString(System.identityHashCode(getOwner())) : "null");
+                "  " + "dateAdded" + "=" + (getDateAdded() != null ? !getDateAdded().equals(this) ? getDateAdded().toString().replaceAll("  ", "    ") : "this" : "null") + System.getProperties().getProperty("line.separator");
     }
-}
+};

@@ -19,23 +19,13 @@ public class Registration {
 
     private Date registrationDate;
 
-    @ManyToOne
-    private Event forEvent;
-
-    @ManyToOne
-    private Account registeredBy;
-
-    public Registration(Date aRegistrationDate, Event aForEvent, Account aRegisteredBy) {
+    public Registration(Date aRegistrationDate) {
         registrationDate = aRegistrationDate;
-        forEvent = aForEvent;
-        registeredBy = aRegisteredBy;
     }
 
     public String toString() {
         return super.toString() + "[" +
                 "id" + ":" + getId() + "]" + System.getProperties().getProperty("line.separator") +
-                "  " + "registrationDate" + "=" + (getRegistrationDate() != null ? !getRegistrationDate().equals(this) ? getRegistrationDate().toString().replaceAll("  ", "    ") : "this" : "null") + System.getProperties().getProperty("line.separator") +
-                "  " + "forEvent = " + (getForEvent() != null ? Integer.toHexString(System.identityHashCode(getForEvent())) : "null") + System.getProperties().getProperty("line.separator") +
-                "  " + "registeredBy = " + (getRegisteredBy() != null ? Integer.toHexString(System.identityHashCode(getRegisteredBy())) : "null");
+                "  " + "registrationDate" + "=" + (getRegistrationDate() != null ? !getRegistrationDate().equals(this) ? getRegistrationDate().toString().replaceAll("  ", "    ") : "this" : "null") + System.getProperties().getProperty("line.separator");
     }
 }
