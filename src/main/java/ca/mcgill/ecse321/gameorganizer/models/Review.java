@@ -23,6 +23,12 @@ public class Review {
 
     private Date dateSubmitted;
 
+    @ManyToOne
+    private Game gameReviewed;
+
+    @ManyToOne
+    private Account reviewer;
+
     public Review(int aRating, String aComment, Date aDateSubmitted) {
         rating = aRating;
         comment = aComment;

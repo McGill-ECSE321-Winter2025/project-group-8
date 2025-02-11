@@ -30,6 +30,12 @@ public class BorrowRequest {
     @ManyToOne
     private Game requestedGame;
 
+    @ManyToOne
+    private Account requester;
+
+    @ManyToOne
+    private GameOwner responder;
+
     // Methods
 
     public BorrowRequest(Date aStartDate, Date aEndDate, String aStatus, Date aRequestDate, Game aRequestedGame) {

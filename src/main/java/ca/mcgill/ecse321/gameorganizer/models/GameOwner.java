@@ -6,7 +6,6 @@ import jakarta.persistence.OneToOne;
 import lombok.NoArgsConstructor;
 import java.util.List;
 
-import java.awt.*;
 
 @Entity
 @NoArgsConstructor
