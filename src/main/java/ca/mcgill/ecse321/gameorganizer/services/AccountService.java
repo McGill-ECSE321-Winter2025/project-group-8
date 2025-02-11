@@ -11,12 +11,15 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AccountService {
 
+
     private AccountRepository accountRepository;
+
 
     @Autowired
     public AccountService(AccountRepository accountRepository) {
         this.accountRepository = accountRepository;
     }
+
 
     @Transactional
     public ResponseEntity<String> createAccount(Account aNewAccount) {
@@ -35,19 +38,6 @@ public class AccountService {
         return ResponseEntity.ok("Account created");
     }
 
-    @Transactional
-    public ResponseEntity<String> createGameOwner(Account aNewAccount) {
-        String email = aNewAccount.getEmail();
-
-        if (accountRepository.findByEmail(email).isPresent()) {
-            throw new IllegalArgumentException("Account with email " + email + " already exists");
-        }
-
-        GameOwner gameOwner = (GameOwner) aNewAccount;
-        accountRepository.save(gameOwner);
-
-        return ResponseEntity.ok("Account created");
-    }
 
     @Transactional
     public Account getAccountByEmail(String email) {
@@ -55,6 +45,19 @@ public class AccountService {
                 () -> new IllegalArgumentException("Account with email " + email + " does not exist")
         );
     }
+
+
+    // Password is unprotected, needs to change later!
+    @Transactional
+    public ResponseEntity<String> updateAccountByEmail(String email, String newName, String newPassword) {
+        Account account = accountRepository.findByEmail(email).orElseThrow(
+                () -> new IllegalArgumentException("Account with email " + email + " does not exist")
+        );
+        account.setName(newName);
+        account.setPassword(newPassword);
+        return ResponseEntity.ok("Account updated successfully");
+    }
+
 
     @Transactional
     public ResponseEntity<String> deleteAccountByEmail(String email) {
