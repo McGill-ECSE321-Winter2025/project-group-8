@@ -33,8 +33,8 @@ public class Event {
     @ManyToOne
     private Game featuredGame;
 
-    @OneToMany
-    private List<Event> registrations;
+    @ManyToOne
+    private Account host;
 
     // Methods
 

@@ -17,25 +17,14 @@ public class Account {
     @GeneratedValue(strategy = GenerationType.AUTO)
     private int id;
 
+    @Column(nullable = false)
     private String name;
 
+    @Column(nullable = false)
     private String email;
 
+    @Column(nullable = false)
     private String password;
-
-    // Associations
-
-    @OneToMany
-    private List<Registration> registrations;
-
-    @OneToMany
-    private List<Event> eventsCreated;
-
-    @OneToMany
-    private List<Review> gameReviews;
-
-    @OneToMany
-    private List<BorrowRequest> requestsMade;
 
     // Methods
 

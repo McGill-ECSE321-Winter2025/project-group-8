@@ -23,6 +23,9 @@ public class LendingRecord {
 
     private String status;
 
+    @ManyToOne
+    private GameOwner recordOwner;
+
     @OneToOne
     private BorrowRequest request;
 

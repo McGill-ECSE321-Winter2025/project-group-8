@@ -28,8 +28,8 @@ public class Game {
 
     private Date dateAdded;
 
-    @OneToMany
-    private List<Review> reviews;
+    @ManyToOne
+    private GameOwner owner;
 
     public Game(String aName, int aMinPlayers, int aMaxPlayers, String aImage, Date aDateAdded) {
         name = aName;

@@ -19,6 +19,12 @@ public class Registration {
 
     private Date registrationDate;
 
+    @ManyToOne
+    private Account attendee;
+
+    @ManyToOne
+    private Event eventRegisteredFor;
+
     public Registration(Date aRegistrationDate) {
         registrationDate = aRegistrationDate;
     }
