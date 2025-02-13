@@ -110,6 +110,6 @@ public class BorrowRequestService {
             () -> new IllegalArgumentException("No borrow request found with ID " + id)
         );
         borrowRequestRepository.delete(requestToDelete);
-        return ResponseEntity.ok("Borrow request with id " + id + "has been deleted.");
+        return ResponseEntity.ok("Borrow request with id " + id + " has been deleted.");
     }
 }
