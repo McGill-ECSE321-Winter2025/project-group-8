@@ -1,11 +1,19 @@
 package ca.mcgill.ecse321.gameorganizer.models;
 
-import jakarta.persistence.*;
+import java.util.Date;
+
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
+
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-
-import java.util.Date;
 
 @Entity
 @NoArgsConstructor
@@ -24,6 +32,8 @@ public class Review {
     private Date dateSubmitted;
 
     @ManyToOne
+    @JoinColumn(name = "game_reviewed_id", nullable = true) // make sure column is nullable
+    @OnDelete(action = OnDeleteAction.SET_NULL) // instructs Hibernate to set this FK to null on delete
     private Game gameReviewed;
 
     @ManyToOne
@@ -35,6 +45,7 @@ public class Review {
         dateSubmitted = aDateSubmitted;
     }
 
+    @Override
     public String toString() {
         return super.toString() + "[" +
                 "id" + ":" + getId() + "," +
