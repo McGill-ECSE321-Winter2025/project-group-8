@@ -21,7 +21,8 @@ public class BorrowRequest {
 
     private Date endDate;
 
-    private String status;
+    @Enumerated(EnumType.STRING)
+    private BorrowRequestStatus status;
 
     private Date requestDate;
 
@@ -38,7 +39,7 @@ public class BorrowRequest {
 
     // Methods
 
-    public BorrowRequest(Date aStartDate, Date aEndDate, String aStatus, Date aRequestDate, Game aRequestedGame) {
+    public BorrowRequest(Date aStartDate, Date aEndDate, BorrowRequestStatus aStatus, Date aRequestDate, Game aRequestedGame) {
         startDate = aStartDate;
         endDate = aEndDate;
         status = aStatus;
