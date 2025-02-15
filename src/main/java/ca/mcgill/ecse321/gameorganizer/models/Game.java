@@ -48,4 +48,23 @@ public class Game {
                 "image" + ":" + getImage() + "]" + System.getProperties().getProperty("line.separator") +
                 "  " + "dateAdded" + "=" + (getDateAdded() != null ? !getDateAdded().equals(this) ? getDateAdded().toString().replaceAll("  ", "    ") : "this" : "null") + System.getProperties().getProperty("line.separator");
     }
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true; 
+        }
+        if (!(obj instanceof Game)) {
+            return false; 
+        }
+        Game game = (Game) obj;
+        
+        return this.id == game.id &&
+               this.minPlayers == game.minPlayers &&
+               this.maxPlayers == game.maxPlayers &&
+               (this.name != null ? this.name.equals(game.name) : game.name == null) &&
+               (this.image != null ? this.image.equals(game.image) : game.image == null) &&
+               (this.dateAdded != null ? this.dateAdded.equals(game.dateAdded) : game.dateAdded == null);
+    }
+    
+
 };
