@@ -1,5 +1,38 @@
 # READ ME thank you
 
+## Project Introduction
+
+At McGill University, as part of ECSE 321, we are developing an application for board game enthusiasts. The objective of this application is to enable the lending and borrowing of board games, the creation and joining of events, and connecting with other board game enthusiasts.
+
+## Project Scope
+### Functional Scope
+- User authentication and role-based access control
+-  Game collection management for game owners
+-  Event creation and event registration system
+-   Borrow requests
+
+### Technical Scope
+- Java Spring Boot backend
+- PostgreSQL database
+- RESTful API architecture
+- Gradle build system
+- Comprehensive tests (JUnit)
+- Development tasks and sprint planning managed through GitHub Issues
+
+## Team Introduction - LG Smart Fridge
+### Team Members, Roles and Contributions
+
+| Name                              | Role                  | Deliverable 1 (hrs) | Deliverable 2 (hrs) | Deliverable 3 (hrs) | Total Hours |
+|-----------------------------------|-----------------------|---------------------|---------------------|---------------------|-------------|
+| Alexander Kudinov                | Backend Developer     | X                   | X                   | X                   | X           |
+| Shayan Yamanidouzi Sorkhabi       | Frontend Developer    | X                   | X                   | X                   | X           |
+| Jiwoong Choi                      | Test Lead            | X                   | X                   | X                   | X           |
+| Youssef El Kesti                  | Scrum Master         | X                   | X                   | X                   | X           |
+| David Wang                        | Project Manager      | X                   | X                   | X                   | X           |
+| Yessine Chaari                    | DevOps               | X                   | X                   | X                   | X           |
+| Rayan Baida                       | Fullstack Developer  | X                   | X                   | X                   | X           |
+
+
 ## Info on Project Branches
 
 ```main``` is the stable branch of our project, it will capture the state of our project at ***deliverable submission*** time.
