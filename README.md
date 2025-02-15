@@ -28,7 +28,7 @@ At McGill University, as part of ECSE 321, we are developing an application for 
 | Shayan Yamanidouzi Sorkhabi       | Frontend Developer    | X                   | X                   | X                   | X           |
 | Jiwoong Choi                      | Test Lead            | X                   | X                   | X                   | X           |
 | Youssef El Kesti                  | Scrum Master         | X                   | X                   | X                   | X           |
-| David Wang                        | Project Manager      | X                   | X                   | X                   | X           |
+| David Wang                        | Project Manager      | 5.5                   | X                   | X                   | X           |
 | Yessine Chaari                    | DevOps               | X                   | X                   | X                   | X           |
 | Rayan Baida                       | Fullstack Developer  | X                   | X                   | X                   | X           |
 
