@@ -1,4 +1,4 @@
-# READ ME thank you
+# READ ME
 
 ## Project Introduction
 
