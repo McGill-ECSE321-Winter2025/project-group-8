@@ -43,12 +43,7 @@ At McGill University, as part of ECSE 321, we are developing an application for 
 ```dev-{your_username}``` is the branch where you will work on your own tasks assigned to you for the deliverable so that if 
 you write bad code here (we all do at one point), it won't affect ```main``` or ```main-development```.
 
-## Commit Message Names
-
-Try to be informative of your commit messages so that people other than you are going to be able to understand what the hell
-is going on in that commit.
-
-We can try to do it like this, if it doesn't work for you guys just let me @dyune know.
+## Commit Message Methodology
 
 ### Commit Types:
 * ```Feature``` -> Implemented/worked on a feature
