@@ -18,6 +18,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -39,9 +40,9 @@ public class LendingRecordServiceTest {
 
     @BeforeEach
     public void setUp() {
-        // Set up test dates
-        startDate = new Date();
-        endDate = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days later
+        // Update setup to use future dates
+        startDate = new Date(System.currentTimeMillis() + 86400000); // 1 day in future
+        endDate = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days after start
 
         // Create test objects
         owner = new GameOwner("Test Owner", "owner@test.com", "password123");
@@ -59,9 +60,13 @@ public class LendingRecordServiceTest {
 
     @Test
     public void testCreateLendingRecordSuccess() {
+        // Create dates in the future
+        Date futureStart = new Date(System.currentTimeMillis() + 86400000); // 1 day in future
+        Date futureEnd = new Date(System.currentTimeMillis() + 2 * 86400000); // 2 days in future
+        
         when(lendingRecordRepository.save(any(LendingRecord.class))).thenReturn(testRecord);
 
-        ResponseEntity<String> response = lendingRecordService.createLendingRecord(startDate, endDate, request, owner);
+        ResponseEntity<String> response = lendingRecordService.createLendingRecord(futureStart, futureEnd, request, owner);
 
         assertEquals("Lending record created successfully", response.getBody());
         verify(lendingRecordRepository).save(any(LendingRecord.class));
@@ -117,7 +122,7 @@ public class LendingRecordServiceTest {
 
     @Test
     public void testGetLendingRecordsByBorrower() {
-        when(lendingRecordRepository.findByRequest_Borrower(borrower)).thenReturn(Arrays.asList(testRecord));
+        when(lendingRecordRepository.findByRequest_Requester(borrower)).thenReturn(Arrays.asList(testRecord));
 
         List<LendingRecord> records = lendingRecordService.getLendingRecordsByBorrower(borrower);
 
@@ -217,15 +222,20 @@ public class LendingRecordServiceTest {
         when(lendingRecordRepository.findLendingRecordById(1)).thenReturn(Optional.of(testRecord));
         when(lendingRecordRepository.save(any(LendingRecord.class))).thenReturn(testRecord);
 
-        // New dates for update
-        Date newStartDate = new Date(startDate.getTime() + 86400000); // +1 day
-        Date newEndDate = new Date(endDate.getTime() + 172800000); // +2 days
+        Date newStartDate = new Date(startDate.getTime() + 86400000); // 1 day after original start
+        Date newEndDate = new Date(endDate.getTime() + 86400000); // 1 day after original end
 
-        testRecord.setStartDate(newStartDate);
-        testRecord.setEndDate(newEndDate);
-        testRecord.setStatus(LendingRecord.LendingStatus.OVERDUE);
+        LendingRecord recordToUpdate = lendingRecordService.getLendingRecordById(1);
+        recordToUpdate.setStartDate(newStartDate);
+        recordToUpdate.setEndDate(newEndDate);
+        recordToUpdate.setStatus(LendingRecord.LendingStatus.OVERDUE);
+        lendingRecordRepository.save(recordToUpdate);
 
         LendingRecord updated = lendingRecordService.getLendingRecordById(1);
+
+        assertEquals(newStartDate, updated.getStartDate());
+        assertEquals(newEndDate, updated.getEndDate());
+        assertEquals(LendingRecord.LendingStatus.OVERDUE, updated.getStatus());
         
         assertEquals(newStartDate, updated.getStartDate());
         assertEquals(newEndDate, updated.getEndDate());
@@ -254,11 +264,15 @@ public class LendingRecordServiceTest {
 
     @Test
     public void testComplexLendingRecordLifecycle() {
+        // Setup future dates for the test
+        Date futureStart = new Date(System.currentTimeMillis() + 86400000); // 1 day in future
+        Date futureEnd = new Date(System.currentTimeMillis() + 2 * 86400000); // 2 days in future
+        
         when(lendingRecordRepository.findLendingRecordById(1)).thenReturn(Optional.of(testRecord));
         when(lendingRecordRepository.save(any(LendingRecord.class))).thenReturn(testRecord);
 
-        // Step 1: Create and verify initial state
-        ResponseEntity<String> createResponse = lendingRecordService.createLendingRecord(startDate, endDate, request, owner);
+        // Step 1: Create and verify initial state with future dates
+        ResponseEntity<String> createResponse = lendingRecordService.createLendingRecord(futureStart, futureEnd, request, owner);
         assertEquals("Lending record created successfully", createResponse.getBody());
 
         // Step 2: Update to OVERDUE status
@@ -281,7 +295,81 @@ public class LendingRecordServiceTest {
         ResponseEntity<String> deleteResponse = lendingRecordService.deleteLendingRecord(1);
         assertEquals("Lending record deleted successfully", deleteResponse.getBody());
 
-        verify(lendingRecordRepository, times(5)).save(any(LendingRecord.class));
+        // Verify exactly 4 saves (create, update status, update end date, close) and 1 delete
+        verify(lendingRecordRepository, times(4)).save(any(LendingRecord.class));
         verify(lendingRecordRepository, times(1)).delete(any(LendingRecord.class));
+    }
+
+    @Test
+    public void testGetLendingRecordsByOwnerWithNullOwner() {
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+            lendingRecordService.getLendingRecordsByOwner(null);
+        });
+        assertEquals("Owner cannot be null", exception.getMessage());
+    }
+
+    @Test
+    public void testGetLendingRecordsByBorrowerWithNullBorrower() {
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+            lendingRecordService.getLendingRecordsByBorrower(null);
+        });
+        assertEquals("Borrower cannot be null", exception.getMessage());
+    }
+
+    @Test
+    public void testGetLendingRecordsByDateRangeWithNullDates() {
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+            lendingRecordService.getLendingRecordsByDateRange(null, null);
+        });
+        assertEquals("Date range parameters cannot be null", exception.getMessage());
+    }
+
+    @Test
+    public void testUpdateStatusWithNullStatus() {
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+            lendingRecordService.updateStatus(1, null);
+        });
+        assertEquals("New status cannot be null", exception.getMessage());
+    }
+
+    @Test
+    public void testCloseAlreadyClosedLendingRecord() {
+        testRecord.setStatus(LendingRecord.LendingStatus.CLOSED);
+        when(lendingRecordRepository.findLendingRecordById(1)).thenReturn(Optional.of(testRecord));
+
+        Exception exception = assertThrows(IllegalStateException.class, () -> {
+            lendingRecordService.closeLendingRecord(1);
+        });
+        assertEquals("Lending record is already closed", exception.getMessage());
+    }
+
+    @Test
+    public void testUpdateEndDateWithNullNewEndDate() {
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+            lendingRecordService.updateEndDate(1, null);
+        });
+        assertEquals("New end date cannot be null", exception.getMessage());
+    }
+
+    @Test
+    public void testUpdateEndDateForClosedRecord() {
+        testRecord.setStatus(LendingRecord.LendingStatus.CLOSED);
+        when(lendingRecordRepository.findLendingRecordById(1)).thenReturn(Optional.of(testRecord));
+
+        Exception exception = assertThrows(IllegalStateException.class, () -> {
+            lendingRecordService.updateEndDate(1, new Date(endDate.getTime() + 86400000));
+        });
+        assertEquals("Cannot update end date of a closed lending record", exception.getMessage());
+    }
+
+    @Test
+    public void testUpdateEndDateWithInvalidDate() {
+        when(lendingRecordRepository.findLendingRecordById(1)).thenReturn(Optional.of(testRecord));
+        Date invalidEndDate = new Date(startDate.getTime() - 86400000); // Before start date
+
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+            lendingRecordService.updateEndDate(1, invalidEndDate);
+        });
+        assertEquals("New end date cannot be before start date", exception.getMessage());
     }
 }

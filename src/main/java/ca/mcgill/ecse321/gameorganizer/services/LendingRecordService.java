@@ -39,33 +39,30 @@ public class LendingRecordService {
      */
     @Transactional
     public ResponseEntity<String> createLendingRecord(Date startDate, Date endDate, BorrowRequest request, GameOwner owner) {
-        // Validate input parameters
+        // Validate parameters
         if (startDate == null || endDate == null || request == null || owner == null) {
             throw new IllegalArgumentException("Required parameters cannot be null");
         }
 
-        // Validate date range
-        if (endDate.before(startDate)) {
-            throw new IllegalArgumentException("End date cannot be before start date");
-        }
-        
-        // Validate that start date is not in the past
-        if (startDate.before(new Date())) {
-            throw new IllegalArgumentException("Start date cannot be in the past");
-        }
-
-        // Validate owner matches the game owner
+        // Validate owner
         if (!request.getRequestedGame().getOwner().equals(owner)) {
             throw new IllegalArgumentException("The record owner must be the owner of the game in the borrow request");
         }
 
-        try {
-            LendingRecord record = new LendingRecord(startDate, endDate, LendingStatus.ACTIVE, request, owner);
-            lendingRecordRepository.save(record);
-            return ResponseEntity.ok("Lending record created successfully");
-        } catch (Exception e) {
-            throw new IllegalStateException("Failed to create lending record: " + e.getMessage());
+        // Validate dates
+        Date now = new Date();
+        if (endDate.before(startDate)) {
+            throw new IllegalArgumentException("End date cannot be before start date");
         }
+        if (startDate.before(now)) {
+            throw new IllegalArgumentException("Start date cannot be in the past");
+        }
+
+        // Create and save new lending record
+        LendingRecord record = new LendingRecord(startDate, endDate, LendingRecord.LendingStatus.ACTIVE, request, owner);
+        lendingRecordRepository.save(record);
+
+        return ResponseEntity.ok().body("Lending record created successfully");
     }
 
     /**
@@ -108,7 +105,7 @@ public class LendingRecordService {
         if (borrower == null) {
             throw new IllegalArgumentException("Borrower cannot be null");
         }
-        return lendingRecordRepository.findByRequest_Borrower(borrower);
+        return lendingRecordRepository.findByRequest_Requester(borrower);
     }
 
     /**

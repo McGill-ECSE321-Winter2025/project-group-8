@@ -42,9 +42,9 @@ public class LendingRecordRepositoryTest {
 
     @BeforeEach
     public void setup() {
-        // Create test data
-        startDate = new Date();
-        endDate = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days later
+        // Create test data with future dates
+        startDate = new Date(System.currentTimeMillis() + 86400000); // 1 day in future
+        endDate = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days after start
 
         owner = new GameOwner("Test Owner", "owner@test.com", "password123");
         gameOwnerRepository.save(owner);
@@ -119,7 +119,13 @@ public class LendingRecordRepositoryTest {
         Date pastStart = new Date(System.currentTimeMillis() - 14 * 24 * 60 * 60 * 1000); // 14 days ago
         Date pastEnd = new Date(System.currentTimeMillis() - 7 * 24 * 60 * 60 * 1000); // 7 days ago
         
-        LendingRecord overdueRecord = new LendingRecord(pastStart, pastEnd, LendingRecord.LendingStatus.ACTIVE, request, owner);
+        // Create new borrow request for the overdue record
+        BorrowRequest overdueRequest = new BorrowRequest(pastStart, pastEnd, BorrowRequestStatus.APPROVED, new Date(), game);
+        overdueRequest.setRequester(borrower);
+        overdueRequest.setResponder(owner);
+        borrowRequestRepository.save(overdueRequest);
+        
+        LendingRecord overdueRecord = new LendingRecord(pastStart, pastEnd, LendingRecord.LendingStatus.ACTIVE, overdueRequest, owner);
         lendingRecordRepository.save(overdueRecord);
 
         List<LendingRecord> overdueRecords = lendingRecordRepository.findByEndDateBeforeAndStatus(
@@ -132,7 +138,7 @@ public class LendingRecordRepositoryTest {
 
     @Test
     public void testFindByBorrower() {
-        List<LendingRecord> borrowerRecords = lendingRecordRepository.findByRequest_Borrower(borrower);
+        List<LendingRecord> borrowerRecords = lendingRecordRepository.findByRequest_Requester(borrower);
         assertFalse(borrowerRecords.isEmpty());
         assertEquals(borrower.getId(), borrowerRecords.get(0).getRequest().getRequester().getId());
     }

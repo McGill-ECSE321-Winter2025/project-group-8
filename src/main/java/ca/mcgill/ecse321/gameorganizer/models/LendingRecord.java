@@ -33,9 +33,11 @@ public class LendingRecord {
     private int id;
 
     /** The date when the lending period begins */
+    @Temporal(TemporalType.TIMESTAMP)
     private Date startDate;
 
     /** The date when the game is expected to be returned */
+    @Temporal(TemporalType.TIMESTAMP)
     private Date endDate;
 
     /** Current status of the lending record */
@@ -48,6 +50,7 @@ public class LendingRecord {
 
     /** The associated borrow request that initiated this lending */
     @OneToOne
+    @JoinColumn(name = "request_id", unique = true)
     private BorrowRequest request;
 
     /**

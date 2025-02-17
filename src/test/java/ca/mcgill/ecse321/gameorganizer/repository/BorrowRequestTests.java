@@ -83,7 +83,7 @@ public class BorrowRequestTests {
         // Check persisted attributes
         BorrowRequest savedBR = borrowRequestRepository.findBorrowRequestById(br.getId()).orElse(null);
         assertNotNull(savedBR, "The borrow request should be persisted in the database.");
-        assertEquals("PENDING", savedBR.getStatus());
+        assertEquals(BorrowRequestStatus.PENDING, savedBR.getStatus());
         assertNotNull(savedBR.getRequestDate());
         assertEquals(startDate, savedBR.getStartDate());
         assertEquals(endDate, savedBR.getEndDate());
@@ -290,7 +290,7 @@ public class BorrowRequestTests {
         
         BorrowRequest updatedBR = borrowRequestRepository.findBorrowRequestById(br.getId()).orElse(null);
         assertNotNull(updatedBR);
-        assertEquals("APPROVED", updatedBR.getStatus());
+        assertEquals(BorrowRequestStatus.APPROVED, updatedBR.getStatus());
     }
 
     /**
@@ -366,7 +366,7 @@ public class BorrowRequestTests {
         assertNotNull(persistedBR, "The borrow request should have been persisted.");
         
         // Check attribute values
-        assertEquals("PENDING", persistedBR.getStatus(), "The status should be persisted correctly.");
+        assertEquals(BorrowRequestStatus.PENDING, persistedBR.getStatus(), "The status should be persisted correctly.");
         assertEquals(startDate, persistedBR.getStartDate(), "The start date should be persisted correctly.");
         assertEquals(endDate, persistedBR.getEndDate(), "The end date should be persisted correctly.");
         assertEquals(requestDate, persistedBR.getRequestDate(), "The request date should be persisted correctly.");
