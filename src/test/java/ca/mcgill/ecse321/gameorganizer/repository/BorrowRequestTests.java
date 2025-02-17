@@ -1,6 +1,7 @@
 package ca.mcgill.ecse321.gameorganizer.repository;
 
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
+import ca.mcgill.ecse321.gameorganizer.models.BorrowRequestStatus;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
@@ -188,7 +189,7 @@ public class BorrowRequestTests {
         br1.setRequester(requester1);
         br1.setStartDate(startDate1);
         br1.setEndDate(endDate1);
-        br1.setStatus("APPROVED");
+        br1.setStatus(BorrowRequestStatus.APPROVED);
         br1.setRequestDate(new Date());
         borrowRequestRepository.save(br1);
         
@@ -353,7 +354,7 @@ public class BorrowRequestTests {
         Date endDate = new Date(System.currentTimeMillis() + 7200 * 1000);
         br.setStartDate(startDate);
         br.setEndDate(endDate);
-        br.setStatus("PENDING");
+        br.setStatus(BorrowRequestStatus.PENDING);
         Date requestDate = new Date();
         br.setRequestDate(requestDate);
         

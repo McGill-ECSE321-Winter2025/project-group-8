@@ -47,6 +47,10 @@ public class BorrowRequest {
         requestedGame = aRequestedGame;
     }
 
+    public Game getRequestedGame() {
+        return this.requestedGame;
+    }
+
     public String toString() {
         return super.toString() + "[" +
                 "id" + ":" + getId() + "," +

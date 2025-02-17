@@ -1,4 +1,4 @@
-package ca.mcgill.ecse321.gameorganizer.repositery;
+package ca.mcgill.ecse321.gameorganizer.repository;
 
 import ca.mcgill.ecse321.gameorganizer.repositories.*;
 import jakarta.transaction.Transactional;
@@ -20,7 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-public class EventRepositeryTests {
+public class EventRepositoryTests {
     @Autowired
     private EventRepository eventRepositery;
     @Autowired

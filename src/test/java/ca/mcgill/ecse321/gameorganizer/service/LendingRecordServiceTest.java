@@ -49,7 +49,7 @@ public class LendingRecordServiceTest {
         game = new Game("Test Game", 2, 4, "test.jpg", new Date());
         game.setOwner(owner);
 
-        request = new BorrowRequest(startDate, endDate, "APPROVED", new Date(), game);
+        request = new BorrowRequest(startDate, endDate, BorrowRequestStatus.APPROVED, new Date(), game);
         request.setRequester(borrower);
         request.setResponder(owner);
 

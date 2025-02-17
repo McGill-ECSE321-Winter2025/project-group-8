@@ -1,6 +1,7 @@
 package ca.mcgill.ecse321.gameorganizer.services;
 
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
+import ca.mcgill.ecse321.gameorganizer.models.BorrowRequestStatus;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;
@@ -59,7 +60,7 @@ public class BorrowRequestService {
         }
 
         // Set status and request date
-        newBorrowRequest.setStatus("PENDING");
+        newBorrowRequest.setStatus(BorrowRequestStatus.PENDING);
         newBorrowRequest.setRequestDate(new Date());
         borrowRequestRepository.save(newBorrowRequest);
         return ResponseEntity.ok("Borrow request created successfully.");
@@ -93,7 +94,7 @@ public class BorrowRequestService {
         if (!newStatus.equals("APPROVED") && !newStatus.equals("DECLINED")) {
             throw new IllegalArgumentException("Invalid status, it must be either APPROVED or DECLINED.");
         }
-        request.setStatus(newStatus);
+        request.setStatus(BorrowRequestStatus.valueOf(newStatus));
         borrowRequestRepository.save(request);
         return ResponseEntity.ok("Borrow request status updated successfully.");
     }

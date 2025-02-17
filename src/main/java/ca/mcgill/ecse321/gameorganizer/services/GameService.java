@@ -163,4 +163,35 @@ public class GameService {
         gameRepository.delete(gameToDelete);
         return ResponseEntity.ok("Game with ID " + id + " has been deleted");
     }
+
+    @Transactional
+    public List<Game> getAllGames() {
+        return gameRepository.findAll();
+    }
+
+    @Transactional
+    public List<Game> getGamesByAvailability(boolean isAvailable) {
+        Date currentDate = new Date();
+        if (isAvailable) {
+            return gameRepository.findAvailableGames(currentDate);
+        } else {
+            return gameRepository.findUnavailableGames(currentDate);
+        }
+    }
+
+    @Transactional
+    public List<Game> getGamesByRating(double minRating) {
+        if (minRating < 0 || minRating > 5) {
+            throw new IllegalArgumentException("Rating must be between 0 and 5");
+        }
+        return gameRepository.findByAverageRatingGreaterThanEqual(minRating);
+    }
+
+    @Transactional
+    public List<Game> getGamesByCategory(String category) {
+        if (category == null || category.trim().isEmpty()) {
+            throw new IllegalArgumentException("Category cannot be empty");
+        }
+        return gameRepository.findByCategory(category);
+    }
 }

@@ -67,7 +67,7 @@ public class LendingRecord {
         if (aEndDate.before(aStartDate)) {
             throw new IllegalArgumentException("End date cannot be before start date");
         }
-        if (!aRequest.getGame().getOwner().equals(aOwner)) {
+        if (!aRequest.getRequestedGame().getOwner().equals(aOwner)) {
             throw new IllegalArgumentException("The record owner must be the owner of the game in the borrow request");
         }
         startDate = aStartDate;

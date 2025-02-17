@@ -55,7 +55,7 @@ public class LendingRecordService {
         }
 
         // Validate owner matches the game owner
-        if (!request.getGame().getOwner().equals(owner)) {
+        if (!request.getRequestedGame().getOwner().equals(owner)) {
             throw new IllegalArgumentException("The record owner must be the owner of the game in the borrow request");
         }
 

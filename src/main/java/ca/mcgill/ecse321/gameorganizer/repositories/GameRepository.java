@@ -4,6 +4,7 @@ import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
+import org.springframework.data.jpa.repository.Query;
 
 import java.util.Date;
 import java.util.List;
@@ -15,7 +16,6 @@ public interface GameRepository extends JpaRepository<Game, Integer> {
 
     List<Game> findByName(String name);
 
-
     List<Game> findByNameContaining(String namePart);
     List<Game> findByMinPlayersLessThanEqual(int players);
     List<Game> findByMaxPlayersGreaterThanEqual(int players);
@@ -25,4 +25,20 @@ public interface GameRepository extends JpaRepository<Game, Integer> {
     List<Game> findByDateAddedBetween(Date startDate, Date endDate);
     List<Game> findByOwner(GameOwner owner);
     List<Game> findByOwnerAndNameContaining(GameOwner owner, String namePart);
+
+    @Query("SELECT g FROM Game g WHERE g.id NOT IN " +
+           "(SELECT br.requestedGame.id FROM BorrowRequest br " +
+           "WHERE br.status = 'APPROVED' AND br.startDate <= ?1 AND br.endDate >= ?1)")
+    List<Game> findAvailableGames(Date currentDate);
+
+    @Query("SELECT g FROM Game g WHERE g.id IN " +
+           "(SELECT br.requestedGame.id FROM BorrowRequest br " +
+           "WHERE br.status = 'APPROVED' AND br.startDate <= ?1 AND br.endDate >= ?1)")
+    List<Game> findUnavailableGames(Date currentDate);
+
+    @Query("SELECT g FROM Game g WHERE " +
+           "(SELECT COALESCE(AVG(r.rating), 0) FROM Review r WHERE r.gameReviewed = g) >= ?1")
+    List<Game> findByAverageRatingGreaterThanEqual(double minRating);
+
+    List<Game> findByCategory(String category);
 }

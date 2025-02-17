@@ -21,7 +21,7 @@ public class LendingRecordRepositoryTest {
     private LendingRecordRepository lendingRecordRepository;
     
     @Autowired
-    private GameRepository gameOwnerRepository;
+    private AccountRepository gameOwnerRepository;
     
     @Autowired
     private GameRepository gameRepository;
@@ -56,7 +56,7 @@ public class LendingRecordRepositoryTest {
         borrower = new Account("Test Borrower", "borrower@test.com", "password123");
         accountRepository.save(borrower);
 
-        request = new BorrowRequest(startDate, endDate, "APPROVED", new Date(), game);
+        request = new BorrowRequest(startDate, endDate, BorrowRequestStatus.APPROVED, new Date(), game);
         request.setRequester(borrower);
         request.setResponder(owner);
         borrowRequestRepository.save(request);
@@ -162,7 +162,7 @@ public class LendingRecordRepositoryTest {
         assertEquals(request.getId(), found.getRequest().getId());
         
         // Test nested relationships
-        assertEquals(game.getId(), found.getRequest().getGame().getId());
+        assertEquals(game.getId(), found.getRequest().getRequestedGame().getId());
         assertEquals(borrower.getId(), found.getRequest().getRequester().getId());
     }
 

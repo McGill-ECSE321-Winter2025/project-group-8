@@ -28,6 +28,8 @@ public class Game {
 
     private Date dateAdded;
 
+    private String category;
+
     @ManyToOne
     private GameOwner owner;
 
@@ -37,6 +39,7 @@ public class Game {
         maxPlayers = aMaxPlayers;
         image = aImage;
         dateAdded = aDateAdded;
+        this.category = "Uncategorized"; // Default category
     }
 
     public String toString() {
