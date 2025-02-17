@@ -14,6 +14,8 @@ import java.util.Date;
 /**
  * Repository interface for managing LendingRecord entities.
  * Provides methods for CRUD operations and custom queries related to lending records.
+ * 
+ * @author @YoussGm3o8
  */
 @Repository
 public interface LendingRecordRepository extends JpaRepository<LendingRecord, Integer> {

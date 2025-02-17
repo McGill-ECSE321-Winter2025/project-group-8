@@ -8,6 +8,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Service class that handles business logic for account management operations.
+ * Provides methods for creating, retrieving, updating, and deleting user accounts.
+ *
+ * @author @dyune
+ */
 @Service
 public class AccountService {
 
@@ -21,6 +27,13 @@ public class AccountService {
     }
 
 
+    /**
+     * Creates a new account in the system.
+     *
+     * @param aNewAccount The account object to create
+     * @return ResponseEntity with creation confirmation message
+     * @throws IllegalArgumentException if an account with the same email already exists
+     */
     @Transactional
     public ResponseEntity<String> createAccount(Account aNewAccount) {
         String email = aNewAccount.getEmail();
@@ -39,6 +52,13 @@ public class AccountService {
     }
 
 
+    /**
+     * Retrieves an account by email address.
+     *
+     * @param email The email address of the account to retrieve
+     * @return The Account object
+     * @throws IllegalArgumentException if no account is found with the given email
+     */
     @Transactional
     public Account getAccountByEmail(String email) {
         return accountRepository.findByEmail(email).orElseThrow(
@@ -47,7 +67,15 @@ public class AccountService {
     }
 
 
-    // Password is unprotected, needs to change later!
+    /**
+     * Updates an existing account's information.
+     *
+     * @param email The email of the account to update
+     * @param newName The new name for the account
+     * @param newPassword The new password for the account
+     * @return ResponseEntity with update confirmation message
+     * @throws IllegalArgumentException if no account is found with the given email
+     */
     @Transactional
     public ResponseEntity<String> updateAccountByEmail(String email, String newName, String newPassword) {
         Account account = accountRepository.findByEmail(email).orElseThrow(
@@ -59,6 +87,13 @@ public class AccountService {
     }
 
 
+    /**
+     * Deletes an account from the system.
+     *
+     * @param email The email of the account to delete
+     * @return ResponseEntity with deletion confirmation message
+     * @throws IllegalArgumentException if no account is found with the given email
+     */
     @Transactional
     public ResponseEntity<String> deleteAccountByEmail(String email) {
         Account accountToDelete = accountRepository.findByEmail(email).orElseThrow(

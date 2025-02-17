@@ -19,6 +19,8 @@ import ca.mcgill.ecse321.gameorganizer.repositories.LendingRecordRepository;
 /**
  * Service class that handles business logic for lending record operations.
  * Provides methods for creating, updating, and managing lending records.
+ * 
+ * @author @YoussGm3o8
  */
 @Service
 public class LendingRecordService {

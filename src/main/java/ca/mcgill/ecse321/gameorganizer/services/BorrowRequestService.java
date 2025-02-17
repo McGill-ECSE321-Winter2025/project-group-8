@@ -12,11 +12,24 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Date;
 import java.util.List;
 
+/**
+ * Service class that handles business logic for game borrowing operations.
+ * Provides methods for creating, retrieving, updating, and managing borrow requests.
+ * Ensures validation of request dates, game availability, and ownership rules.
+ * 
+ * @author @rayanBaida
+ */
 @Service
 public class BorrowRequestService {
 
+    /** Repository for borrow request data access */
     private final BorrowRequestRepository borrowRequestRepository;
 
+    /**
+     * Constructs a BorrowRequestService with the required repository dependency.
+     *
+     * @param borrowRequestRepository The repository for borrow request data access
+     */
     @Autowired
     public BorrowRequestService(BorrowRequestRepository borrowRequestRepository) {
         this.borrowRequestRepository = borrowRequestRepository;

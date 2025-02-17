@@ -10,6 +10,8 @@ import java.util.Date;
 /**
  * Represents a record of a game lending transaction between a game owner and a borrower.
  * This entity tracks the lending period, status, and associated request details.
+ *
+ * @author @YoussGm3o8
  */
 @Entity
 @NoArgsConstructor

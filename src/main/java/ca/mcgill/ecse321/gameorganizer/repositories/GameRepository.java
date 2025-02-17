@@ -10,8 +10,20 @@ import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Repository interface for managing Game entities.
+ * Provides CRUD operations and custom queries for games.
+ *
+ * @author @PlazmaMamba
+ */
 @Repository
 public interface GameRepository extends JpaRepository<Game, Integer> {
+    /**
+     * Finds a game by its unique identifier.
+     *
+     * @param id the ID of the game to find
+     * @return the game if found, null otherwise
+     */
     Game findGameById(int id);
 
     List<Game> findByName(String name);
@@ -26,11 +38,23 @@ public interface GameRepository extends JpaRepository<Game, Integer> {
     List<Game> findByOwner(GameOwner owner);
     List<Game> findByOwnerAndNameContaining(GameOwner owner, String namePart);
 
+    /**
+     * Finds all games that are available for borrowing on a given date.
+     *
+     * @param currentDate the date to check availability
+     * @return list of available games
+     */
     @Query("SELECT g FROM Game g WHERE g.id NOT IN " +
            "(SELECT br.requestedGame.id FROM BorrowRequest br " +
            "WHERE br.status = 'APPROVED' AND br.startDate <= ?1 AND br.endDate >= ?1)")
     List<Game> findAvailableGames(Date currentDate);
 
+    /**
+     * Finds all games that are unavailable (borrowed) on a given date.
+     *
+     * @param currentDate the date to check availability
+     * @return list of unavailable games
+     */
     @Query("SELECT g FROM Game g WHERE g.id IN " +
            "(SELECT br.requestedGame.id FROM BorrowRequest br " +
            "WHERE br.status = 'APPROVED' AND br.startDate <= ?1 AND br.endDate >= ?1)")
