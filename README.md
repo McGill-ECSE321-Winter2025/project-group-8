@@ -30,7 +30,7 @@ At McGill University, as part of ECSE 321, we are developing an application for 
 | Youssef El Kesti                  | Scrum Master         | X                   | X                   | X                   | X           |
 | David Wang                        | Project Manager      | 5.5                   | X                   | X                   | X           |
 | Yessine Chaari                    | DevOps               | 8.0                   | X                   | X                   | X           |
-| Rayan Baida                       | Fullstack Developer  | X                   | X                   | X                   | X           |
+| Rayan Baida                       | Fullstack Developer  | 7.5                   | X                   | X                   | X           |
 
 
 ## Info on Project Branches
