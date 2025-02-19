@@ -28,7 +28,7 @@ At McGill University, as part of ECSE 321, we are developing an application for 
 
 | Name                              | Role                  | Deliverable 1 (hrs) | Deliverable 2 (hrs) | Deliverable 3 (hrs) | Total Hours |
 |-----------------------------------|-----------------------|---------------------|---------------------|---------------------|-------------|
-| Alexander Kudinov                | Backend Developer     | 5                   | X                   | X                   | X           |
+| Alexander Kudinov                | Backend Developer     | 7                   | X                   | X                   | X           |
 | Shayan Yamanidouzi Sorkhabi       | Frontend Developer    | 6                   | X                   | X                   | X           |
 | Jiwoong Choi                      | Test Lead            | 2                   | X                   | X                   | X           |
 | Youssef El Kesti                  | Scrum Master         | 6                   | X                   | X                   | X           |
