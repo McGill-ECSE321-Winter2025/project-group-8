@@ -35,7 +35,7 @@ At McGill University, as part of ECSE 321, we are developing an application for 
 | David Wang                        | Project Manager      | 5.5                   | X                   | X                   | X           |
 | Yessine Chaari                    | DevOps               | 8.0                   | X                   | X                   | X           |
 | Rayan Baida                       | Fullstack Developer  | 7.5                   | X                   | X                   | X           |
-
+- The details on the contribution of each member are available at [projects/Deliverable1](https://github.com/orgs/McGill-ECSE321-Winter2025/projects/22) and [meeting minutes](https://github.com/McGill-ECSE321-Winter2025/project-group-8/wiki/Project-report#meeting-minutes)
 
 ## Info on Project Branches
 
