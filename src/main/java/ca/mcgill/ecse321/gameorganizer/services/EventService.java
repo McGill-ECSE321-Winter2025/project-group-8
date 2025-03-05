@@ -10,16 +10,35 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Date;
 
+/**
+ * Service class that handles business logic for event management operations.
+ * Provides methods for creating, retrieving, updating, and deleting gaming events.
+ * Ensures business rules and validation for event operations.
+ * 
+ * @author @Yessine-glitch
+ */
 @Service
 public class EventService {
 
     private EventRepository eventRepository;
 
+    /**
+     * Constructs an EventService with the required repository dependency.
+     *
+     * @param eventRepository The repository for event data access
+     */
     @Autowired
     public EventService(EventRepository eventRepository) {
         this.eventRepository = eventRepository;
     }
 
+    /**
+     * Creates a new event in the system after validating required fields.
+     *
+     * @param newEvent The event object to create
+     * @return ResponseEntity with creation confirmation message
+     * @throws IllegalArgumentException if required fields are missing or invalid
+     */
     @Transactional
     public ResponseEntity<String> createEvent(Event newEvent) {
         
@@ -40,6 +59,13 @@ public class EventService {
         return ResponseEntity.ok("Event created successfully");
     }
 
+    /**
+     * Retrieves an event by its unique identifier.
+     *
+     * @param id The ID of the event to retrieve
+     * @return The Event object
+     * @throws IllegalArgumentException if no event is found with the given ID
+     */
     @Transactional
     public Event getEventById(int id) {
         return eventRepository.findEventById(id).orElseThrow(
@@ -47,11 +73,28 @@ public class EventService {
         );
     }
 
+    /**
+     * Retrieves all events in the system.
+     *
+     * @return List of all Event objects
+     */
     @Transactional
     public List<Event> getAllEvents() {
         return eventRepository.findAll();
     }
 
+    /**
+     * Updates an existing event's information.
+     *
+     * @param id The ID of the event to update
+     * @param title The new title for the event (optional)
+     * @param dateTime The new date and time for the event (optional)
+     * @param location The new location for the event (optional)
+     * @param description The new description for the event (optional)
+     * @param maxParticipants The new maximum number of participants (must be greater than 0)
+     * @return ResponseEntity with update confirmation message
+     * @throws IllegalArgumentException if the event is not found or if maxParticipants is invalid
+     */
     @Transactional
     public ResponseEntity<String> updateEvent(int id, String title, Date dateTime, 
             String location, String description, int maxParticipants) {
@@ -79,6 +122,13 @@ public class EventService {
         return ResponseEntity.ok("Event updated successfully");
     }
 
+    /**
+     * Deletes an event from the system.
+     *
+     * @param id The ID of the event to delete
+     * @return ResponseEntity with deletion confirmation message
+     * @throws IllegalArgumentException if no event is found with the given ID
+     */
     @Transactional
     public ResponseEntity<String> deleteEvent(int id) {
         Event eventToDelete = eventRepository.findEventById(id).orElseThrow(

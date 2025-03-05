@@ -11,6 +11,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Date;
 import java.util.List;
 
+/**
+ * Service class that handles business logic for game management operations.
+ * Provides methods for creating, retrieving, updating, and deleting games,
+ * as well as various search functionalities.
+ *
+ * @author @PlazmaMamba
+ */
 @Service
 public class GameService {
 
@@ -21,6 +28,13 @@ public class GameService {
         this.gameRepository = gameRepository;
     }
 
+    /**
+     * Creates a new game in the system.
+     *
+     * @param aNewGame The game object to create
+     * @return ResponseEntity with creation confirmation message
+     * @throws IllegalArgumentException if game details are invalid
+     */
     @Transactional
     public ResponseEntity<String> createGame(Game aNewGame) {
         if (aNewGame.getName() == null || aNewGame.getName().trim().isEmpty()) {
@@ -40,6 +54,13 @@ public class GameService {
         return ResponseEntity.ok("Game created");
     }
 
+    /**
+     * Retrieves a game by its ID.
+     *
+     * @param id The ID of the game to retrieve
+     * @return The Game object
+     * @throws IllegalArgumentException if no game is found with the given ID
+     */
     @Transactional
     public Game getGameById(int id) {
         Game game = gameRepository.findGameById(id);
@@ -49,6 +70,13 @@ public class GameService {
         return game;
     }
 
+    /**
+     * Retrieves games by their exact name.
+     *
+     * @param name The exact name to search for
+     * @return List of games matching the name
+     * @throws IllegalArgumentException if name is null or empty
+     */
     @Transactional
     public List<Game> getGamesByName(String name) {
         if (name == null || name.trim().isEmpty()) {
@@ -57,6 +85,13 @@ public class GameService {
         return gameRepository.findByName(name);
     }
 
+    /**
+     * Retrieves games containing the given text in their name.
+     *
+     * @param namePart The text to search for in game names
+     * @return List of games with matching name parts
+     * @throws IllegalArgumentException if search pattern is null or empty
+     */
     @Transactional
     public List<Game> getGamesByNameContaining(String namePart) {
         if (namePart == null || namePart.trim().isEmpty()) {
@@ -65,6 +100,13 @@ public class GameService {
         return gameRepository.findByNameContaining(namePart);
     }
 
+    /**
+     * Finds games that can be played with the specified number of players or fewer.
+     *
+     * @param players The maximum number of players to search for
+     * @return List of games playable with the specified number of players or fewer
+     * @throws IllegalArgumentException if player count is less than 1
+     */
     @Transactional
     public List<Game> getGamesByMinPlayers(int players) {
         if (players < 1) {
@@ -73,6 +115,13 @@ public class GameService {
         return gameRepository.findByMinPlayersLessThanEqual(players);
     }
 
+    /**
+     * Finds games that can be played with the specified number of players or more.
+     *
+     * @param players The minimum number of players to search for
+     * @return List of games playable with the specified number of players or more
+     * @throws IllegalArgumentException if player count is less than 1
+     */
     @Transactional
     public List<Game> getGamesByMaxPlayers(int players) {
         if (players < 1) {
@@ -81,6 +130,14 @@ public class GameService {
         return gameRepository.findByMaxPlayersGreaterThanEqual(players);
     }
 
+    /**
+     * Finds games that can be played with a number of players within the specified range.
+     *
+     * @param minPlayers The minimum number of players required
+     * @param maxPlayers The maximum number of players allowed
+     * @return List of games playable within the specified player range
+     * @throws IllegalArgumentException if minPlayers is less than 1 or maxPlayers is less than minPlayers
+     */
     @Transactional
     public List<Game> getGamesByPlayerRange(int minPlayers, int maxPlayers) {
         if (minPlayers < 1) {
@@ -138,6 +195,14 @@ public class GameService {
         return gameRepository.findByOwnerAndNameContaining(owner, namePart);
     }
 
+    /**
+     * Updates an existing game's information.
+     *
+     * @param id The ID of the game to update
+     * @param updatedGame The game object containing updated information
+     * @return ResponseEntity with update confirmation message
+     * @throws IllegalArgumentException if no game is found with the given ID
+     */
     @Transactional
     public ResponseEntity<String> updateGame(int id, Game updatedGame) {
         Game game = gameRepository.findGameById(id);
@@ -162,5 +227,61 @@ public class GameService {
         }
         gameRepository.delete(gameToDelete);
         return ResponseEntity.ok("Game with ID " + id + " has been deleted");
+    }
+
+    /**
+     * Retrieves all games in the system.
+     *
+     * @return List of all Game objects
+     */
+    @Transactional
+    public List<Game> getAllGames() {
+        return gameRepository.findAll();
+    }
+
+    /**
+     * Finds games based on their current availability status.
+     *
+     * @param isAvailable true to find available games, false for unavailable games
+     * @return List of games matching the availability criteria
+     */
+    @Transactional
+    public List<Game> getGamesByAvailability(boolean isAvailable) {
+        Date currentDate = new Date();
+        if (isAvailable) {
+            return gameRepository.findAvailableGames(currentDate);
+        } else {
+            return gameRepository.findUnavailableGames(currentDate);
+        }
+    }
+
+    /**
+     * Finds games with an average rating at or above the specified minimum.
+     *
+     * @param minRating The minimum average rating to search for (0-5)
+     * @return List of games meeting the rating criteria
+     * @throws IllegalArgumentException if rating is not between 0 and 5
+     */
+    @Transactional
+    public List<Game> getGamesByRating(double minRating) {
+        if (minRating < 0 || minRating > 5) {
+            throw new IllegalArgumentException("Rating must be between 0 and 5");
+        }
+        return gameRepository.findByAverageRatingGreaterThanEqual(minRating);
+    }
+
+    /**
+     * Finds games belonging to a specific category.
+     *
+     * @param category The category to search for
+     * @return List of games in the specified category
+     * @throws IllegalArgumentException if category is null or empty
+     */
+    @Transactional
+    public List<Game> getGamesByCategory(String category) {
+        if (category == null || category.trim().isEmpty()) {
+            throw new IllegalArgumentException("Category cannot be empty");
+        }
+        return gameRepository.findByCategory(category);
     }
 }

@@ -11,6 +11,12 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/**
+ * Represents a user account in the game organization system.
+ * This is the base class for all types of user accounts.
+ *
+ * @author @dyune
+ */
 @Entity
 @Inheritance(strategy = InheritanceType.JOINED)
 @Getter
@@ -33,15 +39,30 @@ public class Account {
 
     // Methods
 
+    /**
+     * Creates a new Account with the specified details.
+     *
+     * @param aName     The display name of the account holder
+     * @param aEmail    The email address associated with the account (unique identifier)
+     * @param aPassword The password for account authentication
+     */
     public Account(String aName, String aEmail, String aPassword) {
         name = aName;
         email = aEmail;
         password = aPassword;
     }
 
+    /**
+     * Performs cleanup operations when deleting the account.
+     */
     public void delete() {
     }
 
+    /**
+     * Returns a string representation of the Account.
+     *
+     * @return A string containing the account's ID, name, email, and password
+     */
     public String toString() {
         return super.toString() + "[" +
                 "id" + ":" + getId() + "," +
