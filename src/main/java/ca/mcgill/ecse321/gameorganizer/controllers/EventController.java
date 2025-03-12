@@ -1,5 +1,7 @@
 package ca.mcgill.ecse321.gameorganizer.controllers;
 
+import java.util.UUID;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,7 +24,7 @@ public class EventController {
     private EventService eventService;
 
     @GetMapping("/events/{eventId}")
-    public EventResponse getEvent(@PathVariable int eventId) {
+    public EventResponse getEvent(@PathVariable UUID eventId) {
         Event event = eventService.getEventById(eventId);
         return new EventResponse(event);
     }

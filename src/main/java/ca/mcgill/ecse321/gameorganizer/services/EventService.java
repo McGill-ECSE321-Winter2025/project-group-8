@@ -12,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.Date;
 
 
@@ -81,7 +82,7 @@ public class EventService {
      * @throws IllegalArgumentException if no event is found with the given ID
      */
     @Transactional
-    public Event getEventById(int id) {
+    public Event getEventById(UUID id) {
         return eventRepository.findEventById(id).orElseThrow(
             () -> new IllegalArgumentException("Event with id " + id + " does not exist")
         );

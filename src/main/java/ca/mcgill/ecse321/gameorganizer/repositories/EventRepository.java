@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.Date;
 import java.util.List;
+import java.utils.UUID;
 
 import ca.mcgill.ecse321.gameorganizer.models.Event;
 
@@ -17,14 +18,14 @@ import ca.mcgill.ecse321.gameorganizer.models.Event;
  * @author @Yessine-glitch
  */
 @Repository
-public interface EventRepository extends JpaRepository<Event, Integer> {
+public interface EventRepository extends JpaRepository<Event, UUID> {
     /**
      * Finds an event by its unique identifier.
      *
-     * @param id the ID of the event to find
+     * @param id the UUID of the event to find
      * @return Optional containing the event if found, empty otherwise
      */
-    Optional<Event> findEventById(int id);
+    Optional<Event> findEventById(UUID id);
 
     /**
      * Finds events by their title.
