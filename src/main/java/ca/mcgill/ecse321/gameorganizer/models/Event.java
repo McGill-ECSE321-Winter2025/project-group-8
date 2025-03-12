@@ -7,6 +7,7 @@ import lombok.Setter;
 
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Represents a gaming event in the system.
@@ -25,8 +26,8 @@ public class Event {
      * Unique identifier for the event.
      */
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    private int id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
     /**
      * The title or name of the event.
