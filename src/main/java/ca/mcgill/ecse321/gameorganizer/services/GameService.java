@@ -21,6 +21,11 @@ public class GameService {
         this.gameRepository = gameRepository;
     }
 
+    // TODO
+    public void submitReview() {
+
+    }
+
     @Transactional
     public ResponseEntity<String> createGame(Game aNewGame) {
         if (aNewGame.getName() == null || aNewGame.getName().trim().isEmpty()) {

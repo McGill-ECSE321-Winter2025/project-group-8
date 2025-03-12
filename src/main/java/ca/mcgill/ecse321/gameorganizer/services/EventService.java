@@ -1,6 +1,8 @@
 package ca.mcgill.ecse321.gameorganizer.services;
 
+import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
+import ca.mcgill.ecse321.gameorganizer.models.Registration;
 import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -13,15 +15,16 @@ import java.util.Date;
 @Service
 public class EventService {
 
-    private EventRepository eventRepository;
+    private final EventRepository eventRepository;
 
     @Autowired
     public EventService(EventRepository eventRepository) {
         this.eventRepository = eventRepository;
     }
 
+    // TODO: Associate an event to a host
     @Transactional
-    public ResponseEntity<String> createEvent(Event newEvent) {
+    public ResponseEntity<String> createEvent(Event newEvent, Account host) {
         
         if (newEvent.getTitle() == null || newEvent.getTitle().trim().isEmpty()) {
             throw new IllegalArgumentException("Event title cannot be empty");
@@ -52,6 +55,7 @@ public class EventService {
         return eventRepository.findAll();
     }
 
+    // TODO: Change to be callable by associated owner only
     @Transactional
     public ResponseEntity<String> updateEvent(int id, String title, Date dateTime, 
             String location, String description, int maxParticipants) {
@@ -79,6 +83,7 @@ public class EventService {
         return ResponseEntity.ok("Event updated successfully");
     }
 
+    // TODO: Change to be callable by associated owner only
     @Transactional
     public ResponseEntity<String> deleteEvent(int id) {
         Event eventToDelete = eventRepository.findEventById(id).orElseThrow(
@@ -86,5 +91,20 @@ public class EventService {
         );
         eventRepository.delete(eventToDelete);
         return ResponseEntity.ok("Event with id " + id + " has been deleted");
+    }
+
+    // TODO
+    public void registerForEvent() {
+
+    }
+
+    // TODO
+    public void unregisterForEvent() {
+
+    }
+
+    // TODO
+    public List<Registration> getRegistrationsForUser(Account account) {
+        return null;
     }
 }

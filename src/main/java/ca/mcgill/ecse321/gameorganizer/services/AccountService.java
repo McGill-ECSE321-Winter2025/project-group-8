@@ -12,7 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AccountService {
 
 
-    private AccountRepository accountRepository;
+    private final AccountRepository accountRepository;
 
 
     @Autowired

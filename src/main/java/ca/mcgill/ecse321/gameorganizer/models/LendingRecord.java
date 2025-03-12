@@ -21,7 +21,7 @@ public class LendingRecord {
 
     private Date endDate;
 
-    private String status;
+    private LendingStatus status;
 
     @ManyToOne
     private GameOwner recordOwner;
@@ -29,7 +29,7 @@ public class LendingRecord {
     @OneToOne
     private BorrowRequest request;
 
-    public LendingRecord(Date aStartDate, Date aEndDate, String aStatus, BorrowRequest aRequest, GameOwner aOwner) {
+    public LendingRecord(Date aStartDate, Date aEndDate, LendingStatus aStatus, BorrowRequest aRequest, GameOwner aOwner) {
         startDate = aStartDate;
         endDate = aEndDate;
         status = aStatus;
