@@ -1,112 +1,237 @@
 package ca.mcgill.ecse321.gameorganizer.services;
 
-import ca.mcgill.ecse321.gameorganizer.models.Account;
-import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
-import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
-import ca.mcgill.ecse321.gameorganizer.models.LendingRecord;
-import ca.mcgill.ecse321.gameorganizer.models.LendingStatus;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 
+import ca.mcgill.ecse321.gameorganizer.models.LendingRecord;
+import ca.mcgill.ecse321.gameorganizer.models.LendingRecord.LendingStatus;
+import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
+import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
+import ca.mcgill.ecse321.gameorganizer.models.Account;
+import ca.mcgill.ecse321.gameorganizer.repositories.LendingRecordRepository;
+
+/**
+ * Service class that handles business logic for lending record operations.
+ * Provides methods for creating, updating, and managing lending records.
+ * 
+ * @author @YoussGm3o8
+ */
 @Service
 public class LendingRecordService {
+    
+    @Autowired
+    private LendingRecordRepository lendingRecordRepository;
 
     /**
-     * Creates a new LendingRecord for a game borrow.
+     * Creates a new lending record for a game loan.
      *
      * @param startDate the start date of the lending period
-     * @param endDate the end (due) date of the lending period
-     * @param request the borrow request
-     * @param owner the owner of the game being lent
-     * @return the newly created LendingRecord
+     * @param endDate the end date of the lending period
+     * @param request the associated borrow request
+     * @param owner the game owner
+     * @return ResponseEntity with success message
+     * @throws IllegalArgumentException if parameters are invalid
+     * @throws IllegalStateException if creation fails
      */
-    public LendingRecord createLendingRecord(Date startDate, Date endDate, BorrowRequest request, GameOwner owner) {
-        return null;
+    @Transactional
+    public ResponseEntity<String> createLendingRecord(Date startDate, Date endDate, BorrowRequest request, GameOwner owner) {
+        // Validate parameters
+        if (startDate == null || endDate == null || request == null || owner == null) {
+            throw new IllegalArgumentException("Required parameters cannot be null");
+        }
+
+        // Validate owner
+        if (!request.getRequestedGame().getOwner().equals(owner)) {
+            throw new IllegalArgumentException("The record owner must be the owner of the game in the borrow request");
+        }
+
+        // Validate dates
+        Date now = new Date();
+        if (endDate.before(startDate)) {
+            throw new IllegalArgumentException("End date cannot be before start date");
+        }
+        if (startDate.before(now)) {
+            throw new IllegalArgumentException("Start date cannot be in the past");
+        }
+
+        // Create and save new lending record
+        LendingRecord record = new LendingRecord(startDate, endDate, LendingRecord.LendingStatus.ACTIVE, request, owner);
+        lendingRecordRepository.save(record);
+
+        return ResponseEntity.ok().body("Lending record created successfully");
     }
 
     /**
-     * Retrieves a LendingRecord by its unique identifier.
+     * Retrieves a lending record by its ID.
      *
-     * @param id the unique identifier of the LendingRecord
-     * @return the LendingRecord if found, otherwise null
+     * @param id the ID of the lending record
+     * @return the lending record
+     * @throws IllegalArgumentException if the lending record is not found
      */
+    @Transactional
     public LendingRecord getLendingRecordById(int id) {
-        return null;
+        return lendingRecordRepository.findLendingRecordById(id)
+            .orElseThrow(() -> new IllegalArgumentException("Lending record not found with id: " + id));
     }
 
     /**
-     * Retrieves all LendingRecords for a given GameOwner.
+     * Retrieves lending records by the game owner.
      *
-     * @param owner the GameOwner whose records are to be retrieved
-     * @return a list of LendingRecords for the specified owner
+     * @param owner the game owner
+     * @return list of lending records
+     * @throws IllegalArgumentException if the owner is null
      */
+    @Transactional
     public List<LendingRecord> getLendingRecordsByOwner(GameOwner owner) {
-        return null;
+        if (owner == null) {
+            throw new IllegalArgumentException("Owner cannot be null");
+        }
+        return lendingRecordRepository.findByRecordOwner(owner);
     }
 
     /**
-     * Retrieves all LendingRecords for a given borrower.
+     * Retrieves lending records by the borrower.
      *
-     * @param borrower the Account representing the borrower
-     * @return a list of LendingRecords for the specified borrower
+     * @param borrower the borrower account
+     * @return list of lending records
+     * @throws IllegalArgumentException if the borrower is null
      */
+    @Transactional
     public List<LendingRecord> getLendingRecordsByBorrower(Account borrower) {
-        return null;
+        if (borrower == null) {
+            throw new IllegalArgumentException("Borrower cannot be null");
+        }
+        return lendingRecordRepository.findByRequest_Requester(borrower);
     }
 
     /**
-     * Retrieves LendingRecords within a specified date range.
+     * Retrieves lending records within a specific date range.
      *
      * @param startDate the start date of the range
      * @param endDate the end date of the range
-     * @return a list of LendingRecords that fall within the specified date range
+     * @return list of lending records
+     * @throws IllegalArgumentException if date range parameters are invalid
      */
+    @Transactional
     public List<LendingRecord> getLendingRecordsByDateRange(Date startDate, Date endDate) {
-        return null;
+        if (startDate == null || endDate == null) {
+            throw new IllegalArgumentException("Date range parameters cannot be null");
+        }
+        if (endDate.before(startDate)) {
+            throw new IllegalArgumentException("End date cannot be before start date");
+        }
+        return lendingRecordRepository.findByStartDateBetween(startDate, endDate);
     }
 
     /**
-     * Updates the status of a LendingRecord.
+     * Updates the status of a lending record.
      *
-     * @param id the unique identifier of the LendingRecord
-     * @param newStatus the new status to be set
-     * @return the updated LendingRecord
+     * @param id the ID of the lending record
+     * @param newStatus the new status to set
+     * @return ResponseEntity with success message
+     * @throws IllegalArgumentException if the new status is null
+     * @throws IllegalStateException if the status transition is invalid
      */
-    public LendingRecord updateStatus(int id, LendingStatus newStatus) {
-        return null;
+    @Transactional
+    public ResponseEntity<String> updateStatus(int id, LendingStatus newStatus) {
+        if (newStatus == null) {
+            throw new IllegalArgumentException("New status cannot be null");
+        }
+
+        LendingRecord record = getLendingRecordById(id);
+        
+        // Validate status transition
+        if (record.getStatus() == LendingStatus.CLOSED) {
+            throw new IllegalStateException("Cannot update status of a closed lending record");
+        }
+
+        record.setStatus(newStatus);
+        lendingRecordRepository.save(record);
+        return ResponseEntity.ok("Lending record status updated successfully");
     }
 
     /**
-     * Closes a LendingRecord by marking it as CLOSED.
+     * Closes a lending record.
      *
-     * @param id the unique identifier of the LendingRecord
-     * @return the closed LendingRecord
+     * @param id the ID of the lending record
+     * @return ResponseEntity with success message
+     * @throws IllegalStateException if the lending record is already closed
      */
-    public LendingRecord closeLendingRecord(int id) {
-        return null;
+    @Transactional
+    public ResponseEntity<String> closeLendingRecord(int id) {
+        LendingRecord record = getLendingRecordById(id);
+        
+        if (record.getStatus() == LendingStatus.CLOSED) {
+            throw new IllegalStateException("Lending record is already closed");
+        }
+
+        record.setStatus(LendingStatus.CLOSED);
+        lendingRecordRepository.save(record);
+        return ResponseEntity.ok("Lending record closed successfully");
     }
 
     /**
-     * Finds and returns all overdue LendingRecords.
-     * The system should automatically mark any record as OVERDUE if the due date has passed and it is not closed.
+     * Finds overdue lending records.
      *
-     * @return a list of overdue LendingRecords
+     * @return list of overdue lending records
      */
+    @Transactional
     public List<LendingRecord> findOverdueRecords() {
-        return null;
+        return lendingRecordRepository.findByEndDateBeforeAndStatus(new Date(), LendingStatus.ACTIVE);
     }
 
     /**
-     * Updates the end date (due date) of a LendingRecord, allowing the GameOwner to extend the due date.
+     * Updates the end date of a lending record.
      *
-     * @param id the unique identifier of the LendingRecord
-     * @param newEndDate the new end date for the lending period
-     * @return the updated LendingRecord
+     * @param id the ID of the lending record
+     * @param newEndDate the new end date to set
+     * @return ResponseEntity with success message
+     * @throws IllegalArgumentException if the new end date is null or invalid
+     * @throws IllegalStateException if the lending record is closed
      */
-    public LendingRecord updateEndDate(int id, Date newEndDate) {
-        return null;
+    @Transactional
+    public ResponseEntity<String> updateEndDate(int id, Date newEndDate) {
+        if (newEndDate == null) {
+            throw new IllegalArgumentException("New end date cannot be null");
+        }
+
+        LendingRecord record = getLendingRecordById(id);
+        
+        if (record.getStatus() == LendingStatus.CLOSED) {
+            throw new IllegalStateException("Cannot update end date of a closed lending record");
+        }
+
+        if (newEndDate.before(record.getStartDate())) {
+            throw new IllegalArgumentException("New end date cannot be before start date");
+        }
+
+        record.setEndDate(newEndDate);
+        lendingRecordRepository.save(record);
+        return ResponseEntity.ok("Lending record end date updated successfully");
     }
 
+    /**
+     * Deletes a lending record.
+     *
+     * @param id the ID of the lending record
+     * @return ResponseEntity with success message
+     * @throws IllegalStateException if the lending record is active
+     */
+    @Transactional
+    public ResponseEntity<String> deleteLendingRecord(int id) {
+        LendingRecord record = getLendingRecordById(id);
+        
+        if (record.getStatus() == LendingStatus.ACTIVE) {
+            throw new IllegalStateException("Cannot delete an active lending record");
+        }
+
+        lendingRecordRepository.delete(record);
+        return ResponseEntity.ok("Lending record deleted successfully");
+    }
 }

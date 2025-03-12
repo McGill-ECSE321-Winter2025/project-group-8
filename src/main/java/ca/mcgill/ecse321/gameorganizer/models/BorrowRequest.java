@@ -7,6 +7,12 @@ import lombok.Setter;
 
 import java.util.Date;
 
+/**
+ * Represents a request to borrow a game from its owner.
+ * Tracks the request details including dates, status, and involved parties.
+ *
+ * @author @rayanBaida
+ */
 @Entity
 @Getter
 @Setter
@@ -21,7 +27,8 @@ public class BorrowRequest {
 
     private Date endDate;
 
-    private String status;
+    @Enumerated(EnumType.STRING)
+    private BorrowRequestStatus status;
 
     private Date requestDate;
 
@@ -38,7 +45,16 @@ public class BorrowRequest {
 
     // Methods
 
-    public BorrowRequest(Date aStartDate, Date aEndDate, String aStatus, Date aRequestDate, Game aRequestedGame) {
+    /**
+     * Creates a new borrow request with the specified details.
+     *
+     * @param aStartDate    The date when the borrowing period starts
+     * @param aEndDate      The date when the borrowing period ends
+     * @param aStatus       The current status of the request
+     * @param aRequestDate  The date when the request was made
+     * @param aRequestedGame The game being requested to borrow
+     */
+    public BorrowRequest(Date aStartDate, Date aEndDate, BorrowRequestStatus aStatus, Date aRequestDate, Game aRequestedGame) {
         startDate = aStartDate;
         endDate = aEndDate;
         status = aStatus;
@@ -46,6 +62,20 @@ public class BorrowRequest {
         requestedGame = aRequestedGame;
     }
 
+    /**
+     * Gets the game associated with this borrow request.
+     *
+     * @return The requested Game object
+     */
+    public Game getRequestedGame() {
+        return this.requestedGame;
+    }
+
+    /**
+     * Returns a string representation of the BorrowRequest.
+     *
+     * @return A string containing the request's details including ID, status, dates, and game reference
+     */
     public String toString() {
         return super.toString() + "[" +
                 "id" + ":" + getId() + "," +

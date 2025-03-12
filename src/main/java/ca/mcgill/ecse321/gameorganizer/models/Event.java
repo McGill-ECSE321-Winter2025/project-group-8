@@ -8,36 +8,73 @@ import lombok.Setter;
 import java.util.Date;
 import java.util.List;
 
+/**
+ * Represents a gaming event in the system.
+ * Events are organized gatherings where users can meet to play games.
+ * Each event has a featured game, a host, and can accommodate a maximum number of participants.
+ * 
+ * @author @Yessine-glitch
+ */
 @Entity
 @NoArgsConstructor
 @Getter
 @Setter
 public class Event {
 
+    /**
+     * Unique identifier for the event.
+     */
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
     private int id;
 
+    /**
+     * The title or name of the event.
+     */
     private String title;
 
+    /**
+     * The date and time when the event will take place.
+     */
     private Date dateTime;
 
+    /**
+     * The physical location where the event will be held.
+     */
     private String location;
 
+    /**
+     * A detailed description of the event.
+     */
     private String description;
 
+    /**
+     * The maximum number of participants that can attend the event.
+     */
     private int maxParticipants;
 
-    // Associations
-
+    /**
+     * The main game that will be featured at this event.
+     */
     @ManyToOne
     private Game featuredGame;
 
+    /**
+     * The account of the user who is hosting the event.
+     */
     @ManyToOne
     private Account host;
 
-    // Methods
-
+    /**
+     * Creates a new event with the specified details.
+     *
+     * @param aTitle The title of the event
+     * @param aDateTime The date and time when the event will occur
+     * @param aLocation The location where the event will be held
+     * @param aDescription A description of the event
+     * @param aMaxParticipants The maximum number of participants allowed
+     * @param aFeaturedGame The game that will be featured at the event
+     */
     public Event(String aTitle, Date aDateTime, String aLocation, String aDescription, int aMaxParticipants, Game aFeaturedGame) {
         title = aTitle;
         dateTime = aDateTime;
@@ -47,6 +84,12 @@ public class Event {
         featuredGame = aFeaturedGame;
     }
 
+    /**
+     * Returns a string representation of the Event.
+     *
+     * @return A string containing the event's details including ID, title, location, description,
+     *         maximum participants, date/time, and featured game reference
+     */
     public String toString() {
         return super.toString() + "[" +
                 "id" + ":" + getId() + "," +
