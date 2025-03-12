@@ -2,13 +2,19 @@ package ca.mcgill.ecse321.gameorganizer.services;
 
 import ca.mcgill.ecse321.gameorganizer.models.Event;
 import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
+import ca.mcgill.ecse321.gameorganizer.requests.CreateEventRequest;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.http.HttpStatus;
+import org.springframework.validation.annotation.Validated;
 
 import java.util.List;
 import java.util.Date;
+
+
 
 /**
  * Service class that handles business logic for event management operations.
@@ -40,7 +46,7 @@ public class EventService {
      * @throws IllegalArgumentException if required fields are missing or invalid
      */
     @Transactional
-    public ResponseEntity<String> createEvent(Event newEvent) {
+    public Event createEvent(CreateEventRequest newEvent) {
         
         if (newEvent.getTitle() == null || newEvent.getTitle().trim().isEmpty()) {
             throw new IllegalArgumentException("Event title cannot be empty");
@@ -54,9 +60,17 @@ public class EventService {
         if (newEvent.getFeaturedGame() == null) {
             throw new IllegalArgumentException("Featured game cannot be null");
         }
+        
+        Event e = new Event(
+            newEvent.getTitle(),
+            newEvent.getDateTime(),
+            newEvent.getLocation(),
+            newEvent.getDescription(),
+            newEvent.getMaxParticipants(),
+            newEvent.getFeaturedGame()
+        );
 
-        eventRepository.save(newEvent);
-        return ResponseEntity.ok("Event created successfully");
+        return eventRepository.save(e);
     }
 
     /**
