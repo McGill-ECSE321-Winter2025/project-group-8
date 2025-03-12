@@ -111,7 +111,7 @@ public class EventService {
      * @throws IllegalArgumentException if the event is not found or if maxParticipants is invalid
      */
     @Transactional
-    public ResponseEntity<String> updateEvent(int id, String title, Date dateTime, 
+    public ResponseEntity<String> updateEvent(UUID id, String title, Date dateTime, 
             String location, String description, int maxParticipants) {
         Event event = eventRepository.findEventById(id).orElseThrow(
             () -> new IllegalArgumentException("Event with id " + id + " does not exist")
@@ -145,7 +145,7 @@ public class EventService {
      * @throws IllegalArgumentException if no event is found with the given ID
      */
     @Transactional
-    public ResponseEntity<String> deleteEvent(int id) {
+    public ResponseEntity<String> deleteEvent(UUID id) {
         Event eventToDelete = eventRepository.findEventById(id).orElseThrow(
             () -> new IllegalArgumentException("Event with id " + id + " does not exist")
         );

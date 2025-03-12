@@ -7,7 +7,7 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.Date;
 import java.util.List;
-import java.utils.UUID;
+import java.util.UUID;
 
 import ca.mcgill.ecse321.gameorganizer.models.Event;
 
