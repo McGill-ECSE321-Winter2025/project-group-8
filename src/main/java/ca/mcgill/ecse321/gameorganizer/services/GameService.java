@@ -284,4 +284,27 @@ public class GameService {
         }
         return gameRepository.findByCategory(category);
     }
+
+    //submit game review
+
+    //remove game from collection
+    /**
+     * Removes the chosen game from the collection of it's owner
+     *
+     * @param aGame The game we are removing
+     * @return ResponseEntity with removal confirmation message
+     */
+    @Transactional
+    public ResponseEntity<String> removeGameFromCollection(Game aGame){
+        //print statements
+
+        aGame.setOwner(null);
+        gameRepository.delete(aGame);
+        return ResponseEntity.ok("Game removed from collection");
+    }
+    //add game to collection
+
+    //borrow game
+
+    //return game
 }
