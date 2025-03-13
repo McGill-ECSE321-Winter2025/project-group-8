@@ -1,6 +1,8 @@
 package ca.mcgill.ecse321.gameorganizer.services;
 
+import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
+import ca.mcgill.ecse321.gameorganizer.models.Registration;
 import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -20,7 +22,7 @@ import java.util.Date;
 @Service
 public class EventService {
 
-    private EventRepository eventRepository;
+    private final EventRepository eventRepository;
 
     /**
      * Constructs an EventService with the required repository dependency.
@@ -32,6 +34,7 @@ public class EventService {
         this.eventRepository = eventRepository;
     }
 
+    // TODO: Associate an event to a host
     /**
      * Creates a new event in the system after validating required fields.
      *
@@ -40,7 +43,7 @@ public class EventService {
      * @throws IllegalArgumentException if required fields are missing or invalid
      */
     @Transactional
-    public ResponseEntity<String> createEvent(Event newEvent) {
+    public ResponseEntity<String> createEvent(Event newEvent, Account host) {
         
         if (newEvent.getTitle() == null || newEvent.getTitle().trim().isEmpty()) {
             throw new IllegalArgumentException("Event title cannot be empty");
@@ -83,6 +86,7 @@ public class EventService {
         return eventRepository.findAll();
     }
 
+    // TODO: Change to be callable by associated owner only
     /**
      * Updates an existing event's information.
      *
@@ -122,6 +126,9 @@ public class EventService {
         return ResponseEntity.ok("Event updated successfully");
     }
 
+
+    // TODO: Change to be callable by associated owner only
+
     /**
      * Deletes an event from the system.
      *
@@ -129,6 +136,7 @@ public class EventService {
      * @return ResponseEntity with deletion confirmation message
      * @throws IllegalArgumentException if no event is found with the given ID
      */
+
     @Transactional
     public ResponseEntity<String> deleteEvent(int id) {
         Event eventToDelete = eventRepository.findEventById(id).orElseThrow(
@@ -136,5 +144,20 @@ public class EventService {
         );
         eventRepository.delete(eventToDelete);
         return ResponseEntity.ok("Event with id " + id + " has been deleted");
+    }
+
+    // TODO
+    public void registerForEvent() {
+
+    }
+
+    // TODO
+    public void unregisterForEvent() {
+
+    }
+
+    // TODO
+    public List<Registration> getRegistrationsForUser(Account account) {
+        return null;
     }
 }
