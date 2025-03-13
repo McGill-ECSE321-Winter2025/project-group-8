@@ -1,9 +1,11 @@
 package ca.mcgill.ecse321.gameorganizer.services;
 
+import ca.mcgill.ecse321.gameorganizer.dto.requests.CreateAccountRequest;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,25 +32,40 @@ public class AccountService {
     /**
      * Creates a new account in the system.
      *
-     * @param aNewAccount The account object to create
+     * @param request The account object to create
      * @return ResponseEntity with creation confirmation message
      * @throws IllegalArgumentException if an account with the same email already exists
      */
+
     @Transactional
-    public ResponseEntity<String> createAccount(Account aNewAccount) {
-        String email = aNewAccount.getEmail();
+    public ResponseEntity<String> createAccount(CreateAccountRequest request) {
+
+        String email = request.getEmail();
 
         if (accountRepository.findByEmail(email).isPresent()) {
             throw new IllegalArgumentException("Account with email " + email + " already exists");
         }
+        else if (email.isEmpty()) {
+            throw new IllegalArgumentException("Email cannot be empty");
+        }
 
-        if (aNewAccount instanceof GameOwner) {
-            accountRepository.save((GameOwner) aNewAccount);
+        if (!request.isGameOwner()) {
+            Account aNewAccount = new Account(
+                    request.getUsername(),
+                    request.getPassword(),
+                    request.getEmail()
+            );
+            accountRepository.save(aNewAccount);
         } else {
+            GameOwner aNewAccount = new GameOwner(
+                    request.getUsername(),
+                    request.getPassword(),
+                    request.getEmail()
+            );
             accountRepository.save(aNewAccount);
         }
 
-        return ResponseEntity.ok("Account created");
+        return ResponseEntity.ok("Account created successfully");
     }
 
 
@@ -59,6 +76,7 @@ public class AccountService {
      * @return The Account object
      * @throws IllegalArgumentException if no account is found with the given email
      */
+
     @Transactional
     public Account getAccountByEmail(String email) {
         return accountRepository.findByEmail(email).orElseThrow(
@@ -76,6 +94,7 @@ public class AccountService {
      * @return ResponseEntity with update confirmation message
      * @throws IllegalArgumentException if no account is found with the given email
      */
+
     @Transactional
     public ResponseEntity<String> updateAccountByEmail(String email, String newName, String newPassword) {
         Account account = accountRepository.findByEmail(email).orElseThrow(
@@ -94,6 +113,7 @@ public class AccountService {
      * @return ResponseEntity with deletion confirmation message
      * @throws IllegalArgumentException if no account is found with the given email
      */
+
     @Transactional
     public ResponseEntity<String> deleteAccountByEmail(String email) {
         Account accountToDelete = accountRepository.findByEmail(email).orElseThrow(
@@ -101,5 +121,10 @@ public class AccountService {
         );
         accountRepository.delete(accountToDelete);
         return ResponseEntity.ok("Account with email " + email + " has been deleted");
+    }
+
+
+    public ResponseEntity<String> upgradeUserToGameOwner(String email) {
+        return null;
     }
 }
