@@ -3,7 +3,10 @@ package ca.mcgill.ecse321.gameorganizer.services;
 import ca.mcgill.ecse321.gameorganizer.dto.requests.CreateAccountRequest;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
+import ca.mcgill.ecse321.gameorganizer.models.LendingRecord;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.RegistrationRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
@@ -21,11 +24,24 @@ public class AccountService {
 
 
     private final AccountRepository accountRepository;
+    private final RegistrationService registrationService;
+    private final LendingRecordService lendingRecordService;
+    private final BorrowRequestService borrowRequestService;
+    private final ReviewRepository reviewRepository;
 
 
     @Autowired
-    public AccountService(AccountRepository accountRepository) {
+    public AccountService(
+            AccountRepository accountRepository,
+            RegistrationService registrationService,
+            LendingRecordService lendingRecordService,
+            BorrowRequestService borrowRequestService, ReviewRepository reviewRepository
+    ) {
         this.accountRepository = accountRepository;
+        this.registrationService = registrationService;
+        this.lendingRecordService = lendingRecordService;
+        this.borrowRequestService = borrowRequestService;
+        this.reviewRepository = reviewRepository;
     }
 
 
@@ -122,8 +138,50 @@ public class AccountService {
         return ResponseEntity.ok("Account with email " + email + " has been deleted");
     }
 
+    /**
+     * Upgrades an Account to a GameOwner
+     *
+     * @param email
+     * @return ResponseEntity
+     * @throws IllegalArgumentException if the account does not exist or is a GameOwner
+     */
 
+    @Transactional
     public ResponseEntity<String> upgradeUserToGameOwner(String email) {
+
+        Account account;
+
+        try {
+            account = getAccountByEmail(email);
+        }
+        catch (IllegalArgumentException e) {
+            return ResponseEntity
+                    .badRequest()
+                    .body("Bad request: no such account exists.");
+        }
+
+        if (account instanceof GameOwner) {
+            return ResponseEntity
+                    .badRequest()
+                    .body("Bad request: account already a game owner.");
+        }
+
+        // Change all Registration to point to this new user
+
+
+
+        // Change all LendingRecord to point to this new user
+
+
+
+        // Change all BorrowRequest to point to this new user
+
+
+
+        // Change all Review to point to this new user
+
+
+
         return null;
     }
 }
