@@ -41,12 +41,12 @@ public class AccountService {
     public ResponseEntity<String> createAccount(CreateAccountRequest request) {
 
         String email = request.getEmail();
+        if (email == null || email.isEmpty()) {
+            throw new IllegalArgumentException("Email address is required");
+        }
 
         if (accountRepository.findByEmail(email).isPresent()) {
             throw new IllegalArgumentException("Account with email " + email + " already exists");
-        }
-        else if (email.isEmpty()) {
-            throw new IllegalArgumentException("Email cannot be empty");
         }
 
         if (!request.isGameOwner()) {
@@ -64,7 +64,6 @@ public class AccountService {
             );
             accountRepository.save(aNewAccount);
         }
-
         return ResponseEntity.ok("Account created successfully");
     }
 
