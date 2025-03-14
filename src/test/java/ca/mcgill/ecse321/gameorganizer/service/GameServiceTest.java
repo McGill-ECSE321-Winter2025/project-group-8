@@ -27,7 +27,9 @@ public class GameServiceTest {
 
     @Mock
     private GameRepository gameRepository;
+    @Mock
     private ReviewRepository reviewRepository;
+    @Mock
     private AccountRepository accountRepository;
 
     @InjectMocks
@@ -61,14 +63,25 @@ public class GameServiceTest {
     // Create Game Tests
     @Test
     public void testCreateGameSuccess() {
-        when(gameRepository.save(any(Game.class))).thenReturn(game);
-        doReturn(new GameResponseDto(game)).when(gameService).createGame(any(GameCreationDto.class));
+        // Setup the saved game that will be returned
+        Game savedGame = new Game("Test Game", 2, 4, "test.jpg", date);
+        savedGame.setId(1);
+        savedGame.setOwner(owner);
+        savedGame.setCategory("TestCategory");
+
+        // Mock repository behavior
+        when(accountRepository.findByEmail("owner@test.com")).thenReturn(java.util.Optional.of(owner));
+        when(gameRepository.save(any(Game.class))).thenReturn(savedGame);
+
+        // Call the actual method
         GameResponseDto result = gameService.createGame(gameCreationDto);
 
+        // Assert results
         assertNotNull(result);
         assertEquals("Test Game", result.getName());
         assertEquals(2, result.getMinPlayers());
         assertEquals(4, result.getMaxPlayers());
+        verify(gameRepository, times(1)).save(any(Game.class));
     }
 
 
@@ -205,19 +218,23 @@ public class GameServiceTest {
                 "owner@test.com"
         );
 
-        when(gameRepository.findGameById(1)).thenReturn(game);
-        when(gameRepository.save(any(Game.class))).thenReturn(game);
-        // Mock the updated game response
+        // Create the updated game that will be returned
         Game updatedGame = new Game("Updated Game", 2, 6, "updated.jpg", date);
         updatedGame.setId(1);
         updatedGame.setOwner(owner);
+        updatedGame.setCategory("TestCategory");
 
-        doReturn(new GameResponseDto(updatedGame)).when(gameService).updateGame(eq(1), any(GameCreationDto.class));
+        // Mock repository behavior
+        when(gameRepository.findGameById(1)).thenReturn(game);
+        when(gameRepository.save(any(Game.class))).thenReturn(updatedGame);
 
+        // Call the actual method
         GameResponseDto result = gameService.updateGame(1, updateDto);
 
+        // Assert results
         assertNotNull(result);
         assertEquals("Updated Game", result.getName());
+        verify(gameRepository, times(1)).save(any(Game.class));
     }
 
     // Delete Game Tests
@@ -378,14 +395,16 @@ public class GameServiceTest {
                 "owner@test.com"
         );
 
+        // Mock repository behavior
         when(gameRepository.findGameById(1)).thenReturn(game);
         when(gameRepository.save(any(Game.class))).thenReturn(game);
 
-        doReturn(new GameResponseDto(game)).when(gameService).updateGame(eq(1), any(GameCreationDto.class));
-
+        // Call the actual method
         GameResponseDto result = gameService.updateGame(1, updateDto);
 
+        // Assert results
         assertNotNull(result);
+        verify(gameRepository, times(1)).save(any(Game.class));
     }
 
     @Test
