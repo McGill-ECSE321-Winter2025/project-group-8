@@ -1,8 +1,14 @@
 package ca.mcgill.ecse321.gameorganizer.services;
 
+import ca.mcgill.ecse321.gameorganizer.dtos.GameCreationDto;
+import ca.mcgill.ecse321.gameorganizer.dtos.GameResponseDto;
+import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
+import ca.mcgill.ecse321.gameorganizer.models.Review;
+import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -10,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Service class that handles business logic for game management operations.
@@ -22,14 +29,26 @@ import java.util.List;
 public class GameService {
 
     private GameRepository gameRepository;
+    private ReviewRepository reviewRepository;
+    private AccountRepository accountRepository;
 
     @Autowired
-    public GameService(GameRepository gameRepository) {
+    public GameService(GameRepository gameRepository, ReviewRepository reviewRepository, AccountRepository accountRepository) {
         this.gameRepository = gameRepository;
+        this.reviewRepository = reviewRepository;
+        this.accountRepository = accountRepository;
     }
 
     // TODO
-    public void submitReview() {
+    @Transactional
+    public ResponseEntity<String> submitReview(Review review) {
+        if (review.getGameReviewed() == null){
+            throw new IllegalArgumentException("Game review must be for a game");
+        }
+
+
+        reviewRepository.save(review);
+        return ResponseEntity.ok("Game review submitted");
 
     }
 
@@ -42,7 +61,8 @@ public class GameService {
      */
   
     @Transactional
-    public ResponseEntity<String> createGame(Game aNewGame) {
+    public GameResponseDto createGame(GameCreationDto aNewGame) {
+
         if (aNewGame.getName() == null || aNewGame.getName().trim().isEmpty()) {
             throw new IllegalArgumentException("Game name cannot be empty");
         }
@@ -52,12 +72,40 @@ public class GameService {
         if (aNewGame.getMaxPlayers() < aNewGame.getMinPlayers()) {
             throw new IllegalArgumentException("Maximum players must be greater than or equal to minimum players");
         }
-        if (aNewGame.getOwner() == null) {
+        if (aNewGame.getOwnerId() == null) {
             throw new IllegalArgumentException("Game must have an owner");
         }
 
-        gameRepository.save(aNewGame);
-        return ResponseEntity.ok("Game created");
+        if (aNewGame.getCategory() == null){
+            throw new IllegalArgumentException("Game must have a category");
+        }
+
+        // accountService.getAccountByEmail(gameCreationDto.getOwnerId()
+        // return accountRepository.findByEmail(email).orElseThrow(
+        //                () -> new IllegalArgumentException("Account with email " + email + " does not exist")
+        //        );
+
+        Optional<Account> owner = accountRepository.findByEmail(aNewGame.getOwnerId());
+
+        if (owner.isEmpty()){
+            throw new IllegalArgumentException("Game owner does not exist");
+        }
+
+
+
+
+        Game createdGame = new Game(aNewGame.getName(),aNewGame.getMinPlayers() ,aNewGame.getMaxPlayers(), aNewGame.getImage(), new Date());
+        if (owner.get() instanceof GameOwner) {
+            GameOwner gameOwner = (GameOwner) owner.get();
+            createdGame.setOwner(gameOwner);
+            gameRepository.save(createdGame);
+
+        } else{
+            throw new IllegalArgumentException("The account is not a GameOwner");
+        }
+
+
+        return new GameResponseDto(createdGame);
     }
 
     /**
@@ -205,24 +253,28 @@ public class GameService {
      * Updates an existing game's information.
      *
      * @param id The ID of the game to update
-     * @param updatedGame The game object containing updated information
+     * @param updateDto The game dto object containing updated information
      * @return ResponseEntity with update confirmation message
      * @throws IllegalArgumentException if no game is found with the given ID
      */
     @Transactional
-    public ResponseEntity<String> updateGame(int id, Game updatedGame) {
+    public GameResponseDto updateGame(int id, GameCreationDto updateDto) {
         Game game = gameRepository.findGameById(id);
         if (game == null) {
             throw new IllegalArgumentException("Game with ID " + id + " does not exist");
         }
 
-        game.setName(updatedGame.getName());
-        game.setMinPlayers(updatedGame.getMinPlayers());
-        game.setMaxPlayers(updatedGame.getMaxPlayers());
-        game.setImage(updatedGame.getImage());
+        // Update only the fields you want to change
+        game.setName(updateDto.getName());
+        game.setMinPlayers(updateDto.getMinPlayers());
+        game.setMaxPlayers(updateDto.getMaxPlayers());
+        game.setImage(updateDto.getImage());
 
+        // Save the updated game
         gameRepository.save(game);
-        return ResponseEntity.ok("Game updated successfully");
+
+        // Return the updated game as DTO
+        return new GameResponseDto(game);
     }
 
     @Transactional

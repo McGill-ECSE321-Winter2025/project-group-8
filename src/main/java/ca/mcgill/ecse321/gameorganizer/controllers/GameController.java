@@ -43,35 +43,20 @@ public class GameController {
     @PostMapping("/games")
     public ResponseEntity<GameResponseDto> createGame(@RequestBody GameCreationDto gameCreationDto){
 
-        Game newGame = new Game();
-        newGame.setName(gameCreationDto.getName());
-        newGame.setMinPlayers(gameCreationDto.getMinPlayers());
-        newGame.setMaxPlayers(gameCreationDto.getMaxPlayers());
-        newGame.setImage(gameCreationDto.getImage());
-        newGame.setCategory(gameCreationDto.getCategory());
-        newGame.setDateAdded(new Date());
 
-        GameOwner owner = (GameOwner) accountService.getAccountByEmail(gameCreationDto.getOwnerId());
-        newGame.setOwner(owner);
 
-        service.createGame(newGame);
+        GameResponseDto createdGame = service.createGame(gameCreationDto);
 
-        return new ResponseEntity<>(new GameResponseDto(newGame), HttpStatus.CREATED);
+        return new ResponseEntity<>(createdGame, HttpStatus.CREATED);
 
     }
 
     @PutMapping("/games/{id}")
     public ResponseEntity<GameResponseDto> updateGme(@PathVariable int id, @RequestBody GameCreationDto gameDto){
-        Game updatedGame = new Game();
-        updatedGame.setName(gameDto.getName());
-        updatedGame.setMinPlayers(gameDto.getMinPlayers());
-        updatedGame.setMaxPlayers(gameDto.getMaxPlayers());
-        updatedGame.setImage(gameDto.getImage());
-        updatedGame.setCategory(gameDto.getCategory());
 
-        service.updateGame(id, updatedGame);
-        Game game = service.getGameById(id);
-        return ResponseEntity.ok(new GameResponseDto(game));
+
+        GameResponseDto updatedGame = service.updateGame(id, gameDto);
+        return ResponseEntity.ok(updatedGame);
 
     }
 
@@ -80,7 +65,10 @@ public class GameController {
         return service.deleteGame(id);
     }
 
+    // /reviews/{id}
 
+    // /reviews/{id} get ? or like some sql query get all review for game name
+    
 
 
 }
