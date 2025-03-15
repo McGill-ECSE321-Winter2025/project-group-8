@@ -5,6 +5,11 @@ import org.springframework.web.context.annotation.RequestScope;
 
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 
+/**
+ * UserContext inspired from the running example
+ * @author Shayan
+ */
+
 @Component
 @RequestScope
 public class UserContext {
@@ -16,5 +21,9 @@ public class UserContext {
 
     public void setCurrentUser(Account currentUser) {
         this.currentUser = currentUser;
+    }
+
+    public void clear() {
+        this.currentUser = null;
     }
 }
