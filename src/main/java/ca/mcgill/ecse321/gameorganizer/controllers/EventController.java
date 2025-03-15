@@ -1,7 +1,9 @@
 package ca.mcgill.ecse321.gameorganizer.controllers;
 
 import java.sql.Date;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -32,10 +34,27 @@ public class EventController {
         this.eventService = eventService;
     }
     
+    /**
+     * @param eventId
+     * @return
+     */
     @GetMapping("/{eventId}")
     public ResponseEntity<EventResponse> getEvent(@PathVariable UUID eventId) {
         Event event = eventService.getEventById(eventId);
         return ResponseEntity.ok(new EventResponse(event));
+    }
+
+    /**
+     * Get all events
+     * @return List of all events
+     */
+    @GetMapping
+    public ResponseEntity<List<EventResponse>> getAllEvents() {
+        List<Event> events = eventService.getAllEvents();
+        List<EventResponse> eventResponses = events.stream()
+            .map(EventResponse::new)
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(eventResponses);
     }
     
     @PostMapping

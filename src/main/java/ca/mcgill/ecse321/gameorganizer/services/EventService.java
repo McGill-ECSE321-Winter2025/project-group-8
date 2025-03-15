@@ -106,7 +106,16 @@ public class EventService {
      */
     @Transactional
     public List<Event> getAllEvents() {
-        return eventRepository.findAll();
+        List<Event> events = eventRepository.findAll();
+
+        for (Event event : events) {
+            if (event.getDateTime() instanceof java.sql.Timestamp) {
+                java.sql.Timestamp timestamp = (java.sql.Timestamp) event.getDateTime();
+                event.setDateTime(new java.sql.Date(timestamp.getTime()));
+            }
+        }
+
+        return events;
     }
 
     /**
