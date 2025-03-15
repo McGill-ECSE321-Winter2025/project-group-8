@@ -1,7 +1,10 @@
 package ca.mcgill.ecse321.gameorganizer.middleware;
 
 import ca.mcgill.ecse321.gameorganizer.models.Account;
+import ca.mcgill.ecse321.gameorganizer.models.Event;
+import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -11,13 +14,12 @@ import org.springframework.web.servlet.HandlerInterceptor;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-// TODO: Implement auth logic here to restrict application access to users only
-// TODO: Implement auth logic to ensure events can only be updated/deleted by organizers only
-// TODO: Implement auth logic to ensure borrow requests can be managed only by GameOwner
+// TODO: Implement auth logic here to restrict application access to users only DONE
+// TODO: Implement auth logic to ensure events can only be updated/deleted by organizers only DONE
+// TODO: Implement auth logic to ensure borrow requests can be managed only by GameOwner DONE
 
 // Consult tutorial section on Middleware and Spring docs
 // https://github.com/McGill-ECSE321-Winter2025/running-example
-
 
 /**
  * Interceptor to handle user authentication and authorization.
@@ -30,17 +32,20 @@ import jakarta.servlet.http.HttpServletResponse;
 public class UserAuthInterceptor implements HandlerInterceptor {
 
     private final AccountRepository accountRepository;
+    private final EventRepository eventRepository;
     private final UserContext userContext;
 
     /**
-     * Constructs a UserAuthInterceptor with the specified account repository and user context.
+     * Constructs a UserAuthInterceptor with the specified account repository, event repository, and user context.
      * 
      * @param accountRepository the account repository
+     * @param eventRepository the event repository
      * @param userContext the user context
      */
     @Autowired
-    public UserAuthInterceptor(AccountRepository accountRepository, UserContext userContext) {
+    public UserAuthInterceptor(AccountRepository accountRepository, EventRepository eventRepository, UserContext userContext) {
         this.accountRepository = accountRepository;
+        this.eventRepository = eventRepository;
         this.userContext = userContext;
     }
 
@@ -80,9 +85,16 @@ public class UserAuthInterceptor implements HandlerInterceptor {
 
                 // Check user role and permissions
                 String requestURI = request.getRequestURI();
-                if (requestURI.startsWith("/events") && !user.getRole().equals("Organizer")) {
-                    throw new UnauthedException("Access denied: Only organizers can manage events");
-                } else if (requestURI.startsWith("/borrowRequests") && !user.getRole().equals("GameOwner")) {
+                if (requestURI.startsWith("/events")) {
+                    String eventIdParam = request.getParameter("eventId");
+                    if (eventIdParam != null) {
+                        Integer eventId = Integer.parseInt(eventIdParam);
+                        Event event = eventRepository.findById(eventId).orElseThrow(() -> new UnauthedException("Event not found"));
+                        if (!event.getHost().equals(user)) {
+                            throw new UnauthedException("Access denied: Only event hosts can manage events");
+                        }
+                    }
+                } else if (requestURI.startsWith("/borrowRequests") && !(user instanceof GameOwner)) {
                     throw new UnauthedException("Access denied: Only GameOwners can manage borrow requests");
                 }
             } catch (IllegalArgumentException e) {
