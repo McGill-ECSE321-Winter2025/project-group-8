@@ -7,8 +7,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.util.UUID;
 
 @Component
@@ -42,9 +42,19 @@ public class UserAuthInterceptor implements HandlerInterceptor {
             }
 
             try {
-                UUID userId = UUID.fromString(userIdHeader);
+                Integer userId = Integer.parseInt(userIdHeader);
                 Account user = accountRepository.findById(userId).orElseThrow(() -> new Exception("User not found"));
                 userContext.setCurrentUser(user);
+
+                // Check user role and permissions
+                String requestURI = request.getRequestURI();
+                if (requestURI.startsWith("/events") && !user.getRole().equals("Organizer")) {
+                    response.sendError(HttpServletResponse.SC_FORBIDDEN, "Access denied: Only organizers can manage events");
+                    return false;
+                } else if (requestURI.startsWith("/borrowRequests") && !user.getRole().equals("GameOwner")) {
+                    response.sendError(HttpServletResponse.SC_FORBIDDEN, "Access denied: Only GameOwners can manage borrow requests");
+                    return false;
+                }
             } catch (IllegalArgumentException e) {
                 response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid User-Id format");
                 return false;
