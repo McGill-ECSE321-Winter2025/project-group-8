@@ -2,6 +2,7 @@ package ca.mcgill.ecse321.gameorganizer.services;
 
 import ca.mcgill.ecse321.gameorganizer.models.Event;
 import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
 import ca.mcgill.ecse321.gameorganizer.requests.CreateEventRequest;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +29,9 @@ import java.util.Date;
 public class EventService {
 
     private EventRepository eventRepository;
+
+    @Autowired
+    private GameRepository gameRepository;
 
     /**
      * Constructs an EventService with the required repository dependency.
@@ -83,10 +87,17 @@ public class EventService {
      */
     @Transactional
     public Event getEventById(UUID id) {
-        return eventRepository.findEventById(id).orElseThrow(
-            () -> new IllegalArgumentException("Event with id " + id + " does not exist")
-        );
-    }
+        Event event = eventRepository.findEventById(id)
+        .orElseThrow(() -> new IllegalArgumentException("Event with id " + id + " does not exist"));
+    
+        // Handle date conversion if needed
+        if (event.getDateTime() instanceof java.sql.Timestamp) {
+            java.sql.Timestamp timestamp = (java.sql.Timestamp) event.getDateTime();
+            event.setDateTime(new java.sql.Date(timestamp.getTime()));
+        }
+    
+        return event;
+    }   
 
     /**
      * Retrieves all events in the system.
@@ -111,31 +122,30 @@ public class EventService {
      * @throws IllegalArgumentException if the event is not found or if maxParticipants is invalid
      */
     @Transactional
-    public ResponseEntity<String> updateEvent(UUID id, String title, Date dateTime, 
-            String location, String description, int maxParticipants) {
-        Event event = eventRepository.findEventById(id).orElseThrow(
-            () -> new IllegalArgumentException("Event with id " + id + " does not exist")
-        );
+public Event updateEvent(UUID id, String title, Date dateTime, 
+        String location, String description, int maxParticipants) {
+    Event event = eventRepository.findEventById(id).orElseThrow(
+        () -> new IllegalArgumentException("Event with id " + id + " does not exist")
+    );
 
-        if (title != null && !title.trim().isEmpty()) {
-            event.setTitle(title);
-        }
-        if (dateTime != null) {
-            event.setDateTime(dateTime);
-        }
-        if (location != null) {
-            event.setLocation(location);
-        }
-        if (description != null) {
-            event.setDescription(description);
-        }
-        if (maxParticipants > 0) {
-            event.setMaxParticipants(maxParticipants);
-        }
-
-        eventRepository.save(event);
-        return ResponseEntity.ok("Event updated successfully");
+    if (title != null && !title.trim().isEmpty()) {
+        event.setTitle(title);
     }
+    if (dateTime != null) {
+        event.setDateTime(dateTime);
+    }
+    if (location != null) {
+        event.setLocation(location);
+    }
+    if (description != null) {
+        event.setDescription(description);
+    }
+    if (maxParticipants > 0) {
+        event.setMaxParticipants(maxParticipants);
+    }
+
+    return eventRepository.save(event);
+}
 
     /**
      * Deletes an event from the system.
