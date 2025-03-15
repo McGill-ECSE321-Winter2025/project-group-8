@@ -2,6 +2,8 @@ package ca.mcgill.ecse321.gameorganizer.services;
 
 import ca.mcgill.ecse321.gameorganizer.dtos.GameCreationDto;
 import ca.mcgill.ecse321.gameorganizer.dtos.GameResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dtos.ReviewResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dtos.ReviewSubmissionDto;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
@@ -39,17 +41,46 @@ public class GameService {
         this.accountRepository = accountRepository;
     }
 
-    // TODO
+    /**
+     * Submits a new review for a game.
+     * Validates the submitted review data, creates a new Review entity,
+     * associates it with the specified game and reviewer, and saves it to the database.
+     *
+     * @param submittedReview DTO containing review information including rating,
+     *                        optional comment, game ID, and reviewer email
+     * @return ReviewResponseDto containing the saved review information with associated entities
+     * @throws IllegalArgumentException if rating is invalid (not 1-5),
+     *                                 if the game does not exist,
+     *                                 or if the reviewer account does not exist
+     */
     @Transactional
-    public ResponseEntity<String> submitReview(Review review) {
-        if (review.getGameReviewed() == null){
-            throw new IllegalArgumentException("Game review must be for a game");
-        }
+    public ReviewResponseDto submitReview(ReviewSubmissionDto submittedReview) {
 
+        int rating = submittedReview.getRating();
+        if (rating < 1 || rating > 5){
+            throw new IllegalArgumentException("Rating must be between 1 and 5");
+        }
+        String comment = submittedReview.getComment() != null ? submittedReview.getComment() : "";
+        int gameId = submittedReview.getGameId();
+        String reviewerId = submittedReview.getReviewerId();
+
+        Game reviewedGame = gameRepository.findGameById(gameId);
+        if (reviewedGame == null){
+            throw new IllegalArgumentException("Reviewed game does not exist");
+
+        }
+        Optional<Account> reviewerAccount = accountRepository.findByEmail(reviewerId);
+        if (reviewerAccount.isEmpty()) {
+            throw new IllegalArgumentException("Reviewer with email " + reviewerId + " does not exist");
+        }
+        Account reviewer = reviewerAccount.get();
+
+        Review review = new Review(rating, comment, new Date());
+        review.setReviewer(reviewer);
+        review.setGameReviewed(reviewedGame);
 
         reviewRepository.save(review);
-        return ResponseEntity.ok("Game review submitted");
-
+        return new ReviewResponseDto(review);
     }
 
     /**
@@ -360,9 +391,121 @@ public class GameService {
         gameRepository.delete(aGame);
         return ResponseEntity.ok("Game removed from collection");
     }
-    //add game to collection
 
-    //borrow game
+    /**
+     * Retrieves a review by its ID.
+     *
+     * @param id The ID of the review to retrieve
+     * @return ReviewResponseDto containing the review details
+     * @throws IllegalArgumentException if no review is found with the given ID
+     */
+    @Transactional
+    public ReviewResponseDto getReviewById(int id) {
+        Optional<Review> review = reviewRepository.findReviewById(id);
+        if (review.isEmpty()) {
+            throw new IllegalArgumentException("Review with ID " + id + " does not exist");
+        }
+        return new ReviewResponseDto(review.get());
+    }
 
-    //return game
+    /**
+     * Retrieves all reviews for a specific game by game ID.
+     *
+     * @param gameId The ID of the game to get reviews for
+     * @return List of ReviewResponseDto objects containing review details
+     * @throws IllegalArgumentException if no game is found with the given ID
+     */
+    @Transactional
+    public List<ReviewResponseDto> getReviewsByGameId(int gameId) {
+        Game game = gameRepository.findGameById(gameId);
+        if (game == null) {
+            throw new IllegalArgumentException("Game with ID " + gameId + " does not exist");
+        }
+
+        List<Review> reviews = reviewRepository.findByGameReviewed(game);
+        return reviews.stream()
+                .map(ReviewResponseDto::new)
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    /**
+     * Retrieves all reviews for games with a specific name.
+     * This allows retrieving reviews across different instances of games with the same name.
+     *
+     * @param gameName The name of the game(s) to get reviews for
+     * @return List of ReviewResponseDto objects containing review details
+     * @throws IllegalArgumentException if the game name is null or empty
+     */
+    @Transactional
+    public List<ReviewResponseDto> getReviewsByGameName(String gameName) {
+        if (gameName == null || gameName.trim().isEmpty()) {
+            throw new IllegalArgumentException("Game name cannot be empty");
+        }
+
+        List<Game> games = gameRepository.findByNameContaining(gameName);
+        List<Review> reviews = new java.util.ArrayList<>();
+
+        for (Game game : games) {
+            reviews.addAll(reviewRepository.findByGameReviewed(game));
+        }
+
+        return reviews.stream()
+                .map(ReviewResponseDto::new)
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    /**
+     * Updates an existing review.
+     *
+     * @param id The ID of the review to update
+     * @param reviewDto DTO containing updated review information
+     * @return ReviewResponseDto containing the updated review details
+     * @throws IllegalArgumentException if no review is found with the given ID,
+     *                                 if rating is invalid (not 1-5),
+     *                                 or if the reviewer cannot be authenticated
+     */
+    @Transactional
+    public ReviewResponseDto updateReview(int id, ReviewSubmissionDto reviewDto) {
+        Optional<Review> reviewOpt = reviewRepository.findReviewById(id);
+        if (reviewOpt.isEmpty()) {
+            throw new IllegalArgumentException("Review with ID " + id + " does not exist");
+        }
+
+        Review review = reviewOpt.get();
+
+        // Validate the rating
+        int rating = reviewDto.getRating();
+        if (rating < 1 || rating > 5) {
+            throw new IllegalArgumentException("Rating must be between 1 and 5");
+        }
+
+        // Update the review fields
+        review.setRating(rating);
+        String comment = reviewDto.getComment() != null ? reviewDto.getComment() : "";
+        review.setComment(comment);
+
+        // Save the updated review
+        reviewRepository.save(review);
+        return new ReviewResponseDto(review);
+    }
+
+    /**
+     * Deletes a review by ID.
+     *
+     * @param id The ID of the review to delete
+     * @return ResponseEntity with deletion confirmation message
+     * @throws IllegalArgumentException if no review is found with the given ID
+     */
+    @Transactional
+    public ResponseEntity<String> deleteReview(int id) {
+        Optional<Review> reviewOpt = reviewRepository.findReviewById(id);
+        if (reviewOpt.isEmpty()) {
+            throw new IllegalArgumentException("Review with ID " + id + " does not exist");
+        }
+
+        reviewRepository.delete(reviewOpt.get());
+        return ResponseEntity.ok("Review with ID " + id + " has been deleted");
+    }
+
+
 }
