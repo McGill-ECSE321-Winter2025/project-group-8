@@ -5,7 +5,6 @@ import ca.mcgill.ecse321.gameorganizer.repositories.LendingRecordRepository;
 import ca.mcgill.ecse321.gameorganizer.services.LendingRecordService;
 import ca.mcgill.ecse321.gameorganizer.dtos.LendingHistoryFilterDto;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
-import ca.mcgill.ecse321.gameorganizer.exceptions.InvalidOperationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,7 +14,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;

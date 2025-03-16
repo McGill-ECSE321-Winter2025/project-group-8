@@ -10,9 +10,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
-
 import ca.mcgill.ecse321.gameorganizer.models.LendingRecord;
 import ca.mcgill.ecse321.gameorganizer.models.LendingRecord.LendingStatus;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
@@ -20,10 +17,8 @@ import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.repositories.LendingRecordRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;
-import ca.mcgill.ecse321.gameorganizer.dtos.BorrowRequestDto;
 import ca.mcgill.ecse321.gameorganizer.dtos.LendingHistoryFilterDto;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
-import ca.mcgill.ecse321.gameorganizer.exceptions.InvalidOperationException;
 
 /**
  * Service class that handles business logic for lending record operations.
