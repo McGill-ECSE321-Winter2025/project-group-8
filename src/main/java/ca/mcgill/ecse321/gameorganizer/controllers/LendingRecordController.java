@@ -1,24 +1,42 @@
 package ca.mcgill.ecse321.gameorganizer.controllers;
 
-import ca.mcgill.ecse321.gameorganizer.models.Account;
-import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
-import ca.mcgill.ecse321.gameorganizer.models.LendingRecord;
-import ca.mcgill.ecse321.gameorganizer.models.LendingRecord.LendingStatus;
-import ca.mcgill.ecse321.gameorganizer.services.LendingRecordService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.ControllerAdvice;
 
+import ca.mcgill.ecse321.gameorganizer.dtos.*;
+import ca.mcgill.ecse321.gameorganizer.models.LendingRecord;
+import ca.mcgill.ecse321.gameorganizer.models.LendingRecord.LendingStatus;
+import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
+import ca.mcgill.ecse321.gameorganizer.models.Account;
+import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
+import ca.mcgill.ecse321.gameorganizer.services.LendingRecordService;
+import ca.mcgill.ecse321.gameorganizer.services.AccountService;
+import ca.mcgill.ecse321.gameorganizer.services.BorrowRequestService;
+import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
+import ca.mcgill.ecse321.gameorganizer.exceptions.InvalidOperationException;
+
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.Arrays;
+import java.util.HashMap;
 
 /**
- * REST controller for managing lending record operations.
- * Provides endpoints for viewing lending history and managing game returns.
+ * REST controller for managing lending records.
+ * Provides endpoints for creating, retrieving, updating, and filtering lending records.
  * 
- * @author YoussGm3o8
+ * @author @YoussGm3o8
  */
 @RestController
 @RequestMapping("/api/lending-records")
@@ -26,186 +44,705 @@ public class LendingRecordController {
 
     @Autowired
     private LendingRecordService lendingRecordService;
+    
+    @Autowired
+    private AccountService accountService;
+    
+    @Autowired
+    private BorrowRequestService borrowRequestService;
 
     /**
-     * Retrieves all lending records for a game owner.
-     * Implements Use Case 9: View Lending History
+     * Validates that the damage severity is within the acceptable range (0-3).
+     * 
+     * @param severity The damage severity to validate
+     * @return The validated damage severity
+     * @throws IllegalArgumentException if severity is outside the valid range
+     */
+    private int validateDamageSeverity(int severity) {
+        if (severity < 0 || severity > 3) {
+            throw new IllegalArgumentException("Damage severity must be between 0 and 3");
+        }
+        return severity;
+    }
+
+    /**
+     * Get all lending records with pagination support.
+     * 
+     * @param page The page number (0-based)
+     * @param size The page size
+     * @param sort The field to sort by
+     * @param direction The sort direction (asc or desc)
+     * @return Paginated list of lending records
+     */
+    @GetMapping
+    public ResponseEntity<Map<String, Object>> getAllLendingRecords(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "id") String sort,
+            @RequestParam(defaultValue = "asc") String direction) {
+        
+        // Create pageable object
+        Sort.Direction sortDirection = direction.equalsIgnoreCase("desc") ? Sort.Direction.DESC : Sort.Direction.ASC;
+        Pageable pageable = PageRequest.of(page, size, Sort.by(sortDirection, sort));
+        
+        // Get paginated records
+        List<LendingRecord> allRecords = lendingRecordService.getAllLendingRecords();
+        
+        // Manual pagination (since service doesn't support pageable yet)
+        int start = (int) pageable.getOffset();
+        int end = Math.min((start + pageable.getPageSize()), allRecords.size());
+        
+        // Check if start is valid
+        if (start > allRecords.size()) {
+            start = 0;
+            end = Math.min(pageable.getPageSize(), allRecords.size());
+        }
+        
+        List<LendingRecord> paginatedRecords = allRecords.subList(start, end);
+        
+        // Convert to DTOs
+        List<LendingRecordResponseDto> recordDtos = paginatedRecords.stream()
+                .map(this::convertToResponseDto)
+                .collect(Collectors.toList());
+        
+        // Create response with pagination metadata
+        Map<String, Object> response = new HashMap<>();
+        response.put("records", recordDtos);
+        response.put("currentPage", page);
+        response.put("totalItems", allRecords.size());
+        response.put("totalPages", (int) Math.ceil((double) allRecords.size() / size));
+        
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Retrieves a specific lending record by ID.
+     * Supports Use Case 9: View Lending History (detailed view)
      *
-     * @param ownerId the ID of the game owner
-     * @return list of lending records
+     * @param id The ID of the lending record
+     * @return ResponseEntity containing the lending record details
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<LendingRecordResponseDto> getLendingRecordById(@PathVariable int id) {
+        try {
+            LendingRecord record = lendingRecordService.getLendingRecordById(id);
+            return ResponseEntity.ok(convertToResponseDto(record));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    /**
+     * Retrieves lending records by owner.
+     * 
+     * @param ownerId The ID of the game owner
+     * @return ResponseEntity containing lending records for the owner
      */
     @GetMapping("/owner/{ownerId}")
-    public ResponseEntity<List<LendingRecord>> getLendingHistoryByOwner(@PathVariable int ownerId) {
-        // In a real implementation, you would use a service to fetch the GameOwner by ID
-        GameOwner owner = new GameOwner(); // Placeholder - in real app, get from service
-        owner.setId(ownerId);
-        
-        List<LendingRecord> records = lendingRecordService.getLendingRecordsByOwner(owner);
-        return ResponseEntity.ok(records);
+    public ResponseEntity<List<LendingRecordResponseDto>> getLendingHistoryByOwner(@PathVariable int ownerId) {
+        try {
+            GameOwner owner = (GameOwner) accountService.getAccountById(ownerId);
+            List<LendingRecord> records = lendingRecordService.getLendingRecordsByOwner(owner);
+            
+            List<LendingRecordResponseDto> recordDtos = records.stream()
+                    .map(this::convertToResponseDto)
+                    .collect(Collectors.toList());
+            
+            return ResponseEntity.ok(recordDtos);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     /**
      * Retrieves lending records for a game owner filtered by status.
      * Implements Use Case 9: View Lending History with filtering
      *
-     * @param ownerId the ID of the game owner
-     * @param status the status to filter by (ACTIVE, OVERDUE, CLOSED)
-     * @return filtered list of lending records
+     * @param ownerId The ID of the game owner
+     * @param status The status to filter by (ACTIVE, OVERDUE, CLOSED)
+     * @return ResponseEntity containing filtered list of lending records
      */
     @GetMapping("/owner/{ownerId}/status/{status}")
-    public ResponseEntity<List<LendingRecord>> getLendingHistoryByOwnerAndStatus(
+    public ResponseEntity<List<LendingRecordResponseDto>> getLendingHistoryByOwnerAndStatus(
             @PathVariable int ownerId,
             @PathVariable String status) {
-        // In a real implementation, you would use a service to fetch the GameOwner by ID
-        GameOwner owner = new GameOwner(); // Placeholder - in real app, get from service
-        owner.setId(ownerId);
-        
-        List<LendingRecord> allRecords = lendingRecordService.getLendingRecordsByOwner(owner);
-        
-        // Filter by status - in a real implementation, this might be done at the repository level
-        LendingStatus requestedStatus = LendingStatus.valueOf(status.toUpperCase());
-        List<LendingRecord> filteredRecords = allRecords.stream()
-                .filter(record -> record.getStatus() == requestedStatus)
-                .toList();
-        
-        return ResponseEntity.ok(filteredRecords);
+        try {
+            GameOwner owner = (GameOwner) accountService.getAccountById(ownerId);
+            List<LendingRecord> allRecords = lendingRecordService.getLendingRecordsByOwner(owner);
+            
+            // Filter by status
+            LendingStatus requestedStatus = LendingStatus.valueOf(status.toUpperCase());
+            List<LendingRecord> filteredRecords = allRecords.stream()
+                    .filter(record -> record.getStatus() == requestedStatus)
+                    .collect(Collectors.toList());
+            
+            List<LendingRecordResponseDto> recordDtos = filteredRecords.stream()
+                    .map(this::convertToResponseDto)
+                    .collect(Collectors.toList());
+            
+            return ResponseEntity.ok(recordDtos);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
     }
 
     /**
      * Retrieves lending records for a game owner within a date range.
      * Implements Use Case 9: View Lending History with date filtering
      *
-     * @param ownerId the ID of the game owner
-     * @param startDate the start date of the range
-     * @param endDate the end date of the range
-     * @return filtered list of lending records
+     * @param ownerId The ID of the game owner
+     * @param startDate The start date of the range
+     * @param endDate The end date of the range
+     * @return ResponseEntity containing filtered list of lending records
      */
     @GetMapping("/owner/{ownerId}/date-range")
-    public ResponseEntity<List<LendingRecord>> getLendingHistoryByOwnerAndDateRange(
+    public ResponseEntity<List<LendingRecordResponseDto>> getLendingHistoryByOwnerAndDateRange(
             @PathVariable int ownerId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Date startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Date endDate) {
-        
-        List<LendingRecord> records = lendingRecordService.getLendingRecordsByDateRange(startDate, endDate);
-        
-        // Further filter by owner - in a real implementation, this might be done at the repository level
-        // In a real implementation, you would use a service to fetch the GameOwner by ID
-        GameOwner owner = new GameOwner(); // Placeholder - in real app, get from service
-        owner.setId(ownerId);
-        
-        List<LendingRecord> filteredRecords = records.stream()
-                .filter(record -> record.getRecordOwner().getId() == ownerId)
-                .toList();
-        
-        return ResponseEntity.ok(filteredRecords);
-    }
-
-    /**
-     * Retrieves a single lending record by ID.
-     * Supports Use Case 9: View Lending History (detailed view)
-     *
-     * @param id the ID of the lending record
-     * @return the lending record
-     */
-    @GetMapping("/{id}")
-    public ResponseEntity<LendingRecord> getLendingRecordById(@PathVariable int id) {
-        LendingRecord record = lendingRecordService.getLendingRecordById(id);
-        return ResponseEntity.ok(record);
-    }
-
-    /**
-     * Marks a game as returned by the borrower.
-     * Implements Use Case 13: Return Borrowed Game (borrower action)
-     *
-     * @param id the ID of the lending record
-     * @return response with success message
-     */
-    @PostMapping("/{id}/mark-returned")
-    public ResponseEntity<String> markGameAsReturned(@PathVariable int id) {
-        // Update the status to PENDING_RETURN_CONFIRMATION
-        // In a real implementation, you might have this status in the enum
-        // For now, we'll use OVERDUE as a placeholder for "Pending Return Confirmation"
-        return lendingRecordService.updateStatus(id, LendingStatus.OVERDUE);
-    }
-
-    /**
-     * Confirms receipt of a returned game by the owner.
-     * Implements Use Case 13: Return Borrowed Game (owner confirmation)
-     *
-     * @param id the ID of the lending record
-     * @param isDamaged flag indicating if the game was returned damaged
-     * @return response with success message
-     */
-    @PostMapping("/{id}/confirm-return")
-    public ResponseEntity<String> confirmGameReturn(
-            @PathVariable int id,
-            @RequestParam(required = false, defaultValue = "false") boolean isDamaged) {
-        
-        if (isDamaged) {
-            // In a real implementation, you might track damage information
-            // For now, we'll just close the record
-            return lendingRecordService.closeLendingRecord(id);
-        } else {
-            // Close the lending record normally
-            return lendingRecordService.closeLendingRecord(id);
+        try {
+            List<LendingRecord> records = lendingRecordService.getLendingRecordsByDateRange(startDate, endDate);
+            
+            // Further filter by owner
+            List<LendingRecord> filteredRecords = records.stream()
+                    .filter(record -> record.getRecordOwner().getId() == ownerId)
+                    .collect(Collectors.toList());
+            
+            List<LendingRecordResponseDto> recordDtos = filteredRecords.stream()
+                    .map(this::convertToResponseDto)
+                    .collect(Collectors.toList());
+            
+            return ResponseEntity.ok(recordDtos);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
         }
     }
 
     /**
-     * Reports a dispute regarding a game return.
-     * Implements Use Case 13: Return Borrowed Game (Alternative Scenario 7a and 10a)
-     *
-     * @param id the ID of the lending record
-     * @param disputeDetails details about the dispute
-     * @return response with success message
-     */
-    @PostMapping("/{id}/dispute-return")
-    public ResponseEntity<String> disputeGameReturn(
-            @PathVariable int id,
-            @RequestBody Map<String, String> disputeDetails) {
-        
-        // In a real implementation, you would store the dispute details
-        // For now, we'll just keep the status as ACTIVE to indicate unresolved
-        return lendingRecordService.updateStatus(id, LendingStatus.ACTIVE);
-    }
-
-    /**
-     * Retrieves all lending records for a borrower.
-     * Supports Use Case 13: Return Borrowed Game (view borrowed games)
-     *
-     * @param borrowerId the ID of the borrower
-     * @return list of lending records
+     * Retrieves lending records for a borrower.
+     * 
+     * @param borrowerId The ID of the borrower
+     * @return ResponseEntity containing lending records for the borrower
      */
     @GetMapping("/borrower/{borrowerId}")
-    public ResponseEntity<List<LendingRecord>> getLendingRecordsByBorrower(@PathVariable int borrowerId) {
-        // In a real implementation, you would use a service to fetch the Account by ID
-        Account borrower = new Account(); // Placeholder - in real app, get from service
-        borrower.setId(borrowerId);
-        
-        List<LendingRecord> records = lendingRecordService.getLendingRecordsByBorrower(borrower);
-        return ResponseEntity.ok(records);
+    public ResponseEntity<List<LendingRecordResponseDto>> getLendingRecordsByBorrower(@PathVariable int borrowerId) {
+        try {
+            Account borrower = accountService.getAccountById(borrowerId);
+            List<LendingRecord> records = lendingRecordService.getLendingRecordsByBorrower(borrower);
+            
+            List<LendingRecordResponseDto> recordDtos = records.stream()
+                    .map(this::convertToResponseDto)
+                    .collect(Collectors.toList());
+            
+            return ResponseEntity.ok(recordDtos);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     /**
      * Retrieves active lending records for a borrower.
      * Supports Use Case 13: Return Borrowed Game (view active borrows)
      *
-     * @param borrowerId the ID of the borrower
-     * @return list of active lending records
+     * @param borrowerId The ID of the borrower
+     * @return ResponseEntity containing a list of active lending records
      */
     @GetMapping("/borrower/{borrowerId}/active")
-    public ResponseEntity<List<LendingRecord>> getActiveLendingRecordsByBorrower(@PathVariable int borrowerId) {
-        // In a real implementation, you would use a service to fetch the Account by ID
-        Account borrower = new Account(); // Placeholder - in real app, get from service
-        borrower.setId(borrowerId);
+    public ResponseEntity<List<LendingRecordResponseDto>> getActiveLendingRecordsByBorrower(@PathVariable int borrowerId) {
+        try {
+            Account borrower = accountService.getAccountById(borrowerId);
+            List<LendingRecord> allRecords = lendingRecordService.getLendingRecordsByBorrower(borrower);
+            
+            // Filter by active status
+            List<LendingRecord> activeRecords = allRecords.stream()
+                    .filter(record -> record.getStatus() == LendingStatus.ACTIVE)
+                    .collect(Collectors.toList());
+            
+            List<LendingRecordResponseDto> recordDtos = activeRecords.stream()
+                    .map(this::convertToResponseDto)
+                    .collect(Collectors.toList());
+            
+            return ResponseEntity.ok(recordDtos);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    /**
+     * Marks a game as returned by the borrower.
+     * Implements Use Case 13: Return Borrowed Game (borrower action)
+     *
+     * @param id The ID of the lending record
+     * @param userId ID of the user marking the game as returned (optional)
+     * @return ResponseEntity with the result of the operation
+     */
+    @PostMapping("/{id}/mark-returned")
+    public ResponseEntity<String> markGameAsReturned(
+            @PathVariable int id,
+            @RequestParam(required = false) Integer userId) {
+        try {
+            // Update the status to OVERDUE as a placeholder for "Pending Return Confirmation"
+            return lendingRecordService.updateStatus(id, LendingStatus.OVERDUE, userId, 
+                    "Game marked as returned by borrower, awaiting owner confirmation");
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    /**
+     * Confirms receipt of a returned game by the owner.
+     * Implements Use Case 13: Return Borrowed Game (owner confirmation)
+     * This will close the lending record and capture any additional return information.
+     *
+     * @param id The ID of the lending record
+     * @param isDamaged Flag indicating if the game is damaged
+     * @param damageNotes Notes describing the damage
+     * @param damageSeverity The severity of the damage (0-3)
+     * @param userId The ID of the user confirming the return
+     * @return ResponseEntity with the result
+     */
+    @PostMapping("/{id}/confirm-return")
+    public ResponseEntity<Map<String, Object>> confirmGameReturn(
+            @PathVariable int id,
+            @RequestParam(required = false, defaultValue = "false") boolean isDamaged,
+            @RequestParam(required = false) String damageNotes,
+            @RequestParam(required = false, defaultValue = "0") int damageSeverity,
+            @RequestParam(required = false) Integer userId) {
         
-        List<LendingRecord> allRecords = lendingRecordService.getLendingRecordsByBorrower(borrower);
+        try {
+            // Validate damage severity
+            damageSeverity = validateDamageSeverity(damageSeverity);
+            
+            // Close the lending record with damage assessment
+            ResponseEntity<String> result = lendingRecordService.closeLendingRecordWithDamageAssessment(
+                    id, isDamaged, damageNotes, damageSeverity, userId, "Confirmed return of game");
+            
+            // Create successful response
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", result.getBody());
+            response.put("recordId", id);
+            response.put("returnTime", new Date());
+            response.put("isDamaged", isDamaged);
+            
+            if (isDamaged) {
+                response.put("damageSeverity", damageSeverity);
+                response.put("damageSeverityLabel", LendingRecordResponseDto.DamageSeverityUtils.getLabelForSeverity(damageSeverity));
+                response.put("damageNotes", damageNotes);
+            }
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (IllegalArgumentException e) {
+            // Handle validation errors
+            return ResponseEntity.badRequest().body(Map.of(
+                "success", false,
+                "message", e.getMessage(),
+                "recordId", id
+            ));
+        } catch (IllegalStateException e) {
+            // Handle state errors like already closed records
+            return ResponseEntity.badRequest().body(Map.of(
+                "success", false,
+                "message", e.getMessage(),
+                "recordId", id
+            ));
+        } catch (Exception e) {
+            // Other errors
+            return ResponseEntity.badRequest().body(Map.of(
+                "success", false,
+                "message", e.getMessage(),
+                "recordId", id
+            ));
+        }
+    }
+
+    /**
+     * Filters lending records based on various criteria.
+     * Used for the lending history view.
+     *
+     * @param filterDto The filter criteria
+     * @param page The page number (0-based)
+     * @param size The page size
+     * @return ResponseEntity with paginated filtered lending records
+     */
+    @PostMapping("/filter")
+    public ResponseEntity<Map<String, Object>> filterLendingRecords(
+            @RequestBody LendingHistoryFilterDto filterDto,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
         
-        // Filter by active status
-        List<LendingRecord> activeRecords = allRecords.stream()
-                .filter(record -> record.getStatus() == LendingStatus.ACTIVE)
-                .toList();
+        try {
+            // Get filtered records without pagination first
+            List<LendingRecord> filteredRecords = lendingRecordService.filterLendingRecords(filterDto);
+            
+            // Manual pagination
+            int start = page * size;
+            int end = Math.min(start + size, filteredRecords.size());
+            
+            // Check if start is valid
+            if (start > filteredRecords.size()) {
+                start = 0;
+                end = Math.min(size, filteredRecords.size());
+            }
+            
+            List<LendingRecord> paginatedRecords = filteredRecords.subList(start, end);
+            
+            // Convert records to DTOs
+            List<LendingRecordResponseDto> recordDtos = paginatedRecords.stream()
+                    .map(this::convertToResponseDto)
+                    .collect(Collectors.toList());
+            
+            // Create response with pagination metadata
+            Map<String, Object> response = new HashMap<>();
+            response.put("records", recordDtos);
+            response.put("currentPage", page);
+            response.put("totalItems", filteredRecords.size());
+            response.put("totalPages", (int) Math.ceil((double) filteredRecords.size() / size));
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "success", false,
+                "message", e.getMessage()
+            ));
+        }
+    }
+
+    // Note: Disputes about damage or other lending issues are intentionally handled directly 
+    // between users rather than through the application. This keeps the app focused on 
+    // documenting and tracking, while letting users manage their own conflict resolution.
+
+    /**
+     * Updates the end date of a lending record.
+     *
+     * @param id The ID of the lending record
+     * @param newEndDate The new end date
+     * @return ResponseEntity with the result of the operation
+     */
+    @PutMapping("/{id}/end-date")
+    public ResponseEntity<String> updateEndDate(@PathVariable int id, @RequestBody Date newEndDate) {
+        try {
+            return lendingRecordService.updateEndDate(id, newEndDate);
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    /**
+     * Creates a new lending record based on request details.
+     *
+     * @param requestDetails Details required to create a lending record
+     * @return ResponseEntity containing the created lending record or error message
+     */
+    @PostMapping
+    public ResponseEntity<?> createLendingRecord(@RequestBody Map<String, Object> requestDetails) {
+        try {
+            // Extract required data from the request
+            int requestId = (int) requestDetails.get("requestId");
+            int ownerId = (int) requestDetails.get("ownerId");
+            Date startDate = new Date((long) requestDetails.get("startDate"));
+            Date endDate = new Date((long) requestDetails.get("endDate"));
+            
+            // Get the game owner
+            GameOwner owner = (GameOwner) accountService.getAccountById(ownerId);
+            
+            // Use our improved service method that handles the entity retrieval
+            ResponseEntity<String> result = lendingRecordService.createLendingRecordFromRequestId(
+                    startDate, endDate, requestId, owner);
+            
+            if (result.getStatusCode().is2xxSuccessful()) {
+                // Get the latest records for this owner to find the newly created one
+                List<LendingRecord> records = lendingRecordService.getLendingRecordsByOwner(owner);
+                
+                // Find the most recently created record (should be our new one)
+                // This is a bit of a hack, but it works for demonstration
+                LendingRecord newRecord = records.stream()
+                        .sorted((r1, r2) -> Long.compare(r2.getId(), r1.getId())) // Sort by ID descending
+                        .findFirst()
+                        .orElseThrow(() -> new IllegalStateException("Record was created but not found"));
+                
+                return ResponseEntity.ok(convertToResponseDto(newRecord));
+            } else {
+                return result;
+            }
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    /**
+     * Admin function to delete a lending record.
+     * Note: In production, consider soft delete instead.
+     *
+     * @param id The ID of the lending record to delete
+     * @return ResponseEntity with the result of the operation
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<String> deleteLendingRecord(@PathVariable int id) {
+        try {
+            // The service returns a ResponseEntity<String>
+            return lendingRecordService.deleteLendingRecord(id);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    /**
+     * Retrieves overdue records.
+     * 
+     * @return ResponseEntity containing overdue lending records
+     */
+    @GetMapping("/overdue")
+    public ResponseEntity<List<LendingRecordResponseDto>> getOverdueRecords() {
+        try {
+            List<LendingRecord> overdueRecords = lendingRecordService.findOverdueRecords();
+            
+            List<LendingRecordResponseDto> recordDtos = overdueRecords.stream()
+                    .map(this::convertToResponseDto)
+                    .collect(Collectors.toList());
+            
+            return ResponseEntity.ok(recordDtos);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+    
+    /**
+     * Retrieves overdue records by owner.
+     * 
+     * @param ownerId The ID of the game owner
+     * @return ResponseEntity containing overdue records for the owner
+     */
+    @GetMapping("/owner/{ownerId}/overdue")
+    public ResponseEntity<List<LendingRecordResponseDto>> getOverdueRecordsByOwner(@PathVariable int ownerId) {
+        try {
+            GameOwner owner = (GameOwner) accountService.getAccountById(ownerId);
+            List<LendingRecord> allRecords = lendingRecordService.getLendingRecordsByOwner(owner);
+            
+            // Filter to only include overdue records
+            List<LendingRecord> overdueRecords = allRecords.stream()
+                    .filter(record -> record.getEndDate().before(new Date()) && 
+                                     record.getStatus() == LendingStatus.ACTIVE)
+                    .collect(Collectors.toList());
+            
+            List<LendingRecordResponseDto> recordDtos = overdueRecords.stream()
+                    .map(this::convertToResponseDto)
+                    .collect(Collectors.toList());
+            
+            return ResponseEntity.ok(recordDtos);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    /**
+     * Updates the status of a lending record using the provided status DTO.
+     * This endpoint provides more flexibility for status updates and handles complex business logic.
+     *
+     * @param id The ID of the lending record
+     * @param statusDto The DTO containing the new status
+     * @return ResponseEntity with the result of the operation
+     */
+    @PutMapping("/{id}/status")
+    public ResponseEntity<Map<String, Object>> updateLendingRecordStatus(
+            @PathVariable int id,
+            @RequestBody UpdateLendingRecordStatusDto statusDto) {
+        try {
+            // Basic validation
+            if (statusDto.getNewStatus() == null || statusDto.getNewStatus().trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(
+                    Map.of(
+                        "success", false, 
+                        "message", "Status cannot be empty", 
+                        "recordId", id
+                    )
+                );
+            }
+            
+            // Try to parse the status enum value
+            LendingStatus newStatus;
+            try {
+                newStatus = LendingStatus.valueOf(statusDto.getNewStatus().toUpperCase());
+            } catch (IllegalArgumentException e) {
+                return ResponseEntity.badRequest().body(
+                    Map.of(
+                        "success", false, 
+                        "message", "Invalid status: " + statusDto.getNewStatus() + 
+                                  ". Valid values are: " + 
+                                  String.join(", ", 
+                                      Arrays.stream(LendingStatus.values())
+                                           .map(Enum::name)
+                                           .collect(Collectors.toList())),
+                        "recordId", id
+                    )
+                );
+            }
+            
+            // Call the service to update the status with audit information
+            ResponseEntity<String> serviceResult = lendingRecordService.updateStatus(
+                    id, newStatus, statusDto.getUserId(), statusDto.getReason());
+            
+            // Return a structured response with both the service message and additional data
+            return ResponseEntity.status(serviceResult.getStatusCode()).body(
+                Map.of(
+                    "success", serviceResult.getStatusCode().is2xxSuccessful(), 
+                    "message", serviceResult.getBody(),
+                    "recordId", id,
+                    "newStatus", newStatus.name()
+                )
+            );
+        } catch (IllegalArgumentException e) {
+            // Record not found or other validation error
+            return ResponseEntity.status(404).body(
+                Map.of(
+                    "success", false, 
+                    "message", e.getMessage(),
+                    "recordId", id
+                )
+            );
+        } catch (IllegalStateException e) {
+            // Invalid state transition
+            return ResponseEntity.badRequest().body(
+                Map.of(
+                    "success", false, 
+                    "message", e.getMessage(),
+                    "recordId", id
+                )
+            );
+        } catch (Exception e) {
+            // Unexpected error
+            return ResponseEntity.status(500).body(
+                Map.of(
+                    "success", false, 
+                    "message", "An unexpected error occurred: " + e.getMessage(),
+                    "recordId", id
+                )
+            );
+        }
+    }
+
+    /**
+     * Converts a LendingRecord entity to a LendingRecordResponseDto.
+     *
+     * @param record The lending record entity
+     * @return The corresponding response DTO
+     */
+    private LendingRecordResponseDto convertToResponseDto(LendingRecord record) {
+        // Create game info
+        LendingRecordResponseDto.GameInfo gameInfo = new LendingRecordResponseDto.GameInfo(
+                record.getRequest().getRequestedGame().getId(),
+                record.getRequest().getRequestedGame().getName(),
+                record.getRequest().getRequestedGame().getCategory());
         
-        return ResponseEntity.ok(activeRecords);
+        // Create borrower info
+        LendingRecordResponseDto.UserInfo borrowerInfo = new LendingRecordResponseDto.UserInfo(
+                record.getRequest().getRequester().getId(),
+                record.getRequest().getRequester().getName(),
+                record.getRequest().getRequester().getEmail());
+        
+        // Create owner info
+        LendingRecordResponseDto.UserInfo ownerInfo = new LendingRecordResponseDto.UserInfo(
+                record.getRecordOwner().getId(),
+                record.getRecordOwner().getName(),
+                record.getRecordOwner().getEmail());
+        
+        // Check if the record has damage information
+        if (record.isDamaged()) {
+            return new LendingRecordResponseDto(
+                    record.getId(),
+                    record.getStartDate(),
+                    record.getEndDate(),
+                    record.getStatus().toString(),
+                    gameInfo,
+                    borrowerInfo,
+                    ownerInfo,
+                    record.getDurationInDays(),
+                    record.isDamaged(),
+                    record.getDamageNotes(),
+                    record.getDamageSeverity(),
+                    record.getDamageAssessmentDate());
+        } else {
+            return new LendingRecordResponseDto(
+                    record.getId(),
+                    record.getStartDate(),
+                    record.getEndDate(),
+                    record.getStatus().toString(),
+                    gameInfo,
+                    borrowerInfo,
+                    ownerInfo,
+                    record.getDurationInDays());
+        }
     }
 }
+
+/**
+ * Global exception handler for lending record operations.
+ * Provides consistent error responses for various exception types.
+ */
+@ControllerAdvice
+class LendingRecordControllerAdvice {
+    
+    /**
+     * Handles ResourceNotFoundException.
+     * 
+     * @param ex The exception
+     * @return ResponseEntity with error details
+     */
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleResourceNotFoundException(ResourceNotFoundException ex) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", false);
+        response.put("message", ex.getMessage());
+        
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+    
+    /**
+     * Handles InvalidOperationException.
+     * 
+     * @param ex The exception
+     * @return ResponseEntity with error details
+     */
+    @ExceptionHandler(InvalidOperationException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidOperationException(InvalidOperationException ex) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", false);
+        response.put("message", ex.getMessage());
+        
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+    
+    /**
+     * Handles IllegalArgumentException.
+     * 
+     * @param ex The exception
+     * @return ResponseEntity with error details
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, Object>> handleIllegalArgumentException(IllegalArgumentException ex) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", false);
+        response.put("message", ex.getMessage());
+        
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+    
+    /**
+     * Handles IllegalStateException.
+     * 
+     * @param ex The exception
+     * @return ResponseEntity with error details
+     */
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<Map<String, Object>> handleIllegalStateException(IllegalStateException ex) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", false);
+        response.put("message", ex.getMessage());
+        
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+} 
