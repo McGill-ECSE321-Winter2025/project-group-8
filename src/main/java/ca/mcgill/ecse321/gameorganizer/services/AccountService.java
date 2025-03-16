@@ -68,6 +68,21 @@ public class AccountService {
 
 
     /**
+     * Retrieves an account by its unique identifier.
+     *
+     * @param id The ID of the account to retrieve
+     * @return The Account object
+     * @throws IllegalArgumentException if no account is found with the given ID
+     */
+    @Transactional
+    public Account getAccountById(int id) {
+        return accountRepository.findById(id).orElseThrow(
+                () -> new IllegalArgumentException("Account with ID " + id + " does not exist")
+        );
+    }
+
+
+    /**
      * Updates an existing account's information.
      *
      * @param email The email of the account to update
