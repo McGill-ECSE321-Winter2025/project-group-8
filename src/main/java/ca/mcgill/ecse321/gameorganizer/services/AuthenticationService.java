@@ -10,7 +10,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import ca.mcgill.ecse321.gameorganizer.dto.AuthenticationDTO;
+import ca.mcgill.ecse321.gameorganizer.exceptions.EmailNotFoundException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.InvalidCredentialsException;
+import ca.mcgill.ecse321.gameorganizer.exceptions.InvalidPasswordException;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 
@@ -18,7 +20,7 @@ import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
  * Service to handle authentication-related operations.
  * Provides methods for login, logout, and password reset.
  * 
- * @autho Shine111111
+ * @author Shine111111
  */
 @Service
 public class AuthenticationService {
@@ -41,15 +43,17 @@ public class AuthenticationService {
     public Account login(AuthenticationDTO authenticationDTO, HttpSession session) {
         Optional<Account> accountOpt = accountRepository.findByEmail(authenticationDTO.getEmail());
         if (accountOpt.isPresent() && passwordEncoder.matches(authenticationDTO.getPassword(), accountOpt.get().getPassword())) {
-            return accountOpt.get();
+            Account account = accountOpt.get();
+            session.setAttribute("userId", account.getId());
+            return account;
         } else {
             throw new InvalidCredentialsException();
         }
     }
 
     /**
-     * Logs out a user by invalidating their session but not too sure if it works.
-     * 
+     * Logs out a user by invalidating their session.
+     * TODO: IMPORTANT: Make sure it actually works as intended!!!! 
      * @param session the HTTP session
      * @return a message indicating that the user has been logged out successfully
      */
@@ -64,10 +68,14 @@ public class AuthenticationService {
      * 
      * @param email the user's email
      * @param newPassword the new password to set
-     * @return a message indicating that the password has been updated successfully, or an error message if the email is not found
+     * @return a message indicating that the password has been updated successfully
+     * @throws EmailNotFoundException if the email is not found
+     * @throws InvalidPasswordException if the new password does not meet the validation criteria
      */
     @Transactional
     public String resetPassword(String email, String newPassword) {
+        validatePassword(newPassword);
+
         Optional<Account> accountOpt = accountRepository.findByEmail(email);
         if (accountOpt.isPresent()) {
             Account account = accountOpt.get();
@@ -75,7 +83,20 @@ public class AuthenticationService {
             accountRepository.save(account);
             return "Password updated successfully";
         } else {
-            return "Email not found";
+            throw new EmailNotFoundException("Email not found");
         }
+    }
+
+    /**
+     * Validates the new password.
+     * 
+     * @param password the new password to validate
+     * @throws InvalidPasswordException if the password does not meet the validation criteria
+     */
+    private void validatePassword(String password) {
+        if (password.length() < 8) {
+            throw new InvalidPasswordException("Password must be at least 8 characters long");
+        }
+        // TODO: Add more validation criteria as needed (e.g., complexity, special characters, etc.)
     }
 }
