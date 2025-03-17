@@ -11,17 +11,34 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
+/**
+ * Controller for managing borrow requests.
+ * Handles creating, retrieving, updating, and deleting borrow requests.
+ * 
+ * @author Rayan Baida
+ */
 @RestController
 @RequestMapping("/borrowrequests")
 public class BorrowRequestController {
 
     private final BorrowRequestService borrowRequestService;
 
+    /**
+     * Constructor to inject the BorrowRequestService.
+     *
+     * @param borrowRequestService Service handling borrow request logic.
+     */
     @Autowired
     public BorrowRequestController(BorrowRequestService borrowRequestService) {
         this.borrowRequestService = borrowRequestService;
     }
 
+    /**
+     * Creates a new borrow request.
+     *
+     * @param dto Data transfer object containing request details.
+     * @return The created borrow request.
+     */
     @PostMapping
     public ResponseEntity<BorrowRequestDto> createBorrowRequest(@RequestBody CreateBorrowRequestDto dto) {
         System.out.println("Received Borrow Request: " + dto);
@@ -32,6 +49,12 @@ public class BorrowRequestController {
         }
     }
 
+    /**
+     * Retrieves a borrow request by its ID.
+     *
+     * @param id The ID of the borrow request.
+     * @return The borrow request if found.
+     */
     @GetMapping("/{id}")
     public ResponseEntity<BorrowRequestDto> getBorrowRequestById(@PathVariable int id) {
         try {
@@ -41,11 +64,23 @@ public class BorrowRequestController {
         }
     }
 
+    /**
+     * Retrieves all borrow requests.
+     *
+     * @return A list of all borrow requests.
+     */
     @GetMapping
     public ResponseEntity<List<BorrowRequestDto>> getAllBorrowRequests() {
         return ResponseEntity.ok(borrowRequestService.getAllBorrowRequests());
     }
 
+    /**
+     * Updates the status of a borrow request.
+     *
+     * @param id The ID of the borrow request to update.
+     * @param requestDto The updated borrow request details.
+     * @return The updated borrow request.
+     */
     @PutMapping("/{id}")
     public ResponseEntity<BorrowRequestDto> updateBorrowRequestStatus(
             @PathVariable int id,
@@ -57,6 +92,12 @@ public class BorrowRequestController {
         }
     }
 
+    /**
+     * Deletes a borrow request by its ID.
+     *
+     * @param id The ID of the borrow request to delete.
+     * @return HTTP 200 response if successful.
+     */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteBorrowRequest(@PathVariable int id) {
         try {
