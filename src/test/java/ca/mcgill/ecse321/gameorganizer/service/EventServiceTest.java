@@ -493,4 +493,269 @@ public class EventServiceTest {
         verify(eventRepository).findEventById(nonExistentId);
         verify(eventRepository, never()).delete(any(Event.class));
     }
+
+     /**
+     * Tests findEventsByDate method for successful retrieval and date type conversion.
+     * Verifies correct handling of both Date and Timestamp data types.
+     */
+    @Test
+    public void testFindEventsByDate() {
+        // Create test data
+        Date searchDate = Date.valueOf("2023-12-25");
+        
+        // Create events with different date types
+        Event event1 = new Event();
+        event1.setTitle("Christmas Chess Tournament");
+        event1.setDateTime(searchDate); // SQL Date
+        
+        Event event2 = new Event();
+        event2.setTitle("Christmas Checkers Tournament");
+        event2.setDateTime(new java.util.Date(searchDate.getTime())); // SQL Timestamp
+        
+        List<Event> mockEvents = new ArrayList<>();
+        mockEvents.add(event1);
+        mockEvents.add(event2);
+        
+        // Mock repository behavior
+        when(eventRepository.findEventByDateTime(searchDate)).thenReturn(mockEvents);
+        
+        // Call the service method
+        List<Event> foundEvents = eventService.findEventsByDate(searchDate);
+        
+        // Verify results
+        assertNotNull(foundEvents);
+        assertEquals(2, foundEvents.size());
+        assertEquals("Christmas Chess Tournament", foundEvents.get(0).getTitle());
+        assertEquals("Christmas Checkers Tournament", foundEvents.get(1).getTitle());
+        
+        // Verify repository was called with correct parameter
+        verify(eventRepository, times(1)).findEventByDateTime(searchDate);
+    }
+    
+    /**
+     * Tests findEventsByGameId method for successful retrieval and date type conversion.
+     */
+    @Test
+    public void testFindEventsByGameId() {
+        // Create test data
+        int gameId = 42;
+        Date eventDate = Date.valueOf("2023-12-25");
+        
+        // Create test events
+        Event event1 = new Event();
+        event1.setTitle("Chess Tournament");
+        event1.setDateTime(eventDate);
+        
+        Event event2 = new Event();
+        event2.setTitle("Chess Workshop");
+        event2.setDateTime(new java.util.Date(eventDate.getTime())); // SQL Timestamp
+        
+        List<Event> mockEvents = new ArrayList<>();
+        mockEvents.add(event1);
+        mockEvents.add(event2);
+        
+        // Mock repository behavior
+        when(eventRepository.findEventByFeaturedGameId(gameId)).thenReturn(mockEvents);
+        
+        // Call the service method
+        List<Event> foundEvents = eventService.findEventsByGameId(gameId);
+        
+        // Verify results
+        assertNotNull(foundEvents);
+        assertEquals(2, foundEvents.size());
+        assertEquals("Chess Tournament", foundEvents.get(0).getTitle());
+        assertEquals("Chess Workshop", foundEvents.get(1).getTitle());
+        
+        // Verify repository was called with correct parameter
+        verify(eventRepository, times(1)).findEventByFeaturedGameId(gameId);
+    }
+    
+    /**
+     * Tests findEventsByGameName method for successful retrieval with valid game name.
+     */
+    @Test
+    public void testFindEventsByGameName() {
+        // Create test data
+        String gameName = "Chess";
+        Date eventDate = Date.valueOf("2023-12-25");
+        
+        // Create test events
+        Event event1 = new Event();
+        event1.setTitle("Chess Tournament");
+        event1.setDateTime(eventDate);
+        
+        Event event2 = new Event();
+        event2.setTitle("Chess Workshop");
+        event2.setDateTime(new java.util.Date(eventDate.getTime())); // SQL Timestamp
+        
+        List<Event> mockEvents = new ArrayList<>();
+        mockEvents.add(event1);
+        mockEvents.add(event2);
+        
+        // Mock repository behavior
+        when(eventRepository.findEventByFeaturedGameName(gameName)).thenReturn(mockEvents);
+        
+        // Call the service method
+        List<Event> foundEvents = eventService.findEventsByGameName(gameName);
+        
+        // Verify results
+        assertNotNull(foundEvents);
+        assertEquals(2, foundEvents.size());
+        
+        // Verify repository was called with correct parameter
+        verify(eventRepository, times(1)).findEventByFeaturedGameName(gameName);
+    }
+    
+    /**
+     * Tests findEventsByGameName method with empty game name.
+     * Verifies that an IllegalArgumentException is thrown.
+     */
+    @Test
+    public void testFindEventsByGameNameWithEmptyName() {
+        // Empty game name
+        String emptyGameName = "";
+        
+        // Expect exception
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+            eventService.findEventsByGameName(emptyGameName);
+        });
+        
+        // Verify exception message
+        assertEquals("Game name cannot be empty", exception.getMessage());
+        
+        // Verify repository was never called
+        verify(eventRepository, never()).findEventByFeaturedGameName(any());
+    }
+    
+    /**
+     * Tests findEventsByHostId method for successful retrieval and date type conversion.
+     */
+    @Test
+    public void testFindEventsByHostId() {
+        // Create test data
+        int hostId = 1001;
+        Date eventDate = Date.valueOf("2023-12-25");
+        
+        // Create test events
+        Event event1 = new Event();
+        event1.setTitle("Chess Tournament");
+        event1.setDateTime(eventDate);
+        
+        Event event2 = new Event();
+        event2.setTitle("Chess Workshop");
+        event2.setDateTime(new java.util.Date(eventDate.getTime())); // SQL Timestamp
+        
+        List<Event> mockEvents = new ArrayList<>();
+        mockEvents.add(event1);
+        mockEvents.add(event2);
+        
+        // Mock repository behavior
+        when(eventRepository.findEventByHostId(hostId)).thenReturn(mockEvents);
+        
+        // Call the service method
+        List<Event> foundEvents = eventService.findEventsByHostId(hostId);
+        
+        // Verify results
+        assertNotNull(foundEvents);
+        assertEquals(2, foundEvents.size());
+        
+        // Verify repository was called with correct parameter
+        verify(eventRepository, times(1)).findEventByHostId(hostId);
+    }
+    
+    /**
+     * Tests findEventsByHostName method for successful retrieval with valid username.
+     */
+    @Test
+    public void testFindEventsByHostName() {
+        // Create test data
+        String hostUsername = "chessmaster";
+        Date eventDate = Date.valueOf("2023-12-25");
+        
+        // Create test events
+        Event event1 = new Event();
+        event1.setTitle("Chess Tournament");
+        event1.setDateTime(eventDate);
+        
+        Event event2 = new Event();
+        event2.setTitle("Chess Workshop");
+        event2.setDateTime(new java.util.Date(eventDate.getTime())); // SQL Timestamp
+        
+        List<Event> mockEvents = new ArrayList<>();
+        mockEvents.add(event1);
+        mockEvents.add(event2);
+        
+        // Mock repository behavior
+        when(eventRepository.findEventByHostName(hostUsername)).thenReturn(mockEvents);
+        
+        // Call the service method
+        List<Event> foundEvents = eventService.findEventsByHostName(hostUsername);
+        
+        // Verify results
+        assertNotNull(foundEvents);
+        assertEquals(2, foundEvents.size());
+        
+        // Verify repository was called with correct parameter
+        verify(eventRepository, times(1)).findEventByHostName(hostUsername);
+    }
+    
+    /**
+     * Tests findEventsByHostName method with empty username.
+     * Verifies that an IllegalArgumentException is thrown.
+     */
+    @Test
+    public void testFindEventsByHostNameWithEmptyUsername() {
+        // Empty host username
+        String emptyUsername = "";
+        
+        // Expect exception
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+            eventService.findEventsByHostName(emptyUsername);
+        });
+        
+        // Verify exception message
+        assertEquals("Host username cannot be empty", exception.getMessage());
+        
+        // Verify repository was never called
+        verify(eventRepository, never()).findEventByHostName(any());
+    }
+    
+    /**
+     * Tests findEventsByGameMinPlayers method for successful retrieval with valid player count.
+     */
+    @Test
+    public void testFindEventsByGameMinPlayers() {
+        // Create test data
+        int minPlayers = 2;
+        Date eventDate = Date.valueOf("2023-12-25");
+        
+        // Create test events
+        Event event1 = new Event();
+        event1.setTitle("Chess Tournament");
+        event1.setDateTime(eventDate);
+        event1.setFeaturedGame(new Game("Chess", 3, 4, "chess.jpg", new Date(System.currentTimeMillis())));
+        
+        Event event2 = new Event();
+        event2.setTitle("Checkers Tournament");
+        event2.setDateTime(new java.util.Date(eventDate.getTime())); // SQL Timestamp
+        event2.setFeaturedGame(new Game("Checkers", minPlayers, 2, "checkers.jpg", new Date(System.currentTimeMillis())));
+        
+        List<Event> mockEvents = new ArrayList<>();
+        mockEvents.add(event1);
+        mockEvents.add(event2);
+        
+        // Mock repository behavior
+        when(eventRepository.findByFeaturedGameMinPlayersGreaterThanEqual(minPlayers)).thenReturn(mockEvents);
+        
+        // Call the service method
+        List<Event> foundEvents = eventService.findEventsByGameMinPlayers(minPlayers);
+        
+        // Verify results
+        assertNotNull(foundEvents);
+        assertEquals(2, foundEvents.size());
+        
+        // Verify repository was called with correct parameter
+        verify(eventRepository, times(1)).findByFeaturedGameMinPlayersGreaterThanEqual(minPlayers);
+    }
 }
+        

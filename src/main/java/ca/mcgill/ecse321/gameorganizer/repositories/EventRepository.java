@@ -49,6 +49,7 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
     List<Event> findEventByDescription(String description);
     List<Event> findEventByMaxParticipants(int maxParticipants);
     List<Event> findByFeaturedGameMinPlayers(int minPlayers);
+    List<Event> findByFeaturedGameMinPlayersGreaterThanEqual(int minPlayers);
     //List<Event> findByFeaturedGameMinPlayersGreaterThanEqualAndMaxParticipantsLessThanEqual(int minPlayers, int maxParticipants);
     List<Event> findEventByFeaturedGameId(int featuredGameId);
     List<Event> findEventByFeaturedGameName(String featuredGameName);

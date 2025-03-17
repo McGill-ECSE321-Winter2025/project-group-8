@@ -109,9 +109,9 @@ public class EventService {
         List<Event> events = eventRepository.findAll();
 
         for (Event event : events) {
-            if (event.getDateTime() instanceof java.sql.Timestamp) {
-                java.sql.Timestamp timestamp = (java.sql.Timestamp) event.getDateTime();
-                event.setDateTime(new java.sql.Date(timestamp.getTime()));
+            if (event.getDateTime() instanceof java.util.Date) {
+                java.util.Date utilDate = (java.util.Date) event.getDateTime();
+                event.setDateTime(new java.sql.Date(utilDate.getTime()));
             }
         }
 
@@ -170,5 +170,164 @@ public Event updateEvent(UUID id, String title, Date dateTime,
         );
         eventRepository.delete(eventToDelete);
         return ResponseEntity.ok("Event with id " + id + " has been deleted");
+    }
+
+
+     /**
+     * Finds events scheduled on a specific date.
+     * Handles date type conversion to ensure consistent results.
+     *
+     * @param date The date to search for
+     * @return List of events scheduled on the given date
+     */
+    @Transactional
+    public List<Event> findEventsByDate(java.sql.Date date) {
+        List<Event> events = eventRepository.findEventByDateTime(date);
+        
+        for (Event event : events) {
+            if (event.getDateTime() instanceof java.sql.Timestamp) {
+                java.sql.Timestamp timestamp = (java.sql.Timestamp) event.getDateTime();
+                event.setDateTime(new java.sql.Date(timestamp.getTime()));
+            }
+        }
+        
+        return events;
+    }
+
+    /**
+     * Finds events featuring a specific game by the game's ID.
+     *
+     * @param gameId The ID of the featured game
+     * @return List of events featuring the specified game
+     */
+    @Transactional
+    public List<Event> findEventsByGameId(int gameId) {
+        List<Event> events = eventRepository.findEventByFeaturedGameId(gameId);
+        
+        for (Event event : events) {
+            if (event.getDateTime() instanceof java.sql.Timestamp) {
+                java.sql.Timestamp timestamp = (java.sql.Timestamp) event.getDateTime();
+                event.setDateTime(new java.sql.Date(timestamp.getTime()));
+            }
+        }
+        
+        return events;
+    }
+
+    /**
+     * Finds events featuring a specific game by the game's name.
+     *
+     * @param gameName The name of the featured game
+     * @return List of events featuring the specified game
+     */
+    @Transactional
+    public List<Event> findEventsByGameName(String gameName) {
+        if (gameName == null || gameName.trim().isEmpty()) {
+            throw new IllegalArgumentException("Game name cannot be empty");
+        }
+        
+        List<Event> events = eventRepository.findEventByFeaturedGameName(gameName);
+        
+        for (Event event : events) {
+            if (event.getDateTime() instanceof java.sql.Timestamp) {
+                java.sql.Timestamp timestamp = (java.sql.Timestamp) event.getDateTime();
+                event.setDateTime(new java.sql.Date(timestamp.getTime()));
+            }
+        }
+        
+        return events;
+    }
+
+    /**
+     * Finds events hosted by a specific user by the host's ID.
+     *
+     * @param hostId The ID of the host
+     * @return List of events hosted by the specified user
+     */
+    @Transactional
+    public List<Event> findEventsByHostId(int hostId) {
+        List<Event> events = eventRepository.findEventByHostId(hostId);
+        
+        for (Event event : events) {
+            if (event.getDateTime() instanceof java.sql.Timestamp) {
+                java.sql.Timestamp timestamp = (java.sql.Timestamp) event.getDateTime();
+                event.setDateTime(new java.sql.Date(timestamp.getTime()));
+            }
+        }
+        
+        return events;
+    }
+
+    /**
+     * Finds events hosted by a specific user by the host's username.
+     *
+     * @param hostUsername The username of the host
+     * @return List of events hosted by the specified user
+     */
+    @Transactional
+    public List<Event> findEventsByHostName(String hostUsername) {
+        if (hostUsername == null || hostUsername.trim().isEmpty()) {
+            throw new IllegalArgumentException("Host username cannot be empty");
+        }
+        
+        List<Event> events = eventRepository.findEventByHostName(hostUsername);
+        
+        for (Event event : events) {
+            if (event.getDateTime() instanceof java.sql.Timestamp) {
+                java.sql.Timestamp timestamp = (java.sql.Timestamp) event.getDateTime();
+                event.setDateTime(new java.sql.Date(timestamp.getTime()));
+            }
+        }
+        
+        return events;
+    }
+
+    /**
+     * Finds events where the featured game has a specific minimum number of players.
+     * Useful for filtering events based on game characteristics.
+     *
+     * @param minPlayers The minimum number of players for the featured game
+     * @return List of events with games matching the minimum player count
+     */
+    @Transactional
+    public List<Event> findEventsByGameMinPlayers(int minPlayers) {
+        if (minPlayers <= 0) {
+            throw new IllegalArgumentException("Minimum players must be greater than 0");
+        }
+        
+        List<Event> events = eventRepository.findByFeaturedGameMinPlayersGreaterThanEqual(minPlayers);
+        
+        for (Event event : events) {
+            if (event.getDateTime() instanceof java.sql.Timestamp) {
+                java.sql.Timestamp timestamp = (java.sql.Timestamp) event.getDateTime();
+                event.setDateTime(new java.sql.Date(timestamp.getTime()));
+            }
+        }
+        
+        return events;
+    }
+
+    /**
+     * Finds events by location, with partial matching supported.
+     *
+     * @param location The location text to search for
+     * @return List of events at locations matching the search text
+     */
+    @Transactional
+    public List<Event> findEventsByLocationContaining(String location) {
+        if (location == null || location.trim().isEmpty()) {
+            throw new IllegalArgumentException("Location search text cannot be empty");
+        }
+        
+        List<Event> events = eventRepository.findEventByLocationContaining(location);
+        
+        for (Event event : events) {
+            if (event.getDateTime() instanceof java.sql.Timestamp) {
+                java.sql.Timestamp timestamp = (java.sql.Timestamp) event.getDateTime();
+                event.setDateTime(new java.sql.Date(timestamp.getTime()));
+            }
+        }
+        
+        return events;
     }
 }

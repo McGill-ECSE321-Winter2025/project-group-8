@@ -23,6 +23,12 @@ import ca.mcgill.ecse321.gameorganizer.services.EventService;
 import ca.mcgill.ecse321.gameorganizer.responses.EventResponse;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
 
+/**
+ * REST controller for managing gaming events.
+ * Provides endpoints for creating, retrieving, updating, and deleting events,
+ * as well as searching events by various criteria.
+ * @author @Yessine-glitch
+ */
 @RestController
 @RequestMapping("/events")
 public class EventController {
@@ -35,8 +41,10 @@ public class EventController {
     }
     
     /**
-     * @param eventId
-     * @return
+     * Retrieves an event by its ID.
+     * 
+     * @param eventId The UUID of the event to retrieve
+     * @return The event with the specified ID
      */
     @GetMapping("/{eventId}")
     public ResponseEntity<EventResponse> getEvent(@PathVariable UUID eventId) {
@@ -45,7 +53,8 @@ public class EventController {
     }
 
     /**
-     * Get all events
+     * Retrieves all events.
+     * 
      * @return List of all events
      */
     @GetMapping
@@ -57,12 +66,29 @@ public class EventController {
         return ResponseEntity.ok(eventResponses);
     }
     
+    /**
+     * Creates a new event.
+     * 
+     * @param request The event creation request
+     * @return The created event
+     */
     @PostMapping
     public ResponseEntity<EventResponse> createEvent(@RequestBody CreateEventRequest request) {
         Event event = eventService.createEvent(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(new EventResponse(event));
     }
 
+    /**
+     * Updates an existing event.
+     * 
+     * @param eventId The UUID of the event to update
+     * @param title The new title (optional)
+     * @param dateTime The new date and time (optional)
+     * @param location The new location (optional)
+     * @param description The new description (optional)
+     * @param maxParticipants The new maximum number of participants (optional)
+     * @return The updated event
+     */
     @PutMapping("/{eventId}")
 public ResponseEntity<EventResponse> updateEvent(
         @PathVariable UUID eventId,
@@ -81,9 +107,136 @@ public ResponseEntity<EventResponse> updateEvent(
     }
 }
     
+    /**
+     * Deletes an event by its ID.
+     * 
+     * @param eventId The UUID of the event to delete
+     * @return No content response
+     */
     @DeleteMapping("/{eventId}")
     public ResponseEntity<Void> deleteEvent(@PathVariable UUID eventId) {
         eventService.deleteEvent(eventId);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Finds events scheduled on a specific date.
+     * 
+     * @param date The date to search for
+     * @return List of events on the specified date
+     */
+    @GetMapping("/by-date")
+    public ResponseEntity<List<EventResponse>> getEventsByDate(@RequestParam Date date) {
+        List<Event> events = eventService.findEventsByDate(date);
+        List<EventResponse> eventResponses = events.stream()
+            .map(EventResponse::new)
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(eventResponses);
+    }
+    
+    /**
+     * Finds events featuring a specific game by the game's ID.
+     * 
+     * @param gameId The ID of the featured game
+     * @return List of events featuring the specified game
+     */
+    @GetMapping("/by-game-id/{gameId}")
+    public ResponseEntity<List<EventResponse>> getEventsByGameId(@PathVariable int gameId) {
+        List<Event> events = eventService.findEventsByGameId(gameId);
+        List<EventResponse> eventResponses = events.stream()
+            .map(EventResponse::new)
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(eventResponses);
+    }
+    
+    /**
+     * Finds events featuring a specific game by the game's name.
+     * 
+     * @param gameName The name of the featured game
+     * @return List of events featuring the specified game
+     */
+    @GetMapping("/by-game-name")
+    public ResponseEntity<List<EventResponse>> getEventsByGameName(@RequestParam String gameName) {
+        try {
+            List<Event> events = eventService.findEventsByGameName(gameName);
+            List<EventResponse> eventResponses = events.stream()
+                .map(EventResponse::new)
+                .collect(Collectors.toList());
+            return ResponseEntity.ok(eventResponses);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+    
+    /**
+     * Finds events hosted by a specific user by the host's ID.
+     * 
+     * @param hostId The ID of the host
+     * @return List of events hosted by the specified user
+     */
+    @GetMapping("/by-host-id/{hostId}")
+    public ResponseEntity<List<EventResponse>> getEventsByHostId(@PathVariable int hostId) {
+        List<Event> events = eventService.findEventsByHostId(hostId);
+        List<EventResponse> eventResponses = events.stream()
+            .map(EventResponse::new)
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(eventResponses);
+    }
+    
+    /**
+     * Finds events hosted by a specific user by the host's username.
+     * 
+     * @param hostUsername The username of the host
+     * @return List of events hosted by the specified user
+     */
+    @GetMapping("/by-host-name")
+    public ResponseEntity<List<EventResponse>> getEventsByHostName(@RequestParam String hostUsername) {
+        try {
+            List<Event> events = eventService.findEventsByHostName(hostUsername);
+            List<EventResponse> eventResponses = events.stream()
+                .map(EventResponse::new)
+                .collect(Collectors.toList());
+            return ResponseEntity.ok(eventResponses);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+    
+    /**
+     * Finds events where the featured game has a specific minimum number of players.
+     * 
+     * @param minPlayers The minimum number of players for the featured game
+     * @return List of events with games matching the minimum player count
+     */
+    @GetMapping("/by-game-min-players/{minPlayers}")
+    public ResponseEntity<List<EventResponse>> getEventsByGameMinPlayers(@PathVariable int minPlayers) {
+        try {
+            List<Event> events = eventService.findEventsByGameMinPlayers(minPlayers);
+            List<EventResponse> eventResponses = events.stream()
+                .map(EventResponse::new)
+                .collect(Collectors.toList());
+            return ResponseEntity.ok(eventResponses);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+    
+    /**
+     * Finds events by location, with partial matching supported.
+     * 
+     * @param location The location text to search for
+     * @return List of events at locations matching the search text
+     */
+    @GetMapping("/by-location")
+    public ResponseEntity<List<EventResponse>> getEventsByLocation(@RequestParam String location) {
+        try {
+            List<Event> events = eventService.findEventsByLocationContaining(location);
+            List<EventResponse> eventResponses = events.stream()
+                .map(EventResponse::new)
+                .collect(Collectors.toList());
+            return ResponseEntity.ok(eventResponses);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
     }
 }
