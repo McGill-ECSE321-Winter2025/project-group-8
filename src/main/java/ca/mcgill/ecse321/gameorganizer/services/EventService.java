@@ -319,7 +319,7 @@ public Event updateEvent(UUID id, String title, Date dateTime,
     public List<Event> findEventsByLocationContaining(String location) {
         if (location == null || location.trim().isEmpty()) {
             throw new IllegalArgumentException("Location search text cannot be empty");
-
+        }
         List<Event> events = eventRepository.findEventByLocationContaining(location);
         
         for (Event event : events) {
