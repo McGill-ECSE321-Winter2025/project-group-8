@@ -54,12 +54,12 @@ public class AccountController {
      * @return AccountResponseDto with the created account details
      */
     @PostMapping("")
-    public ResponseEntity<AccountResponseDto> createAccount(@Valid @RequestBody AccountCreationDto accountCreationDto) {
+    public ResponseEntity<?> createAccount(@Valid @RequestBody AccountCreationDto accountCreationDto) {
         try {
             AccountResponseDto createdAccount = accountService.createAccount(accountCreationDto);
             return new ResponseEntity<>(createdAccount, HttpStatus.CREATED);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.badRequest().body("Bad request: " + e.getMessage());
         }
     }
 
@@ -86,12 +86,12 @@ public class AccountController {
      * @return AccountResponseDto with the account details
      */
     @GetMapping("/{id}")
-    public ResponseEntity<AccountResponseDto> getAccountById(@PathVariable int id) {
+    public ResponseEntity<?> getAccountById(@PathVariable int id) {
         try {
             AccountResponseDto account = new AccountResponseDto(accountService.getAccountById(id));
             return ResponseEntity.ok(account);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.badRequest().body("Bad request: " + e.getMessage());
         }
     }
 
@@ -102,12 +102,12 @@ public class AccountController {
      * @return AccountResponseDto with account and events details
      */
     @GetMapping("/email/{email}")
-    public ResponseEntity<AccountResponseDto> getAccountByEmail(@PathVariable String email) {
+    public ResponseEntity<?> getAccountByEmail(@PathVariable String email) {
         try {
             AccountResponseDto account = accountService.getAccountInfoByEmail(email);
             return ResponseEntity.ok(account);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.badRequest().body("Bad request: " + e.getMessage());
         }
     }
 
@@ -119,14 +119,14 @@ public class AccountController {
      * @return AccountResponseDto with the updated account details
      */
     @PutMapping("/{id}")
-    public ResponseEntity<AccountResponseDto> updateAccount(
+    public ResponseEntity<?> updateAccount(
             @PathVariable int id,
             @Valid @RequestBody AccountCreationDto accountUpdateDto) {
         try {
             AccountResponseDto updatedAccount = accountService.updateAccount(id, accountUpdateDto);
             return ResponseEntity.ok(updatedAccount);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.badRequest().body("Bad request: " + e.getMessage());
         }
     }
 
@@ -141,7 +141,7 @@ public class AccountController {
         try {
             return accountService.deleteAccount(id);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.badRequest().body("Bad request: " + e.getMessage());
         }
     }
 
@@ -156,7 +156,7 @@ public class AccountController {
         try {
             return accountService.deleteAccountByEmail(email);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.badRequest().body("Bad request: " + e.getMessage());
         }
     }
 
@@ -167,12 +167,12 @@ public class AccountController {
      * @return AccountResponseDto with the upgraded account details
      */
     @PutMapping("/upgrade/{email}")
-    public ResponseEntity<AccountResponseDto> upgradeToGameOwner(@PathVariable String email) {
+    public ResponseEntity<?> upgradeToGameOwner(@PathVariable String email) {
         try {
             AccountResponseDto upgradedAccount = accountService.upgradeToGameOwner(email);
             return ResponseEntity.ok(upgradedAccount);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.badRequest().body("Bad request: " + e.getMessage());
         }
     }
 

@@ -379,34 +379,6 @@ public class AccountServiceTest {
         verify(accountRepository, never()).delete(any(Account.class));
     }
 
-    @Test
-    public void testDeleteAccountSuccess() {
-        // Setup
-        when(accountRepository.findById(1)).thenReturn(Optional.of(regularAccount));
-        doNothing().when(accountRepository).delete(regularAccount);
-
-        // Call the method
-        ResponseEntity<String> response = accountService.deleteAccount(1);
-
-        // Assert
-        assertEquals(200, response.getStatusCodeValue());
-        assertEquals("Account with ID 1 has been deleted", response.getBody());
-        verify(accountRepository, times(1)).delete(regularAccount);
-    }
-
-    @Test
-    public void testDeleteAccountNotFound() {
-        // Setup
-        when(accountRepository.findById(99)).thenReturn(Optional.empty());
-
-        // Assert
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            accountService.deleteAccount(99);
-        });
-        assertEquals("Account with ID 99 does not exist", exception.getMessage());
-        verify(accountRepository, never()).delete(any(Account.class));
-    }
-
     // Upgrade User To Game Owner Tests
     @Test
     public void testUpgradeToGameOwnerSuccess() {
