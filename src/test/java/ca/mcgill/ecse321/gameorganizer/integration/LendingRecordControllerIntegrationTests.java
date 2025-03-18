@@ -1,4 +1,4 @@
-package ca.mcgill.ecse321.gameorganizer.controller;
+package ca.mcgill.ecse321.gameorganizer.integration;
 
 import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -46,7 +46,7 @@ import ca.mcgill.ecse321.gameorganizer.services.BorrowRequestService;
  * @author @YoussGm3o8
  */
 @ExtendWith(MockitoExtension.class)
-public class LendingRecordControllerTests {
+public class LendingRecordControllerIntegrationTests {
 
     private MockMvc mockMvc;
     
@@ -290,7 +290,7 @@ public class LendingRecordControllerTests {
         // Setup test data
         UpdateLendingRecordStatusDto statusDto = new UpdateLendingRecordStatusDto();
         statusDto.setNewStatus("CLOSED");
-        statusDto.setUserId(1);
+        statusDto.setUserId("1");
         statusDto.setReason("Game returned in good condition");
         
         Map<String, Object> response = new HashMap<>();
@@ -370,7 +370,7 @@ public class LendingRecordControllerTests {
         LendingHistoryFilterDto filterDto = new LendingHistoryFilterDto();
         filterDto.setStatus("ACTIVE");
         filterDto.setGameId(1);
-        filterDto.setBorrowerId(2);
+        filterDto.setBorrowerId("2");
         filterDto.setFromDate(new Date(System.currentTimeMillis() - 86400000 * 14)); // 2 weeks ago
         filterDto.setToDate(new Date(System.currentTimeMillis() + 86400000 * 14)); // 2 weeks ahead
         
