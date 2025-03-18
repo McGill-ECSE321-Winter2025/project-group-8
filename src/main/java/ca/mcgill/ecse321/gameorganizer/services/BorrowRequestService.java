@@ -1,129 +1,192 @@
 package ca.mcgill.ecse321.gameorganizer.services;
 
+import ca.mcgill.ecse321.gameorganizer.dtos.BorrowRequestDto;
+import ca.mcgill.ecse321.gameorganizer.dtos.CreateBorrowRequestDto;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequestStatus;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
- * Service class that handles business logic for game borrowing operations.
- * Provides methods for creating, retrieving, updating, and managing borrow requests.
- * Ensures validation of request dates, game availability, and ownership rules.
- * 
- * @author @rayanBaida
+ * Service for managing borrow requests in the game organizer system.
+ * Handles request creation, retrieval, updates, and deletion.
+ *
+ * @autor Rayan Baida
  */
 @Service
 public class BorrowRequestService {
 
-    /** Repository for borrow request data access */
     private final BorrowRequestRepository borrowRequestRepository;
+    private final GameRepository gameRepository;
+    private final AccountRepository accountRepository;
 
     /**
-     * Constructs a BorrowRequestService with the required repository dependency.
+     * Constructs a BorrowRequestService with required repositories.
      *
-     * @param borrowRequestRepository The repository for borrow request data access
+     * @param borrowRequestRepository Repository for borrow requests.
+     * @param gameRepository Repository for games.
+     * @param accountRepository Repository for user accounts.
      */
     @Autowired
-    public BorrowRequestService(BorrowRequestRepository borrowRequestRepository) {
+    public BorrowRequestService(BorrowRequestRepository borrowRequestRepository, GameRepository gameRepository, AccountRepository accountRepository) {
         this.borrowRequestRepository = borrowRequestRepository;
+        this.gameRepository = gameRepository;
+        this.accountRepository = accountRepository;
     }
 
     /**
-     * Creates a borrow request if valid (game available, valid dates, etc.).
-     * 
-     * @param newBorrowRequest The request details.
-     * @return Response with success message.
+     * Creates a new borrow request.
+     *
+     * @param requestDTO The DTO containing request details.
+     * @return The created borrow request as a DTO.
+     * @throws IllegalArgumentException if the game or requester is not found, the owner requests their own game, or dates are invalid.
      */
     @Transactional
-    public ResponseEntity<String> createBorrowRequest(BorrowRequest newBorrowRequest) {
-        // Validate required fields
-        if (newBorrowRequest.getRequestedGame() == null) {
-            throw new IllegalArgumentException("Borrow request must include a requested game.");
+    public BorrowRequestDto createBorrowRequest(CreateBorrowRequestDto requestDTO) {
+        Optional<Game> gameOpt = gameRepository.findById(requestDTO.getRequestedGameId());
+        Optional<Account> requesterOpt = accountRepository.findById(requestDTO.getRequesterId());
+
+        if (!gameOpt.isPresent()) {
+            throw new IllegalArgumentException("Game not found.");
         }
-        if (newBorrowRequest.getRequester() == null) {
-            throw new IllegalArgumentException("Borrow request must include a requester.");
-        }
-        if (newBorrowRequest.getStartDate() == null || newBorrowRequest.getEndDate() == null) {
-            throw new IllegalArgumentException("Both start and end dates are required.");
-        }
-        // Ensure end date is after start date
-        if (!newBorrowRequest.getEndDate().after(newBorrowRequest.getStartDate())) {
-            throw new IllegalArgumentException("End date must be after start date.");
+        if (!requesterOpt.isPresent()) {
+            throw new IllegalArgumentException("Requester not found.");
         }
 
-        // Prevent owners from borrowing their own game
-        Game requestedGame = newBorrowRequest.getRequestedGame();
-        Account requester = newBorrowRequest.getRequester();
-        if (requestedGame.getOwner() != null && requestedGame.getOwner().equals(requester)) {
+        Game game = gameOpt.get();
+        Account requester = requesterOpt.get();
+
+        if (game.getOwner().equals(requester)) {
             throw new IllegalArgumentException("Owners cannot request their own game.");
         }
 
-        // Check if game is available
+        if (!requestDTO.getEndDate().after(requestDTO.getStartDate())) {
+            throw new IllegalArgumentException("End date must be after start date.");
+        }
+
         List<BorrowRequest> overlappingRequests = borrowRequestRepository.findOverlappingApprovedRequests(
-            requestedGame.getId(), newBorrowRequest.getStartDate(), newBorrowRequest.getEndDate());
+                game.getId(), requestDTO.getStartDate(), requestDTO.getEndDate());
+
         if (!overlappingRequests.isEmpty()) {
             throw new IllegalArgumentException("Game is unavailable for the requested period.");
         }
 
-        // Set status and request date
-        newBorrowRequest.setStatus(BorrowRequestStatus.PENDING);
-        newBorrowRequest.setRequestDate(new Date());
-        borrowRequestRepository.save(newBorrowRequest);
-        return ResponseEntity.ok("Borrow request created successfully.");
+        BorrowRequest borrowRequest = new BorrowRequest();
+        borrowRequest.setRequestedGame(game);
+        borrowRequest.setRequester(requester);
+        borrowRequest.setStartDate(requestDTO.getStartDate());
+        borrowRequest.setEndDate(requestDTO.getEndDate());
+        borrowRequest.setStatus(BorrowRequestStatus.PENDING);
+        borrowRequest.setRequestDate(new Date());
+
+        BorrowRequest savedRequest = borrowRequestRepository.save(borrowRequest);
+
+        return new BorrowRequestDto(
+                savedRequest.getId(),
+                savedRequest.getRequester().getId(),
+                savedRequest.getRequestedGame().getId(),
+                savedRequest.getStartDate(),
+                savedRequest.getEndDate(),
+                savedRequest.getStatus().name(),
+                savedRequest.getRequestDate()
+        );
     }
 
     /**
-     * Retrieves a borrow request by ID.
-     * 
-     * @param id The request ID.
-     * @return The BorrowRequest.
+     * Retrieves a borrow request by its ID.
+     *
+     * @param id The borrow request ID.
+     * @return The borrow request DTO.
+     * @throws IllegalArgumentException if no request is found.
      */
     @Transactional
-    public BorrowRequest getBorrowRequestById(int id) {
-        return borrowRequestRepository.findBorrowRequestById(id).orElseThrow(
-            () -> new IllegalArgumentException("No borrow request found with ID " + id)
+    public BorrowRequestDto getBorrowRequestById(int id) {
+        BorrowRequest request = borrowRequestRepository.findBorrowRequestById(id)
+                .orElseThrow(() -> new IllegalArgumentException("No borrow request found with ID " + id));
+
+        return new BorrowRequestDto(
+                request.getId(),
+                request.getRequester().getId(),
+                request.getRequestedGame().getId(),
+                request.getStartDate(),
+                request.getEndDate(),
+                request.getStatus().name(),
+                request.getRequestDate()
         );
+    }
+
+    /**
+     * Retrieves all borrow requests.
+     *
+     * @return List of all borrow request DTOs.
+     */
+    @Transactional
+    public List<BorrowRequestDto> getAllBorrowRequests() {
+        return borrowRequestRepository.findAll().stream()
+                .map(request -> new BorrowRequestDto(
+                        request.getId(),
+                        request.getRequester().getId(),
+                        request.getRequestedGame().getId(),
+                        request.getStartDate(),
+                        request.getEndDate(),
+                        request.getStatus().name(),
+                        request.getRequestDate()
+                ))
+                .collect(Collectors.toList());
     }
 
     /**
      * Updates the status of a borrow request.
-     * 
-     * @param id The request ID.
-     * @param newStatus The new status ("APPROVED" or "DECLINED").
-     * @return Response with success message.
+     *
+     * @param id The borrow request ID.
+     * @param newStatus The new status (APPROVED or DECLINED).
+     * @return The updated borrow request DTO.
+     * @throws IllegalArgumentException if the request is not found or status is invalid.
      */
     @Transactional
-    public ResponseEntity<String> updateBorrowRequestStatus(int id, String newStatus) {
-        BorrowRequest request = borrowRequestRepository.findBorrowRequestById(id).orElseThrow(
-            () -> new IllegalArgumentException("No borrow request found with ID " + id)
-        );
+    public BorrowRequestDto updateBorrowRequestStatus(int id, String newStatus) {
+        BorrowRequest request = borrowRequestRepository.findBorrowRequestById(id)
+                .orElseThrow(() -> new IllegalArgumentException("No borrow request found with ID " + id));
+
         if (!newStatus.equals("APPROVED") && !newStatus.equals("DECLINED")) {
-            throw new IllegalArgumentException("Invalid status, it must be either APPROVED or DECLINED.");
+            throw new IllegalArgumentException("Invalid status.");
         }
+
         request.setStatus(BorrowRequestStatus.valueOf(newStatus));
-        borrowRequestRepository.save(request);
-        return ResponseEntity.ok("Borrow request status updated successfully.");
+        BorrowRequest updatedRequest = borrowRequestRepository.save(request);
+
+        return new BorrowRequestDto(
+                updatedRequest.getId(),
+                updatedRequest.getRequester().getId(),
+                updatedRequest.getRequestedGame().getId(),
+                updatedRequest.getStartDate(),
+                updatedRequest.getEndDate(),
+                updatedRequest.getStatus().name(),
+                updatedRequest.getRequestDate()
+        );
     }
 
     /**
-     * Deletes a borrow request.
-     * 
-     * @param id The request ID.
-     * @return Response with success message.
+     * Deletes a borrow request by its ID.
+     *
+     * @param id The borrow request ID.
+     * @throws IllegalArgumentException if no request is found.
      */
     @Transactional
-    public ResponseEntity<String> deleteBorrowRequest(int id) {
-        BorrowRequest requestToDelete = borrowRequestRepository.findBorrowRequestById(id).orElseThrow(
-            () -> new IllegalArgumentException("No borrow request found with ID " + id)
-        );
-        borrowRequestRepository.delete(requestToDelete);
-        return ResponseEntity.ok("Borrow request with id " + id + " has been deleted.");
+    public void deleteBorrowRequest(int id) {
+        BorrowRequest request = borrowRequestRepository.findBorrowRequestById(id)
+                .orElseThrow(() -> new IllegalArgumentException("No borrow request found with ID " + id));
+        borrowRequestRepository.delete(request);
     }
 }
