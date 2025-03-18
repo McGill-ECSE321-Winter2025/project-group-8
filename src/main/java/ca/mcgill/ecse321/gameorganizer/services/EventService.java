@@ -24,7 +24,7 @@ import java.util.Date;
  * Service class that handles business logic for event management operations.
  * Provides methods for creating, retrieving, updating, and deleting gaming events.
  * Ensures business rules and validation for event operations.
- * 
+ *
  * @author @Yessine-glitch
  */
 @Service
@@ -55,7 +55,7 @@ public class EventService {
      */
     @Transactional
     public Event createEvent(CreateEventRequest newEvent) {
-        
+
         if (newEvent.getTitle() == null || newEvent.getTitle().trim().isEmpty()) {
             throw new IllegalArgumentException("Event title cannot be empty");
         }
@@ -71,15 +71,15 @@ public class EventService {
         if (newEvent.getHost() == null) {
             throw new IllegalArgumentException("Host cannot be null");
         }
-        
+
         Event e = new Event(
-            newEvent.getTitle(),
-            newEvent.getDateTime(),
-            newEvent.getLocation(),
-            newEvent.getDescription(),
-            newEvent.getMaxParticipants(),
-            newEvent.getFeaturedGame(),
-            newEvent.getHost()
+                newEvent.getTitle(),
+                newEvent.getDateTime(),
+                newEvent.getLocation(),
+                newEvent.getDescription(),
+                newEvent.getMaxParticipants(),
+                newEvent.getFeaturedGame(),
+                newEvent.getHost()
         );
 
         return eventRepository.save(e);
@@ -95,16 +95,16 @@ public class EventService {
     @Transactional
     public Event getEventById(UUID id) {
         Event event = eventRepository.findEventById(id)
-        .orElseThrow(() -> new IllegalArgumentException("Event with id " + id + " does not exist"));
-    
+                .orElseThrow(() -> new IllegalArgumentException("Event with id " + id + " does not exist"));
+
         // Handle date conversion if needed
         if (event.getDateTime() instanceof java.sql.Timestamp) {
             java.sql.Timestamp timestamp = (java.sql.Timestamp) event.getDateTime();
             event.setDateTime(new java.sql.Date(timestamp.getTime()));
         }
-    
+
         return event;
-    }   
+    }
 
     /**
      * Retrieves all events in the system.
@@ -139,30 +139,30 @@ public class EventService {
      * @throws IllegalArgumentException if the event is not found or if maxParticipants is invalid
      */
     @Transactional
-public Event updateEvent(UUID id, String title, Date dateTime, 
-        String location, String description, int maxParticipants) {
-    Event event = eventRepository.findEventById(id).orElseThrow(
-        () -> new IllegalArgumentException("Event with id " + id + " does not exist")
-    );
+    public Event updateEvent(UUID id, String title, Date dateTime,
+                             String location, String description, int maxParticipants) {
+        Event event = eventRepository.findEventById(id).orElseThrow(
+                () -> new IllegalArgumentException("Event with id " + id + " does not exist")
+        );
 
-    if (title != null && !title.trim().isEmpty()) {
-        event.setTitle(title);
-    }
-    if (dateTime != null) {
-        event.setDateTime(dateTime);
-    }
-    if (location != null) {
-        event.setLocation(location);
-    }
-    if (description != null) {
-        event.setDescription(description);
-    }
-    if (maxParticipants > 0) {
-        event.setMaxParticipants(maxParticipants);
-    }
+        if (title != null && !title.trim().isEmpty()) {
+            event.setTitle(title);
+        }
+        if (dateTime != null) {
+            event.setDateTime(dateTime);
+        }
+        if (location != null) {
+            event.setLocation(location);
+        }
+        if (description != null) {
+            event.setDescription(description);
+        }
+        if (maxParticipants > 0) {
+            event.setMaxParticipants(maxParticipants);
+        }
 
-    return eventRepository.save(event);
-}
+        return eventRepository.save(event);
+    }
 
 
     // TODO: Change to be callable by associated owner only
@@ -178,13 +178,13 @@ public Event updateEvent(UUID id, String title, Date dateTime,
     @Transactional
     public ResponseEntity<String> deleteEvent(UUID id) {
         Event eventToDelete = eventRepository.findEventById(id).orElseThrow(
-            () -> new IllegalArgumentException("Event with id " + id + " does not exist")
+                () -> new IllegalArgumentException("Event with id " + id + " does not exist")
         );
         eventRepository.delete(eventToDelete);
         return ResponseEntity.ok("Event with id " + id + " has been deleted");
     }
 
-     /**
+    /**
      * Finds events scheduled on a specific date.
      * Handles date type conversion to ensure consistent results.
      *
@@ -194,14 +194,14 @@ public Event updateEvent(UUID id, String title, Date dateTime,
     @Transactional
     public List<Event> findEventsByDate(java.sql.Date date) {
         List<Event> events = eventRepository.findEventByDateTime(date);
-        
+
         for (Event event : events) {
             if (event.getDateTime() instanceof java.sql.Timestamp) {
                 java.sql.Timestamp timestamp = (java.sql.Timestamp) event.getDateTime();
                 event.setDateTime(new java.sql.Date(timestamp.getTime()));
             }
         }
-        
+
         return events;
     }
 
@@ -214,14 +214,14 @@ public Event updateEvent(UUID id, String title, Date dateTime,
     @Transactional
     public List<Event> findEventsByGameId(int gameId) {
         List<Event> events = eventRepository.findEventByFeaturedGameId(gameId);
-        
+
         for (Event event : events) {
             if (event.getDateTime() instanceof java.sql.Timestamp) {
                 java.sql.Timestamp timestamp = (java.sql.Timestamp) event.getDateTime();
                 event.setDateTime(new java.sql.Date(timestamp.getTime()));
             }
         }
-        
+
         return events;
     }
 
@@ -236,16 +236,16 @@ public Event updateEvent(UUID id, String title, Date dateTime,
         if (gameName == null || gameName.trim().isEmpty()) {
             throw new IllegalArgumentException("Game name cannot be empty");
         }
-        
+
         List<Event> events = eventRepository.findEventByFeaturedGameName(gameName);
-        
+
         for (Event event : events) {
             if (event.getDateTime() instanceof java.sql.Timestamp) {
                 java.sql.Timestamp timestamp = (java.sql.Timestamp) event.getDateTime();
                 event.setDateTime(new java.sql.Date(timestamp.getTime()));
             }
         }
-        
+
         return events;
     }
 
@@ -258,14 +258,14 @@ public Event updateEvent(UUID id, String title, Date dateTime,
     @Transactional
     public List<Event> findEventsByHostId(int hostId) {
         List<Event> events = eventRepository.findEventByHostId(hostId);
-        
+
         for (Event event : events) {
             if (event.getDateTime() instanceof java.sql.Timestamp) {
                 java.sql.Timestamp timestamp = (java.sql.Timestamp) event.getDateTime();
                 event.setDateTime(new java.sql.Date(timestamp.getTime()));
             }
         }
-        
+
         return events;
     }
 
@@ -280,16 +280,16 @@ public Event updateEvent(UUID id, String title, Date dateTime,
         if (hostUsername == null || hostUsername.trim().isEmpty()) {
             throw new IllegalArgumentException("Host username cannot be empty");
         }
-        
+
         List<Event> events = eventRepository.findEventByHostName(hostUsername);
-        
+
         for (Event event : events) {
             if (event.getDateTime() instanceof java.sql.Timestamp) {
                 java.sql.Timestamp timestamp = (java.sql.Timestamp) event.getDateTime();
                 event.setDateTime(new java.sql.Date(timestamp.getTime()));
             }
         }
-        
+
         return events;
     }
 
@@ -305,16 +305,16 @@ public Event updateEvent(UUID id, String title, Date dateTime,
         if (minPlayers <= 0) {
             throw new IllegalArgumentException("Minimum players must be greater than 0");
         }
-        
+
         List<Event> events = eventRepository.findByFeaturedGameMinPlayersGreaterThanEqual(minPlayers);
-        
+
         for (Event event : events) {
             if (event.getDateTime() instanceof java.sql.Timestamp) {
                 java.sql.Timestamp timestamp = (java.sql.Timestamp) event.getDateTime();
                 event.setDateTime(new java.sql.Date(timestamp.getTime()));
             }
         }
-        
+
         return events;
     }
 
@@ -329,16 +329,16 @@ public Event updateEvent(UUID id, String title, Date dateTime,
         if (location == null || location.trim().isEmpty()) {
             throw new IllegalArgumentException("Location search text cannot be empty");
         }
-        
+
         List<Event> events = eventRepository.findEventByLocationContaining(location);
-        
+
         for (Event event : events) {
             if (event.getDateTime() instanceof java.sql.Timestamp) {
                 java.sql.Timestamp timestamp = (java.sql.Timestamp) event.getDateTime();
                 event.setDateTime(new java.sql.Date(timestamp.getTime()));
             }
         }
-        
+
         return events;
     }
 }

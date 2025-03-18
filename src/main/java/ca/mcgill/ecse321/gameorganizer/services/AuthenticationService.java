@@ -99,4 +99,5 @@ public class AuthenticationService {
         }
         // TODO: Add more validation criteria as needed (e.g., complexity, special characters, etc.)
     }
+
 }

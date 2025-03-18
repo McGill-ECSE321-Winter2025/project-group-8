@@ -150,4 +150,5 @@ public interface LendingRecordRepository extends JpaRepository<LendingRecord, In
             @Param("borrowerId") Integer borrowerId,
             @Param("gameId") Integer gameId,
             Pageable pageable);
+
 }
