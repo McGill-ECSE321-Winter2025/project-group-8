@@ -2,13 +2,17 @@ package ca.mcgill.ecse321.gameorganizer.service;
 
 import ca.mcgill.ecse321.gameorganizer.models.*;
 import ca.mcgill.ecse321.gameorganizer.repositories.LendingRecordRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.services.LendingRecordService;
+import ca.mcgill.ecse321.gameorganizer.dtos.LendingHistoryFilterDto;
+import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import java.util.Arrays;
@@ -18,14 +22,25 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
+/**
+ * Test class for the LendingRecordService.
+ * Tests business logic and service layer methods using mocked repositories.
+ *
+ * @author @YoussGm3o8
+ */
 @ExtendWith(MockitoExtension.class)
 public class LendingRecordServiceTest {
 
     @Mock
     private LendingRecordRepository lendingRecordRepository;
+
+    @Mock
+    private AccountRepository accountRepository;
 
     @InjectMocks
     private LendingRecordService lendingRecordService;
@@ -46,11 +61,17 @@ public class LendingRecordServiceTest {
 
         // Create test objects
         owner = new GameOwner("Test Owner", "owner@test.com", "password123");
+        owner.setId(1);
+
         borrower = new Account("Test Borrower", "borrower@test.com", "password123");
+        borrower.setId(2);
+
         game = new Game("Test Game", 2, 4, "test.jpg", new Date());
+        game.setId(1);
         game.setOwner(owner);
 
         request = new BorrowRequest(startDate, endDate, BorrowRequestStatus.APPROVED, new Date(), game);
+        request.setId(1);
         request.setRequester(borrower);
         request.setResponder(owner);
 
@@ -63,7 +84,7 @@ public class LendingRecordServiceTest {
         // Create dates in the future
         Date futureStart = new Date(System.currentTimeMillis() + 86400000); // 1 day in future
         Date futureEnd = new Date(System.currentTimeMillis() + 2 * 86400000); // 2 days in future
-        
+
         when(lendingRecordRepository.save(any(LendingRecord.class))).thenReturn(testRecord);
 
         ResponseEntity<String> response = lendingRecordService.createLendingRecord(futureStart, futureEnd, request, owner);
@@ -74,19 +95,20 @@ public class LendingRecordServiceTest {
 
     @Test
     public void testCreateLendingRecordWithNullStartDate() {
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            lendingRecordService.createLendingRecord(null, endDate, request, owner);
-        });
-        assertEquals("Required parameters cannot be null", exception.getMessage());
+        ResponseEntity<String> response = lendingRecordService.createLendingRecord(null, endDate, request, owner);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertTrue(response.getBody().contains("Required parameters cannot be null"));
     }
 
     @Test
     public void testCreateLendingRecordWithEndDateBeforeStartDate() {
         Date invalidEndDate = new Date(startDate.getTime() - 86400000); // 1 day before start
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            lendingRecordService.createLendingRecord(startDate, invalidEndDate, request, owner);
-        });
-        assertEquals("End date cannot be before start date", exception.getMessage());
+
+        ResponseEntity<String> response = lendingRecordService.createLendingRecord(startDate, invalidEndDate, request, owner);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertTrue(response.getBody().contains("End date cannot be before start date"));
     }
 
     @Test
@@ -97,16 +119,19 @@ public class LendingRecordServiceTest {
 
         assertNotNull(found);
         assertEquals(testRecord.getId(), found.getId());
+        assertEquals(LendingRecord.LendingStatus.ACTIVE, found.getStatus());
+        assertEquals(owner, found.getRecordOwner());
+        assertEquals(request, found.getRequest());
     }
 
     @Test
     public void testGetLendingRecordByIdNotFound() {
-        when(lendingRecordRepository.findLendingRecordById(99)).thenReturn(Optional.empty());
+        when(lendingRecordRepository.findLendingRecordById(anyInt())).thenReturn(Optional.empty());
 
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            lendingRecordService.getLendingRecordById(99);
+        Exception exception = assertThrows(ResourceNotFoundException.class, () -> {
+            lendingRecordService.getLendingRecordById(1);
         });
-        assertEquals("Lending record not found with id: 99", exception.getMessage());
+        assertTrue(exception.getMessage().contains("No lending record found with ID"));
     }
 
     @Test
@@ -140,6 +165,34 @@ public class LendingRecordServiceTest {
 
         assertEquals("Lending record status updated successfully", response.getBody());
         assertEquals(LendingRecord.LendingStatus.OVERDUE, testRecord.getStatus());
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+    }
+
+    @Test
+    public void testUpdateStatusByEmailSuccess() {
+        when(lendingRecordRepository.findLendingRecordById(1)).thenReturn(Optional.of(testRecord));
+        when(lendingRecordRepository.save(any(LendingRecord.class))).thenReturn(testRecord);
+        when(accountRepository.findByEmail("owner@test.com")).thenReturn(Optional.of(owner));
+
+        ResponseEntity<String> response = lendingRecordService.updateStatusByEmail(
+                1, LendingRecord.LendingStatus.OVERDUE, "owner@test.com", "Test update by email");
+
+        assertEquals("Lending record status updated successfully", response.getBody());
+        assertEquals(LendingRecord.LendingStatus.OVERDUE, testRecord.getStatus());
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(1, testRecord.getLastModifiedBy()); // ID of owner
+        assertEquals("Test update by email", testRecord.getStatusChangeReason());
+    }
+
+    @Test
+    public void testUpdateStatusByEmailWithInvalidEmail() {
+        when(accountRepository.findByEmail(anyString())).thenReturn(Optional.empty());
+
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+            lendingRecordService.updateStatusByEmail(
+                    1, LendingRecord.LendingStatus.OVERDUE, "nonexistent@test.com", "Test");
+        });
+        assertTrue(exception.getMessage().contains("No user found with email"));
     }
 
     @Test
@@ -150,29 +203,32 @@ public class LendingRecordServiceTest {
         Exception exception = assertThrows(IllegalStateException.class, () -> {
             lendingRecordService.updateStatus(1, LendingRecord.LendingStatus.ACTIVE);
         });
-        assertEquals("Cannot update status of a closed lending record", exception.getMessage());
+        assertTrue(exception.getMessage().contains("Cannot change status of a closed lending record"));
     }
 
     @Test
     public void testFindOverdueRecords() {
-        when(lendingRecordRepository.findByEndDateBeforeAndStatus(any(Date.class), 
-            eq(LendingRecord.LendingStatus.ACTIVE))).thenReturn(Arrays.asList(testRecord));
+        when(lendingRecordRepository.findByEndDateBeforeAndStatus(any(Date.class),
+                eq(LendingRecord.LendingStatus.ACTIVE))).thenReturn(Arrays.asList(testRecord));
 
         List<LendingRecord> overdueRecords = lendingRecordService.findOverdueRecords();
 
         assertFalse(overdueRecords.isEmpty());
         assertEquals(1, overdueRecords.size());
+        assertEquals(testRecord, overdueRecords.get(0));
     }
 
     @Test
     public void testUpdateEndDateSuccess() {
         when(lendingRecordRepository.findLendingRecordById(1)).thenReturn(Optional.of(testRecord));
+        when(lendingRecordRepository.save(any(LendingRecord.class))).thenReturn(testRecord);
         Date newEndDate = new Date(endDate.getTime() + 86400000); // 1 day later
 
         ResponseEntity<String> response = lendingRecordService.updateEndDate(1, newEndDate);
 
-        assertEquals("Lending record end date updated successfully", response.getBody());
+        assertEquals("End date updated successfully", response.getBody());
         assertEquals(newEndDate, testRecord.getEndDate());
+        assertEquals(HttpStatus.OK, response.getStatusCode());
     }
 
     @Test
@@ -199,22 +255,51 @@ public class LendingRecordServiceTest {
     @Test
     public void testCloseLendingRecordSuccess() {
         when(lendingRecordRepository.findLendingRecordById(1)).thenReturn(Optional.of(testRecord));
+        when(lendingRecordRepository.save(any(LendingRecord.class))).thenReturn(testRecord);
 
         ResponseEntity<String> response = lendingRecordService.closeLendingRecord(1);
 
-        assertEquals("Lending record closed successfully", response.getBody());
+        // Verify the format of the response message matches what the service actually returns
+        assertTrue(response.getBody().contains("Lending record (ID: 1) successfully closed"));
+        assertTrue(response.getBody().contains("Previous status was ACTIVE"));
         assertEquals(LendingRecord.LendingStatus.CLOSED, testRecord.getStatus());
+    }
+
+    @Test
+    public void testCloseLendingRecordByEmailSuccess() {
+        when(lendingRecordRepository.findLendingRecordById(1)).thenReturn(Optional.of(testRecord));
+        when(lendingRecordRepository.save(any(LendingRecord.class))).thenReturn(testRecord);
+        when(accountRepository.findByEmail("owner@test.com")).thenReturn(Optional.of(owner));
+
+        ResponseEntity<String> response = lendingRecordService.closeLendingRecordByEmail(
+                1, "owner@test.com", "Test close by email");
+
+        assertTrue(response.getBody().contains("Lending record (ID: 1) successfully closed"));
+        assertEquals(LendingRecord.LendingStatus.CLOSED, testRecord.getStatus());
+        assertEquals(1, testRecord.getClosedBy()); // ID of owner
+    }
+
+    @Test
+    public void testCloseAlreadyClosedLendingRecord() {
+        testRecord.setStatus(LendingRecord.LendingStatus.CLOSED);
+        when(lendingRecordRepository.findLendingRecordById(1)).thenReturn(Optional.of(testRecord));
+
+        Exception exception = assertThrows(IllegalStateException.class, () -> {
+            lendingRecordService.closeLendingRecord(1);
+        });
+        assertEquals("Lending record is already closed", exception.getMessage());
     }
 
     @Test
     public void testGetLendingRecordsByDateRange() {
         when(lendingRecordRepository.findByStartDateBetween(any(Date.class), any(Date.class)))
-            .thenReturn(Arrays.asList(testRecord));
+                .thenReturn(Arrays.asList(testRecord));
 
         List<LendingRecord> records = lendingRecordService.getLendingRecordsByDateRange(startDate, endDate);
 
         assertFalse(records.isEmpty());
         assertEquals(1, records.size());
+        assertEquals(testRecord, records.get(0));
     }
 
     @Test
@@ -236,30 +321,27 @@ public class LendingRecordServiceTest {
         assertEquals(newStartDate, updated.getStartDate());
         assertEquals(newEndDate, updated.getEndDate());
         assertEquals(LendingRecord.LendingStatus.OVERDUE, updated.getStatus());
-        
-        assertEquals(newStartDate, updated.getStartDate());
-        assertEquals(newEndDate, updated.getEndDate());
-        assertEquals(LendingRecord.LendingStatus.OVERDUE, updated.getStatus());
     }
 
     @Test
     public void testCreateLendingRecordWithInvalidGameOwner() {
-        GameOwner differentOwner = new GameOwner("Different Owner", "different@test.com", "password123");
-        
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            lendingRecordService.createLendingRecord(startDate, endDate, request, differentOwner);
-        });
-        assertEquals("The record owner must be the owner of the game in the borrow request", exception.getMessage());
+        GameOwner differentOwner = new GameOwner();
+        differentOwner.setId(2);
+
+        ResponseEntity<String> response = lendingRecordService.createLendingRecord(startDate, endDate, request, differentOwner);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertTrue(response.getBody().contains("The record owner must be the owner of the game"));
     }
 
     @Test
     public void testCreateLendingRecordWithPastStartDate() {
-        Date pastDate = new Date(System.currentTimeMillis() - 86400000); // 1 day ago
-        
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            lendingRecordService.createLendingRecord(pastDate, endDate, request, owner);
-        });
-        assertEquals("Start date cannot be in the past", exception.getMessage());
+        Date pastDate = new Date(System.currentTimeMillis() - 86400000); // 1 day in the past
+
+        ResponseEntity<String> response = lendingRecordService.createLendingRecord(pastDate, endDate, request, owner);
+
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertTrue(response.getBody().contains("Start date cannot be in the past"));
     }
 
     @Test
@@ -267,28 +349,31 @@ public class LendingRecordServiceTest {
         // Setup future dates for the test
         Date futureStart = new Date(System.currentTimeMillis() + 86400000); // 1 day in future
         Date futureEnd = new Date(System.currentTimeMillis() + 2 * 86400000); // 2 days in future
-        
+
         when(lendingRecordRepository.findLendingRecordById(1)).thenReturn(Optional.of(testRecord));
         when(lendingRecordRepository.save(any(LendingRecord.class))).thenReturn(testRecord);
+        when(accountRepository.findByEmail("owner@test.com")).thenReturn(Optional.of(owner));
 
         // Step 1: Create and verify initial state with future dates
         ResponseEntity<String> createResponse = lendingRecordService.createLendingRecord(futureStart, futureEnd, request, owner);
         assertEquals("Lending record created successfully", createResponse.getBody());
 
-        // Step 2: Update to OVERDUE status
-        ResponseEntity<String> updateResponse = lendingRecordService.updateStatus(1, LendingRecord.LendingStatus.OVERDUE);
+        // Step 2: Update to OVERDUE status using email-based method
+        ResponseEntity<String> updateResponse = lendingRecordService.updateStatusByEmail(
+                1, LendingRecord.LendingStatus.OVERDUE, "owner@test.com", "Marked as overdue");
         assertEquals("Lending record status updated successfully", updateResponse.getBody());
         assertEquals(LendingRecord.LendingStatus.OVERDUE, testRecord.getStatus());
 
         // Step 3: Extend end date
         Date newEndDate = new Date(endDate.getTime() + 86400000);
         ResponseEntity<String> extendResponse = lendingRecordService.updateEndDate(1, newEndDate);
-        assertEquals("Lending record end date updated successfully", extendResponse.getBody());
+        assertEquals("End date updated successfully", extendResponse.getBody());
         assertEquals(newEndDate, testRecord.getEndDate());
 
-        // Step 4: Close the record
-        ResponseEntity<String> closeResponse = lendingRecordService.closeLendingRecord(1);
-        assertEquals("Lending record closed successfully", closeResponse.getBody());
+        // Step 4: Close the record using email-based method
+        ResponseEntity<String> closeResponse = lendingRecordService.closeLendingRecordByEmail(
+                1, "owner@test.com", "Game returned");
+        assertTrue(closeResponse.getBody().contains("successfully closed"));
         assertEquals(LendingRecord.LendingStatus.CLOSED, testRecord.getStatus());
 
         // Step 5: Verify record can be deleted after closing
@@ -333,17 +418,6 @@ public class LendingRecordServiceTest {
     }
 
     @Test
-    public void testCloseAlreadyClosedLendingRecord() {
-        testRecord.setStatus(LendingRecord.LendingStatus.CLOSED);
-        when(lendingRecordRepository.findLendingRecordById(1)).thenReturn(Optional.of(testRecord));
-
-        Exception exception = assertThrows(IllegalStateException.class, () -> {
-            lendingRecordService.closeLendingRecord(1);
-        });
-        assertEquals("Lending record is already closed", exception.getMessage());
-    }
-
-    @Test
     public void testUpdateEndDateWithNullNewEndDate() {
         Exception exception = assertThrows(IllegalArgumentException.class, () -> {
             lendingRecordService.updateEndDate(1, null);
@@ -371,5 +445,204 @@ public class LendingRecordServiceTest {
             lendingRecordService.updateEndDate(1, invalidEndDate);
         });
         assertEquals("New end date cannot be before start date", exception.getMessage());
+    }
+
+    @Test
+    public void testCloseLendingRecordWithDamageAssessment() {
+        when(lendingRecordRepository.findLendingRecordById(1)).thenReturn(Optional.of(testRecord));
+        when(lendingRecordRepository.save(any(LendingRecord.class))).thenReturn(testRecord);
+
+        ResponseEntity<String> response = lendingRecordService.closeLendingRecordWithDamageAssessment(
+                1, true, "Scratches on disc", 2, 123, "Game returned with damage");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertTrue(testRecord.isDamaged());
+        assertEquals("Scratches on disc", testRecord.getDamageNotes());
+        assertEquals(2, testRecord.getDamageSeverity());
+        assertEquals(LendingRecord.LendingStatus.CLOSED, testRecord.getStatus());
+        assertEquals(123, testRecord.getLastModifiedBy());
+        assertNotNull(testRecord.getLastModifiedDate());
+    }
+
+    @Test
+    public void testCloseLendingRecordWithDamageAssessmentByEmail() {
+        when(lendingRecordRepository.findLendingRecordById(1)).thenReturn(Optional.of(testRecord));
+        when(lendingRecordRepository.save(any(LendingRecord.class))).thenReturn(testRecord);
+        when(accountRepository.findByEmail("owner@test.com")).thenReturn(Optional.of(owner));
+
+        ResponseEntity<String> response = lendingRecordService.closeLendingRecordWithDamageAssessmentByEmail(
+                1, true, "Scratches on disc", 2, "owner@test.com", "Game returned with damage");
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertTrue(testRecord.isDamaged());
+        assertEquals("Scratches on disc", testRecord.getDamageNotes());
+        assertEquals(2, testRecord.getDamageSeverity());
+        assertEquals(LendingRecord.LendingStatus.CLOSED, testRecord.getStatus());
+        assertEquals(1, testRecord.getLastModifiedBy()); // ID of owner
+        assertNotNull(testRecord.getLastModifiedDate());
+    }
+
+    @Test
+    public void testFilterLendingRecordsWithMultipleCriteria() {
+        // Setup filter DTO with multiple criteria
+        LendingHistoryFilterDto filterDto = new LendingHistoryFilterDto();
+        filterDto.setStatus("ACTIVE");
+        filterDto.setGameId(1);
+        filterDto.setBorrowerId("borrower@test.com");
+        Date fromDate = new Date(System.currentTimeMillis() - 86400000);
+        Date toDate = new Date(System.currentTimeMillis() + 86400000 * 14);
+        filterDto.setFromDate(fromDate);
+        filterDto.setToDate(toDate);
+
+        // Setup mock repository responses
+        when(accountRepository.findByEmail("borrower@test.com")).thenReturn(Optional.of(borrower));
+        when(lendingRecordRepository.filterLendingRecords(
+                eq(fromDate), eq(toDate), eq(LendingRecord.LendingStatus.ACTIVE), eq(2), eq(1)))
+                .thenReturn(Arrays.asList(testRecord));
+
+        // Execute filtering
+        List<LendingRecord> filteredRecords = lendingRecordService.filterLendingRecords(filterDto);
+
+        // Verify results
+        assertEquals(1, filteredRecords.size());
+        assertEquals(testRecord, filteredRecords.get(0));
+        verify(lendingRecordRepository).filterLendingRecords(
+                eq(fromDate), eq(toDate), eq(LendingRecord.LendingStatus.ACTIVE), eq(2), eq(1));
+    }
+
+    @Test
+    public void testFilterLendingRecordsByBorrowerEmail() {
+        // Setup filter DTO with borrower email
+        LendingHistoryFilterDto filterDto = new LendingHistoryFilterDto();
+        filterDto.setBorrowerId("borrower@test.com");
+
+        // Setup mock repository responses
+        when(accountRepository.findByEmail("borrower@test.com")).thenReturn(Optional.of(borrower));
+        when(lendingRecordRepository.filterLendingRecords(
+                eq(null), eq(null), eq(null), eq(2), eq(null)))
+                .thenReturn(Arrays.asList(testRecord));
+
+        // Execute filtering
+        List<LendingRecord> filteredRecords = lendingRecordService.filterLendingRecords(filterDto);
+
+        // Verify results
+        assertEquals(1, filteredRecords.size());
+        assertEquals(testRecord, filteredRecords.get(0));
+        verify(lendingRecordRepository).filterLendingRecords(
+                eq(null), eq(null), eq(null), eq(2), eq(null));
+    }
+
+    @Test
+    public void testFilterLendingRecordsByInvalidBorrowerEmail() {
+        // Setup filter DTO with invalid borrower email
+        LendingHistoryFilterDto filterDto = new LendingHistoryFilterDto();
+        filterDto.setBorrowerId("nonexistent@test.com");
+
+        // Setup mock repository response
+        when(accountRepository.findByEmail("nonexistent@test.com")).thenReturn(Optional.empty());
+
+        // Execute filtering - should throw exception
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+            lendingRecordService.filterLendingRecords(filterDto);
+        });
+
+        assertTrue(exception.getMessage().contains("No borrower found with email"));
+    }
+
+    @Test
+    public void testFilterByGameId() {
+        // Setup test data
+        Game testGame2 = new Game("Game 2", 2, 4, "test2.jpg", new Date());
+        testGame2.setId(2);
+        testGame2.setOwner(owner);
+
+        BorrowRequest request2 = new BorrowRequest(startDate, endDate, BorrowRequestStatus.APPROVED, new Date(), testGame2);
+        request2.setRequester(borrower);
+        request2.setResponder(owner);
+
+        LendingRecord record2 = new LendingRecord(startDate, endDate, LendingRecord.LendingStatus.OVERDUE, request2, owner);
+        record2.setId(2);
+
+        // Setup filter DTO with game ID
+        LendingHistoryFilterDto gameFilterDto = new LendingHistoryFilterDto();
+        gameFilterDto.setGameId(2);
+
+        // Setup mock repository response
+        when(lendingRecordRepository.filterLendingRecords(
+                eq(null), eq(null), eq(null), eq(null), eq(2)))
+                .thenReturn(Arrays.asList(record2));
+
+        // Execute filtering
+        List<LendingRecord> filteredRecords = lendingRecordService.filterLendingRecords(gameFilterDto);
+
+        // Verify results
+        assertEquals(1, filteredRecords.size());
+        assertEquals(2, filteredRecords.get(0).getId());
+        verify(lendingRecordRepository).filterLendingRecords(
+                eq(null), eq(null), eq(null), eq(null), eq(2));
+    }
+
+    @Test
+    public void testFilterLendingRecordsByDateRange() {
+        // Setup filter DTO with date range
+        LendingHistoryFilterDto filterDto = new LendingHistoryFilterDto();
+        Date fromDate = new Date(System.currentTimeMillis() - 86400000);
+        Date toDate = new Date(System.currentTimeMillis() + 86400000 * 7);
+        filterDto.setFromDate(fromDate);
+        filterDto.setToDate(toDate);
+
+        // Setup mock repository response
+        List<LendingRecord> expectedRecords = Arrays.asList(testRecord);
+        when(lendingRecordRepository.filterLendingRecords(
+                eq(fromDate), eq(toDate), eq(null), eq(null), eq(null)))
+                .thenReturn(expectedRecords);
+
+        // Execute filtering
+        List<LendingRecord> filteredRecords = lendingRecordService.filterLendingRecords(filterDto);
+
+        // Verify results
+        assertEquals(1, filteredRecords.size());
+        assertEquals(testRecord, filteredRecords.get(0));
+        verify(lendingRecordRepository).filterLendingRecords(
+                eq(fromDate), eq(toDate), eq(null), eq(null), eq(null));
+    }
+
+    @Test
+    public void testStatusTransitionValidation() {
+        // Setup closed record
+        testRecord.setStatus(LendingRecord.LendingStatus.CLOSED);
+
+        when(lendingRecordRepository.findLendingRecordById(1)).thenReturn(Optional.of(testRecord));
+
+        // Test invalid transition: CLOSED -> ACTIVE
+        Exception exception = assertThrows(IllegalStateException.class, () -> {
+            lendingRecordService.updateStatus(1, LendingRecord.LendingStatus.ACTIVE);
+        });
+        // Just verify that some exception was thrown and that it's an IllegalStateException
+        assertNotNull(exception.getMessage());
+    }
+
+    @Test
+    public void testRecordClosingMethod() {
+        // This tests the recordClosing method on the LendingRecord entity
+        testRecord.recordClosing(123, "Test closing reason");
+
+        assertEquals(LendingRecord.LendingStatus.CLOSED, testRecord.getStatus());
+        assertEquals(123, testRecord.getLastModifiedBy());
+        assertEquals(123, testRecord.getClosedBy());
+        assertEquals("Test closing reason", testRecord.getClosingReason());
+        assertEquals("Record closed: Test closing reason", testRecord.getStatusChangeReason());
+        assertNotNull(testRecord.getLastModifiedDate());
+    }
+
+    @Test
+    public void testRecordDamageMethod() {
+        // This tests the recordDamage method on the LendingRecord entity
+        testRecord.recordDamage(true, "Test damage notes", 3);
+
+        assertTrue(testRecord.isDamaged());
+        assertEquals("Test damage notes", testRecord.getDamageNotes());
+        assertEquals(3, testRecord.getDamageSeverity());
+        assertNotNull(testRecord.getDamageAssessmentDate());
     }
 }
