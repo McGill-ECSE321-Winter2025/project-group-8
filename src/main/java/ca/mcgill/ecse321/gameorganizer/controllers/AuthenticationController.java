@@ -1,7 +1,5 @@
 package ca.mcgill.ecse321.gameorganizer.controllers;
 
-import javax.servlet.http.HttpSession;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -14,6 +12,7 @@ import ca.mcgill.ecse321.gameorganizer.dto.AuthenticationDTO;
 import ca.mcgill.ecse321.gameorganizer.dto.LoginResponse;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.services.AuthenticationService;
+import jakarta.servlet.http.HttpSession;
 
 /**
  * Controller to handle authentication-related endpoints.

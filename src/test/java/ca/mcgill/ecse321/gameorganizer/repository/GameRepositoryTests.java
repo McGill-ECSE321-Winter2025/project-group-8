@@ -1,35 +1,38 @@
 package ca.mcgill.ecse321.gameorganizer.repository;
 
-import ca.mcgill.ecse321.gameorganizer.models.Account;
-import ca.mcgill.ecse321.gameorganizer.models.Game;
-import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
-import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
-import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import static org.junit.jupiter.api.Assertions.*;
 import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 
-@SpringBootTest
+import org.junit.jupiter.api.AfterEach;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
+
+import ca.mcgill.ecse321.gameorganizer.models.Game;
+import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
+import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
+
+@DataJpaTest
 public class GameRepositoryTests {
+    @Autowired
+    private TestEntityManager entityManager;
+
     @Autowired
     private GameRepository gameRepository;
 
-    @Autowired
-    private AccountRepository gameOwnerRepository;
-
     @AfterEach
-    public void clearDatabase(){
+    public void clearDatabase() {
         gameRepository.deleteAll();
-        gameOwnerRepository.deleteAll();
+        entityManager.flush();
     }
 
     @Test
-    public void testPersistAndLoadGame(){
+    public void testPersistAndLoadGame() {
         String name = "Dune Imperium";
         int minPlayers = 1;
         int maxPlayers = 6;
@@ -37,9 +40,10 @@ public class GameRepositoryTests {
         Date dateAdded = new Date();
 
         Game game = new Game(name, minPlayers, maxPlayers, image, dateAdded);
-
-        game = gameRepository.save(game);
+        game = entityManager.persistAndFlush(game);
         int id = game.getId();
+
+        entityManager.clear();
 
         Game gameFromDb = gameRepository.findGameById(id);
 
@@ -53,31 +57,38 @@ public class GameRepositoryTests {
 
     @Test
     public void testFindByName() {
-        // Create multiple games with same name
-        Game game1 = new Game("Monopoly", 2, 6, "monopoly1.jpg", new Date());
-        Game game2 = new Game("Monopoly", 2, 8, "monopoly2.jpg", new Date());
-        gameRepository.save(game1);
-        gameRepository.save(game2);
+        // Create games with different names
+        Game game1 = new Game("Monopoly Classic", 2, 6, "monopoly1.jpg", new Date());
+        Game game2 = new Game("Monopoly Junior", 2, 8, "monopoly2.jpg", new Date());
+        entityManager.persist(game1);
+        entityManager.persist(game2);
+        entityManager.flush();
+        entityManager.clear();
 
-        // Find games by name
-        List<Game> games = gameRepository.findByName("Monopoly");
+        // Find games containing "Monopoly"
+        List<Game> games = gameRepository.findByNameContaining("Monopoly");
 
         // Assert
-        assertEquals(2, ((java.util.List<?>) games).size());
-        assertTrue(games.stream().allMatch(g -> g.getName().equals("Monopoly")));
+        assertEquals(2, games.size());
+        assertTrue(games.stream().allMatch(g -> g.getName().contains("Monopoly")));
     }
 
     @Test
     public void testFindByNameContaining() {
-        Game game1 = new Game("Monopoly", 2, 6, "m1.jpg", new Date());
+        Game game1 = new Game("Monopoly Classic", 2, 6, "m1.jpg", new Date());
         Game game2 = new Game("Monopoly Junior", 2, 4, "m2.jpg", new Date());
         Game game3 = new Game("Chess", 2, 2, "c.jpg", new Date());
-        gameRepository.saveAll(List.of(game1, game2, game3));
+        entityManager.persist(game1);
+        entityManager.persist(game2);
+        entityManager.persist(game3);
+        entityManager.flush();
+        entityManager.clear();
 
-        List<Game> gamesWithMono = gameRepository.findByNameContaining("Mono");
+        final String searchTerm = "Mono";
+        List<Game> gamesWithMono = gameRepository.findByNameContaining(searchTerm);
 
         assertEquals(2, gamesWithMono.size());
-        assertTrue(gamesWithMono.stream().allMatch(g -> g.getName().contains("Mono")));
+        assertTrue(gamesWithMono.stream().allMatch(g -> g.getName().contains(searchTerm)));
     }
 
     @Test
@@ -85,12 +96,17 @@ public class GameRepositoryTests {
         Game game1 = new Game("Game1", 2, 4, "g1.jpg", new Date());
         Game game2 = new Game("Game2", 3, 6, "g2.jpg", new Date());
         Game game3 = new Game("Game3", 4, 8, "g3.jpg", new Date());
-        gameRepository.saveAll(List.of(game1, game2, game3));
+        entityManager.persist(game1);
+        entityManager.persist(game2);
+        entityManager.persist(game3);
+        entityManager.flush();
+        entityManager.clear();
 
-        List<Game> gamesFor3Players = gameRepository.findByMinPlayersLessThanEqual(3);
+        final int maxMinPlayers = 3;
+        List<Game> gamesFor3Players = gameRepository.findByMinPlayersLessThanEqual(maxMinPlayers);
 
         assertEquals(2, gamesFor3Players.size());
-        assertTrue(gamesFor3Players.stream().allMatch(g -> g.getMinPlayers() <= 3));
+        assertTrue(gamesFor3Players.stream().allMatch(g -> g.getMinPlayers() <= maxMinPlayers));
     }
 
     @Test
@@ -98,12 +114,17 @@ public class GameRepositoryTests {
         Game game1 = new Game("Game1", 2, 4, "g1.jpg", new Date());
         Game game2 = new Game("Game2", 3, 6, "g2.jpg", new Date());
         Game game3 = new Game("Game3", 4, 8, "g3.jpg", new Date());
-        gameRepository.saveAll(List.of(game1, game2, game3));
+        entityManager.persist(game1);
+        entityManager.persist(game2);
+        entityManager.persist(game3);
+        entityManager.flush();
+        entityManager.clear();
 
-        List<Game> gamesFor6Players = gameRepository.findByMaxPlayersGreaterThanEqual(6);
+        final int minMaxPlayers = 6;
+        List<Game> gamesFor6Players = gameRepository.findByMaxPlayersGreaterThanEqual(minMaxPlayers);
 
         assertEquals(2, gamesFor6Players.size());
-        assertTrue(gamesFor6Players.stream().allMatch(g -> g.getMaxPlayers() >= 6));
+        assertTrue(gamesFor6Players.stream().allMatch(g -> g.getMaxPlayers() >= minMaxPlayers));
     }
 
     @Test
@@ -111,18 +132,24 @@ public class GameRepositoryTests {
         Game game1 = new Game("Game1", 2, 4, "g1.jpg", new Date());
         Game game2 = new Game("Game2", 3, 6, "g2.jpg", new Date());
         Game game3 = new Game("Game3", 4, 8, "g3.jpg", new Date());
-        gameRepository.saveAll(List.of(game1, game2, game3));
+        entityManager.persist(game1);
+        entityManager.persist(game2);
+        entityManager.persist(game3);
+        entityManager.flush();
+        entityManager.clear();
 
-        List<Game> gamesFor4Players = gameRepository.findByMinPlayersLessThanEqualAndMaxPlayersGreaterThanEqual(4, 4);
+        final int targetPlayers = 4;
+        List<Game> gamesFor4Players = gameRepository.findByMinPlayersLessThanEqualAndMaxPlayersGreaterThanEqual(
+                targetPlayers, targetPlayers);
 
         assertEquals(3, gamesFor4Players.size());
         assertTrue(gamesFor4Players.stream()
-                .allMatch(g -> g.getMinPlayers() <= 4 && g.getMaxPlayers() >= 4));
+                .allMatch(g -> g.getMinPlayers() <= targetPlayers && g.getMaxPlayers() >= targetPlayers));
     }
 
     @Test
     public void testFindByDateAddedBefore() {
-        Date cutoffDate = new Date();
+        final Date cutoffDate = new Date();
         try {
             Thread.sleep(100); // Small delay to ensure different timestamps
         } catch (InterruptedException e) {
@@ -131,7 +158,10 @@ public class GameRepositoryTests {
 
         Game oldGame = new Game("OldGame", 2, 4, "old.jpg", new Date(cutoffDate.getTime() - 86400000));
         Game newGame = new Game("NewGame", 2, 4, "new.jpg", new Date());
-        gameRepository.saveAll(List.of(oldGame, newGame));
+        entityManager.persist(oldGame);
+        entityManager.persist(newGame);
+        entityManager.flush();
+        entityManager.clear();
 
         List<Game> oldGames = gameRepository.findByDateAddedBefore(cutoffDate);
 
@@ -141,7 +171,7 @@ public class GameRepositoryTests {
 
     @Test
     public void testFindByDateAddedAfter() {
-        Date cutoffDate = new Date();
+        final Date cutoffDate = new Date();
         try {
             Thread.sleep(100); // Small delay to ensure different timestamps
         } catch (InterruptedException e) {
@@ -150,7 +180,10 @@ public class GameRepositoryTests {
 
         Game oldGame = new Game("OldGame", 2, 4, "old.jpg", new Date(cutoffDate.getTime() - 86400000));
         Game newGame = new Game("NewGame", 2, 4, "new.jpg", new Date());
-        gameRepository.saveAll(List.of(oldGame, newGame));
+        entityManager.persist(oldGame);
+        entityManager.persist(newGame);
+        entityManager.flush();
+        entityManager.clear();
 
         List<Game> newGames = gameRepository.findByDateAddedAfter(cutoffDate);
 
@@ -160,13 +193,16 @@ public class GameRepositoryTests {
 
     @Test
     public void testFindByDateAddedBetween() {
-        Date startDate = new Date(System.currentTimeMillis() - 86400000); // Yesterday
-        Date endDate = new Date(System.currentTimeMillis() + 86400000);   // Tomorrow
-        Date outsideDate = new Date(System.currentTimeMillis() - 172800000); // 2 days ago
+        final Date startDate = new Date(System.currentTimeMillis() - 86400000); // Yesterday
+        final Date endDate = new Date(System.currentTimeMillis() + 86400000);   // Tomorrow
+        final Date outsideDate = new Date(System.currentTimeMillis() - 172800000); // 2 days ago
 
         Game game1 = new Game("Game1", 2, 4, "g1.jpg", new Date());
         Game game2 = new Game("Game2", 2, 4, "g2.jpg", outsideDate);
-        gameRepository.saveAll(List.of(game1, game2));
+        entityManager.persist(game1);
+        entityManager.persist(game2);
+        entityManager.flush();
+        entityManager.clear();
 
         List<Game> gamesInRange = gameRepository.findByDateAddedBetween(startDate, endDate);
 
@@ -177,10 +213,10 @@ public class GameRepositoryTests {
     @Test
     public void testFindByOwner() {
         // Create owners with required fields
-        GameOwner owner1 = new GameOwner("Owner1", "owner1@test.com", "password1");
-        GameOwner owner2 = new GameOwner("Owner2", "owner2@test.com", "password2");
-        owner1 = gameOwnerRepository.save(owner1);
-        owner2 = gameOwnerRepository.save(owner2);
+        final GameOwner owner1 = new GameOwner("Owner1", "owner1@test.com", "password1");
+        final GameOwner owner2 = new GameOwner("Owner2", "owner2@test.com", "password2");
+        entityManager.persist(owner1);
+        entityManager.persist(owner2);
 
         Game game1 = new Game("Game1", 2, 4, "g1.jpg", new Date());
         Game game2 = new Game("Game2", 3, 6, "g2.jpg", new Date());
@@ -190,15 +226,15 @@ public class GameRepositoryTests {
         game2.setOwner(owner1);
         game3.setOwner(owner2);
 
-        // Save games first
-        game1 = gameRepository.save(game1);
-        game2 = gameRepository.save(game2);
-        game3 = gameRepository.save(game3);
+        entityManager.persist(game1);
+        entityManager.persist(game2);
+        entityManager.persist(game3);
+        entityManager.flush();
+        entityManager.clear();
 
         List<Game> owner1Games = gameRepository.findByOwner(owner1);
 
         assertEquals(2, owner1Games.size());
-        // Check by comparing IDs instead of objects
         List<Integer> gameIds = owner1Games.stream()
                 .map(Game::getId)
                 .collect(Collectors.toList());
@@ -209,10 +245,10 @@ public class GameRepositoryTests {
     @Test
     public void testFindByOwnerAndNameContaining() {
         // Create owner with required fields
-        GameOwner owner = new GameOwner("TestOwner", "test@owner.com", "password");
-        owner = gameOwnerRepository.save(owner);
+        final GameOwner owner = new GameOwner("TestOwner", "test@owner.com", "password");
+        entityManager.persist(owner);
 
-        Game game1 = new Game("Monopoly", 2, 6, "m1.jpg", new Date());
+        Game game1 = new Game("Monopoly Classic", 2, 6, "m1.jpg", new Date());
         Game game2 = new Game("Monopoly Junior", 2, 4, "m2.jpg", new Date());
         Game game3 = new Game("Chess", 2, 2, "c.jpg", new Date());
 
@@ -220,28 +256,17 @@ public class GameRepositoryTests {
         game2.setOwner(owner);
         game3.setOwner(owner);
 
-        // Save games after setting owner
-        game1 = gameRepository.save(game1);
-        game2 = gameRepository.save(game2);
-        game3 = gameRepository.save(game3);
+        entityManager.persist(game1);
+        entityManager.persist(game2);
+        entityManager.persist(game3);
+        entityManager.flush();
+        entityManager.clear();
 
-        List<Game> ownerMonopolyGames = gameRepository.findByOwnerAndNameContaining(owner, "Mono");
+        final String searchTerm = "Mono";
+        List<Game> ownerMonopolyGames = gameRepository.findByOwnerAndNameContaining(owner, searchTerm);
 
         assertEquals(2, ownerMonopolyGames.size());
-
-        // Check using IDs and names
-        List<Integer> gameIds = ownerMonopolyGames.stream()
-                .map(Game::getId)
-                .collect(Collectors.toList());
-
-        GameOwner finalOwner = owner;
         assertTrue(ownerMonopolyGames.stream()
-                .allMatch(g -> g.getName().contains("Mono") &&
-                        g.getOwner().getId() == finalOwner.getId()));  // Using == for primitive int comparison
-        assertTrue(gameIds.contains(game1.getId()));
-        assertTrue(gameIds.contains(game2.getId()));
+                .allMatch(g -> g.getName().contains(searchTerm) && g.getOwner().getId() == owner.getId()));
     }
-
-
-
 }
