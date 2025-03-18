@@ -33,6 +33,7 @@ public class EventServiceTest {
     @Mock
     private GameRepository gameRepository;
 
+
     @InjectMocks
     private EventService eventService;
 

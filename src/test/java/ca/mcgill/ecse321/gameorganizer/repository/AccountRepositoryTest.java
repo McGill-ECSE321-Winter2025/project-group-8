@@ -1,132 +1,158 @@
 package ca.mcgill.ecse321.gameorganizer.repository;
 
-import java.util.Optional;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import static org.mockito.ArgumentMatchers.any;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import org.mockito.MockitoAnnotations;
-import org.springframework.http.ResponseEntity;
-
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
-import ca.mcgill.ecse321.gameorganizer.services.AccountService;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+@SpringBootTest
 public class AccountRepositoryTest {
 
-    @Mock
+    @Autowired
     private AccountRepository accountRepository;
 
-    @InjectMocks
-    private AccountService accountService;
-
-    private Account testAccount;
-
-    @BeforeEach
-    public void setUp() {
-        MockitoAnnotations.openMocks(this);
-        testAccount = new Account("TestUser", "test@example.com", "password123");
+    @AfterEach
+    public void clearDatabase() {
+        accountRepository.deleteAll();
     }
 
     @Test
-    public void testCreateAccountSuccess() {
-        when(accountRepository.findByEmail(any(String.class))).thenReturn(Optional.empty());
-        when(accountRepository.save(any(Account.class))).thenReturn(testAccount);
+    public void testPersistAndLoadAccount() {
+        // Create test account
+        String name = "TestUser";
+        String email = "test@example.com";
+        String password = "password123";
 
-        ResponseEntity<String> response = accountService.createAccount(testAccount);
+        Account account = new Account(name, email, password);
 
-        assertEquals("Account created", response.getBody());
-        verify(accountRepository, times(1)).save(any(Account.class));
+        // Save to database
+        account = accountRepository.save(account);
+        int id = account.getId();
+
+        // Retrieve from database
+        Account accountFromDb = accountRepository.findById(id).orElse(null);
+
+        // Assert
+        assertNotNull(accountFromDb);
+        assertEquals(name, accountFromDb.getName());
+        assertEquals(email, accountFromDb.getEmail());
+        assertEquals(password, accountFromDb.getPassword());
     }
 
     @Test
-    public void testCreateAccountFailure() {
-        when(accountRepository.findByEmail(testAccount.getEmail())).thenReturn(Optional.of(testAccount));
+    public void testFindByEmail() {
+        // Create test accounts
+        Account account1 = new Account("User1", "user1@example.com", "password1");
+        Account account2 = new Account("User2", "user2@example.com", "password2");
 
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            accountService.createAccount(testAccount);
+        accountRepository.save(account1);
+        accountRepository.save(account2);
+
+        // Find by email
+        Optional<Account> foundAccount = accountRepository.findByEmail("user1@example.com");
+
+        // Assert
+        assertTrue(foundAccount.isPresent());
+        assertEquals("User1", foundAccount.get().getName());
+        assertEquals("user1@example.com", foundAccount.get().getEmail());
+    }
+
+    @Test
+    public void testFindByEmailNotFound() {
+        // Create test account
+        Account account = new Account("User", "user@example.com", "password");
+        accountRepository.save(account);
+
+        // Find by non-existent email
+        Optional<Account> foundAccount = accountRepository.findByEmail("nonexistent@example.com");
+
+        // Assert
+        assertFalse(foundAccount.isPresent());
+    }
+
+    @Test
+    public void testUpdateAccount() {
+        // Create test account
+        Account account = new Account("InitialUser", "update@example.com", "initialPassword");
+        account = accountRepository.save(account);
+        int id = account.getId();
+
+        // Update the account
+        account.setName("UpdatedUser");
+        account.setPassword("updatedPassword");
+        accountRepository.save(account);
+
+        // Retrieve updated account
+        Account updatedAccount = accountRepository.findById(id).orElse(null);
+
+        // Assert
+        assertNotNull(updatedAccount);
+        assertEquals("UpdatedUser", updatedAccount.getName());
+        assertEquals("update@example.com", updatedAccount.getEmail());
+        assertEquals("updatedPassword", updatedAccount.getPassword());
+    }
+
+    @Test
+    public void testDeleteAccount() {
+        // Create test account
+        Account account = new Account("DeleteUser", "delete@example.com", "password");
+        account = accountRepository.save(account);
+        int id = account.getId();
+
+        // Verify account exists
+        assertTrue(accountRepository.findById(id).isPresent());
+
+        // Delete the account
+        accountRepository.delete(account);
+
+        // Verify account no longer exists
+        assertFalse(accountRepository.findById(id).isPresent());
+    }
+
+    @Test
+    public void testSaveMultipleAccounts() {
+        // Create test accounts
+        Account account1 = new Account("User1", "multi1@example.com", "password1");
+        Account account2 = new Account("User2", "multi2@example.com", "password2");
+        Account account3 = new Account("User3", "multi3@example.com", "password3");
+
+        // Save all accounts
+        accountRepository.save(account1);
+        accountRepository.save(account2);
+        accountRepository.save(account3);
+
+        // Count total accounts
+        long count = accountRepository.count();
+
+        // Assert
+        assertEquals(3, count);
+    }
+
+    @Test
+    public void testUniqueEmailConstraint() {
+        // Create and save first account
+        Account account1 = new Account("FirstUser", "duplicate@example.com", "password1");
+        accountRepository.save(account1);
+
+        // Create second account with same email
+        Account account2 = new Account("SecondUser", "duplicate@example.com", "password2");
+
+        // With unique=true on email field, attempting to save a duplicate email
+        // should throw an exception
+        assertThrows(Exception.class, () -> {
+            accountRepository.save(account2);
+            accountRepository.flush(); // Force the persistence context to be flushed
         });
 
-        assertEquals("Account with email test@example.com already exists", exception.getMessage());
-        verify(accountRepository, never()).save(any(Account.class));
-    }
-
-    @Test
-    public void testGetAccountSuccess() {
-        when(accountRepository.findByEmail(testAccount.getEmail())).thenReturn(Optional.of(testAccount));
-
-        Account foundAccount = accountService.getAccountByEmail(testAccount.getEmail());
-
-        assertNotNull(foundAccount);
-        assertEquals("TestUser", foundAccount.getName());
-        assertEquals("test@example.com", foundAccount.getEmail());
-        verify(accountRepository, times(1)).findByEmail(any(String.class));
-    }
-
-    @Test
-    public void testGetAccountFailure() {
-        when(accountRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
-
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            accountService.getAccountByEmail("nonexistent@example.com");
-        });
-
-        assertEquals("Account with email nonexistent@example.com does not exist", exception.getMessage());
-    }
-
-    @Test
-    public void testUpdateAccountSuccess() {
-        when(accountRepository.findByEmail(testAccount.getEmail())).thenReturn(Optional.of(testAccount));
-
-        ResponseEntity<String> response = accountService.updateAccountByEmail(
-                testAccount.getEmail(), "UpdatedUser", "newpassword123");
-
-        assertEquals("Account updated successfully", response.getBody());
-        assertEquals("UpdatedUser", testAccount.getName());
-        assertEquals("newpassword123", testAccount.getPassword());
-
-        verify(accountRepository, times(1)).findByEmail(testAccount.getEmail());
-    }
-
-    @Test
-    public void testUpdateAccountFailure() {
-        when(accountRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
-
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            accountService.updateAccountByEmail("nonexistent@example.com", "NewUser", "newpassword");
-        });
-
-        assertEquals("Account with email nonexistent@example.com does not exist", exception.getMessage());
-    }
-
-    @Test
-    public void testDeleteAccountSuccess() {
-        when(accountRepository.findByEmail(testAccount.getEmail())).thenReturn(Optional.of(testAccount));
-
-        ResponseEntity<String> response = accountService.deleteAccountByEmail(testAccount.getEmail());
-
-        assertEquals("Account with email test@example.com has been deleted", response.getBody());
-        verify(accountRepository, times(1)).delete(testAccount);
-    }
-
-    @Test
-    public void testDeleteAccountFailure() {
-        when(accountRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
-
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            accountService.deleteAccountByEmail("nonexistent@example.com");
-        });
-
-        assertEquals("Account with email nonexistent@example.com does not exist", exception.getMessage());
-        verify(accountRepository, never()).delete(any(Account.class));
+        // Verify only the first account with this email exists
+        Optional<Account> foundAccount = accountRepository.findByEmail("duplicate@example.com");
+        assertTrue(foundAccount.isPresent());
+        assertEquals("FirstUser", foundAccount.get().getName());
     }
 }
