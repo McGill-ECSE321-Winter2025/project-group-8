@@ -1,8 +1,7 @@
-package ca.mcgill.ecse321.gameorganizer.requests;
+package ca.mcgill.ecse321.gameorganizer.dto.requests;
 
 import java.sql.Date;
 
-import ca.mcgill.ecse321.gameorganizer.models.Event;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import lombok.Data;
 

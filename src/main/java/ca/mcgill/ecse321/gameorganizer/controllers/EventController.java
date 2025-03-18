@@ -18,9 +18,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import ca.mcgill.ecse321.gameorganizer.requests.CreateEventRequest;
+import ca.mcgill.ecse321.gameorganizer.dto.requests.CreateEventRequest;
 import ca.mcgill.ecse321.gameorganizer.services.EventService;
-import ca.mcgill.ecse321.gameorganizer.responses.EventResponse;
+import ca.mcgill.ecse321.gameorganizer.dto.responses.EventResponse;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
 
 /**

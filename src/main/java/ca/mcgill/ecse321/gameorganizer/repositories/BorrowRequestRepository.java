@@ -29,6 +29,14 @@ public interface BorrowRequestRepository extends JpaRepository<BorrowRequest, In
     Optional<BorrowRequest> findBorrowRequestById(int id);
 
     /**
+     * Finds borrow request(s) by the user associated to it
+     *
+     * @param username the username of the requester
+     * @return Optional containing the borrow request if found, empty Optional otherwise
+     */
+    List<BorrowRequest> findBorrowRequestsByRequesterName(String username);
+
+    /**
      * Finds all approved borrow requests that overlap with a given date range for a specific game.
      * This is used to check if a game is available for a new borrow request.
      *

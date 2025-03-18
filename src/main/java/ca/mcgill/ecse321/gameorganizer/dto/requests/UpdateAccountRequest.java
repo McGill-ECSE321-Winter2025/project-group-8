@@ -1,12 +1,9 @@
 package ca.mcgill.ecse321.gameorganizer.dto.requests;
 
-import lombok.Data;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotEmpty;
 
-@Data
-public class CreateAccountRequest {
-
+public class UpdateAccountRequest {
     @NotEmpty(message = "Email address is required")
     @Email(message = "Email address is not in a valid format")
     private String email;
@@ -17,7 +14,7 @@ public class CreateAccountRequest {
     @NotEmpty(message = "Password is required")
     private String password;
 
-    private boolean gameOwner;
+    @NotEmpty(message = "New password is required")
+    private String newPassword;
 
-    public CreateAccountRequest(String email, String username, String password, boolean gameOwner) {}
 }

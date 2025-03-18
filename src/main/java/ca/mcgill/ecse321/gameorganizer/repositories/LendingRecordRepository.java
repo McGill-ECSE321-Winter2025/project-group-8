@@ -70,4 +70,6 @@ public interface LendingRecordRepository extends JpaRepository<LendingRecord, In
      * @return list of lending records for the specified borrower
      */
     List<LendingRecord> findByRequest_Requester(Account requester);
+
+
 }

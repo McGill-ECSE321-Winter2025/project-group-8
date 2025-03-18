@@ -3,14 +3,12 @@ package ca.mcgill.ecse321.gameorganizer.services;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
 import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
-import ca.mcgill.ecse321.gameorganizer.requests.CreateEventRequest;
+import ca.mcgill.ecse321.gameorganizer.dto.requests.CreateEventRequest;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.http.HttpStatus;
-import org.springframework.validation.annotation.Validated;
 
 import java.util.List;
 import java.util.UUID;
@@ -317,8 +315,7 @@ public Event updateEvent(UUID id, String title, Date dateTime,
     public List<Event> findEventsByLocationContaining(String location) {
         if (location == null || location.trim().isEmpty()) {
             throw new IllegalArgumentException("Location search text cannot be empty");
-        }
-        
+
         List<Event> events = eventRepository.findEventByLocationContaining(location);
         
         for (Event event : events) {
