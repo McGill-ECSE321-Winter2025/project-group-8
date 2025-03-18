@@ -17,6 +17,10 @@ public class AccountResponse {
             String username,
             List<EventResponse> events,
             boolean isGameOwner)
-    {}
+    {
+        this.username = username;
+        this.events = events;
+        this.isGameOwner = isGameOwner;
+    }
 
 }
