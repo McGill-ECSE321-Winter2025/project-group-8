@@ -1,6 +1,8 @@
 package ca.mcgill.ecse321.gameorganizer.services;
 
+import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
+import ca.mcgill.ecse321.gameorganizer.models.Registration;
 import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
 import ca.mcgill.ecse321.gameorganizer.requests.CreateEventRequest;
@@ -28,7 +30,7 @@ import java.util.Date;
 @Service
 public class EventService {
 
-    private EventRepository eventRepository;
+    private final EventRepository eventRepository;
 
     @Autowired
     private GameRepository gameRepository;
@@ -43,6 +45,7 @@ public class EventService {
         this.eventRepository = eventRepository;
     }
 
+    // TODO: Associate an event to a host
     /**
      * Creates a new event in the system after validating required fields.
      *
@@ -122,6 +125,7 @@ public class EventService {
         return events;
     }
 
+    // TODO: Change to be callable by associated owner only
     /**
      * Updates an existing event's information.
      *
@@ -160,6 +164,9 @@ public Event updateEvent(UUID id, String title, Date dateTime,
     return eventRepository.save(event);
 }
 
+
+    // TODO: Change to be callable by associated owner only
+
     /**
      * Deletes an event from the system.
      *
@@ -167,6 +174,7 @@ public Event updateEvent(UUID id, String title, Date dateTime,
      * @return ResponseEntity with deletion confirmation message
      * @throws IllegalArgumentException if no event is found with the given ID
      */
+
     @Transactional
     public ResponseEntity<String> deleteEvent(UUID id) {
         Event eventToDelete = eventRepository.findEventById(id).orElseThrow(
@@ -175,7 +183,6 @@ public Event updateEvent(UUID id, String title, Date dateTime,
         eventRepository.delete(eventToDelete);
         return ResponseEntity.ok("Event with id " + id + " has been deleted");
     }
-
 
      /**
      * Finds events scheduled on a specific date.
