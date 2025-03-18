@@ -1,6 +1,9 @@
 package ca.mcgill.ecse321.gameorganizer.repositories;
 
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
+import ca.mcgill.ecse321.gameorganizer.models.BorrowRequestStatus;
+import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
+import ca.mcgill.ecse321.gameorganizer.models.Account;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -14,12 +17,12 @@ import java.util.Optional;
  * Repository interface for managing BorrowRequest entities.
  * Provides CRUD operations and custom queries for game borrowing requests.
  * Extends JpaRepository to inherit basic database operations.
- * 
+ *
  * @author @rayanBaida
  */
 @Repository
 public interface BorrowRequestRepository extends JpaRepository<BorrowRequest, Integer> {
-    
+
     /**
      * Finds a borrow request by its unique identifier.
      *
@@ -38,11 +41,30 @@ public interface BorrowRequestRepository extends JpaRepository<BorrowRequest, In
      * @return List of overlapping approved borrow requests
      */
     @Query("SELECT br FROM BorrowRequest br " +
-           "WHERE br.requestedGame.id = :gameId " +
-           "AND br.status = 'APPROVED' " +
-           "AND br.startDate < :endDate " +
-           "AND br.endDate > :startDate")
-    List<BorrowRequest> findOverlappingApprovedRequests(@Param("gameId") int gameId, 
-                                                        @Param("startDate") Date startDate, 
+            "WHERE br.requestedGame.id = :gameId " +
+            "AND br.status = 'APPROVED' " +
+            "AND br.startDate < :endDate " +
+            "AND br.endDate > :startDate")
+    List<BorrowRequest> findOverlappingApprovedRequests(@Param("gameId") int gameId,
+                                                        @Param("startDate") Date startDate,
                                                         @Param("endDate") Date endDate);
+
+    /**
+     * Finds all borrow requests for games owned by a specific owner and with a specific status.
+     * Used by game owners to view pending requests for their games.
+     *
+     * @param owner The game owner whose games' requests to find
+     * @param status The status of the requests to find
+     * @return List of borrow requests matching the criteria
+     */
+    List<BorrowRequest> findByRequestedGame_OwnerAndStatus(GameOwner owner, BorrowRequestStatus status);
+
+    /**
+     * Finds all borrow requests made by a specific requester.
+     * Used to view a user's borrow request history.
+     *
+     * @param requester The account that made the requests
+     * @return List of borrow requests made by the specified requester
+     */
+    List<BorrowRequest> findByRequester(Account requester);
 }
