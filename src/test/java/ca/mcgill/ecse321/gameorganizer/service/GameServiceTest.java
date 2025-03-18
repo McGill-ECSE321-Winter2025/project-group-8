@@ -1,8 +1,12 @@
 package ca.mcgill.ecse321.gameorganizer.service;
 
+import ca.mcgill.ecse321.gameorganizer.dtos.GameCreationDto;
+import ca.mcgill.ecse321.gameorganizer.dtos.GameResponseDto;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
+import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
 import ca.mcgill.ecse321.gameorganizer.services.GameService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,6 +27,10 @@ public class GameServiceTest {
 
     @Mock
     private GameRepository gameRepository;
+    @Mock
+    private ReviewRepository reviewRepository;
+    @Mock
+    private AccountRepository accountRepository;
 
     @InjectMocks
     private GameService gameService;
@@ -30,6 +38,7 @@ public class GameServiceTest {
     private Game game;
     private GameOwner owner;
     private Date date;
+    private GameCreationDto gameCreationDto;
 
     @BeforeEach
     public void setUp() {
@@ -37,25 +46,58 @@ public class GameServiceTest {
         date = new Date();
         owner = new GameOwner("Test Owner", "owner@test.com", "password123");
         game = new Game("Test Game", 2, 4, "test.jpg", date);
+
         game.setId(1);
         game.setOwner(owner);
+
+        gameCreationDto = new GameCreationDto(
+                "Test Game",
+                2,
+                4,
+                "test.jpg",
+                "TestCategory",
+                "owner@test.com"
+        );
     }
 
     // Create Game Tests
     @Test
     public void testCreateGameSuccess() {
-        when(gameRepository.save(any(Game.class))).thenReturn(game);
-        var result = gameService.createGame(game);
-        assertEquals("Game created", result.getBody());
+        // Setup the saved game that will be returned
+        Game savedGame = new Game("Test Game", 2, 4, "test.jpg", date);
+        savedGame.setId(1);
+        savedGame.setOwner(owner);
+        savedGame.setCategory("TestCategory");
+
+        // Mock repository behavior
+        when(accountRepository.findByEmail("owner@test.com")).thenReturn(java.util.Optional.of(owner));
+        when(gameRepository.save(any(Game.class))).thenReturn(savedGame);
+
+        // Call the actual method
+        GameResponseDto result = gameService.createGame(gameCreationDto);
+
+        // Assert results
+        assertNotNull(result);
+        assertEquals("Test Game", result.getName());
+        assertEquals(2, result.getMinPlayers());
+        assertEquals(4, result.getMaxPlayers());
         verify(gameRepository, times(1)).save(any(Game.class));
     }
 
+
     @Test
     public void testCreateGameWithEmptyName() {
-        Game invalidGame = new Game("", 2, 4, "test.jpg", date);
-        invalidGame.setOwner(owner);
+        GameCreationDto invalidDto = new GameCreationDto(
+                "", // Empty name
+                2,
+                4,
+                "test.jpg",
+                "TestCategory",
+                "owner@test.com"
+        );
+
         Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            gameService.createGame(invalidGame);
+            gameService.createGame(invalidDto);
         });
         assertEquals("Game name cannot be empty", exception.getMessage());
     }
@@ -167,10 +209,31 @@ public class GameServiceTest {
     // Update Game Tests
     @Test
     public void testUpdateGameSuccess() {
+        GameCreationDto updateDto = new GameCreationDto(
+                "Updated Game",
+                2,
+                6,
+                "updated.jpg",
+                "TestCategory",
+                "owner@test.com"
+        );
+
+        // Create the updated game that will be returned
         Game updatedGame = new Game("Updated Game", 2, 6, "updated.jpg", date);
+        updatedGame.setId(1);
+        updatedGame.setOwner(owner);
+        updatedGame.setCategory("TestCategory");
+
+        // Mock repository behavior
         when(gameRepository.findGameById(1)).thenReturn(game);
-        var result = gameService.updateGame(1, updatedGame);
-        assertEquals("Game updated successfully", result.getBody());
+        when(gameRepository.save(any(Game.class))).thenReturn(updatedGame);
+
+        // Call the actual method
+        GameResponseDto result = gameService.updateGame(1, updateDto);
+
+        // Assert results
+        assertNotNull(result);
+        assertEquals("Updated Game", result.getName());
         verify(gameRepository, times(1)).save(any(Game.class));
     }
 
@@ -195,29 +258,58 @@ public class GameServiceTest {
     // Additional Create Game Tests
     @Test
     public void testCreateGameWithNullName() {
-        Game invalidGame = new Game(null, 2, 4, "test.jpg", date);
-        invalidGame.setOwner(owner);
-        assertThrows(IllegalArgumentException.class, () -> gameService.createGame(invalidGame));
+        GameCreationDto invalidDto = new GameCreationDto(
+                null, // Null name
+                2,
+                4,
+                "test.jpg",
+                "TestCategory",
+                "owner@test.com"
+        );
+
+        assertThrows(IllegalArgumentException.class, () -> gameService.createGame(invalidDto));
     }
 
     @Test
     public void testCreateGameWithInvalidMinPlayers() {
-        Game invalidGame = new Game("Test Game", 0, 4, "test.jpg", date);
-        invalidGame.setOwner(owner);
-        assertThrows(IllegalArgumentException.class, () -> gameService.createGame(invalidGame));
+        GameCreationDto invalidDto = new GameCreationDto(
+                "Test Game",
+                0, // Invalid min players
+                4,
+                "test.jpg",
+                "TestCategory",
+                "owner@test.com"
+        );
+
+        assertThrows(IllegalArgumentException.class, () -> gameService.createGame(invalidDto));
     }
 
     @Test
     public void testCreateGameWithInvalidMaxPlayers() {
-        Game invalidGame = new Game("Test Game", 4, 2, "test.jpg", date);
-        invalidGame.setOwner(owner);
-        assertThrows(IllegalArgumentException.class, () -> gameService.createGame(invalidGame));
+        GameCreationDto invalidDto = new GameCreationDto(
+                "Test Game",
+                4,
+                2, // Max less than min
+                "test.jpg",
+                "TestCategory",
+                "owner@test.com"
+        );
+
+        assertThrows(IllegalArgumentException.class, () -> gameService.createGame(invalidDto));
     }
 
     @Test
     public void testCreateGameWithNullOwner() {
-        Game invalidGame = new Game("Test Game", 2, 4, "test.jpg", date);
-        assertThrows(IllegalArgumentException.class, () -> gameService.createGame(invalidGame));
+        GameCreationDto invalidDto = new GameCreationDto(
+                "Test Game",
+                2,
+                4,
+                "test.jpg",
+                "TestCategory",
+                null // Null owner
+        );
+
+        assertThrows(IllegalArgumentException.class, () -> gameService.createGame(invalidDto));
     }
 
     // Additional Name Search Tests
@@ -294,16 +386,40 @@ public class GameServiceTest {
     // Additional Update Tests
     @Test
     public void testUpdateGameWithNullValues() {
-        Game updatedGame = new Game(null, 0, 0, null, null);
+        GameCreationDto updateDto = new GameCreationDto(
+                null,
+                0,
+                0,
+                null,
+                null,
+                "owner@test.com"
+        );
+
+        // Mock repository behavior
         when(gameRepository.findGameById(1)).thenReturn(game);
-        gameService.updateGame(1, updatedGame);
+        when(gameRepository.save(any(Game.class))).thenReturn(game);
+
+        // Call the actual method
+        GameResponseDto result = gameService.updateGame(1, updateDto);
+
+        // Assert results
+        assertNotNull(result);
         verify(gameRepository, times(1)).save(any(Game.class));
     }
 
     @Test
     public void testUpdateNonexistentGame() {
-        Game updatedGame = new Game("Updated Game", 2, 4, "test.jpg", date);
+        GameCreationDto updateDto = new GameCreationDto(
+                "Updated Game",
+                2,
+                4,
+                "test.jpg",
+                "TestCategory",
+                "owner@test.com"
+        );
+
         when(gameRepository.findGameById(99)).thenReturn(null);
-        assertThrows(IllegalArgumentException.class, () -> gameService.updateGame(99, updatedGame));
+
+        assertThrows(IllegalArgumentException.class, () -> gameService.updateGame(99, updateDto));
     }
 }
