@@ -39,6 +39,15 @@ public interface LendingRecordRepository extends JpaRepository<LendingRecord, In
      * @return list of lending records matching the status
      */
     List<LendingRecord> findByStatus(LendingStatus status);
+    
+    /**
+     * Retrieves a page of lending records with a specific status.
+     *
+     * @param status the status to search for
+     * @param pageable pagination information
+     * @return page of lending records matching the status
+     */
+    Page<LendingRecord> findByStatus(LendingStatus status, Pageable pageable);
 
     /**
      * Retrieves a page of lending records with a specific status.
@@ -56,6 +65,15 @@ public interface LendingRecordRepository extends JpaRepository<LendingRecord, In
      * @return list of lending records for the specified owner
      */
     List<LendingRecord> findByRecordOwner(GameOwner owner);
+    
+    /**
+     * Finds a page of lending records associated with a specific game owner.
+     *
+     * @param owner the game owner to search for
+     * @param pageable pagination information
+     * @return page of lending records for the specified owner
+     */
+    Page<LendingRecord> findByRecordOwner(GameOwner owner, Pageable pageable);
 
     /**
      * Finds a page of lending records associated with a specific game owner.

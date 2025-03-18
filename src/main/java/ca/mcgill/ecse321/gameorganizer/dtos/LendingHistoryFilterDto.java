@@ -5,7 +5,7 @@ import java.util.Date;
 /**
  * Data Transfer Object for filtering lending history.
  * Used to specify criteria for filtering lending records when viewing lending history.
- *
+ * 
  * @author @YoussGm3o8
  */
 public class LendingHistoryFilterDto {

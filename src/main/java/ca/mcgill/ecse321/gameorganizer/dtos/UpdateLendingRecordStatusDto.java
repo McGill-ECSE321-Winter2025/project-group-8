@@ -4,7 +4,7 @@ package ca.mcgill.ecse321.gameorganizer.dtos;
  * Data Transfer Object for updating the status of a lending record.
  * Used when a game owner needs to update the status of a lending record,
  * such as marking a game as returned.
- *
+ * 
  * @author @YoussGm3o8
  */
 public class UpdateLendingRecordStatusDto {
@@ -27,10 +27,12 @@ public class UpdateLendingRecordStatusDto {
         this.newStatus = newStatus;
     }
 
+
     /**
      * Constructs a new UpdateLendingRecordStatusDto with all audit information.
      *
      * @param newStatus The new status to set for the lending record
+
      * @param userId The email of the user making the change
      * @param reason The reason for the status change
      */
@@ -75,6 +77,7 @@ public class UpdateLendingRecordStatusDto {
     public void setUserId(String userId) {
         this.userId = userId;
     }
+
 
     /**
      * Gets the reason for the status change.

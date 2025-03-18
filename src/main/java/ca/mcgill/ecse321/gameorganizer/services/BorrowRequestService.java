@@ -30,7 +30,6 @@ public class BorrowRequestService {
     private final BorrowRequestRepository borrowRequestRepository;
     private final GameRepository gameRepository;
     private final AccountRepository accountRepository;
-
     /**
      * Constructs a BorrowRequestService with required repositories.
      *
@@ -102,7 +101,7 @@ public class BorrowRequestService {
                 savedRequest.getRequestDate()
         );
     }
-
+    
     /**
      * Retrieves a borrow request by its ID.
      *

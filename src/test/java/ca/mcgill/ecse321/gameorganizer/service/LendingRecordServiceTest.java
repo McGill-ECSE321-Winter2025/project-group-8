@@ -96,7 +96,6 @@ public class LendingRecordServiceTest {
     @Test
     public void testCreateLendingRecordWithNullStartDate() {
         ResponseEntity<String> response = lendingRecordService.createLendingRecord(null, endDate, request, owner);
-
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
         assertTrue(response.getBody().contains("Required parameters cannot be null"));
     }
@@ -291,6 +290,17 @@ public class LendingRecordServiceTest {
     }
 
     @Test
+    public void testCloseAlreadyClosedLendingRecord() {
+        testRecord.setStatus(LendingRecord.LendingStatus.CLOSED);
+        when(lendingRecordRepository.findLendingRecordById(1)).thenReturn(Optional.of(testRecord));
+
+        Exception exception = assertThrows(IllegalStateException.class, () -> {
+            lendingRecordService.closeLendingRecord(1);
+        });
+        assertEquals("Lending record is already closed", exception.getMessage());
+    }
+
+    @Test
     public void testGetLendingRecordsByDateRange() {
         when(lendingRecordRepository.findByStartDateBetween(any(Date.class), any(Date.class)))
                 .thenReturn(Arrays.asList(testRecord));
@@ -369,7 +379,6 @@ public class LendingRecordServiceTest {
         ResponseEntity<String> extendResponse = lendingRecordService.updateEndDate(1, newEndDate);
         assertEquals("End date updated successfully", extendResponse.getBody());
         assertEquals(newEndDate, testRecord.getEndDate());
-
         // Step 4: Close the record using email-based method
         ResponseEntity<String> closeResponse = lendingRecordService.closeLendingRecordByEmail(
                 1, "owner@test.com", "Game returned");
@@ -524,6 +533,7 @@ public class LendingRecordServiceTest {
 
         // Execute filtering
         List<LendingRecord> filteredRecords = lendingRecordService.filterLendingRecords(filterDto);
+
 
         // Verify results
         assertEquals(1, filteredRecords.size());

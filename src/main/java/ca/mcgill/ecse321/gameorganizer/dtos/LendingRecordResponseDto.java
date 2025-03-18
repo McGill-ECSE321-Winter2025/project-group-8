@@ -49,6 +49,7 @@ public class LendingRecordResponseDto {
         this.damageSeverity = 0;
     }
 
+
     /**
      * Constructs a new LendingRecordResponseDto with the specified properties including damage information.
      *
@@ -65,6 +66,7 @@ public class LendingRecordResponseDto {
      * @param damageSeverity The severity of the damage (0-3)
      * @param damageAssessmentDate The date when damage was assessed
      */
+
     public LendingRecordResponseDto(int id, Date startDate, Date endDate, String status,
                                     GameInfo game, UserInfo borrower, UserInfo owner, long durationInDays,
                                     boolean isDamaged, String damageNotes, int damageSeverity, Date damageAssessmentDate) {
@@ -165,3 +167,4 @@ public class LendingRecordResponseDto {
         public String getEmail() { return email; }
     }
 }
+
