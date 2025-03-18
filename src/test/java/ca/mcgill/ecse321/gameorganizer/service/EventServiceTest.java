@@ -26,8 +26,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
+import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
 import ca.mcgill.ecse321.gameorganizer.requests.CreateEventRequest;
@@ -41,6 +43,9 @@ public class EventServiceTest {
     
     @Mock
     private GameRepository gameRepository;
+
+    @Mock
+    private AccountRepository hostRepository;
     
     @InjectMocks
     private EventService eventService;
@@ -50,6 +55,8 @@ public class EventServiceTest {
         // Create a mock Game using the constructor from the Game class
         Date currentDate = new Date(System.currentTimeMillis());
         Game mockGame = new Game("Settlers of Catan", 3, 4, "catan.jpg", currentDate);
+        Account mockhost = new Account("host", "password", "host@example.com");
+        mockhost.setId(1);
         mockGame.setId(1); // Set ID manually as it would be set by the database
         mockGame.setCategory("Strategy");
         
@@ -61,6 +68,7 @@ public class EventServiceTest {
         newEvent.setDescription("Join our monthly Catan tournament!");
         newEvent.setMaxParticipants(16);
         newEvent.setFeaturedGame(mockGame);
+        newEvent.setHost(mockhost);
         
         // Create expected event result
         Event event = new Event();
@@ -70,6 +78,7 @@ public class EventServiceTest {
         event.setDescription(newEvent.getDescription());
         event.setMaxParticipants(newEvent.getMaxParticipants());
         event.setFeaturedGame(mockGame);
+        event.setHost(mockhost);
         
         when(eventRepository.save(any(Event.class))).thenReturn(event);
         
@@ -82,12 +91,15 @@ public class EventServiceTest {
         assertEquals(newEvent.getDescription(), createdEvent.getDescription());
         assertEquals(newEvent.getMaxParticipants(), createdEvent.getMaxParticipants());
         assertEquals(mockGame, createdEvent.getFeaturedGame());
+        assertEquals(mockhost, createdEvent.getHost());
         
         verify(eventRepository, times(1)).save(any(Event.class));
     }
     
     @Test
     public void testCreateEventWithNullGame() {
+        Account mockhost = new Account("host", "password", "host@example.com");
+        mockhost.setId(1);
         CreateEventRequest newEvent = new CreateEventRequest();
         newEvent.setTitle("Test Event");
         newEvent.setDateTime(Date.valueOf(LocalDate.now()));
@@ -95,6 +107,7 @@ public class EventServiceTest {
         newEvent.setDescription("Test Description");
         newEvent.setMaxParticipants(10);
         newEvent.setFeaturedGame(null);
+        newEvent.setHost(mockhost);
         
         // This should throw an IllegalArgumentException
         assertThrows(IllegalArgumentException.class, () -> {
@@ -107,12 +120,15 @@ public class EventServiceTest {
     
     @Test
     public void testCreateEventWithEmptyTitle() {
+        Account mockhost = new Account("host", "password", "host@example.com");
+        mockhost.setId(1);
         // Test with empty title
         CreateEventRequest invalidTitleEvent = new CreateEventRequest();
         invalidTitleEvent.setTitle("");
         invalidTitleEvent.setDateTime(Date.valueOf(LocalDate.now()));
         invalidTitleEvent.setMaxParticipants(10);
         invalidTitleEvent.setFeaturedGame(new Game("Chess", 2, 2, "chess.jpg", new Date(System.currentTimeMillis())));
+        invalidTitleEvent.setHost(mockhost);
         
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
             eventService.createEvent(invalidTitleEvent);
@@ -124,12 +140,15 @@ public class EventServiceTest {
     
     @Test
     public void testCreateEventWithNullDateTime() {
+        Account mockhost = new Account("host", "password", "host@example.com");
+        mockhost.setId(1);
         // Test with null dateTime
         CreateEventRequest nullDateEvent = new CreateEventRequest();
         nullDateEvent.setTitle("Test Event");
         nullDateEvent.setDateTime(null);
         nullDateEvent.setMaxParticipants(10);
         nullDateEvent.setFeaturedGame(new Game("Chess", 2, 2, "chess.jpg", new Date(System.currentTimeMillis())));
+        nullDateEvent.setHost(mockhost);
         
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
             eventService.createEvent(nullDateEvent);
@@ -141,12 +160,15 @@ public class EventServiceTest {
     
     @Test
     public void testCreateEventWithInvalidMaxParticipants() {
+        Account mockhost = new Account("host", "password", "host@example.com");
+        mockhost.setId(1);
         // Test with invalid maxParticipants
         CreateEventRequest invalidParticipantsEvent = new CreateEventRequest();
         invalidParticipantsEvent.setTitle("Test Event");
         invalidParticipantsEvent.setDateTime(Date.valueOf(LocalDate.now()));
         invalidParticipantsEvent.setMaxParticipants(0);
         invalidParticipantsEvent.setFeaturedGame(new Game("Chess", 2, 2, "chess.jpg", new Date(System.currentTimeMillis())));
+        invalidParticipantsEvent.setHost(mockhost);
         
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
             eventService.createEvent(invalidParticipantsEvent);
@@ -157,11 +179,36 @@ public class EventServiceTest {
     }
 
     @Test
+    public void testCreateEventWithInvalidHost() {
+        // Create a valid event request but with null host
+        CreateEventRequest invalidHostEvent = new CreateEventRequest();
+        invalidHostEvent.setTitle("Game Night");
+        invalidHostEvent.setDateTime(Date.valueOf(LocalDate.now()));
+        invalidHostEvent.setLocation("Community Center");
+        invalidHostEvent.setDescription("Weekly board game meetup");
+        invalidHostEvent.setMaxParticipants(10);
+        invalidHostEvent.setFeaturedGame(new Game("Cosmic Conquest", 2, 6, "cosmic.jpg", new Date(System.currentTimeMillis())));
+        invalidHostEvent.setHost(null); // Null host
+        
+        // Assert that the correct exception is thrown
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+            eventService.createEvent(invalidHostEvent);
+        });
+        
+        // Verify exception message
+        assertEquals("Host cannot be null", exception.getMessage());
+        
+        // Verify repository was never called
+        verify(eventRepository, times(0)).save(any(Event.class));
+    }
+
+    @Test
     public void testGetEventByValidId() {
         // Arrange
         UUID id = UUID.randomUUID();
         Date currentDate = new Date(System.currentTimeMillis());
         Game game = new Game("Monopoly", 2, 6, "monopoly.jpg", currentDate);
+        Account mockhost = new Account("host", "password", "host@example.com");
 
         Event mockEvent = new Event();
         mockEvent.setTitle("Monopoly Night");
@@ -170,6 +217,7 @@ public class EventServiceTest {
         mockEvent.setDescription("Weekly monopoly night");
         mockEvent.setMaxParticipants(12);
         mockEvent.setFeaturedGame(game);
+        mockEvent.setHost(mockhost);
         
         when(eventRepository.findEventById(id)).thenReturn(Optional.of(mockEvent));
         
@@ -181,6 +229,11 @@ public class EventServiceTest {
         assertEquals(mockEvent.getTitle(), retrievedEvent.getTitle());
         assertEquals(mockEvent.getDateTime(), retrievedEvent.getDateTime());
         assertEquals(java.sql.Date.class, retrievedEvent.getDateTime().getClass());
+        assertEquals(mockEvent.getLocation(), retrievedEvent.getLocation());
+        assertEquals(mockEvent.getDescription(), retrievedEvent.getDescription());
+        assertEquals(mockEvent.getMaxParticipants(), retrievedEvent.getMaxParticipants());
+        assertEquals(mockEvent.getFeaturedGame(), retrievedEvent.getFeaturedGame());
+        assertEquals(mockEvent.getHost(), retrievedEvent.getHost());
     }
     
     @Test
@@ -207,6 +260,7 @@ public class EventServiceTest {
         
         // Create first event with a SQL Timestamp
         Game chess = new Game("Chess", 2, 2, "chess.jpg", new Date(System.currentTimeMillis()));
+        Account mockhost = new Account("host", "password", "host@example.com");
         Date chessDate = new Date(System.currentTimeMillis());
         Event chessEvent = new Event();
         chessEvent.setTitle("Chess Tournament");
@@ -215,6 +269,7 @@ public class EventServiceTest {
         chessEvent.setDescription("Annual chess tournament");
         chessEvent.setMaxParticipants(16);
         chessEvent.setFeaturedGame(chess);
+        chessEvent.setHost(mockhost);
         mockEvents.add(chessEvent);
         
         // Create second event with a regular Date
@@ -227,6 +282,7 @@ public class EventServiceTest {
         monopolyEvent.setDescription("Weekly monopoly night");
         monopolyEvent.setMaxParticipants(12);
         monopolyEvent.setFeaturedGame(monopoly);
+        monopolyEvent.setHost(mockhost);
         mockEvents.add(monopolyEvent);
         
         // Create third event with a SQL Timestamp
@@ -239,6 +295,7 @@ public class EventServiceTest {
         catanEvent.setDescription("Monthly Catan championship");
         catanEvent.setMaxParticipants(20);
         catanEvent.setFeaturedGame(catan);
+        catanEvent.setHost(mockhost);
         mockEvents.add(catanEvent);
         
         // Mock repository to return our list of events
@@ -261,6 +318,7 @@ public class EventServiceTest {
             assertEquals(originalEvent.getDescription(), retrievedEvent.getDescription());
             assertEquals(originalEvent.getMaxParticipants(), retrievedEvent.getMaxParticipants());
             assertEquals(originalEvent.getFeaturedGame(), retrievedEvent.getFeaturedGame());
+            assertEquals(originalEvent.getHost(), retrievedEvent.getHost());
             
             // Verify date type is java.sql.Date for all events
             assertEquals(java.sql.Date.class, retrievedEvent.getDateTime().getClass());
@@ -284,12 +342,14 @@ public class EventServiceTest {
     private UUID eventId;
     private Event existingEvent;
     private Game game;
+    private Account host;
 
     @BeforeEach
     public void setUp() {
         // Common setup for all tests
         eventId = UUID.randomUUID();
         game = new Game("Chess", 2, 2, "chess.jpg", new Date(System.currentTimeMillis()));
+        host = new Account("host", "password", "host@example.com");
         
         existingEvent = new Event();
         existingEvent.setTitle("Original Chess Tournament");
@@ -298,6 +358,7 @@ public class EventServiceTest {
         existingEvent.setDescription("Original Description");
         existingEvent.setMaxParticipants(10);
         existingEvent.setFeaturedGame(game);
+        existingEvent.setHost(host);
         
         // Mock repository to return our event for the given ID
         when(eventRepository.findEventById(eventId)).thenReturn(Optional.of(existingEvent));
@@ -331,6 +392,7 @@ public class EventServiceTest {
         assertEquals(newDescription, updatedEvent.getDescription());
         assertEquals(newMaxParticipants, updatedEvent.getMaxParticipants());
         assertEquals(game, updatedEvent.getFeaturedGame()); // Game should remain unchanged
+        assertEquals(host, updatedEvent.getHost()); // Host should remain unchanged
         
         // Verify repository interactions
         verify(eventRepository).findEventById(eventId);
@@ -365,6 +427,8 @@ public class EventServiceTest {
         assertEquals(originalLocation, updatedEvent.getLocation());
         assertEquals(originalDescription, updatedEvent.getDescription());
         assertEquals(newMaxParticipants, updatedEvent.getMaxParticipants());
+        assertEquals(game, updatedEvent.getFeaturedGame()); // Game should remain unchanged
+        assertEquals(host, updatedEvent.getHost()); // Host should remain unchanged
         
         // Verify repository interactions
         verify(eventRepository).findEventById(eventId);
@@ -392,7 +456,7 @@ public class EventServiceTest {
         // Assert - title should not be updated with empty value
         assertNotNull(updatedEvent);
         assertEquals(originalTitle, updatedEvent.getTitle());
-        
+    
         // Verify repository interactions
         verify(eventRepository).findEventById(eventId);
         verify(eventRepository).save(existingEvent);

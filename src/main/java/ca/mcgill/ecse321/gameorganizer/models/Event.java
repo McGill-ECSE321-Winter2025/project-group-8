@@ -67,7 +67,7 @@ public class Event {
     private Account host;
 
     /**
-     * Creates a new event with the specified details.
+     * Creates a new event with the specified details. (except host)
      *
      * @param aTitle The title of the event
      * @param aDateTime The date and time when the event will occur
@@ -83,6 +83,27 @@ public class Event {
         description = aDescription;
         maxParticipants = aMaxParticipants;
         featuredGame = aFeaturedGame;
+    }
+
+    /**
+     * Creates a new event with the specified details.
+     *
+     * @param aTitle The title of the event
+     * @param aDateTime The date and time when the event will occur
+     * @param aLocation The location where the event will be held
+     * @param aDescription A description of the event
+     * @param aMaxParticipants The maximum number of participants allowed
+     * @param aFeaturedGame The game that will be featured at the event
+     * @param host The account of the user hosting the event
+     */
+    public Event(String aTitle, Date aDateTime, String aLocation, String aDescription, int aMaxParticipants, Game aFeaturedGame, Account host) {
+        title = aTitle;
+        dateTime = aDateTime;
+        location = aLocation;
+        description = aDescription;
+        maxParticipants = aMaxParticipants;
+        featuredGame = aFeaturedGame;
+        host = host;
     }
 
     /**

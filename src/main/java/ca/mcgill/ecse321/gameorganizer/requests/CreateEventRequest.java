@@ -2,6 +2,7 @@ package ca.mcgill.ecse321.gameorganizer.requests;
 
 import java.sql.Date;
 
+import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import lombok.Data;
@@ -14,4 +15,5 @@ public class CreateEventRequest {
     private String description;
     private int maxParticipants;
     private Game featuredGame;
+    private Account host;
 }
