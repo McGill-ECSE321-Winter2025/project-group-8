@@ -1,12 +1,11 @@
 package ca.mcgill.ecse321.gameorganizer.repositories;
 
+import java.sql.Date;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
-
-import java.sql.Date;
-import java.util.List;
 
 import ca.mcgill.ecse321.gameorganizer.models.Event;
 
@@ -21,10 +20,10 @@ public interface EventRepository extends JpaRepository<Event, Integer> {
     /**
      * Finds an event by its unique identifier.
      *
-     * @param id the ID of the event to find
+     * @param id the UUID of the event to find
      * @return Optional containing the event if found, empty otherwise
      */
-    Optional<Event> findEventById(int id);
+    Optional<Event> findEventById(Integer id);
 
     /**
      * Finds events by their title.
@@ -48,6 +47,7 @@ public interface EventRepository extends JpaRepository<Event, Integer> {
     List<Event> findEventByDescription(String description);
     List<Event> findEventByMaxParticipants(int maxParticipants);
     List<Event> findByFeaturedGameMinPlayers(int minPlayers);
+    List<Event> findByFeaturedGameMinPlayersGreaterThanEqual(int minPlayers);
     //List<Event> findByFeaturedGameMinPlayersGreaterThanEqualAndMaxParticipantsLessThanEqual(int minPlayers, int maxParticipants);
     List<Event> findEventByFeaturedGameId(int featuredGameId);
     List<Event> findEventByFeaturedGameName(String featuredGameName);

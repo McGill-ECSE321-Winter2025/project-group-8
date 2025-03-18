@@ -1,12 +1,15 @@
 package ca.mcgill.ecse321.gameorganizer.models;
 
-import jakarta.persistence.*;
+import java.util.Date;
+
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.ManyToOne;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-
-import java.util.Date;
-import java.util.List;
 
 /**
  * Represents a gaming event in the system.
@@ -25,8 +28,8 @@ public class Event {
      * Unique identifier for the event.
      */
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    private int id;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Integer id;
 
     /**
      * The title or name of the event.
@@ -66,7 +69,7 @@ public class Event {
     private Account host;
 
     /**
-     * Creates a new event with the specified details.
+     * Creates a new event with the specified details. (except host)
      *
      * @param aTitle The title of the event
      * @param aDateTime The date and time when the event will occur
@@ -85,11 +88,33 @@ public class Event {
     }
 
     /**
+     * Creates a new event with the specified details.
+     *
+     * @param aTitle The title of the event
+     * @param aDateTime The date and time when the event will occur
+     * @param aLocation The location where the event will be held
+     * @param aDescription A description of the event
+     * @param aMaxParticipants The maximum number of participants allowed
+     * @param aFeaturedGame The game that will be featured at the event
+     * @param host The account of the user hosting the event
+     */
+    public Event(String aTitle, Date aDateTime, String aLocation, String aDescription, int aMaxParticipants, Game aFeaturedGame, Account host) {
+        title = aTitle;
+        dateTime = aDateTime;
+        location = aLocation;
+        description = aDescription;
+        maxParticipants = aMaxParticipants;
+        featuredGame = aFeaturedGame;
+        this.host = host;
+    }
+
+    /**
      * Returns a string representation of the Event.
      *
      * @return A string containing the event's details including ID, title, location, description,
      *         maximum participants, date/time, and featured game reference
      */
+    @Override
     public String toString() {
         return super.toString() + "[" +
                 "id" + ":" + getId() + "," +
