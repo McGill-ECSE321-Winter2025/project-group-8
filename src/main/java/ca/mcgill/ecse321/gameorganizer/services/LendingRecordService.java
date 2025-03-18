@@ -32,9 +32,6 @@ public class LendingRecordService {
 
     @Autowired
     private LendingRecordRepository lendingRecordRepository;
-    
-    @Autowired
-    private BorrowRequestRepository borrowRequestRepository;
 
     @Autowired
     private BorrowRequestRepository borrowRequestRepository;
@@ -53,17 +50,6 @@ public class LendingRecordService {
         return ResponseEntity.status(status).body(message);
     }
 
-    /**
-     * Helper method to create a standardized error response.
-     * 
-     * @param status The HTTP status code
-     * @param message The error message
-     * @return ResponseEntity with error details
-     */
-    private ResponseEntity<String> createErrorResponse(HttpStatus status, String message) {
-        return ResponseEntity.status(status).body(message);
-    }
-    
     /**
      * Creates a new lending record for a game loan.
      *
@@ -199,7 +185,7 @@ public class LendingRecordService {
         }
         return lendingRecordRepository.findByRequest_Requester(borrower);
     }
-    
+
     /**
      * Applies multiple filters to lending records.
      *
@@ -311,7 +297,7 @@ public class LendingRecordService {
         if (newStatus == null) {
             throw new IllegalArgumentException("New status cannot be null");
         }
-        
+
         LendingRecord record = getLendingRecordById(id);
         LendingStatus currentStatus = record.getStatus();
 
@@ -349,59 +335,6 @@ public class LendingRecordService {
         lendingRecordRepository.save(record);
 
         return ResponseEntity.ok("Lending record status updated successfully");
-    }
-    
-    /**
-     * Updates the status of a lending record without audit information.
-     * This is a backward-compatible method for existing code.
-     *
-     * @param id The ID of the record to update
-     * @param newStatus The new status to set
-     * @return ResponseEntity with the result of the operation
-     */
-    @Transactional
-    public ResponseEntity<String> updateStatus(int id, LendingStatus newStatus) {
-        // Call the full method with null audit values
-        return updateStatus(id, newStatus, null, "Status updated via API");
-    }
-    
-    /**
-     * Validates if a status transition is allowed based on business rules.
-     * 
-     * @param record The lending record
-     * @param newStatus The new status to validate
-     * @throws IllegalStateException if the status transition is not allowed
-     */
-    private void validateStatusTransition(LendingRecord record, LendingStatus newStatus) {
-        LendingStatus currentStatus = record.getStatus();
-        
-        // Rule 1: Cannot change status of a closed record
-        if (currentStatus == LendingStatus.CLOSED && newStatus != LendingStatus.CLOSED) {
-            throw new IllegalStateException(
-                String.format("Cannot change status of a closed lending record (ID: %d)", record.getId()));
-        }
-        
-        // Rule 2: Cannot set to ACTIVE if the end date is in the past
-        if (newStatus == LendingStatus.ACTIVE && isRecordOverdue(record)) {
-            throw new IllegalStateException(
-                String.format("Cannot set record (ID: %d) to ACTIVE as it is overdue", record.getId()));
-        }
-        
-        // Additional rules could be added here, for example:
-        // - Only certain user roles can make certain transitions
-        // - Transitions might require additional data (like return verification)
-    }
-    
-    /**
-     * Checks if a lending record is overdue based on the current date and the record's end date.
-     * Made protected for testing purposes.
-     * 
-     * @param record The lending record to check
-     * @return true if the record is overdue, false otherwise
-     */
-    protected boolean isRecordOverdue(LendingRecord record) {
-        Date now = new Date();
-        return record.getEndDate().before(now);
     }
 
     /**
@@ -595,22 +528,6 @@ public class LendingRecordService {
 
         return ResponseEntity.ok("Lending record closed successfully");
     }
-    
-    /**
-     * Closes a lending record with damage information but without audit information.
-     * This is a backward-compatible method for existing code.
-     *
-     * @param id The ID of the record to close
-     * @param isDamaged Flag indicating if the game was damaged
-     * @param damageNotes Description of the damage (if any)
-     * @param damageSeverity Severity of the damage (0-3, where 0 is none and 3 is severe)
-     * @return ResponseEntity with the result of the operation
-     */
-    @Transactional
-    public ResponseEntity<String> closeLendingRecordWithDamageAssessment(
-            int id, boolean isDamaged, String damageNotes, int damageSeverity) {
-        return closeLendingRecordWithDamageAssessment(id, isDamaged, damageNotes, damageSeverity, null, null);
-    }
 
     /**
      * Closes a lending record with damage information and user email.
@@ -686,11 +603,11 @@ public class LendingRecordService {
         if (record.getStatus() == LendingStatus.CLOSED) {
             throw new IllegalStateException("Cannot update end date of a closed lending record");
         }
-        
+
         if (newEndDate.before(record.getStartDate())) {
             throw new IllegalArgumentException("New end date cannot be before start date");
         }
-        
+
         record.setEndDate(newEndDate);
         lendingRecordRepository.save(record);
 

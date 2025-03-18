@@ -26,7 +26,6 @@ public class Game {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
 
-    @Column(unique = true) // Should make names unique in db
     /** Name of the game */
     private String name;
 
@@ -48,8 +47,6 @@ public class Game {
     /** Owner of the game */
     @ManyToOne
     private GameOwner owner;
-
-
 
     /**
      * Creates a new game with the specified details.

@@ -5,7 +5,7 @@ import java.util.Date;
 /**
  * Data Transfer Object for LendingRecord entities.
  * Used to transfer lending record data between different layers of the application.
- * 
+ *
  * @author @YoussGm3o8
  */
 public class LendingRecordDto {

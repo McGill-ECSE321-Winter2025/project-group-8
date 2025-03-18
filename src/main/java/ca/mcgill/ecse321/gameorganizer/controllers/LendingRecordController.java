@@ -40,6 +40,7 @@ public class LendingRecordController {
 
     @Autowired
     private LendingRecordService lendingRecordService;
+
     @Autowired
     private AccountService accountService;
 
@@ -59,7 +60,7 @@ public class LendingRecordController {
 
     /**
      * Get all lending records with pagination support.
-     * 
+     *
      * @param page The page number (0-based)
      * @param size The page size
      * @param sort The field to sort by
@@ -96,14 +97,14 @@ public class LendingRecordController {
         List<LendingRecordResponseDto> recordDtos = paginatedRecords.stream()
                 .map(this::convertToResponseDto)
                 .collect(Collectors.toList());
-        
+
         // Create response with pagination metadata
         Map<String, Object> response = new HashMap<>();
         response.put("records", recordDtos);
         response.put("currentPage", page);
         response.put("totalItems", allRecords.size());
         response.put("totalPages", (int) Math.ceil((double) allRecords.size() / size));
-        
+
         return ResponseEntity.ok(response);
     }
 
@@ -139,7 +140,7 @@ public class LendingRecordController {
             List<LendingRecordResponseDto> recordDtos = records.stream()
                     .map(this::convertToResponseDto)
                     .collect(Collectors.toList());
-          
+
             return ResponseEntity.ok(recordDtos);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.notFound().build();
@@ -323,6 +324,7 @@ public class LendingRecordController {
             response.put("recordId", id);
             response.put("returnTime", new Date());
             response.put("isDamaged", isDamaged);
+
             if (isDamaged) {
                 response.put("damageSeverity", damageSeverity);
                 response.put("damageSeverityLabel", LendingRecordResponseDto.DamageSeverityUtils.getLabelForSeverity(damageSeverity));
@@ -512,6 +514,7 @@ public class LendingRecordController {
                         .sorted((r1, r2) -> Long.compare(r2.getId(), r1.getId())) // Sort by ID descending
                         .findFirst()
                         .orElseThrow(() -> new IllegalStateException("Record was created but not found"));
+
                 return ResponseEntity.ok(convertToResponseDto(newRecord));
             } else {
                 return result;
@@ -542,6 +545,7 @@ public class LendingRecordController {
 
     /**
      * Retrieves overdue records.
+     *
      * @return ResponseEntity containing overdue lending records
      */
     @GetMapping("/overdue")
@@ -617,7 +621,6 @@ public class LendingRecordController {
                 newStatus = LendingStatus.valueOf(statusDto.getNewStatus().toUpperCase());
             } catch (IllegalArgumentException e) {
                 return ResponseEntity.badRequest().body(
-
                         Map.of(
                                 "success", false,
                                 "message", "Invalid status: " + statusDto.getNewStatus() +
@@ -703,16 +706,19 @@ public class LendingRecordController {
                 record.getRequest().getRequestedGame().getId(),
                 record.getRequest().getRequestedGame().getName(),
                 record.getRequest().getRequestedGame().getCategory());
+
         // Create borrower info
         LendingRecordResponseDto.UserInfo borrowerInfo = new LendingRecordResponseDto.UserInfo(
                 record.getRequest().getRequester().getId(),
                 record.getRequest().getRequester().getName(),
                 record.getRequest().getRequester().getEmail());
+
         // Create owner info
         LendingRecordResponseDto.UserInfo ownerInfo = new LendingRecordResponseDto.UserInfo(
                 record.getRecordOwner().getId(),
                 record.getRecordOwner().getName(),
                 record.getRecordOwner().getEmail());
+
         // Check if the record has damage information
         if (record.isDamaged()) {
             return new LendingRecordResponseDto(

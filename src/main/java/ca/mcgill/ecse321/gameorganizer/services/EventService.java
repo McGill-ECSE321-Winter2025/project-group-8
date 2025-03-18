@@ -1,8 +1,6 @@
 package ca.mcgill.ecse321.gameorganizer.services;
 
-import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
-import ca.mcgill.ecse321.gameorganizer.models.Registration;
 import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
 import ca.mcgill.ecse321.gameorganizer.dtos.CreateEventRequest;
@@ -36,7 +34,6 @@ public class EventService {
     @Autowired
     private GameRepository gameRepository;
 
-    // TODO: Associate an event to a host
     /**
      * Creates a new event in the system after validating required fields.
      *
@@ -116,7 +113,6 @@ public class EventService {
         return events;
     }
 
-    // TODO: Change to be callable by associated owner only
     /**
      * Updates an existing event's information.
      *
@@ -162,7 +158,6 @@ public Event updateEvent(Integer id, String title, Date dateTime,
      * @return ResponseEntity with deletion confirmation message
      * @throws IllegalArgumentException if no event is found with the given ID
      */
-
     @Transactional
     public ResponseEntity<String> deleteEvent(Integer id) {
         Event eventToDelete = eventRepository.findEventById(id).orElseThrow(

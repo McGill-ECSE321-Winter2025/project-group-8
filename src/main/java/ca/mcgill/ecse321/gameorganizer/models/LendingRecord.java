@@ -54,38 +54,6 @@ public class LendingRecord {
     @OneToOne
     @JoinColumn(name = "request_id", unique = true)
     private BorrowRequest request;
-    
-    /** Flag indicating if the game was returned with damage */
-    private boolean isDamaged = false;
-    
-    /** Notes describing any damage to the game when returned */
-    @Column(length = 1000)
-    private String damageNotes;
-    
-    /** Date when damage was assessed (typically on return) */
-    @Temporal(TemporalType.TIMESTAMP)
-    private Date damageAssessmentDate;
-    
-    /** The severity of the damage (can be used for fee calculation) */
-    private int damageSeverity = 0; // 0=none, 1=minor, 2=moderate, 3=severe
-    
-    /** Date when the record was last modified */
-    @Temporal(TemporalType.TIMESTAMP)
-    private Date lastModifiedDate;
-    
-    /** ID of the user who last modified the record */
-    private Integer lastModifiedBy;
-    
-    /** Reason for the status change */
-    @Column(length = 500)
-    private String statusChangeReason;
-    
-    /** ID of the user who closed the record */
-    private Integer closedBy;
-    
-    /** Reason for closing the record */
-    @Column(length = 500)
-    private String closingReason;
 
     /** Flag indicating if the game was returned with damage */
     private boolean isDamaged = false;
@@ -155,36 +123,6 @@ public class LendingRecord {
      */
     public long getDurationInDays() {
         return (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
-    }
-    
-    /**
-     * Records damage information when a game is returned.
-     *
-     * @param damaged flag indicating if the game was damaged
-     * @param notes detailed description of any damage
-     * @param severity the severity level of the damage (0-3)
-     */
-    public void recordDamage(boolean damaged, String notes, int severity) {
-        this.isDamaged = damaged;
-        this.damageNotes = notes;
-        this.damageAssessmentDate = new Date();
-        this.damageSeverity = Math.min(3, Math.max(0, severity)); // Ensure severity is between 0-3
-    }
-
-    /**
-     * Records the closing of a lending record with audit information.
-     * 
-     * @param userId ID of the user who closed the record
-     * @param reason Reason why the record was closed
-     */
-    public void recordClosing(Integer userId, String reason) {
-        this.status = LendingStatus.CLOSED;
-        this.endDate = new Date();
-        this.closedBy = userId;
-        this.closingReason = reason;
-        this.lastModifiedDate = new Date();
-        this.lastModifiedBy = userId;
-        this.statusChangeReason = "Record closed: " + reason;
     }
 
     /**

@@ -32,6 +32,7 @@ public class BorrowRequestController {
     public BorrowRequestController(BorrowRequestService borrowRequestService) {
         this.borrowRequestService = borrowRequestService;
     }
+
     /**
      * Creates a new borrow request.
      *
@@ -47,7 +48,7 @@ public class BorrowRequestController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
         }
     }
-  
+
     /**
      * Retrieves a borrow request by its ID.
      *
