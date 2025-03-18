@@ -1,34 +1,38 @@
 package ca.mcgill.ecse321.gameorganizer.controllers;
 
-import ca.mcgill.ecse321.gameorganizer.dtos.CreateAccountRequest;
-import ca.mcgill.ecse321.gameorganizer.dtos.UpdateAccountRequest;
+import ca.mcgill.ecse321.gameorganizer.dtos.AccountCreationDto;
+import ca.mcgill.ecse321.gameorganizer.dtos.AccountResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dtos.AuthenticationRequestDto;
 import ca.mcgill.ecse321.gameorganizer.services.AccountService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 /**
- * REST Controller for managing account-related use cases.
+ * REST Controller for managing account-related operations.
  * <p>
- * This controller exposes thes endpoints below:
+ * This controller exposes the endpoints below:
  * <ul>
- *   <li><strong>POST /account</strong>: Create a new account.</li>
- *   <li><strong>PUT /account</strong>: Update an existing account.</li>
- *   <li><strong>DELETE /account/{email}</strong>: Delete an Account by its email.</li>
- *   <li><strong>PUT /account/{email}</strong>: Upgrade an Account to a GameOwner.</li>
- *   <li><strong>GET /account/{email}</strong>: Retrieve Account information to display by email.</li>
+ *   <li><strong>POST /accounts</strong>: Create a new account.</li>
+ *   <li><strong>GET /accounts</strong>: Get all accounts or game owners.</li>
+ *   <li><strong>GET /accounts/{id}</strong>: Get an account by ID.</li>
+ *   <li><strong>GET /accounts/email/{email}</strong>: Get an account by email.</li>
+ *   <li><strong>PUT /accounts/{id}</strong>: Update an existing account.</li>
+ *   <li><strong>DELETE /accounts/{id}</strong>: Delete an account by ID.</li>
+ *   <li><strong>DELETE /accounts/email/{email}</strong>: Delete an account by email.</li>
+ *   <li><strong>PUT /accounts/upgrade/{email}</strong>: Upgrade an Account to a GameOwner.</li>
+ *   <li><strong>POST /accounts/authenticate</strong>: Authenticate a user.</li>
  * </ul>
- * </p>
- *
- * <p>
- * The controller uses gameorganizer/services/AccountService.java for business logic.
  * </p>
  *
  * @see ca.mcgill.ecse321.gameorganizer.services.AccountService
  */
 @RestController
-@RequestMapping("/account")
+@RequestMapping("/accounts")
 public class AccountController {
 
     private final AccountService accountService;
@@ -45,86 +49,147 @@ public class AccountController {
 
     /**
      * Creates a new account.
-     * <p>
-     * Endpoint: <code>POST /account</code>
-     * </p>
      *
-     * @param request the request body containing the account creation info:
-     *                username,
-     *                password,
-     *                email,
-     *                boolean indicating whether the account should be a GameOwner
-     * @return a {@code ResponseEntity<String>} with a success message or error message if creation fails
+     * @param accountCreationDto the request body containing account creation info
+     * @return AccountResponseDto with the created account details
      */
     @PostMapping("")
-    public ResponseEntity<String> createAnAccount(@Valid @RequestBody CreateAccountRequest request) {
-        return accountService.createAccount(request);
+    public ResponseEntity<AccountResponseDto> createAccount(@Valid @RequestBody AccountCreationDto accountCreationDto) {
+        try {
+            AccountResponseDto createdAccount = accountService.createAccount(accountCreationDto);
+            return new ResponseEntity<>(createdAccount, HttpStatus.CREATED);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
     }
 
     /**
-     * Updates an existing account's information.
-     * <p>
-     * Endpoint: <code>PUT /account</code>
-     * </p>
+     * Retrieves all accounts.
      *
-     * @param request the request body containing the account update information:
-     *                email to identify the account,
-     *                the current password for authentication,
-     *                the new username,
-     *                and optionally, a new password
-     * @return a {@code ResponseEntity<String>} with a confirmation message upon update or an error message
-     *         if the given password is wrong or if an account with that email could not be found
+     * @param gameOwnersOnly flag to retrieve only GameOwner accounts
+     * @return List of all accounts or only GameOwner accounts
      */
-    @PutMapping("")
-    public ResponseEntity<String> updateAccount(@Valid @RequestBody UpdateAccountRequest request) {
-        return accountService.updateAccount(request);
+    @GetMapping("")
+    public ResponseEntity<List<AccountResponseDto>> getAllAccounts(
+            @RequestParam(required = false, defaultValue = "false") boolean gameOwnersOnly) {
+        if (gameOwnersOnly) {
+            return ResponseEntity.ok(accountService.getAllGameOwners());
+        } else {
+            return ResponseEntity.ok(accountService.getAllAccounts());
+        }
     }
 
     /**
-     * Deletes an account by its email address.
-     * <p>
-     * Endpoint: <code>DELETE /account/{email}</code>
-     * </p>
+     * Retrieves an account by ID.
+     *
+     * @param id the ID of the account to retrieve
+     * @return AccountResponseDto with the account details
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<AccountResponseDto> getAccountById(@PathVariable int id) {
+        try {
+            AccountResponseDto account = new AccountResponseDto(accountService.getAccountById(id));
+            return ResponseEntity.ok(account);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    /**
+     * Retrieves an account by email with associated events.
+     *
+     * @param email the email of the account to retrieve
+     * @return AccountResponseDto with account and events details
+     */
+    @GetMapping("/email/{email}")
+    public ResponseEntity<AccountResponseDto> getAccountByEmail(@PathVariable String email) {
+        try {
+            AccountResponseDto account = accountService.getAccountInfoByEmail(email);
+            return ResponseEntity.ok(account);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    /**
+     * Updates an existing account.
+     *
+     * @param id the ID of the account to update
+     * @param accountUpdateDto updated account information
+     * @return AccountResponseDto with the updated account details
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<AccountResponseDto> updateAccount(
+            @PathVariable int id,
+            @Valid @RequestBody AccountCreationDto accountUpdateDto) {
+        try {
+            AccountResponseDto updatedAccount = accountService.updateAccount(id, accountUpdateDto);
+            return ResponseEntity.ok(updatedAccount);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    /**
+     * Deletes an account by ID.
+     *
+     * @param id the ID of the account to delete
+     * @return confirmation message
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<String> deleteAccount(@PathVariable int id) {
+        try {
+            return accountService.deleteAccount(id);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    /**
+     * Deletes an account by email.
      *
      * @param email the email of the account to delete
-     * @return a {@code ResponseEntity<String>} with a confirmation message if the account is deleted,
-     *         or an error message if no account could be found with the given email
+     * @return confirmation message
      */
-    @DeleteMapping("/{email}")
-    public ResponseEntity<String> deleteAccount(@PathVariable String email) {
-        return accountService.deleteAccountByEmail(email);
+    @DeleteMapping("/email/{email}")
+    public ResponseEntity<String> deleteAccountByEmail(@PathVariable String email) {
+        try {
+            return accountService.deleteAccountByEmail(email);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     /**
      * Upgrades an account to a GameOwner.
-     * <p>
-     * This action promotes an existing account to a GameOwner by transferring all related associations
-     * to the new GameOwner account.
-     * <br>
-     * Endpoint: <code>PUT /account/{email}</code>
-     * </p>
      *
-     * @param email the email of the account to upgrade, provided as a path variable
-     * @return a {@code ResponseEntity<String>} with a success message if the upgrade is successful
-     *         or an error message if the account does not exist or is already a GameOwner
+     * @param email the email of the account to upgrade
+     * @return AccountResponseDto with the upgraded account details
      */
-    @PutMapping("/{email}")
-    public ResponseEntity<String> upgradeAccountToGameOwner(@PathVariable String email) {
-        return accountService.upgradeUserToGameOwner(email);
+    @PutMapping("/upgrade/{email}")
+    public ResponseEntity<AccountResponseDto> upgradeToGameOwner(@PathVariable String email) {
+        try {
+            AccountResponseDto upgradedAccount = accountService.upgradeToGameOwner(email);
+            return ResponseEntity.ok(upgradedAccount);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
     }
 
     /**
-     * Retrieves account information by email.
-     * <p>
-     * Endpoint: <code>GET /account/{email}</code>
-     * </p>
+     * Authenticates a user with email and password.
      *
-     * @param email the email of the account to retrieve, provided as a path variable
-     * @return a {@code ResponseEntity<?>} containing an {@code AccountResponse} DTO with account details
-     *         if found or an error message if no account with the provided email exists
+     * @param request authentication request with email and password
+     * @return AccountResponseDto if authentication succeeds
      */
-    @GetMapping("/{email}")
-    public ResponseEntity<?> getAccount(@PathVariable String email) {
-        return accountService.getAccountInfoByEmail(email);
+    @PostMapping("/authenticate")
+    public ResponseEntity<AccountResponseDto> authenticateUser(@Valid @RequestBody AuthenticationRequestDto request) {
+        try {
+            AccountResponseDto authenticatedAccount =
+                    accountService.authenticateUser(request.getEmail(), request.getPassword());
+            return ResponseEntity.ok(authenticatedAccount);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
     }
 }

@@ -1,9 +1,7 @@
 package ca.mcgill.ecse321.gameorganizer.service;
 
-import ca.mcgill.ecse321.gameorganizer.dtos.AccountResponse;
-import ca.mcgill.ecse321.gameorganizer.dtos.CreateAccountRequest;
-import ca.mcgill.ecse321.gameorganizer.dtos.EventResponse;
-import ca.mcgill.ecse321.gameorganizer.dtos.UpdateAccountRequest;
+import ca.mcgill.ecse321.gameorganizer.dtos.AccountCreationDto;
+import ca.mcgill.ecse321.gameorganizer.dtos.AccountResponseDto;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequestStatus;
@@ -26,8 +24,8 @@ import org.mockito.MockitoAnnotations;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.ResponseEntity;
 
-import java.util.Date;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
@@ -55,8 +53,8 @@ public class AccountServiceTest {
 
     private Account regularAccount;
     private GameOwner gameOwnerAccount;
-    private CreateAccountRequest regularAccountRequest;
-    private CreateAccountRequest gameOwnerRequest;
+    private AccountCreationDto regularAccountDto;
+    private AccountCreationDto gameOwnerDto;
     private List<Registration> registrations;
     private List<BorrowRequest> borrowRequests;
     private List<Review> reviews;
@@ -65,21 +63,21 @@ public class AccountServiceTest {
     public void setUp() {
         MockitoAnnotations.openMocks(this);
 
-        // Create sample data for tests - Fix the constructor parameters to match the model
+        // Create sample data for tests
         regularAccount = new Account("Regular User", "regular@test.com", "password123");
         regularAccount.setId(1);
 
         gameOwnerAccount = new GameOwner("Game Owner", "gameowner@test.com", "password456");
         gameOwnerAccount.setId(2);
 
-        regularAccountRequest = new CreateAccountRequest(
+        regularAccountDto = new AccountCreationDto(
                 "regular@test.com",
                 "Regular User",
                 "password123",
                 false
         );
 
-        gameOwnerRequest = new CreateAccountRequest(
+        gameOwnerDto = new AccountCreationDto(
                 "gameowner@test.com",
                 "Game Owner",
                 "password456",
@@ -88,7 +86,7 @@ public class AccountServiceTest {
 
         // Create sample registrations
         registrations = new ArrayList<>();
-        Game testGame = new Game("Test Game", 2, 4, "test.jpg", new java.util.Date());
+        Game testGame = new Game("Test Game", 2, 4, "test.jpg", new Date());
         Event testEvent = new Event(
                 "Test Event",
                 new Date(),
@@ -133,11 +131,13 @@ public class AccountServiceTest {
         when(accountRepository.save(any(Account.class))).thenReturn(regularAccount);
 
         // Call the method
-        ResponseEntity<String> response = accountService.createAccount(regularAccountRequest);
+        AccountResponseDto response = accountService.createAccount(regularAccountDto);
 
         // Assert
-        assertEquals(200, response.getStatusCodeValue());
-        assertEquals("Account created successfully", response.getBody());
+        assertNotNull(response);
+        assertEquals("Regular User", response.getName());
+        assertEquals("regular@test.com", response.getEmail());
+        assertFalse(response.isGameOwner());
         verify(accountRepository, times(1)).save(any(Account.class));
     }
 
@@ -148,39 +148,41 @@ public class AccountServiceTest {
         when(accountRepository.save(any(GameOwner.class))).thenReturn(gameOwnerAccount);
 
         // Call the method
-        ResponseEntity<String> response = accountService.createAccount(gameOwnerRequest);
+        AccountResponseDto response = accountService.createAccount(gameOwnerDto);
 
         // Assert
-        assertEquals(200, response.getStatusCodeValue());
-        assertEquals("Account created successfully", response.getBody());
+        assertNotNull(response);
+        assertEquals("Game Owner", response.getName());
+        assertEquals("gameowner@test.com", response.getEmail());
+        assertTrue(response.isGameOwner());
         verify(accountRepository, times(1)).save(any(GameOwner.class));
     }
 
     @Test
     public void testCreateAccountWithEmptyEmail() {
         // Setup
-        regularAccountRequest.setEmail("");
-
-        // Call the method
-        ResponseEntity<String> response = accountService.createAccount(regularAccountRequest);
+        regularAccountDto.setEmail("");
 
         // Assert
-        assertEquals(400, response.getStatusCodeValue());
-        assertEquals("Invalid email address", response.getBody());
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+            accountService.createAccount(regularAccountDto);
+        });
+
+        assertEquals("Email address cannot be empty", exception.getMessage());
         verify(accountRepository, never()).save(any(Account.class));
     }
 
     @Test
     public void testCreateAccountWithNullEmail() {
         // Setup
-        regularAccountRequest.setEmail(null);
-
-        // Call the method
-        ResponseEntity<String> response = accountService.createAccount(regularAccountRequest);
+        regularAccountDto.setEmail(null);
 
         // Assert
-        assertEquals(400, response.getStatusCodeValue());
-        assertEquals("Invalid email address", response.getBody());
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+            accountService.createAccount(regularAccountDto);
+        });
+
+        assertEquals("Email address cannot be empty", exception.getMessage());
         verify(accountRepository, never()).save(any(Account.class));
     }
 
@@ -189,12 +191,12 @@ public class AccountServiceTest {
         // Setup
         when(accountRepository.findByEmail("regular@test.com")).thenReturn(Optional.of(regularAccount));
 
-        // Call the method
-        ResponseEntity<String> response = accountService.createAccount(regularAccountRequest);
-
         // Assert
-        assertEquals(400, response.getStatusCodeValue());
-        assertEquals("Email address already in use.", response.getBody());
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+            accountService.createAccount(regularAccountDto);
+        });
+
+        assertEquals("Email address already in use", exception.getMessage());
         verify(accountRepository, never()).save(any(Account.class));
     }
 
@@ -225,28 +227,41 @@ public class AccountServiceTest {
         assertEquals("Account with email nonexistent@test.com does not exist", exception.getMessage());
     }
 
-    // Get Account Info By Email Tests - Fix the EventResponse class Date cast issue
+    @Test
+    public void testGetAccountByEmailEmpty() {
+        // Assert
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+            accountService.getAccountByEmail("");
+        });
+        assertEquals("Email cannot be empty", exception.getMessage());
+    }
+
+    @Test
+    public void testGetAccountByEmailNull() {
+        // Assert
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+            accountService.getAccountByEmail(null);
+        });
+        assertEquals("Email cannot be empty", exception.getMessage());
+    }
+
+    // Get Account Info By Email Tests
     @Test
     public void testGetAccountInfoByEmailSuccess() {
         // Setup
         when(accountRepository.findByEmail("regular@test.com")).thenReturn(Optional.of(regularAccount));
         when(registrationRepository.findRegistrationByAttendeeName("Regular User")).thenReturn(registrations);
 
-        // Mock the EventResponse constructor to avoid the Date casting issue
-        // This is a workaround for the test, the actual fix should be in the EventResponse class
-        // by changing java.util.Date to java.sql.Date
-
         // Call the method
-        ResponseEntity<?> response = accountService.getAccountInfoByEmail("regular@test.com");
+        AccountResponseDto response = accountService.getAccountInfoByEmail("regular@test.com");
 
         // Assert
-        assertEquals(200, response.getStatusCodeValue());
-        assertTrue(response.getBody() instanceof AccountResponse);
-
-        AccountResponse accountResponse = (AccountResponse) response.getBody();
-        assertEquals("Regular User", accountResponse.getUsername());
-        assertFalse(accountResponse.isGameOwner());
-        // Skip event list validation due to Date casting issue
+        assertNotNull(response);
+        assertEquals("Regular User", response.getName());
+        assertEquals("regular@test.com", response.getEmail());
+        assertFalse(response.isGameOwner());
+        assertNotNull(response.getRegisteredEvents());
+        assertEquals(1, response.getRegisteredEvents().size());
     }
 
     @Test
@@ -254,12 +269,11 @@ public class AccountServiceTest {
         // Setup
         when(accountRepository.findByEmail("nonexistent@test.com")).thenReturn(Optional.empty());
 
-        // Call the method
-        ResponseEntity<?> response = accountService.getAccountInfoByEmail("nonexistent@test.com");
-
         // Assert
-        assertEquals(400, response.getStatusCodeValue());
-        assertEquals("Bad request: no such account exists.", response.getBody());
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+            accountService.getAccountInfoByEmail("nonexistent@test.com");
+        });
+        assertEquals("Account with email nonexistent@test.com does not exist", exception.getMessage());
     }
 
     // Get Account By ID Tests
@@ -293,100 +307,47 @@ public class AccountServiceTest {
     @Test
     public void testUpdateAccountSuccess() {
         // Setup
-        UpdateAccountRequest updateRequest = new UpdateAccountRequest();
-        updateRequest.setEmail("regular@test.com");
-        updateRequest.setUsername("Updated User");
-        updateRequest.setPassword("password123");
-        updateRequest.setNewPassword("newpassword123");
+        AccountCreationDto updateDto = new AccountCreationDto(
+                "regular@test.com",
+                "Updated User",
+                "newpassword123",
+                false
+        );
 
-        when(accountRepository.findByEmail("regular@test.com")).thenReturn(Optional.of(regularAccount));
+        when(accountRepository.findById(1)).thenReturn(Optional.of(regularAccount));
 
-        // Call the method
-        ResponseEntity<String> response = accountService.updateAccount(updateRequest);
-
-        // Assert
-        assertEquals(200, response.getStatusCodeValue());
-        assertEquals("Account updated successfully", response.getBody());
-        assertEquals("Updated User", regularAccount.getName());
-        assertEquals("newpassword123", regularAccount.getPassword());
-    }
-
-    @Test
-    public void testUpdateAccountWithNoNewPassword() {
-        // Setup
-        UpdateAccountRequest updateRequest = new UpdateAccountRequest();
-        updateRequest.setEmail("regular@test.com");
-        updateRequest.setUsername("Updated User");
-        updateRequest.setPassword("password123");
-        updateRequest.setNewPassword(null);
-
-        when(accountRepository.findByEmail("regular@test.com")).thenReturn(Optional.of(regularAccount));
+        // Simulate the updated account that will be returned
+        Account updatedAccount = new Account("Updated User", "regular@test.com", "newpassword123");
+        updatedAccount.setId(1);
+        when(accountRepository.save(any(Account.class))).thenReturn(updatedAccount);
 
         // Call the method
-        ResponseEntity<String> response = accountService.updateAccount(updateRequest);
+        AccountResponseDto response = accountService.updateAccount(1, updateDto);
 
         // Assert
-        assertEquals(200, response.getStatusCodeValue());
-        assertEquals("Account updated successfully", response.getBody());
-        assertEquals("Updated User", regularAccount.getName());
-        assertEquals("password123", regularAccount.getPassword()); // Password shouldn't change
-    }
-
-    @Test
-    public void testUpdateAccountWithEmptyNewPassword() {
-        // Setup
-        UpdateAccountRequest updateRequest = new UpdateAccountRequest();
-        updateRequest.setEmail("regular@test.com");
-        updateRequest.setUsername("Updated User");
-        updateRequest.setPassword("password123");
-        updateRequest.setNewPassword("");
-
-        when(accountRepository.findByEmail("regular@test.com")).thenReturn(Optional.of(regularAccount));
-
-        // Call the method
-        ResponseEntity<String> response = accountService.updateAccount(updateRequest);
-
-        // Assert
-        assertEquals(200, response.getStatusCodeValue());
-        assertEquals("Account updated successfully", response.getBody());
-        assertEquals("Updated User", regularAccount.getName());
-        assertEquals("password123", regularAccount.getPassword()); // Password shouldn't change
+        assertNotNull(response);
+        assertEquals("Updated User", response.getName());
+        assertEquals("regular@test.com", response.getEmail());
+        verify(accountRepository, times(1)).save(any(Account.class));
     }
 
     @Test
     public void testUpdateAccountNotFound() {
         // Setup
-        UpdateAccountRequest updateRequest = new UpdateAccountRequest();
-        updateRequest.setEmail("nonexistent@test.com");
-        updateRequest.setUsername("Updated User");
-        updateRequest.setPassword("password123");
+        AccountCreationDto updateDto = new AccountCreationDto(
+                "nonexistent@test.com",
+                "Updated User",
+                "newpassword123",
+                false
+        );
 
-        when(accountRepository.findByEmail("nonexistent@test.com")).thenReturn(Optional.empty());
-
-        // Call the method
-        ResponseEntity<String> response = accountService.updateAccount(updateRequest);
-
-        // Assert
-        assertEquals(400, response.getStatusCodeValue());
-        assertTrue(response.getBody().contains("Bad request: Account with email nonexistent@test.com does not exist"));
-    }
-
-    @Test
-    public void testUpdateAccountWithIncorrectPassword() {
-        // Setup
-        UpdateAccountRequest updateRequest = new UpdateAccountRequest();
-        updateRequest.setEmail("regular@test.com");
-        updateRequest.setUsername("Updated User");
-        updateRequest.setPassword("wrongpassword");
-
-        when(accountRepository.findByEmail("regular@test.com")).thenReturn(Optional.of(regularAccount));
-
-        // Call the method
-        ResponseEntity<String> response = accountService.updateAccount(updateRequest);
+        when(accountRepository.findById(99)).thenReturn(Optional.empty());
 
         // Assert
-        assertEquals(400, response.getStatusCodeValue());
-        assertTrue(response.getBody().contains("Bad request: Passwords do not match"));
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+            accountService.updateAccount(99, updateDto);
+        });
+        assertEquals("Account with ID 99 does not exist", exception.getMessage());
     }
 
     // Delete Account Tests
@@ -418,24 +379,58 @@ public class AccountServiceTest {
         verify(accountRepository, never()).delete(any(Account.class));
     }
 
+    @Test
+    public void testDeleteAccountSuccess() {
+        // Setup
+        when(accountRepository.findById(1)).thenReturn(Optional.of(regularAccount));
+        doNothing().when(accountRepository).delete(regularAccount);
+
+        // Call the method
+        ResponseEntity<String> response = accountService.deleteAccount(1);
+
+        // Assert
+        assertEquals(200, response.getStatusCodeValue());
+        assertEquals("Account with ID 1 has been deleted", response.getBody());
+        verify(accountRepository, times(1)).delete(regularAccount);
+    }
+
+    @Test
+    public void testDeleteAccountNotFound() {
+        // Setup
+        when(accountRepository.findById(99)).thenReturn(Optional.empty());
+
+        // Assert
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+            accountService.deleteAccount(99);
+        });
+        assertEquals("Account with ID 99 does not exist", exception.getMessage());
+        verify(accountRepository, never()).delete(any(Account.class));
+    }
+
     // Upgrade User To Game Owner Tests
     @Test
-    public void testUpgradeUserToGameOwnerSuccess() {
+    public void testUpgradeToGameOwnerSuccess() {
         // Setup
         when(accountRepository.findByEmail("regular@test.com")).thenReturn(Optional.of(regularAccount));
         doNothing().when(accountRepository).delete(regularAccount);
-        when(accountRepository.save(any(GameOwner.class))).thenReturn(gameOwnerAccount);
+
+        // Create a GameOwner with the SAME NAME as the regular account
+        GameOwner upgradedOwner = new GameOwner("Regular User", "regular@test.com", "password123");
+        upgradedOwner.setId(1);
+
+        when(accountRepository.save(any(GameOwner.class))).thenReturn(upgradedOwner);
 
         when(registrationRepository.findRegistrationByAttendeeName("Regular User")).thenReturn(registrations);
         when(borrowRequestRepository.findBorrowRequestsByRequesterName("Regular User")).thenReturn(borrowRequests);
         when(reviewRepository.findReviewsByReviewerName("Regular User")).thenReturn(reviews);
 
         // Call the method
-        ResponseEntity<String> response = accountService.upgradeUserToGameOwner("regular@test.com");
+        AccountResponseDto response = accountService.upgradeToGameOwner("regular@test.com");
 
         // Assert
-        assertEquals(200, response.getStatusCodeValue());
-        assertEquals("Account updated to GameOwner successfully", response.getBody());
+        assertNotNull(response);
+        assertEquals("Regular User", response.getName()); // Name should remain the same after upgrade
+        assertTrue(response.isGameOwner()); // But account type should be GameOwner
         verify(accountRepository, times(1)).delete(regularAccount);
         verify(accountRepository, times(1)).save(any(GameOwner.class));
 
@@ -446,32 +441,138 @@ public class AccountServiceTest {
     }
 
     @Test
-    public void testUpgradeUserToGameOwnerNotFound() {
+    public void testUpgradeToGameOwnerNotFound() {
         // Setup
         when(accountRepository.findByEmail("nonexistent@test.com")).thenReturn(Optional.empty());
 
-        // Call the method
-        ResponseEntity<String> response = accountService.upgradeUserToGameOwner("nonexistent@test.com");
-
         // Assert
-        assertEquals(400, response.getStatusCodeValue());
-        assertEquals("Bad request: no such account exists.", response.getBody());
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+            accountService.upgradeToGameOwner("nonexistent@test.com");
+        });
+        assertEquals("Account with email nonexistent@test.com does not exist", exception.getMessage());
         verify(accountRepository, never()).delete(any(Account.class));
         verify(accountRepository, never()).save(any(GameOwner.class));
     }
 
     @Test
-    public void testUpgradeUserToGameOwnerAlreadyGameOwner() {
+    public void testUpgradeToGameOwnerAlreadyGameOwner() {
         // Setup
         when(accountRepository.findByEmail("gameowner@test.com")).thenReturn(Optional.of(gameOwnerAccount));
 
-        // Call the method
-        ResponseEntity<String> response = accountService.upgradeUserToGameOwner("gameowner@test.com");
-
         // Assert
-        assertEquals(400, response.getStatusCodeValue());
-        assertEquals("Bad request: account already a game owner.", response.getBody());
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+            accountService.upgradeToGameOwner("gameowner@test.com");
+        });
+        assertEquals("Account is already a GameOwner", exception.getMessage());
         verify(accountRepository, never()).delete(any(Account.class));
         verify(accountRepository, never()).save(any(GameOwner.class));
+    }
+
+    // Get All Accounts Tests
+    @Test
+    public void testGetAllAccountsSuccess() {
+        // Setup
+        List<Account> accounts = new ArrayList<>();
+        accounts.add(regularAccount);
+        accounts.add(gameOwnerAccount);
+
+        when(accountRepository.findAll()).thenReturn(accounts);
+
+        // Call the method
+        List<AccountResponseDto> result = accountService.getAllAccounts();
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(2, result.size());
+        assertEquals("Regular User", result.get(0).getName());
+        assertEquals("Game Owner", result.get(1).getName());
+    }
+
+    @Test
+    public void testGetAllAccountsEmpty() {
+        // Setup
+        when(accountRepository.findAll()).thenReturn(new ArrayList<>());
+
+        // Call the method
+        List<AccountResponseDto> result = accountService.getAllAccounts();
+
+        // Assert
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+    }
+
+    // Get All Game Owners Tests
+    @Test
+    public void testGetAllGameOwnersSuccess() {
+        // Setup
+        List<Account> accounts = new ArrayList<>();
+        accounts.add(regularAccount);
+        accounts.add(gameOwnerAccount);
+
+        when(accountRepository.findAll()).thenReturn(accounts);
+
+        // Call the method
+        List<AccountResponseDto> result = accountService.getAllGameOwners();
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(1, result.size());
+        assertEquals("Game Owner", result.get(0).getName());
+        assertTrue(result.get(0).isGameOwner());
+    }
+
+    @Test
+    public void testGetAllGameOwnersEmpty() {
+        // Setup
+        List<Account> accounts = new ArrayList<>();
+        accounts.add(regularAccount); // Only regular account, no game owners
+
+        when(accountRepository.findAll()).thenReturn(accounts);
+
+        // Call the method
+        List<AccountResponseDto> result = accountService.getAllGameOwners();
+
+        // Assert
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+    }
+
+    // Authenticate User Tests
+    @Test
+    public void testAuthenticateUserSuccess() {
+        // Setup
+        when(accountRepository.findByEmail("regular@test.com")).thenReturn(Optional.of(regularAccount));
+
+        // Call the method
+        AccountResponseDto result = accountService.authenticateUser("regular@test.com", "password123");
+
+        // Assert
+        assertNotNull(result);
+        assertEquals("Regular User", result.getName());
+        assertEquals("regular@test.com", result.getEmail());
+    }
+
+    @Test
+    public void testAuthenticateUserInvalidPassword() {
+        // Setup
+        when(accountRepository.findByEmail("regular@test.com")).thenReturn(Optional.of(regularAccount));
+
+        // Assert
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+            accountService.authenticateUser("regular@test.com", "wrongpassword");
+        });
+        assertEquals("Authentication failed: Invalid credentials", exception.getMessage());
+    }
+
+    @Test
+    public void testAuthenticateUserNotFound() {
+        // Setup
+        when(accountRepository.findByEmail("nonexistent@test.com")).thenReturn(Optional.empty());
+
+        // Assert
+        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
+            accountService.authenticateUser("nonexistent@test.com", "password123");
+        });
+        assertEquals("Account with email nonexistent@test.com does not exist", exception.getMessage());
     }
 }

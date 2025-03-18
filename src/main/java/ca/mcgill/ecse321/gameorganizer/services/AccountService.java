@@ -2,16 +2,17 @@ package ca.mcgill.ecse321.gameorganizer.services;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import ca.mcgill.ecse321.gameorganizer.dtos.AccountResponse;
-import ca.mcgill.ecse321.gameorganizer.dtos.CreateAccountRequest;
-import ca.mcgill.ecse321.gameorganizer.dtos.EventResponse;
-import ca.mcgill.ecse321.gameorganizer.dtos.UpdateAccountRequest;
+import ca.mcgill.ecse321.gameorganizer.dtos.AccountCreationDto;
+import ca.mcgill.ecse321.gameorganizer.dtos.AccountResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dtos.EventResponseDto;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
@@ -27,15 +28,15 @@ import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
  * Service class that handles business logic for account management operations.
  * Provides methods for creating, retrieving, updating, and deleting user accounts.
  *
- * @author @dyune
+ * @author @dyune (modified by current author)
  */
 @Service
 public class AccountService {
 
-    private final AccountRepository accountRepository;
-    private final RegistrationRepository registrationRepository;
-    private final ReviewRepository reviewRepository;
-    private final BorrowRequestRepository borrowRequestRepository;
+    private AccountRepository accountRepository;
+    private RegistrationRepository registrationRepository;
+    private ReviewRepository reviewRepository;
+    private BorrowRequestRepository borrowRequestRepository;
 
     @Autowired
     public AccountService(
@@ -52,102 +53,82 @@ public class AccountService {
     /**
      * Creates a new account in the system.
      *
-     * @param request The account information with which an account will be created with
-     * @return ResponseEntity with creation confirmation message or an error message
+     * @param accountCreationDto DTO containing account information to create
+     * @return AccountResponseDto containing the created account information
+     * @throws IllegalArgumentException if email is invalid or already in use
      */
     @Transactional
-    public ResponseEntity<String> createAccount(CreateAccountRequest request) {
-        String email = request.getEmail();
-        if (email == null || email.isEmpty()) {
-            return ResponseEntity.badRequest().body("Invalid email address");
+    public AccountResponseDto createAccount(AccountCreationDto accountCreationDto) {
+        String email = accountCreationDto.getEmail();
+        if (email == null || email.trim().isEmpty()) {
+            throw new IllegalArgumentException("Email address cannot be empty");
         }
 
         if (accountRepository.findByEmail(email).isPresent()) {
-            return ResponseEntity.badRequest().body("Email address already in use.");
+            throw new IllegalArgumentException("Email address already in use");
         }
 
-        if (!request.isGameOwner()) { // not game owner -> make account
-            Account aNewAccount = new Account(
-                    request.getUsername(),
-                    request.getEmail(),
-                    request.getPassword()
+        Account newAccount;
+        if (!accountCreationDto.isGameOwner()) {
+            newAccount = new Account(
+                    accountCreationDto.getUsername(),
+                    accountCreationDto.getEmail(),
+                    accountCreationDto.getPassword()
             );
-            accountRepository.save(aNewAccount);
         } else {
-            GameOwner aNewAccount = new GameOwner( // game owner -> make game owner
-                    request.getUsername(),
-                    request.getEmail(),
-                    request.getPassword()
+            newAccount = new GameOwner(
+                    accountCreationDto.getUsername(),
+                    accountCreationDto.getEmail(),
+                    accountCreationDto.getPassword()
             );
-            accountRepository.save(aNewAccount);
         }
-        return ResponseEntity.ok("Account created successfully");
+
+        accountRepository.save(newAccount);
+        return new AccountResponseDto(newAccount);
     }
 
     /**
      * Retrieves an account by email address.
      *
      * @param email The email address of the account to retrieve
-     * @return The Account object
+     * @return Account object
      * @throws IllegalArgumentException if no account is found with the given email
      */
     @Transactional
     public Account getAccountByEmail(String email) {
+        if (email == null || email.trim().isEmpty()) {
+            throw new IllegalArgumentException("Email cannot be empty");
+        }
         return accountRepository.findByEmail(email).orElseThrow(
                 () -> new IllegalArgumentException("Account with email " + email + " does not exist")
         );
     }
 
     /**
-     * Retrieves user information to display (name, account type, and events registered in)
+     * Retrieves account information by email.
      *
-     * @param email The email of the account info to display
-     * @return ResponseEntity with the information as a body or a Bad Request if
-     *         no such account exists
+     * @param email The email of the account to retrieve
+     * @return AccountResponseDto containing account details
+     * @throws IllegalArgumentException if no account is found with the given email
      */
     @Transactional
-    public ResponseEntity<?> getAccountInfoByEmail(String email) {
-        Account account;
+    public AccountResponseDto getAccountInfoByEmail(String email) {
+        Account account = getAccountByEmail(email);
 
-        try {
-            account = getAccountByEmail(email);
-        }
-        catch (IllegalArgumentException e) {
-            return ResponseEntity
-                    .badRequest()
-                    .body("Bad request: no such account exists.");
-        }
+        List<Registration> registrations = registrationRepository.findRegistrationByAttendeeName(account.getName());
 
-        // Get account details for DTO, name, account type, registrations
-        String accountName = account.getName();
+        List<EventResponseDto> events = registrations.stream()
+                .map(registration -> new EventResponseDto(registration.getEventRegisteredFor()))
+                .collect(Collectors.toList());
 
-        List<Registration> registrations = registrationRepository
-                .findRegistrationByAttendeeName(accountName);
-
-        boolean isGameOwner = account instanceof GameOwner;
-
-        List<EventResponse> events = new ArrayList<>();
-
-        for (Registration registration : registrations) {
-            Event event = registration.getEventRegisteredFor();
-            EventResponse eventResponse = new EventResponse(event);
-            events.add(eventResponse);
-        }
-
-        AccountResponse response = new AccountResponse(
-                accountName,
-                events,
-                isGameOwner
-        );
-
-        return ResponseEntity.ok(response);
+        return new AccountResponseDto(account, events);
     }
 
     /**
-     * Retrieves an account by its unique identifier.
+     * Retrieves an account by its ID.
      *
      * @param id The ID of the account to retrieve
-     * @return The Account object
+     * @return Account object
      * @throws IllegalArgumentException if no account is found with the given ID
      */
     @Transactional
@@ -160,40 +141,31 @@ public class AccountService {
     /**
      * Updates an existing account's information.
      *
-     * @param request DTO with the email to identify the account to update,
-     *                old password to authenticate this action,
-     *                new password in case they want to change password,
-     *                and new username.
-     * @return ResponseEntity with update confirmation message or failure message
+     * @param accountId ID of the account to update
+     * @param accountUpdateDto DTO containing updated account information
+     * @return AccountResponseDto containing the updated account information
+     * @throws IllegalArgumentException if no account is found with the given ID or authentication fails
      */
     @Transactional
-    public ResponseEntity<String> updateAccount(UpdateAccountRequest request) {
-        String email = request.getEmail();
-        String newUsername = request.getUsername(); // May be old or new
-        String password = request.getPassword();
-        String newPassword = request.getNewPassword();
+    public AccountResponseDto updateAccount(int accountId, AccountCreationDto accountUpdateDto) {
+        Account account = accountRepository.findById(accountId).orElseThrow(
+                () -> new IllegalArgumentException("Account with ID " + accountId + " does not exist")
+        );
 
-        Account account;
-
-        try {
-            account = accountRepository.findByEmail(email).orElseThrow(
-                    () -> new IllegalArgumentException("Account with email " + email + " does not exist")
-            );
-            if (!account.getPassword().equals(password)) {
-                throw new IllegalArgumentException("Passwords do not match");
-            }
-        } catch (IllegalArgumentException e){
-            return ResponseEntity.badRequest().body("Bad request: " + e.getMessage());
+        // Update the username if provided
+        if (accountUpdateDto.getUsername() != null && !accountUpdateDto.getUsername().trim().isEmpty()) {
+            account.setName(accountUpdateDto.getUsername());
         }
 
-        account.setName(newUsername);
-
-        // If no new password is given (null), then don't update it.
-        if (newPassword != null && !newPassword.isEmpty()) {
-            account.setPassword(newPassword);
+        // Update the password if provided
+        if (accountUpdateDto.getPassword() != null && !accountUpdateDto.getPassword().trim().isEmpty()) {
+            account.setPassword(accountUpdateDto.getPassword());
         }
 
-        return ResponseEntity.ok("Account updated successfully");
+        // Email updates could be added here if needed, with validation for uniqueness
+
+        accountRepository.save(account);
+        return new AccountResponseDto(account);
     }
 
     /**
@@ -205,81 +177,127 @@ public class AccountService {
      */
     @Transactional
     public ResponseEntity<String> deleteAccountByEmail(String email) {
-        Account accountToDelete = accountRepository.findByEmail(email).orElseThrow(
-                () -> new IllegalArgumentException("Account with email " + email + " does not exist")
-        );
+        Account accountToDelete = getAccountByEmail(email);
         accountRepository.delete(accountToDelete);
         return ResponseEntity.ok("Account with email " + email + " has been deleted");
     }
 
     /**
-     * Upgrades an Account to a GameOwner, preserving associations to other objects
-     * that refer to the previous account by transferring them to the new GameOwner.
-     * Transactional ensures that exceptions do not cause partial commits.
+     * Deletes an account by its ID.
      *
-     * @param email email of the account trying to be promoted
-     * @return ResponseEntity denoting the result of the operation
-     * @note If there is any issue during runtime, changes are rolled back
+     * @param id The ID of the account to delete
+     * @return ResponseEntity with deletion confirmation message
+     * @throws IllegalArgumentException if no account is found with the given ID
      */
     @Transactional
-    public ResponseEntity<String> upgradeUserToGameOwner(String email) {
-        Account account;
+    public ResponseEntity<String> deleteAccount(int id) {
+        Account accountToDelete = getAccountById(id);
+        accountRepository.delete(accountToDelete);
+        return ResponseEntity.ok("Account with ID " + id + " has been deleted");
+    }
 
-        try {
-            account = getAccountByEmail(email);
-        }
-        catch (IllegalArgumentException e) {
-            return ResponseEntity
-                    .badRequest()
-                    .body("Bad request: no such account exists.");
-        }
+    /**
+     * Upgrades an Account to a GameOwner, preserving associations.
+     *
+     * @param email Email of the account to be promoted
+     * @return AccountResponseDto containing the upgraded account information
+     * @throws IllegalArgumentException if account doesn't exist or is already a GameOwner
+     */
+    @Transactional
+    public AccountResponseDto upgradeToGameOwner(String email) {
+        Account account = getAccountByEmail(email);
 
         if (account instanceof GameOwner) {
-            return ResponseEntity
-                    .badRequest()
-                    .body("Bad request: account already a game owner.");
+            throw new IllegalArgumentException("Account is already a GameOwner");
         }
 
-        String accountName = account.getName();
+        // Save original account data
+        String originalName = account.getName();
+        String originalEmail = account.getEmail();
+        String originalPassword = account.getPassword();
 
-        // Duplicate Account as GameOwner,
-        // this may not be very secure but inputs should already
-        // have been validated should be okay for now
-        GameOwner gameOwner = new GameOwner(
-                accountName,
-                account.getEmail(),
-                account.getPassword()
-        );
+        // Transfer associations from old account to new GameOwner
+        List<Registration> registrations = registrationRepository.findRegistrationByAttendeeName(originalName);
+        List<BorrowRequest> borrowRequests = borrowRequestRepository.findBorrowRequestsByRequesterName(originalName);
+        List<Review> reviews = reviewRepository.findReviewsByReviewerName(originalName);
 
-        // Delete old account
+        // Delete original account
         accountRepository.delete(account);
 
-        // Make new account in its place
-        accountRepository.save(gameOwner);
+        // Create new GameOwner with original account data
+        GameOwner gameOwner = new GameOwner(
+                originalName,
+                originalEmail,
+                originalPassword
+        );
 
-        // Change all Registration, BorrowRequest, Review to point to this new account
-        // Transactional makes sure if any exceptions occur, all changes should be rolled back
-        List<Registration> registrations = registrationRepository
-                .findRegistrationByAttendeeName(accountName);
+        // Save new GameOwner
+        GameOwner savedGameOwner = accountRepository.save(gameOwner);
 
+        // Update associations
         for (Registration registration : registrations) {
-            registration.setAttendee(gameOwner);
+            registration.setAttendee(savedGameOwner);
         }
-
-        List<BorrowRequest> borrowRequests = borrowRequestRepository
-                .findBorrowRequestsByRequesterName(accountName);
 
         for (BorrowRequest borrowRequest : borrowRequests) {
-            borrowRequest.setRequester(gameOwner);
+            borrowRequest.setRequester(savedGameOwner);
         }
-
-        List<Review> reviews = reviewRepository
-                .findReviewsByReviewerName(accountName);
 
         for (Review review : reviews) {
-            review.setReviewer(gameOwner);
+            review.setReviewer(savedGameOwner);
         }
 
-        return ResponseEntity.ok("Account updated to GameOwner successfully");
+        return new AccountResponseDto(savedGameOwner);
+    }
+
+    /**
+     * Retrieves all accounts in the system.
+     *
+     * @return List of all accounts
+     */
+    @Transactional
+    public List<AccountResponseDto> getAllAccounts() {
+        List<Account> accounts = accountRepository.findAll();
+        return accounts.stream()
+                .map(AccountResponseDto::new)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Retrieves all GameOwner accounts in the system.
+     *
+     * @return List of all GameOwner accounts
+     */
+    @Transactional
+    public List<AccountResponseDto> getAllGameOwners() {
+        List<Account> allAccounts = accountRepository.findAll();
+        List<AccountResponseDto> gameOwners = new ArrayList<>();
+
+        for (Account account : allAccounts) {
+            if (account instanceof GameOwner) {
+                gameOwners.add(new AccountResponseDto(account));
+            }
+        }
+
+        return gameOwners;
+    }
+
+    /**
+     * Authenticates a user with email and password.
+     *
+     * @param email The email for authentication
+     * @param password The password for authentication
+     * @return AccountResponseDto if authentication succeeds
+     * @throws IllegalArgumentException if authentication fails
+     */
+    @Transactional
+    public AccountResponseDto authenticateUser(String email, String password) {
+        Account account = getAccountByEmail(email);
+
+        if (!account.getPassword().equals(password)) {
+            throw new IllegalArgumentException("Authentication failed: Invalid credentials");
+        }
+
+        return new AccountResponseDto(account);
     }
 }
