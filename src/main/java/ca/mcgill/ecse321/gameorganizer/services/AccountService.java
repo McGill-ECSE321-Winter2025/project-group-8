@@ -1,9 +1,9 @@
 package ca.mcgill.ecse321.gameorganizer.services;
 
-import ca.mcgill.ecse321.gameorganizer.dto.requests.CreateAccountRequest;
-import ca.mcgill.ecse321.gameorganizer.dto.requests.UpdateAccountRequest;
-import ca.mcgill.ecse321.gameorganizer.dto.responses.AccountResponse;
-import ca.mcgill.ecse321.gameorganizer.dto.responses.EventResponse;
+import ca.mcgill.ecse321.gameorganizer.dto.CreateAccountRequest;
+import ca.mcgill.ecse321.gameorganizer.dto.UpdateAccountRequest;
+import ca.mcgill.ecse321.gameorganizer.dto.AccountResponse;
+import ca.mcgill.ecse321.gameorganizer.dto.EventResponse;
 import ca.mcgill.ecse321.gameorganizer.models.*;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;

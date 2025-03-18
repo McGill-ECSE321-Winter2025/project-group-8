@@ -1,7 +1,7 @@
 package ca.mcgill.ecse321.gameorganizer.services;
 
-import ca.mcgill.ecse321.gameorganizer.dtos.BorrowRequestDto;
-import ca.mcgill.ecse321.gameorganizer.dtos.CreateBorrowRequestDto;
+import ca.mcgill.ecse321.gameorganizer.dto.BorrowRequestDto;
+import ca.mcgill.ecse321.gameorganizer.dto.CreateBorrowRequestDto;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequestStatus;
 import ca.mcgill.ecse321.gameorganizer.models.Game;

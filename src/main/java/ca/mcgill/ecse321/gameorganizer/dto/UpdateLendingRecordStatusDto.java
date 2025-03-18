@@ -1,4 +1,4 @@
-package ca.mcgill.ecse321.gameorganizer.dtos;
+package ca.mcgill.ecse321.gameorganizer.dto;
 
 /**
  * Data Transfer Object for updating the status of a lending record.

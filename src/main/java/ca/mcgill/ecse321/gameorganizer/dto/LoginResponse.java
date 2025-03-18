@@ -1,7 +1,6 @@
-package ca.mcgill.ecse321.gameorganizer.responses;
+package ca.mcgill.ecse321.gameorganizer.dto;
 
 
-import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 

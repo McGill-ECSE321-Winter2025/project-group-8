@@ -1,9 +1,9 @@
 package ca.mcgill.ecse321.gameorganizer.services;
 
-import ca.mcgill.ecse321.gameorganizer.dtos.GameCreationDto;
-import ca.mcgill.ecse321.gameorganizer.dtos.GameResponseDto;
-import ca.mcgill.ecse321.gameorganizer.dtos.ReviewResponseDto;
-import ca.mcgill.ecse321.gameorganizer.dtos.ReviewSubmissionDto;
+import ca.mcgill.ecse321.gameorganizer.dto.GameCreationDto;
+import ca.mcgill.ecse321.gameorganizer.dto.GameResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dto.ReviewResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dto.ReviewSubmissionDto;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;

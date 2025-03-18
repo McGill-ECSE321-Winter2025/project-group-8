@@ -27,8 +27,8 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import ca.mcgill.ecse321.gameorganizer.controllers.LendingRecordController;
-import ca.mcgill.ecse321.gameorganizer.dtos.LendingHistoryFilterDto;
-import ca.mcgill.ecse321.gameorganizer.dtos.UpdateLendingRecordStatusDto;
+import ca.mcgill.ecse321.gameorganizer.dto.LendingHistoryFilterDto;
+import ca.mcgill.ecse321.gameorganizer.dto.UpdateLendingRecordStatusDto;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
 import ca.mcgill.ecse321.gameorganizer.models.Game;

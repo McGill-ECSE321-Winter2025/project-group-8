@@ -1,7 +1,7 @@
 package ca.mcgill.ecse321.gameorganizer.repository;
 
-import ca.mcgill.ecse321.gameorganizer.dtos.BorrowRequestDto;
-import ca.mcgill.ecse321.gameorganizer.dtos.CreateBorrowRequestDto;
+import ca.mcgill.ecse321.gameorganizer.dto.BorrowRequestDto;
+import ca.mcgill.ecse321.gameorganizer.dto.CreateBorrowRequestDto;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequestStatus;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
@@ -18,7 +18,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 
 import java.util.Date;
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 

@@ -1,4 +1,4 @@
-package ca.mcgill.ecse321.gameorganizer.dtos;
+package ca.mcgill.ecse321.gameorganizer.dto;
 
 import java.util.Date;
 

@@ -1,7 +1,7 @@
 package ca.mcgill.ecse321.gameorganizer.service;
 
-import ca.mcgill.ecse321.gameorganizer.dtos.GameCreationDto;
-import ca.mcgill.ecse321.gameorganizer.dtos.GameResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dto.GameCreationDto;
+import ca.mcgill.ecse321.gameorganizer.dto.GameResponseDto;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
@@ -14,7 +14,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.springframework.boot.test.context.SpringBootTest;
 
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 

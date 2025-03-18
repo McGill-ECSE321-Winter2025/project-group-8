@@ -1,7 +1,7 @@
 package ca.mcgill.ecse321.gameorganizer.controllers;
 
-import ca.mcgill.ecse321.gameorganizer.dtos.ReviewResponseDto;
-import ca.mcgill.ecse321.gameorganizer.dtos.ReviewSubmissionDto;
+import ca.mcgill.ecse321.gameorganizer.dto.ReviewResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dto.ReviewSubmissionDto;
 import ca.mcgill.ecse321.gameorganizer.services.GameService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;

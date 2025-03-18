@@ -1,7 +1,7 @@
 package ca.mcgill.ecse321.gameorganizer.controllers;
 
-import ca.mcgill.ecse321.gameorganizer.dtos.GameCreationDto;
-import ca.mcgill.ecse321.gameorganizer.dtos.GameResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dto.GameCreationDto;
+import ca.mcgill.ecse321.gameorganizer.dto.GameResponseDto;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.services.AccountService;
@@ -12,7 +12,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 
-import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 

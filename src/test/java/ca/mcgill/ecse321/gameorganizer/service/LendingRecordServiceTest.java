@@ -3,7 +3,7 @@ package ca.mcgill.ecse321.gameorganizer.service;
 import ca.mcgill.ecse321.gameorganizer.models.*;
 import ca.mcgill.ecse321.gameorganizer.repositories.LendingRecordRepository;
 import ca.mcgill.ecse321.gameorganizer.services.LendingRecordService;
-import ca.mcgill.ecse321.gameorganizer.dtos.LendingHistoryFilterDto;
+import ca.mcgill.ecse321.gameorganizer.dto.LendingHistoryFilterDto;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

@@ -1,4 +1,4 @@
-package ca.mcgill.ecse321.gameorganizer.dto.responses;
+package ca.mcgill.ecse321.gameorganizer.dto;
 
 import lombok.Data;
 

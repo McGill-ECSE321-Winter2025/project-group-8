@@ -1,4 +1,4 @@
-package ca.mcgill.ecse321.gameorganizer.dto.responses;
+package ca.mcgill.ecse321.gameorganizer.dto;
 
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
