@@ -1,5 +1,6 @@
 package ca.mcgill.ecse321.gameorganizer.repositories;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -22,4 +23,13 @@ public interface RegistrationRepository extends JpaRepository<Registration, Inte
      * @return Optional containing the registration if found, empty otherwise
      */
     Optional<Registration> findRegistrationById(int id);
+
+    /**
+     * Finds a registration by its associated user.
+     *
+     * @param username the name of the user registered
+     * @return Optional containing the registration if found, empty otherwise
+     */
+    List<Registration> findRegistrationByAttendeeName(String username);
+
 }

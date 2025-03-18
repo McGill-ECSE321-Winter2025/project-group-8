@@ -1,7 +1,7 @@
 package ca.mcgill.ecse321.gameorganizer.controllers;
 
-import ca.mcgill.ecse321.gameorganizer.dto.requests.CreateAccountRequest;
-import ca.mcgill.ecse321.gameorganizer.dto.requests.UpdateAccountRequest;
+import ca.mcgill.ecse321.gameorganizer.dtos.CreateAccountRequest;
+import ca.mcgill.ecse321.gameorganizer.dtos.UpdateAccountRequest;
 import ca.mcgill.ecse321.gameorganizer.services.AccountService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
