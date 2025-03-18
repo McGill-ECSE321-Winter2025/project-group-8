@@ -197,4 +197,152 @@ public class LendingRecordRepositoryTest {
         assertEquals(newEndDate, updated.getEndDate());
         assertEquals(LendingRecord.LendingStatus.OVERDUE, updated.getStatus());
     }
+
+    @Test
+    public void testDamageAssessmentFields() {
+        // Test damage assessment fields
+        LendingRecord found = lendingRecordRepository.findLendingRecordById(record.getId()).orElse(null);
+        assertNotNull(found);
+        
+        // Initially, damage fields should have default values
+        assertFalse(found.isDamaged());
+        assertEquals(0, found.getDamageSeverity());
+        assertNull(found.getDamageNotes());
+        assertNull(found.getDamageAssessmentDate());
+        
+        // Update damage fields
+        Date assessmentDate = new Date();
+        found.setDamaged(true);
+        found.setDamageSeverity(2);
+        found.setDamageNotes("Moderate damage to game box");
+        found.setDamageAssessmentDate(assessmentDate);
+        
+        lendingRecordRepository.save(found);
+        
+        // Verify persistence of damage fields
+        LendingRecord updated = lendingRecordRepository.findLendingRecordById(record.getId()).orElse(null);
+        assertNotNull(updated);
+        assertTrue(updated.isDamaged());
+        assertEquals(2, updated.getDamageSeverity());
+        assertEquals("Moderate damage to game box", updated.getDamageNotes());
+        assertEquals(assessmentDate, updated.getDamageAssessmentDate());
+    }
+
+    @Test
+    public void testAuditFields() {
+        // Test audit fields
+        LendingRecord found = lendingRecordRepository.findLendingRecordById(record.getId()).orElse(null);
+        assertNotNull(found);
+        
+        // Initially, audit fields should be null
+        assertNull(found.getLastModifiedBy());
+        assertNull(found.getClosedBy());
+        assertNull(found.getClosingReason());
+        
+        // Set audit fields
+        Date modificationDate = new Date();
+        found.setLastModifiedDate(modificationDate);
+        found.setLastModifiedBy(123);
+        found.setStatusChangeReason("Status changed due to late return");
+        found.setClosedBy(456);
+        found.setClosingReason("Game returned with damage");
+        
+        lendingRecordRepository.save(found);
+        
+        // Verify persistence of audit fields
+        LendingRecord updated = lendingRecordRepository.findLendingRecordById(record.getId()).orElse(null);
+        assertNotNull(updated);
+        assertEquals(modificationDate, updated.getLastModifiedDate());
+        assertEquals(Integer.valueOf(123), updated.getLastModifiedBy());
+        assertEquals("Status changed due to late return", updated.getStatusChangeReason());
+        assertEquals(Integer.valueOf(456), updated.getClosedBy());
+        assertEquals("Game returned with damage", updated.getClosingReason());
+    }
+
+    @Test
+    public void testRecordDamageMethod() {
+        // Test the recordDamage method
+        LendingRecord found = lendingRecordRepository.findLendingRecordById(record.getId()).orElse(null);
+        assertNotNull(found);
+        
+        // Call the recordDamage method
+        found.recordDamage(true, "Scratches on game disc", 3);
+        lendingRecordRepository.save(found);
+        
+        // Verify the changes
+        LendingRecord updated = lendingRecordRepository.findLendingRecordById(record.getId()).orElse(null);
+        assertNotNull(updated);
+        assertTrue(updated.isDamaged());
+        assertEquals("Scratches on game disc", updated.getDamageNotes());
+        assertEquals(3, updated.getDamageSeverity());
+        assertNotNull(updated.getDamageAssessmentDate());
+    }
+
+    @Test
+    public void testRecordClosingMethod() {
+        // Test the recordClosing method
+        LendingRecord found = lendingRecordRepository.findLendingRecordById(record.getId()).orElse(null);
+        assertNotNull(found);
+        
+        // Call the recordClosing method
+        found.recordClosing(789, "Game returned in good condition");
+        lendingRecordRepository.save(found);
+        
+        // Verify the changes
+        LendingRecord updated = lendingRecordRepository.findLendingRecordById(record.getId()).orElse(null);
+        assertNotNull(updated);
+        assertEquals(LendingRecord.LendingStatus.CLOSED, updated.getStatus());
+        assertEquals(Integer.valueOf(789), updated.getClosedBy());
+        assertEquals(Integer.valueOf(789), updated.getLastModifiedBy());
+        assertEquals("Game returned in good condition", updated.getClosingReason());
+        assertNotNull(updated.getLastModifiedDate());
+        assertEquals("Record closed: Game returned in good condition", updated.getStatusChangeReason());
+    }
+
+    @Test
+    public void testGetDurationInDays() {
+        // Test the getDurationInDays method
+        LendingRecord found = lendingRecordRepository.findLendingRecordById(record.getId()).orElse(null);
+        assertNotNull(found);
+        
+        // The duration should be 7 days based on our setup
+        assertEquals(7, found.getDurationInDays());
+        
+        // Change the end date to test different duration
+        Date newEndDate = new Date(startDate.getTime() + 3 * 86400000); // 3 days after start
+        found.setEndDate(newEndDate);
+        lendingRecordRepository.save(found);
+        
+        // Verify the updated duration
+        LendingRecord updated = lendingRecordRepository.findLendingRecordById(record.getId()).orElse(null);
+        assertNotNull(updated);
+        assertEquals(3, updated.getDurationInDays());
+    }
+
+    @Test
+    public void testConstructorValidations() {
+        // Test constructor validations
+        
+        // 1. End date before start date
+        Date invalidEndDate = new Date(startDate.getTime() - 86400000); // 1 day before start
+        Exception exception1 = assertThrows(IllegalArgumentException.class, () -> {
+            new LendingRecord(startDate, invalidEndDate, LendingRecord.LendingStatus.ACTIVE, request, owner);
+        });
+        assertEquals("End date cannot be before start date", exception1.getMessage());
+        
+        // 2. Null parameters
+        Exception exception2 = assertThrows(IllegalArgumentException.class, () -> {
+            new LendingRecord(null, endDate, LendingRecord.LendingStatus.ACTIVE, request, owner);
+        });
+        assertEquals("Required fields cannot be null", exception2.getMessage());
+        
+        // 3. Mismatch between owner and game owner
+        GameOwner differentOwner = new GameOwner("Different Owner", "different@test.com", "password123");
+        gameOwnerRepository.save(differentOwner);
+        
+        Exception exception3 = assertThrows(IllegalArgumentException.class, () -> {
+            new LendingRecord(startDate, endDate, LendingRecord.LendingStatus.ACTIVE, request, differentOwner);
+        });
+        assertEquals("The record owner must be the owner of the game in the borrow request", exception3.getMessage());
+    }
 }
