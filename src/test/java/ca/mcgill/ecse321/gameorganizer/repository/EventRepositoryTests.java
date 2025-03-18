@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.aspectj.lang.annotation.After;
 import org.junit.jupiter.api.AfterEach;
@@ -49,7 +50,7 @@ public class EventRepositoryTests {
         // Save event and the associated game
         gameRepository.save(featuredGame);
         event = eventRepositery.save(event);
-        int eventId = event.getId();
+        UUID eventId = event.getId();
 
         //Read event from database
         Optional<Event> eventFromDB = eventRepositery.findEventById(eventId);
@@ -80,7 +81,7 @@ public class EventRepositoryTests {
         // Save event and the associated game and delete them
         gameRepository.save(featuredGame);
         event = eventRepositery.save(event);
-        int eventId = event.getId();
+        UUID eventId = event.getId();
         eventRepositery.delete(event);
 
         //Read event from database

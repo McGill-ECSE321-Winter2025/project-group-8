@@ -6,7 +6,6 @@ import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
-
 import ca.mcgill.ecse321.gameorganizer.models.Event;
 
 /**
@@ -16,7 +15,7 @@ import ca.mcgill.ecse321.gameorganizer.models.Event;
  * @author @Yessine-glitch
  */
 @Repository
-public interface EventRepository extends JpaRepository<Event, Integer> {
+public interface EventRepository extends JpaRepository<Event, UUID> {
     /**
      * Finds an event by its unique identifier.
      *
@@ -24,6 +23,7 @@ public interface EventRepository extends JpaRepository<Event, Integer> {
      * @return Optional containing the event if found, empty otherwise
      */
     Optional<Event> findEventById(Integer id);
+
 
     /**
      * Finds events by their title.
