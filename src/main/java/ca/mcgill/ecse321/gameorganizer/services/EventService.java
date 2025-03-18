@@ -63,6 +63,9 @@ public class EventService {
         if (newEvent.getFeaturedGame() == null) {
             throw new IllegalArgumentException("Featured game cannot be null");
         }
+        if (newEvent.getHost() == null) {
+            throw new IllegalArgumentException("Host cannot be null");
+        }
         
         Event e = new Event(
             newEvent.getTitle(),
@@ -70,7 +73,8 @@ public class EventService {
             newEvent.getLocation(),
             newEvent.getDescription(),
             newEvent.getMaxParticipants(),
-            newEvent.getFeaturedGame()
+            newEvent.getFeaturedGame(),
+            newEvent.getHost()
         );
 
         return eventRepository.save(e);

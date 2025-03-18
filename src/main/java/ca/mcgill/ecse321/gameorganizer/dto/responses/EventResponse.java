@@ -1,5 +1,6 @@
 package ca.mcgill.ecse321.gameorganizer.dto.responses;
 
+import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 
@@ -18,6 +19,7 @@ public class EventResponse {
         this.description = event.getDescription();
         this.maxParticipants = event.getMaxParticipants();
         this.featuredGame = event.getFeaturedGame();
+        this.host = event.getHost();
     }
 
     private UUID eventId;
@@ -27,4 +29,5 @@ public class EventResponse {
     private String description;
     private int maxParticipants;
     private Game featuredGame;
+    private Account host;
 }
