@@ -1,4 +1,4 @@
-package ca.mcgill.ecse321.gameorganizer.dtos; 
+package ca.mcgill.ecse321.gameorganizer.dtos;
 
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
@@ -14,7 +14,7 @@ public class EventResponse {
     public EventResponse(Event event) {
         this.eventId = event.getId();
         this.title = event.getTitle();
-        this.dateTime = (Date) event.getDateTime();
+        this.dateTime = event.getDateTime() != null ? new Date(event.getDateTime().getTime()) : null;
         this.location = event.getLocation();
         this.description = event.getDescription();
         this.maxParticipants = event.getMaxParticipants();

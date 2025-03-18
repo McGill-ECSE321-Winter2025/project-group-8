@@ -32,12 +32,10 @@ import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
 @Service
 public class AccountService {
 
-
     private final AccountRepository accountRepository;
     private final RegistrationRepository registrationRepository;
     private final ReviewRepository reviewRepository;
     private final BorrowRequestRepository borrowRequestRepository;
-
 
     @Autowired
     public AccountService(
@@ -51,17 +49,14 @@ public class AccountService {
         this.borrowRequestRepository = borrowRequestRepository;
     }
 
-
     /**
      * Creates a new account in the system.
      *
      * @param request The account information with which an account will be created with
      * @return ResponseEntity with creation confirmation message or an error message
      */
-
     @Transactional
     public ResponseEntity<String> createAccount(CreateAccountRequest request) {
-
         String email = request.getEmail();
         if (email == null || email.isEmpty()) {
             return ResponseEntity.badRequest().body("Invalid email address");
@@ -74,21 +69,20 @@ public class AccountService {
         if (!request.isGameOwner()) { // not game owner -> make account
             Account aNewAccount = new Account(
                     request.getUsername(),
-                    request.getPassword(),
-                    request.getEmail()
+                    request.getEmail(),
+                    request.getPassword()
             );
             accountRepository.save(aNewAccount);
         } else {
             GameOwner aNewAccount = new GameOwner( // game owner -> make game owner
                     request.getUsername(),
-                    request.getPassword(),
-                    request.getEmail()
+                    request.getEmail(),
+                    request.getPassword()
             );
             accountRepository.save(aNewAccount);
         }
         return ResponseEntity.ok("Account created successfully");
     }
-
 
     /**
      * Retrieves an account by email address.
@@ -97,7 +91,6 @@ public class AccountService {
      * @return The Account object
      * @throws IllegalArgumentException if no account is found with the given email
      */
-
     @Transactional
     public Account getAccountByEmail(String email) {
         return accountRepository.findByEmail(email).orElseThrow(
@@ -112,7 +105,6 @@ public class AccountService {
      * @return ResponseEntity with the information as a body or a Bad Request if
      *         no such account exists
      */
-
     @Transactional
     public ResponseEntity<?> getAccountInfoByEmail(String email) {
         Account account;
@@ -149,9 +141,7 @@ public class AccountService {
         );
 
         return ResponseEntity.ok(response);
-
     }
-
 
     /**
      * Retrieves an account by its unique identifier.
@@ -167,7 +157,6 @@ public class AccountService {
         );
     }
 
-
     /**
      * Updates an existing account's information.
      *
@@ -177,10 +166,8 @@ public class AccountService {
      *                and new username.
      * @return ResponseEntity with update confirmation message or failure message
      */
-
     @Transactional
     public ResponseEntity<String> updateAccount(UpdateAccountRequest request) {
-
         String email = request.getEmail();
         String newUsername = request.getUsername(); // May be old or new
         String password = request.getPassword();
@@ -190,7 +177,7 @@ public class AccountService {
 
         try {
             account = accountRepository.findByEmail(email).orElseThrow(
-                () -> new IllegalArgumentException("Account with email " + email + " does not exist")
+                    () -> new IllegalArgumentException("Account with email " + email + " does not exist")
             );
             if (!account.getPassword().equals(password)) {
                 throw new IllegalArgumentException("Passwords do not match");
@@ -209,7 +196,6 @@ public class AccountService {
         return ResponseEntity.ok("Account updated successfully");
     }
 
-
     /**
      * Deletes an account from the system.
      *
@@ -217,7 +203,6 @@ public class AccountService {
      * @return ResponseEntity with deletion confirmation message
      * @throws IllegalArgumentException if no account is found with the given email
      */
-
     @Transactional
     public ResponseEntity<String> deleteAccountByEmail(String email) {
         Account accountToDelete = accountRepository.findByEmail(email).orElseThrow(
@@ -236,10 +221,8 @@ public class AccountService {
      * @return ResponseEntity denoting the result of the operation
      * @note If there is any issue during runtime, changes are rolled back
      */
-
     @Transactional
     public ResponseEntity<String> upgradeUserToGameOwner(String email) {
-
         Account account;
 
         try {
@@ -262,11 +245,10 @@ public class AccountService {
         // Duplicate Account as GameOwner,
         // this may not be very secure but inputs should already
         // have been validated should be okay for now
-
         GameOwner gameOwner = new GameOwner(
                 accountName,
-                account.getPassword(),
-                account.getEmail()
+                account.getEmail(),
+                account.getPassword()
         );
 
         // Delete old account
@@ -277,7 +259,6 @@ public class AccountService {
 
         // Change all Registration, BorrowRequest, Review to point to this new account
         // Transactional makes sure if any exceptions occur, all changes should be rolled back
-
         List<Registration> registrations = registrationRepository
                 .findRegistrationByAttendeeName(accountName);
 
@@ -298,6 +279,7 @@ public class AccountService {
         for (Review review : reviews) {
             review.setReviewer(gameOwner);
         }
+
         return ResponseEntity.ok("Account updated to GameOwner successfully");
     }
 }
