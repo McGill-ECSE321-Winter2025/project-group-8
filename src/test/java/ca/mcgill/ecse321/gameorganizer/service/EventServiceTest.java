@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.sql.Date;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -31,7 +32,7 @@ import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
-import ca.mcgill.ecse321.gameorganizer.dto.requests.CreateEventRequest;
+import ca.mcgill.ecse321.gameorganizer.requests.CreateEventRequest;
 import ca.mcgill.ecse321.gameorganizer.services.EventService;
 
 @SpringBootTest

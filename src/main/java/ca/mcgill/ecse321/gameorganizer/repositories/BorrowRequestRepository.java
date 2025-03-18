@@ -1,6 +1,9 @@
 package ca.mcgill.ecse321.gameorganizer.repositories;
 
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
+import ca.mcgill.ecse321.gameorganizer.models.BorrowRequestStatus;
+import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
+import ca.mcgill.ecse321.gameorganizer.models.Account;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -53,4 +56,23 @@ public interface BorrowRequestRepository extends JpaRepository<BorrowRequest, In
     List<BorrowRequest> findOverlappingApprovedRequests(@Param("gameId") int gameId, 
                                                         @Param("startDate") Date startDate, 
                                                         @Param("endDate") Date endDate);
+                                                        
+    /**
+     * Finds all borrow requests for games owned by a specific owner and with a specific status.
+     * Used by game owners to view pending requests for their games.
+     *
+     * @param owner The game owner whose games' requests to find
+     * @param status The status of the requests to find
+     * @return List of borrow requests matching the criteria
+     */
+    List<BorrowRequest> findByRequestedGame_OwnerAndStatus(GameOwner owner, BorrowRequestStatus status);
+    
+    /**
+     * Finds all borrow requests made by a specific requester.
+     * Used to view a user's borrow request history.
+     *
+     * @param requester The account that made the requests
+     * @return List of borrow requests made by the specified requester
+     */
+    List<BorrowRequest> findByRequester(Account requester);
 }

@@ -3,12 +3,14 @@ package ca.mcgill.ecse321.gameorganizer.services;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
 import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
-import ca.mcgill.ecse321.gameorganizer.dto.requests.CreateEventRequest;
+import ca.mcgill.ecse321.gameorganizer.requests.CreateEventRequest;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.http.HttpStatus;
+import org.springframework.validation.annotation.Validated;
 
 import java.util.List;
 import java.util.UUID;
@@ -27,6 +29,9 @@ import java.util.Date;
 public class EventService {
 
     private EventRepository eventRepository;
+
+    @Autowired
+    private GameRepository gameRepository;
 
     @Autowired
     private GameRepository gameRepository;
@@ -141,6 +146,7 @@ public Event updateEvent(UUID id, String title, Date dateTime,
 
     if (title != null && !title.trim().isEmpty()) {
         event.setTitle(title);
+
     }
     if (dateTime != null) {
         event.setDateTime(dateTime);
@@ -154,6 +160,9 @@ public Event updateEvent(UUID id, String title, Date dateTime,
     if (maxParticipants > 0) {
         event.setMaxParticipants(maxParticipants);
     }
+
+    return eventRepository.save(event);
+}
 
     return eventRepository.save(event);
 }
@@ -173,7 +182,6 @@ public Event updateEvent(UUID id, String title, Date dateTime,
         eventRepository.delete(eventToDelete);
         return ResponseEntity.ok("Event with id " + id + " has been deleted");
     }
-
 
      /**
      * Finds events scheduled on a specific date.
@@ -298,7 +306,7 @@ public Event updateEvent(UUID id, String title, Date dateTime,
         }
         
         List<Event> events = eventRepository.findByFeaturedGameMinPlayersGreaterThanEqual(minPlayers);
-        
+
         for (Event event : events) {
             if (event.getDateTime() instanceof java.sql.Timestamp) {
                 java.sql.Timestamp timestamp = (java.sql.Timestamp) event.getDateTime();
@@ -320,6 +328,7 @@ public Event updateEvent(UUID id, String title, Date dateTime,
         if (location == null || location.trim().isEmpty()) {
             throw new IllegalArgumentException("Location search text cannot be empty");
         }
+      
         List<Event> events = eventRepository.findEventByLocationContaining(location);
         
         for (Event event : events) {
