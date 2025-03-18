@@ -1,6 +1,7 @@
 package ca.mcgill.ecse321.gameorganizer.services;
 
 import ca.mcgill.ecse321.gameorganizer.dto.requests.CreateAccountRequest;
+import ca.mcgill.ecse321.gameorganizer.dto.requests.UpdateAccountRequest;
 import ca.mcgill.ecse321.gameorganizer.dto.responses.AccountResponse;
 import ca.mcgill.ecse321.gameorganizer.dto.responses.EventResponse;
 import ca.mcgill.ecse321.gameorganizer.models.*;
@@ -9,7 +10,6 @@ import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.RegistrationRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -150,24 +150,41 @@ public class AccountService {
     /**
      * Updates an existing account's information.
      *
-     * @param email The email of the account to update
-     * @param newName The new name for the account
-     * @param newPassword The new password for the account
+     * @param request DTO with the email to identify the account to update,
+     *                old password to authenticate this action,
+     *                new password in case they want to change password,
+     *                and new username.
      * @return ResponseEntity with update confirmation message or failure message
      */
 
     @Transactional
-    public ResponseEntity<String> updateAccountByEmail(String email, String newName, String newPassword) {
+    public ResponseEntity<String> updateAccount(UpdateAccountRequest request) {
+
+        String email = request.getEmail();
+        String newUsername = request.getUsername(); // May be old or new
+        String password = request.getPassword();
+        String newPassword = request.getNewPassword();
+
         Account account;
+
         try {
-        account = accountRepository.findByEmail(email).orElseThrow(
-                () -> new IllegalArgumentException("Account with email " + email + " does not exist");
-        } catch (Exception){
-            return ResponseEntity.badRequest().body("Bad request: no such account exists.");
+            account = accountRepository.findByEmail(email).orElseThrow(
+                () -> new IllegalArgumentException("Account with email " + email + " does not exist")
+            );
+            if (!account.getPassword().equals(password)) {
+                throw new IllegalArgumentException("Passwords do not match");
+            }
+        } catch (IllegalArgumentException e){
+            return ResponseEntity.badRequest().body("Bad request: " + e.getMessage());
         }
 
-        account.setName(newName);
-        account.setPassword(newPassword);
+        account.setName(newUsername);
+
+        // If no new password is given (null), then don't update it.
+        if (newPassword != null && !newPassword.isEmpty()) {
+            account.setPassword(newPassword);
+        }
+
         return ResponseEntity.ok("Account updated successfully");
     }
 
