@@ -37,7 +37,7 @@ import java.util.HashMap;
  * @author @YoussGm3o8
  */
 @RestController
-@RequestMapping("/api/lending-records")
+@RequestMapping("/api/v1/lending-records")
 public class LendingRecordController {
 
     @Autowired

@@ -4,6 +4,7 @@ import ca.mcgill.ecse321.gameorganizer.dto.GameCreationDto;
 import ca.mcgill.ecse321.gameorganizer.dto.GameResponseDto;
 import ca.mcgill.ecse321.gameorganizer.dto.ReviewResponseDto;
 import ca.mcgill.ecse321.gameorganizer.dto.ReviewSubmissionDto;
+import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
@@ -477,25 +478,16 @@ public class GameService {
      */
     @Transactional
     public ReviewResponseDto updateReview(int id, ReviewSubmissionDto reviewDto) {
-        Optional<Review> reviewOpt = reviewRepository.findReviewById(id);
-        if (reviewOpt.isEmpty()) {
-            throw new IllegalArgumentException("Review with ID " + id + " does not exist");
-        }
-
-        Review review = reviewOpt.get();
-
-        // Validate the rating
-        int rating = reviewDto.getRating();
-        if (rating < 1 || rating > 5) {
+        // Validate rating must be between 1 and 5.
+        if (reviewDto.getRating() < 1 || reviewDto.getRating() > 5) {
             throw new IllegalArgumentException("Rating must be between 1 and 5");
         }
-
-        // Update the review fields
-        review.setRating(rating);
-        String comment = reviewDto.getComment() != null ? reviewDto.getComment() : "";
-        review.setComment(comment);
-
-        // Save the updated review
+        Review review = reviewRepository.findReviewById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Review with id " + id + " not found"));
+        // Update review details.
+        review.setRating(reviewDto.getRating());
+        review.setComment(reviewDto.getComment());
+        // (Add any other field updates as necessary)
         reviewRepository.save(review);
         return new ReviewResponseDto(review);
     }
@@ -509,13 +501,10 @@ public class GameService {
      */
     @Transactional
     public ResponseEntity<String> deleteReview(int id) {
-        Optional<Review> reviewOpt = reviewRepository.findReviewById(id);
-        if (reviewOpt.isEmpty()) {
-            throw new IllegalArgumentException("Review with ID " + id + " does not exist");
-        }
-
-        reviewRepository.delete(reviewOpt.get());
-        return ResponseEntity.ok("Review with ID " + id + " has been deleted");
+        Review review = reviewRepository.findReviewById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Review with id " + id + " not found"));
+        reviewRepository.delete(review);
+        return ResponseEntity.ok("Review deleted successfully");
     }
 
 

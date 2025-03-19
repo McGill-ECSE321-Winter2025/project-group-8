@@ -66,9 +66,10 @@ public class LendingRecordService {
             }
 
             // Validate owner
-            if (!request.getRequestedGame().getOwner().equals(owner)) {
+            if (request.getRequestedGame().getOwner() == null ||
+                request.getRequestedGame().getOwner().getId() != owner.getId()) {
                 throw new IllegalArgumentException("The record owner must be the owner of the game in the borrow request");
-            }
+                }
 
             // Validate dates
             Date now = new Date();
