@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import static org.mockito.Mockito.never;
@@ -253,7 +254,7 @@ public class EventServiceTest {
     public void testFindEventsByGameNameEmpty() {
         // Test & Verify
         assertThrows(IllegalArgumentException.class, () -> eventService.findEventsByGameName(""));
-        verify(eventRepository, never()).findEventByFeaturedGameName(any());
+        verify(eventRepository, never()).findEventByFeaturedGameName(anyString());
     }
 
     @Test
@@ -278,7 +279,7 @@ public class EventServiceTest {
     public void testFindEventsByLocationContainingEmpty() {
         // Test & Verify
         assertThrows(IllegalArgumentException.class, () -> eventService.findEventsByLocationContaining(""));
-        verify(eventRepository, never()).findEventByLocationContaining(any());
+        verify(eventRepository, never()).findEventByLocationContaining(anyString());
     }
 
     @Test
@@ -303,6 +304,6 @@ public class EventServiceTest {
     public void testFindEventsByGameMinPlayersInvalid() {
         // Test & Verify
         assertThrows(IllegalArgumentException.class, () -> eventService.findEventsByGameMinPlayers(0));
-        verify(eventRepository, never()).findByFeaturedGameMinPlayersGreaterThanEqual(any());
+        verify(eventRepository, never()).findByFeaturedGameMinPlayersGreaterThanEqual(0);
     }
 }
