@@ -43,17 +43,16 @@ dependencies {
     testImplementation 'org.mockito:mockito-core:5.10.0'
 }
 
+// Ensure unit tests run with JUnit
 tasks.named('test') {
     useJUnitPlatform()
+    // JaCoCo report runs after tests
+    finalizedBy tasks.jacocoTestReport
 }
 
+// Configure JaCoCo for test coverage
 jacoco {
-    toolVersion = "0.8.11" // use the latest stable version
-}
-
-tasks.named('test') {
-    useJUnitPlatform()
-    finalizedBy tasks.jacocoTestReport // ensures jacoco report runs after tests
+    toolVersion = "0.8.11"
 }
 
 tasks.jacocoTestReport {
@@ -70,7 +69,7 @@ tasks.jacocoTestCoverageVerification {
     violationRules {
         rule {
             limit {
-                minimum = 0.50 // your defined coverage threshold (75%)
+                minimum = 0.50 // 50% test coverage threshold
             }
         }
     }
