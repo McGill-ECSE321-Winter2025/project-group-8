@@ -313,4 +313,50 @@ public class ReviewIntegrationTests {
         );
         assertEquals(HttpStatus.NOT_FOUND, response2.getStatusCode());
     }
+
+    @Test
+    @Order(11)
+    public void testGetReviewByIdSuccess() {
+        ResponseEntity<ReviewResponseDto> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "/" + testReview.getId()),
+            ReviewResponseDto.class
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        ReviewResponseDto dto = response.getBody();
+        assertNotNull(dto);
+        assertEquals(testReview.getRating(), dto.getRating());
+        assertEquals(testReview.getComment(), dto.getComment());
+    }
+
+    @Test
+    @Order(12)
+    public void testGetReviewsByGameId() {
+        ResponseEntity<List<ReviewResponseDto>> response = restTemplate.exchange(
+            createURLWithPort(BASE_URL + "/games/" + testGame.getId() + "/reviews"),
+            HttpMethod.GET,
+            null,
+            new ParameterizedTypeReference<List<ReviewResponseDto>>() {}
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        List<ReviewResponseDto> reviews = response.getBody();
+        assertNotNull(reviews);
+        assertFalse(reviews.isEmpty());
+        assertEquals(testReview.getComment(), reviews.get(0).getComment());
+    }
+
+    @Test
+    @Order(13)
+    public void testGetReviewsByNonExistentGameName() {
+        ResponseEntity<List<ReviewResponseDto>> response = restTemplate.exchange(
+            createURLWithPort(BASE_URL + "/game?gameName=NonExistentGame"),
+            HttpMethod.GET,
+            null,
+            new ParameterizedTypeReference<List<ReviewResponseDto>>() {}
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertTrue(response.getBody().isEmpty());
+    }
 }
