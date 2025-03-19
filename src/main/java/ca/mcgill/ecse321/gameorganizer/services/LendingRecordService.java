@@ -72,6 +72,11 @@ public class LendingRecordService {
                 throw new IllegalArgumentException("The record owner must be the owner of the game in the borrow request");
             }
 
+            // Check if the BorrowRequest is already associated with an existing LendingRecord
+            if (lendingRecordRepository.findByRequest(request).isPresent()) {
+                throw new IllegalArgumentException("The borrow request already has a lending record associated with it");
+            }
+
             // Validate dates
             Date now = new Date();
             if (endDate.before(startDate)) {

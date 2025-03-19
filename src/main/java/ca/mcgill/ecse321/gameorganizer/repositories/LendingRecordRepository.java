@@ -4,6 +4,8 @@ import ca.mcgill.ecse321.gameorganizer.models.LendingRecord;
 import ca.mcgill.ecse321.gameorganizer.models.LendingRecord.LendingStatus;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
+import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.domain.Pageable;
@@ -92,6 +94,14 @@ public interface LendingRecordRepository extends JpaRepository<LendingRecord, In
      * @return list of lending records for the specified borrower
      */
     List<LendingRecord> findByRequest_Requester(Account requester);
+
+    /**
+    * Retrieves a LendingRecord entity associated with a specific BorrowRequest.
+    *
+    * @param request the BorrowRequest entity to search by
+    * @return an Optional containing the LendingRecord if found, or an empty Optional if no record exists for the given request
+    */
+    Optional<LendingRecord> findByRequest(BorrowRequest request);
     
     /**
      * Finds a page of lending records associated with a specific borrower.
