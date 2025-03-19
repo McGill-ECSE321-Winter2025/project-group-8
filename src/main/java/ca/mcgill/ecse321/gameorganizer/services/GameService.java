@@ -566,7 +566,8 @@ public class GameService {
         // Apply sorting if specified
         if (criteria.getSort() != null && !criteria.getSort().trim().isEmpty()) {
             boolean ascending = "asc".equalsIgnoreCase(criteria.getOrder());
-            games.sort((g1, g2) -> {
+            games = games.stream()
+                    .sorted((g1, g2) -> {
                 int comparison = 0;
                 switch (criteria.getSort().toLowerCase()) {
                     case "name":
@@ -582,7 +583,8 @@ public class GameService {
                         return 0;
                 }
                 return ascending ? comparison : -comparison;
-            });
+                    })
+                    .collect(Collectors.toList());
         }
         
         return games;

@@ -260,7 +260,12 @@ public class LendingRecordService {
             throw new IllegalArgumentException("New status cannot be null");
         }
         
-        LendingRecord record = getLendingRecordById(id);
+        LendingRecord record;
+        try {
+            record = getLendingRecordById(id);
+        } catch (ResourceNotFoundException e) {
+            return createErrorResponse(HttpStatus.NOT_FOUND, e.getMessage());
+        }
         LendingStatus currentStatus = record.getStatus();
         
         if (currentStatus == newStatus) {
@@ -486,13 +491,17 @@ public class LendingRecordService {
      */
     @Transactional
     public ResponseEntity<String> deleteLendingRecord(int id) {
-        LendingRecord record = getLendingRecordById(id);
-        
-        if (record.getStatus() == LendingStatus.ACTIVE) {
-            throw new IllegalStateException("Cannot delete an active lending record");
-        }
+        try {
+            LendingRecord record = getLendingRecordById(id);
+            
+            if (record.getStatus() == LendingStatus.ACTIVE) {
+                throw new IllegalStateException("Cannot delete an active lending record");
+            }
 
-        lendingRecordRepository.delete(record);
-        return ResponseEntity.ok("Lending record deleted successfully");
+            lendingRecordRepository.delete(record);
+            return ResponseEntity.ok("Lending record deleted successfully");
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        }
     }
 }
