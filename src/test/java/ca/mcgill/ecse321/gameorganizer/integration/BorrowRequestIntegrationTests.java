@@ -6,6 +6,8 @@ import org.junit.jupiter.api.AfterEach;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.MethodOrderer; 
 import org.junit.jupiter.api.Order;
@@ -314,4 +316,45 @@ public class BorrowRequestIntegrationTests {
         );
         assertEquals(HttpStatus.NOT_FOUND, response2.getStatusCode());
     }
+
+    @Test
+    @Order(11)
+    public void testGetBorrowRequestByIdSuccess() {
+        ResponseEntity<BorrowRequestDto> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "/" + testRequest.getId()),
+            BorrowRequestDto.class
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        BorrowRequestDto dto = response.getBody();
+        assertNotNull(dto);
+        assertEquals(testRequest.getId(), dto.getId());
+        assertEquals(testRequester.getId(), dto.getRequesterId());
+        assertEquals(testGame.getId(), dto.getRequestedGameId());
+    }
+
+    @Test
+    @Order(12)
+    public void testGetNonExistentBorrowRequestById() {
+        ResponseEntity<String> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "/999"),
+            String.class
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+    }
+
+    @Test
+    @Order(13)
+    public void testGetAllBorrowRequests() {
+        ResponseEntity<BorrowRequestDto[]> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL),
+            BorrowRequestDto[].class
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertTrue(response.getBody().length > 0);
+    }
+
 }
