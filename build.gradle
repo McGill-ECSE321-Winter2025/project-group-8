@@ -3,6 +3,7 @@ plugins {
     id 'org.springframework.boot' version '3.2.3'
     id 'io.spring.dependency-management' version '1.1.4'
     id("io.freefair.lombok") version "8.12.1"
+    id 'jacoco'
 }
 
 group = 'ca.mcgill.ecse321'
@@ -44,4 +45,33 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+}
+
+jacoco {
+    toolVersion = "0.8.11" // use the latest stable version
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    finalizedBy tasks.jacocoTestReport // ensures jacoco report runs after tests
+}
+
+tasks.jacocoTestReport {
+    dependsOn tasks.test
+    reports {
+        xml.required = true
+        csv.required = false
+        html.outputLocation = layout.buildDirectory.dir('reports/jacocoHtml')
+    }
+}
+
+tasks.jacocoTestCoverageVerification {
+    dependsOn tasks.jacocoTestReport
+    violationRules {
+        rule {
+            limit {
+                minimum = 0.75 // your defined coverage threshold (75%)
+            }
+        }
+    }
 }
