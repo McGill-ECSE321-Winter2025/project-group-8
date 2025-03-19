@@ -74,3 +74,17 @@ tasks.jacocoTestCoverageVerification {
         }
     }
 }
+
+task integrationTest(type: Test) {
+    useJUnitPlatform()
+    shouldRunAfter test
+    filter {
+        includeTestsMatching "ca.mcgill.ecse321.gameorganizer.integration.*IntegrationTests"
+    }
+    testLogging {
+        events "passed", "skipped", "failed"
+    }
+}
+
+
+check.dependsOn integrationTest
