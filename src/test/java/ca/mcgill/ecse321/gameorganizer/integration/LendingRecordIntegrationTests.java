@@ -306,7 +306,7 @@ public class LendingRecordIntegrationTests {
             null,
             String.class
         );
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
     }
     
     
@@ -337,7 +337,7 @@ public class LendingRecordIntegrationTests {
             null,
             String.class
         );
-        assertEquals(HttpStatus.BAD_REQUEST, response2.getStatusCode(), "Second deletion did not return NOT_FOUND");
+        assertEquals(HttpStatus.NOT_FOUND, response2.getStatusCode(), "Second deletion did not return NOT_FOUND");
     }
 
     // ============================================================
@@ -788,5 +788,311 @@ public class LendingRecordIntegrationTests {
         // Just verify we got some kind of error message
         assertTrue(response.getBody().length() > 0, 
                   "Response should contain an error message");
+    }
+
+    @Test
+    @Order(31)
+    public void testValidateDamageSeverity_Invalid() {
+        // Test with an invalid damage severity (4)
+        String url = createURLWithPort(BASE_URL + "/" + testRecord.getId() + 
+                    "/confirm-return?isDamaged=true&damageSeverity=4");
+        
+        ResponseEntity<Map> response = restTemplate.postForEntity(url, null, Map.class);
+        
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertFalse((Boolean) response.getBody().get("success"));
+        assertTrue(response.getBody().get("message").toString().contains("severity"));
+    }
+
+    @Test
+    @Order(32)
+    public void testGetAllLendingRecords_EmptyResults() {
+        // First delete all records
+        lendingRecordRepository.deleteAll();
+        
+        ResponseEntity<Map> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "?page=0&size=10"),
+            Map.class
+        );
+        
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(0, ((List) response.getBody().get("records")).size());
+        assertEquals(0, response.getBody().get("totalItems"));
+    }
+
+    @Test
+    @Order(33)
+    public void testGetAllLendingRecords_InvalidPage() {
+        ResponseEntity<Map> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "?page=999&size=10"),
+            Map.class
+        );
+        
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody().get("records"));
+        assertEquals(0, ((Integer) response.getBody().get("currentPage")).intValue());
+    }
+
+    @Test
+    @Order(34)
+    public void testGetAllLendingRecords_SortDirectionDesc() {
+        ResponseEntity<Map> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "?sort=id&direction=desc"),
+            Map.class
+        );
+        
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+    }
+
+    @Test
+    @Order(35)
+    public void testConfirmGameReturn_WithoutUserId() {
+        ResponseEntity<Map> response = restTemplate.postForEntity(
+            createURLWithPort(BASE_URL + "/" + testRecord.getId() + "/confirm-return?isDamaged=false"),
+            null,
+            Map.class
+        );
+        
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertTrue((Boolean) response.getBody().get("success"));
+    }
+
+    @Test
+    @Order(36)
+    public void testConfirmGameReturn_DifferentDamageSeverities() {
+        // Test with damage severity 1
+        ResponseEntity<Map> response = restTemplate.postForEntity(
+            createURLWithPort(BASE_URL + "/" + testRecord.getId() + 
+                            "/confirm-return?isDamaged=true&damageSeverity=1"),
+            null,
+            Map.class
+        );
+        
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertTrue((Boolean) response.getBody().get("success"));
+        assertEquals(1, response.getBody().get("damageSeverity"));
+    }
+
+    @Test
+    @Order(37)
+    public void testFilterLendingRecords_EmptyResults() {
+        LendingHistoryFilterDto filterDto = new LendingHistoryFilterDto();
+        // Use an empty status which should return empty results but not error
+        filterDto.setStatus(LendingStatus.CLOSED.name());
+        
+        ResponseEntity<Map> response = restTemplate.postForEntity(
+            createURLWithPort(BASE_URL + "/filter"),
+            filterDto,
+            Map.class
+        );
+        
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertTrue(response.getBody().containsKey("records"));
+        assertEquals(0, ((List)response.getBody().get("records")).size());
+    }
+
+    @Test
+    @Order(38)
+    public void testFilterLendingRecords_PaginationEdgeCases() {
+        LendingHistoryFilterDto filterDto = new LendingHistoryFilterDto();
+        filterDto.setStatus(LendingStatus.ACTIVE.name());
+        
+        ResponseEntity<Map> response = restTemplate.postForEntity(
+            createURLWithPort(BASE_URL + "/filter?page=999&size=10"),
+            filterDto,
+            Map.class
+        );
+        
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(0, ((Integer) response.getBody().get("currentPage")).intValue());
+    }
+
+    @Test
+    @Order(39)
+    public void testMarkGameAsReturned_WithoutUserId() {
+        ResponseEntity<String> response = restTemplate.postForEntity(
+            createURLWithPort(BASE_URL + "/" + testRecord.getId() + "/mark-returned"),
+            null,
+            String.class
+        );
+        
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+    }
+
+    @Test
+    @Order(40)
+    public void testCreateLendingRecord_WithIdenticalDates() {
+        // Create a new borrow request
+        BorrowRequest newRequest = new BorrowRequest();
+        newRequest.setRequestedGame(dummyGame);
+        newRequest.setRequester(testBorrower);
+        newRequest = borrowRequestRepository.save(newRequest);
+        
+        Map<String, Object> requestMap = new HashMap<>();
+        requestMap.put("requestId", newRequest.getId());
+        requestMap.put("ownerId", testOwner.getId());
+        long now = System.currentTimeMillis();
+        // Set end date BEFORE start date to ensure rejection
+        requestMap.put("startDate", now); // 1 day from now
+        requestMap.put("endDate", now);               // now (before start date)
+        
+        ResponseEntity<String> response = restTemplate.postForEntity(
+            createURLWithPort(BASE_URL),
+            requestMap,
+            String.class
+        );
+        
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    }
+
+    @Test
+    @Order(41)
+    public void testUpdateLendingRecordStatus_InvalidStatusValue() {
+        UpdateLendingRecordStatusDto statusDto = new UpdateLendingRecordStatusDto();
+        statusDto.setNewStatus("INVALID_STATUS");
+        statusDto.setUserId(testOwner.getId());
+        statusDto.setReason("Testing invalid status");
+        
+        ResponseEntity<Map> response = restTemplate.exchange(
+            createURLWithPort(BASE_URL + "/" + testRecord.getId() + "/status"),
+            HttpMethod.PUT,
+            new HttpEntity<>(statusDto),
+            Map.class
+        );
+        
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertFalse((Boolean) response.getBody().get("success"));
+    }
+
+    @Test
+    @Order(42)
+    public void testUpdateLendingRecordStatus_EmptyStatus() {
+        UpdateLendingRecordStatusDto statusDto = new UpdateLendingRecordStatusDto();
+        statusDto.setNewStatus("");
+        statusDto.setUserId(testOwner.getId());
+        statusDto.setReason("Testing empty status");
+        
+        ResponseEntity<Map> response = restTemplate.exchange(
+            createURLWithPort(BASE_URL + "/" + testRecord.getId() + "/status"),
+            HttpMethod.PUT,
+            new HttpEntity<>(statusDto),
+            Map.class
+        );
+        
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertFalse((Boolean) response.getBody().get("success"));
+        assertTrue(response.getBody().get("message").toString().contains("empty"));
+    }
+
+    @Test
+    @Order(43)
+    public void testUpdateLendingRecordStatus_NonExistentRecord() {
+        UpdateLendingRecordStatusDto statusDto = new UpdateLendingRecordStatusDto();
+        statusDto.setNewStatus(LendingStatus.OVERDUE.name());
+        statusDto.setUserId(testOwner.getId());
+        statusDto.setReason("Testing non-existent record");
+        
+        ResponseEntity<Map> response = restTemplate.exchange(
+            createURLWithPort(BASE_URL + "/99999/status"),
+            HttpMethod.PUT,
+            new HttpEntity<>(statusDto),
+            Map.class
+        );
+        
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertFalse((Boolean) response.getBody().get("success"));
+    }
+
+    @Test
+    @Order(44)
+    public void testGetLendingRecordById_NonExistentRecord() {
+        ResponseEntity<Map> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "/99999"),
+            Map.class
+        );
+        
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+    }
+
+    @Test
+    @Order(45)
+    public void testGetLendingHistoryByOwner_InvalidOwnerId() {
+        ResponseEntity<?> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "/owner/99999"),
+            List.class
+        );
+        
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+    }
+
+    @Test
+    @Order(46)
+    public void testGetLendingRecordsByBorrower_InvalidBorrowerId() {
+        ResponseEntity<?> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "/borrower/99999"),
+            List.class
+        );
+        
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+    }
+
+    @Test
+    @Order(47)
+    public void testGetActiveLendingRecordsByBorrower_InvalidBorrowerId() {
+        ResponseEntity<?> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "/borrower/99999/active"),
+            List.class
+        );
+        
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+    }
+
+    @Test
+    @Order(48)
+    public void testHandleResourceNotFoundException() {
+        // Create a record that doesn't exist to trigger ResourceNotFoundException
+        ResponseEntity<?> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "/999999"),
+            Map.class
+        );
+        
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+    }
+
+    @Test
+    @Order(49)
+    public void testHandleIllegalStateException() {
+        // First close the record
+        ResponseEntity<String> closeResponse = restTemplate.postForEntity(
+            createURLWithPort(BASE_URL + "/" + testRecord.getId() + "/confirm-return?isDamaged=false"),
+            null,
+            String.class
+        );
+        assertEquals(HttpStatus.OK, closeResponse.getStatusCode());
+        
+        // Now try updating end date on a closed record (should trigger IllegalStateException)
+        Date newEndDate = new Date(System.currentTimeMillis() + 86400000L);
+        ResponseEntity<String> response = restTemplate.exchange(
+            createURLWithPort(BASE_URL + "/" + testRecord.getId() + "/end-date"),
+            HttpMethod.PUT,
+            new HttpEntity<>(newEndDate),
+            String.class
+        );
+        
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertTrue(response.getBody().contains("closed"));
+    }
+
+    @Test
+    @Order(50)
+    public void testLendingHistoryByOwnerAndStatus_InvalidStatus() {
+        ResponseEntity<?> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "/owner/" + testOwner.getId() + "/status/INVALID_STATUS"),
+            List.class
+        );
+        
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
     }
 }

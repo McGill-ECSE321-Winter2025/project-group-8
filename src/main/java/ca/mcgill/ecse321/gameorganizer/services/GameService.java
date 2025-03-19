@@ -2,6 +2,7 @@ package ca.mcgill.ecse321.gameorganizer.services;
 
 import ca.mcgill.ecse321.gameorganizer.dto.GameCreationDto;
 import ca.mcgill.ecse321.gameorganizer.dto.GameResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dto.GameSearchCriteria;
 import ca.mcgill.ecse321.gameorganizer.dto.ReviewResponseDto;
 import ca.mcgill.ecse321.gameorganizer.dto.ReviewSubmissionDto;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Service class that handles business logic for game management operations.
@@ -507,5 +509,110 @@ public class GameService {
         return ResponseEntity.ok("Review deleted successfully");
     }
 
+    /**
+     * Advanced search for games based on multiple criteria
+     */
+    @Transactional
+    public List<Game> searchGames(GameSearchCriteria criteria) {
+        List<Game> games = getAllGames();
+        
+        // Apply filters based on criteria
+        if (criteria.getName() != null && !criteria.getName().trim().isEmpty()) {
+            games = games.stream()
+                    .filter(game -> game.getName().toLowerCase().contains(criteria.getName().toLowerCase()))
+                    .collect(Collectors.toList());
+        }
+        
+        if (criteria.getMinPlayers() != null) {
+            games = games.stream()
+                    .filter(game -> game.getMinPlayers() >= criteria.getMinPlayers())
+                    .collect(Collectors.toList());
+        }
+        
+        if (criteria.getMaxPlayers() != null) {
+            games = games.stream()
+                    .filter(game -> game.getMaxPlayers() <= criteria.getMaxPlayers())
+                    .collect(Collectors.toList());
+        }
+        
+        if (criteria.getCategory() != null && !criteria.getCategory().trim().isEmpty()) {
+            games = games.stream()
+                    .filter(game -> game.getCategory().equalsIgnoreCase(criteria.getCategory()))
+                    .collect(Collectors.toList());
+        }
+        
+        if (criteria.getMinRating() != null) {
+            games = games.stream()
+                    .filter(game -> getAverageRatingForGame(game.getId()) >= criteria.getMinRating())
+                    .collect(Collectors.toList());
+        }
+        
+        if (criteria.getAvailable() != null) {
+            games = games.stream()
+                    .filter(game -> isGameAvailable(game.getId()) == criteria.getAvailable())
+                    .collect(Collectors.toList());
+        }
+        
+        if (criteria.getOwnerId() != null && !criteria.getOwnerId().trim().isEmpty()) {
+            Account owner = accountRepository.findByEmail(criteria.getOwnerId())
+                    .orElseThrow(() -> new IllegalArgumentException("Owner not found"));
+            if (owner instanceof GameOwner) {
+                games = games.stream()
+                        .filter(game -> game.getOwner() != null && game.getOwner().getId() == owner.getId())
+                        .collect(Collectors.toList());
+            }
+        }
+        
+        // Apply sorting if specified
+        if (criteria.getSort() != null && !criteria.getSort().trim().isEmpty()) {
+            boolean ascending = "asc".equalsIgnoreCase(criteria.getOrder());
+            games = games.stream()
+                    .sorted((g1, g2) -> {
+                int comparison = 0;
+                switch (criteria.getSort().toLowerCase()) {
+                    case "name":
+                        comparison = g1.getName().compareTo(g2.getName());
+                        break;
+                    case "rating":
+                        comparison = Double.compare(getAverageRatingForGame(g1.getId()), getAverageRatingForGame(g2.getId()));
+                        break;
+                    case "date":
+                        comparison = g1.getDateAdded().compareTo(g2.getDateAdded());
+                        break;
+                    default:
+                        return 0;
+                }
+                return ascending ? comparison : -comparison;
+                    })
+                    .collect(Collectors.toList());
+        }
+        
+        return games;
+    }
+
+    /**
+     * Get the average rating for a game
+     */
+    @Transactional
+    public double getAverageRatingForGame(int gameId) {
+        Game game = getGameById(gameId);
+        List<Review> reviews = reviewRepository.findByGameReviewed(game);
+        if (reviews.isEmpty()) {
+            return 0.0;
+        }
+        return reviews.stream()
+                .mapToInt(Review::getRating)
+                .average()
+                .orElse(0.0);
+    }
+
+    /**
+     * Check if a game is currently available
+     */
+    private boolean isGameAvailable(int gameId) {
+        Game game = getGameById(gameId);
+        Date currentDate = new Date();
+        return gameRepository.findAvailableGames(currentDate).contains(game);
+    }
 
 }
