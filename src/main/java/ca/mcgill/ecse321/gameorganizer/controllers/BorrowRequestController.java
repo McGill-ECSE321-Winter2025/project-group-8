@@ -1,6 +1,7 @@
 package ca.mcgill.ecse321.gameorganizer.controllers;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -115,4 +116,33 @@ public class BorrowRequestController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Borrow request with ID " + id + " not found.");
         }
     }
+
+    /**
+     * Retrieve borrow requests filtered by status.
+     *
+     * @param status The status to filter by (e.g., "PENDING", "APPROVED", etc.).
+     * @return A list of borrow requests with the specified status.
+     */
+    @GetMapping("/status/{status}")
+    public ResponseEntity<List<BorrowRequestDto>> getBorrowRequestsByStatus(@PathVariable String status) {
+        List<BorrowRequestDto> filteredRequests = borrowRequestService.getAllBorrowRequests().stream()
+                .filter(request -> request.getStatus().equalsIgnoreCase(status))
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(filteredRequests);
+    }
+
+    /**
+     * Retrieve all borrow requests for a particular requester.
+     * 
+     * @param requesterId The ID of the user who initiated the borrow request.
+     * @return A list of borrow requests for the specified requester.
+     */
+    @GetMapping("/requester/{requesterId}")
+    public ResponseEntity<List<BorrowRequestDto>> getBorrowRequestsByRequester(@PathVariable int requesterId) {
+        List<BorrowRequestDto> filteredRequests = borrowRequestService.getAllBorrowRequests().stream()
+                .filter(request -> request.getRequesterId() == requesterId)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(filteredRequests);
+    }
+
 }
