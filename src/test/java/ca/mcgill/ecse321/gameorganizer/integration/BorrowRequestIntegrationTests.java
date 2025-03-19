@@ -357,4 +357,66 @@ public class BorrowRequestIntegrationTests {
         assertTrue(response.getBody().length > 0);
     }
 
+    @Test
+    @Order(14)
+    public void testGetBorrowRequestsByStatusSuccess() {
+        ResponseEntity<BorrowRequestDto[]> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "/status/PENDING"),
+            BorrowRequestDto[].class
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        BorrowRequestDto[] requests = response.getBody();
+        assertNotNull(requests);
+        assertTrue(requests.length > 0);
+        for (BorrowRequestDto request : requests) {
+            assertEquals("PENDING", request.getStatus());
+        }
+    }
+
+    @Test
+    @Order(15)
+    public void testGetBorrowRequestsByStatusNoResults() {
+        ResponseEntity<BorrowRequestDto[]> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "/status/APPROVED"),
+            BorrowRequestDto[].class
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        BorrowRequestDto[] requests = response.getBody();
+        assertNotNull(requests);
+        assertEquals(0, requests.length); // Should be empty since we only created "PENDING" requests
+    }
+
+    @Test
+    @Order(16)
+    public void testGetBorrowRequestsByRequesterSuccess() {
+        ResponseEntity<BorrowRequestDto[]> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "/requester/" + testRequester.getId()),
+            BorrowRequestDto[].class
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        BorrowRequestDto[] requests = response.getBody();
+        assertNotNull(requests);
+        assertTrue(requests.length > 0);
+        for (BorrowRequestDto request : requests) {
+            assertEquals(testRequester.getId(), request.getRequesterId());
+        }
+    }
+
+    @Test
+    @Order(17)
+    public void testGetBorrowRequestsByRequesterNoResults() {
+        ResponseEntity<BorrowRequestDto[]> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "/requester/999"), // Non-existent user ID
+            BorrowRequestDto[].class
+        );
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        BorrowRequestDto[] requests = response.getBody();
+        assertNotNull(requests);
+        assertEquals(0, requests.length); // Should be empty since user ID 999 has no requests
+    }
+
 }
