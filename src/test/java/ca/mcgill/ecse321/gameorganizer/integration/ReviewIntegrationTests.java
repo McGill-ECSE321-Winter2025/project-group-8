@@ -123,7 +123,7 @@ public class ReviewIntegrationTests {
         assertEquals(5, dto.getRating());
         assertEquals("Excellent game!", dto.getComment());
         assertEquals(testGame.getId(), dto.getGameId());
-        assertEquals(testReviewer.getEmail(), dto.getReviewerId());
+        assertEquals(testReviewer.getEmail(), dto.getReviewer().getEmail());
     }
 
     // 2. Submission with invalid game id (non-existent game)

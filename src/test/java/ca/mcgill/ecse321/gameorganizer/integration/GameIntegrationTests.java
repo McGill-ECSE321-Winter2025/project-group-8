@@ -27,10 +27,13 @@ import org.springframework.test.context.ActiveProfiles;
 
 import ca.mcgill.ecse321.gameorganizer.dto.GameCreationDto;
 import ca.mcgill.ecse321.gameorganizer.dto.GameResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dto.ReviewResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dto.ReviewSubmissionDto;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
 import ca.mcgill.ecse321.gameorganizer.config.TestConfig;
 import ca.mcgill.ecse321.gameorganizer.config.SecurityTestConfig;
 
@@ -53,6 +56,9 @@ public class GameIntegrationTests {
     @Autowired
     private AccountRepository accountRepository;
     
+    @Autowired
+    private ReviewRepository reviewRepository;
+    
     private GameOwner testOwner;
     private Game testGame;
     private static final String BASE_URL_ALL = "/api/v1/games"; // for getAllGames
@@ -65,6 +71,7 @@ public class GameIntegrationTests {
     @BeforeEach
     public void setup() {
         // Clean repositories first
+        reviewRepository.deleteAll();
         gameRepository.deleteAll();
         accountRepository.deleteAll();
         
@@ -80,6 +87,7 @@ public class GameIntegrationTests {
     
     @AfterEach
     public void cleanup() {
+        reviewRepository.deleteAll();
         gameRepository.deleteAll();
         accountRepository.deleteAll();
     }
@@ -375,5 +383,167 @@ public class GameIntegrationTests {
         assertNotNull(games);
         assertFalse(games.isEmpty());
         assertTrue(games.get(0).getName().contains("Test"));
+    }
+    
+    // ----- Advanced Search Tests -----
+    
+    @Test
+    @Order(11)
+    public void testSearchGamesWithName() {
+        ResponseEntity<List<GameResponseDto>> response = restTemplate.exchange(
+            createURLWithPort("/api/games/search?name=Test"),
+            HttpMethod.GET,
+            null,
+            new ParameterizedTypeReference<List<GameResponseDto>>() {}
+        );
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        List<GameResponseDto> games = response.getBody();
+        assertNotNull(games);
+        assertFalse(games.isEmpty());
+        assertTrue(games.get(0).getName().contains("Test"));
+    }
+    
+    @Test
+    @Order(12)
+    public void testSearchGamesWithPlayerRange() {
+        ResponseEntity<List<GameResponseDto>> response = restTemplate.exchange(
+            createURLWithPort("/api/games/search?minPlayers=2&maxPlayers=4"),
+            HttpMethod.GET,
+            null,
+            new ParameterizedTypeReference<List<GameResponseDto>>() {}
+        );
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        List<GameResponseDto> games = response.getBody();
+        assertNotNull(games);
+        assertTrue(games.stream().allMatch(game -> 
+            game.getMinPlayers() >= 2 && game.getMaxPlayers() <= 4));
+    }
+    
+    @Test
+    @Order(13)
+    public void testSearchGamesWithCategory() {
+        ResponseEntity<List<GameResponseDto>> response = restTemplate.exchange(
+            createURLWithPort("/api/games/search?category=Board Game"),
+            HttpMethod.GET,
+            null,
+            new ParameterizedTypeReference<List<GameResponseDto>>() {}
+        );
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        List<GameResponseDto> games = response.getBody();
+        assertNotNull(games);
+        assertTrue(games.stream().allMatch(game -> 
+            game.getCategory().equals("Board Game")));
+    }
+    
+    @Test
+    @Order(14)
+    public void testSearchGamesWithSorting() {
+        ResponseEntity<List<GameResponseDto>> response = restTemplate.exchange(
+            createURLWithPort("/api/games/search?sort=name&order=asc"),
+            HttpMethod.GET,
+            null,
+            new ParameterizedTypeReference<List<GameResponseDto>>() {}
+        );
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        List<GameResponseDto> games = response.getBody();
+        assertNotNull(games);
+        assertFalse(games.isEmpty());
+        
+        // Only verify sorting if we have multiple games
+        if (games.size() > 1) {
+            for (int i = 1; i < games.size(); i++) {
+                assertTrue(games.get(i-1).getName().compareTo(games.get(i).getName()) <= 0);
+            }
+        }
+    }
+    
+    // ----- Get Games By Owner Tests -----
+    
+    @Test
+    @Order(15)
+    public void testGetGamesByOwnerSuccess() {
+        ResponseEntity<List<GameResponseDto>> response = restTemplate.exchange(
+            createURLWithPort("/api/users/" + VALID_EMAIL + "/games"),
+            HttpMethod.GET,
+            null,
+            new ParameterizedTypeReference<List<GameResponseDto>>() {}
+        );
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        List<GameResponseDto> games = response.getBody();
+        assertNotNull(games);
+        assertFalse(games.isEmpty());
+        assertEquals(VALID_EMAIL, games.get(0).getOwner().getEmail());
+    }
+    
+    @Test
+    @Order(16)
+    public void testGetGamesByNonExistentOwner() {
+        ResponseEntity<String> response = restTemplate.exchange(
+            createURLWithPort("/api/users/nonexistent@example.com/games"),
+            HttpMethod.GET,
+            null,
+            String.class
+        );
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    }
+    
+    // ----- Game Reviews Tests -----
+    
+    @Test
+    @Order(17)
+    public void testGetGameReviews() {
+        ResponseEntity<List<ReviewResponseDto>> response = restTemplate.exchange(
+            createURLWithPort("/api/games/" + testGame.getId() + "/reviews"),
+            HttpMethod.GET,
+            null,
+            new ParameterizedTypeReference<List<ReviewResponseDto>>() {}
+        );
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        List<ReviewResponseDto> reviews = response.getBody();
+        assertNotNull(reviews);
+    }
+    
+    @Test
+    @Order(18)
+    public void testSubmitGameReview() {
+        ReviewSubmissionDto reviewDto = new ReviewSubmissionDto();
+        reviewDto.setRating(5);
+        reviewDto.setComment("Great game!");
+        reviewDto.setReviewerId(VALID_EMAIL);
+        
+        ResponseEntity<ReviewResponseDto> response = restTemplate.postForEntity(
+            createURLWithPort("/api/games/" + testGame.getId() + "/reviews"),
+            reviewDto,
+            ReviewResponseDto.class
+        );
+        
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+        ReviewResponseDto review = response.getBody();
+        assertNotNull(review);
+        assertEquals(5, review.getRating());
+        assertEquals("Great game!", review.getComment());
+    }
+    
+    @Test
+    @Order(19)
+    public void testGetGameRating() {
+        ResponseEntity<Double> response = restTemplate.getForEntity(
+            createURLWithPort("/api/games/" + testGame.getId() + "/rating"),
+            Double.class
+        );
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        Double rating = response.getBody();
+        assertNotNull(rating);
+        assertTrue(rating >= 0 && rating <= 5);
+    }
+    
+    @Test
+    @Order(20)
+    public void testGetRatingForNonExistentGame() {
+        ResponseEntity<String> response = restTemplate.getForEntity(
+            createURLWithPort("/api/games/999/rating"),
+            String.class
+        );
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
     }
 }

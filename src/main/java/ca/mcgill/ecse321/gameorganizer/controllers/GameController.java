@@ -17,6 +17,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import ca.mcgill.ecse321.gameorganizer.dto.GameCreationDto;
 import ca.mcgill.ecse321.gameorganizer.dto.GameResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dto.GameSearchCriteria;
+import ca.mcgill.ecse321.gameorganizer.dto.ReviewResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dto.ReviewSubmissionDto;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
@@ -141,5 +144,63 @@ public class GameController {
                 .map(GameResponseDto::new)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(gameResponseDtos);
+    }
+
+    /**
+     * Advanced search endpoint for games with multiple criteria
+     */
+    @GetMapping("/api/games/search")
+    public ResponseEntity<List<GameResponseDto>> searchGames(GameSearchCriteria criteria) {
+        List<Game> games = service.searchGames(criteria);
+        List<GameResponseDto> gameResponseDtos = games.stream()
+                .map(GameResponseDto::new)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(gameResponseDtos);
+    }
+
+    /**
+     * Get all games owned by a specific user
+     */
+    @GetMapping("/api/users/{ownerId}/games")
+    public ResponseEntity<List<GameResponseDto>> getGamesByOwner(@PathVariable String ownerId) {
+        Account account = accountService.getAccountByEmail(ownerId);
+        if (!(account instanceof GameOwner)) {
+            throw new IllegalArgumentException("Account is not a game owner");
+        }
+        List<Game> games = service.getGamesByOwner((GameOwner) account);
+        List<GameResponseDto> gameResponseDtos = games.stream()
+                .map(GameResponseDto::new)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(gameResponseDtos);
+    }
+
+    /**
+     * Get all reviews for a specific game
+     */
+    @GetMapping("/api/games/{id}/reviews")
+    public ResponseEntity<List<ReviewResponseDto>> getGameReviews(@PathVariable int id) {
+        List<ReviewResponseDto> reviews = service.getReviewsByGameId(id);
+        return ResponseEntity.ok(reviews);
+    }
+
+    /**
+     * Submit a new review for a game
+     */
+    @PostMapping("/api/games/{id}/reviews")
+    public ResponseEntity<ReviewResponseDto> submitGameReview(
+            @PathVariable int id,
+            @RequestBody ReviewSubmissionDto reviewDto) {
+        reviewDto.setGameId(id);
+        ReviewResponseDto review = service.submitReview(reviewDto);
+        return new ResponseEntity<>(review, HttpStatus.CREATED);
+    }
+
+    /**
+     * Get average rating for a game
+     */
+    @GetMapping("/api/games/{id}/rating")
+    public ResponseEntity<Double> getGameRating(@PathVariable int id) {
+        double rating = service.getAverageRatingForGame(id);
+        return ResponseEntity.ok(rating);
     }
 }

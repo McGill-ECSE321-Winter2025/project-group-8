@@ -1,7 +1,8 @@
 package ca.mcgill.ecse321.gameorganizer.dto;
 
-import ca.mcgill.ecse321.gameorganizer.models.Review;
 import java.util.Date;
+
+import ca.mcgill.ecse321.gameorganizer.models.Review;
 
 /**
  * DTO for representing review data in API responses.
@@ -16,8 +17,7 @@ public class ReviewResponseDto {
     private Date dateSubmitted;
     private Integer gameId;
     private String gameTitle;
-    private String reviewerId;
-    private String reviewerName;
+    private AccountDto reviewer;
 
     /**
      * Default constructor
@@ -42,8 +42,7 @@ public class ReviewResponseDto {
         }
 
         if (review.getReviewer() != null) {
-            this.reviewerId = review.getReviewer().getEmail();
-            this.reviewerName = review.getReviewer().getName();
+            this.reviewer = new AccountDto(review.getReviewer());
         }
     }
 
@@ -156,39 +155,21 @@ public class ReviewResponseDto {
     }
 
     /**
-     * Gets the email of the reviewer
+     * Gets the reviewer
      *
-     * @return The reviewer's email, or null if reviewer reference is not available
+     * @return The reviewer's account information
      */
-    public String getReviewerId() {
-        return reviewerId;
+    public AccountDto getReviewer() {
+        return reviewer;
     }
 
     /**
-     * Sets the email of the reviewer
+     * Sets the reviewer
      *
-     * @param reviewerId The reviewer's email
+     * @param reviewer The reviewer's account information
      */
-    public void setReviewerId(String reviewerId) {
-        this.reviewerId = reviewerId;
-    }
-
-    /**
-     * Gets the name of the reviewer
-     *
-     * @return The reviewer's name, or null if reviewer reference is not available
-     */
-    public String getReviewerName() {
-        return reviewerName;
-    }
-
-    /**
-     * Sets the name of the reviewer
-     *
-     * @param reviewerName The reviewer's name
-     */
-    public void setReviewerName(String reviewerName) {
-        this.reviewerName = reviewerName;
+    public void setReviewer(AccountDto reviewer) {
+        this.reviewer = reviewer;
     }
 
     /**
@@ -205,8 +186,7 @@ public class ReviewResponseDto {
                 ", dateSubmitted=" + dateSubmitted +
                 ", gameId=" + gameId +
                 ", gameTitle='" + gameTitle + '\'' +
-                ", reviewerId='" + reviewerId + '\'' +
-                ", reviewerName='" + reviewerName + '\'' +
+                ", reviewer=" + reviewer +
                 '}';
     }
 }
