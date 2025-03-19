@@ -305,6 +305,75 @@ public void testCreateEventWithNonExistentHost() {
         );
         assertEquals(HttpStatus.BAD_REQUEST, response2.getStatusCode());
     }
+
+    @Test
+    @Order(11)
+    public void testGetEventByIdSuccess() {
+        ResponseEntity<String> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "/" + testEvent.getId()),
+            String.class
+        );
+    
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        String body = response.getBody();
+        assertNotNull(body);
+        assertTrue(body.contains("\"title\":\"Test Event\""));
+        assertTrue(body.contains("\"location\":\"Test Location\""));
+    }
+
+    @Test
+    @Order(12)
+    public void testGetAllEvents() {
+        ResponseEntity<String> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL),
+            String.class
+        );
+    
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        String body = response.getBody();
+        assertNotNull(body);
+        assertTrue(body.contains("Test Event"));
+    }
+
+    @Test
+    @Order(13)
+    public void testGetEventsByNonExistentDate() {
+        ResponseEntity<String> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "/by-date?date=2025-12-31"),
+            String.class
+        );
+    
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertFalse(response.getBody().contains("Test Event"));
+    }
+
+    @Test
+    @Order(14)
+    public void testGetEventsByGameName() {
+        ResponseEntity<String> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "/by-game-name?gameName=" + testGame.getName()),
+            String.class
+        );
+    
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        String body = response.getBody();
+        assertNotNull(body);
+        assertTrue(body.contains("Test Game"));
+    }
+
+    @Test
+    @Order(15)
+    public void testGetEventsByLocation() {
+        ResponseEntity<String> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "/by-location?location=Test Location"),
+            String.class
+        );
+    
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        String body = response.getBody();
+        assertNotNull(body);
+        assertTrue(body.contains("Test Location"));
+    }
     
     // ----- Additional Search Tests -----
     
