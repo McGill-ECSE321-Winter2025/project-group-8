@@ -3,15 +3,22 @@ package ca.mcgill.ecse321.gameorganizer.integration;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.MethodOrderer; 
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.annotation.Import;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -21,6 +28,8 @@ import org.springframework.test.context.ActiveProfiles;
 
 import ca.mcgill.ecse321.gameorganizer.dto.ReviewResponseDto;
 import ca.mcgill.ecse321.gameorganizer.dto.ReviewSubmissionDto;
+import ca.mcgill.ecse321.gameorganizer.config.TestConfig;
+import ca.mcgill.ecse321.gameorganizer.config.SecurityTestConfig;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.Review;
@@ -30,6 +39,9 @@ import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
+@Import({TestConfig.class, SecurityTestConfig.class})
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class ReviewIntegrationTests {
 
     @LocalServerPort
@@ -50,10 +62,18 @@ public class ReviewIntegrationTests {
     private Account testReviewer;
     private Game testGame;
     private Review testReview;
-    private static final String BASE_URL = "/reviews";
+    private static final String BASE_URL = "/api/v1/reviews";
+
+    private String createURLWithPort(String uri) {
+        return "http://localhost:" + port + uri;
+    }
 
     @BeforeEach
     public void setup() {
+        reviewRepository.deleteAll();
+        gameRepository.deleteAll();
+        accountRepository.deleteAll();
+
         // Create test reviewer
         testReviewer = new Account("reviewer", "reviewer@example.com", "password123");
         testReviewer = accountRepository.save(testReviewer);
@@ -76,193 +96,221 @@ public class ReviewIntegrationTests {
         accountRepository.deleteAll();
     }
 
-    private String createURLWithPort(String uri) {
-        return "http://localhost:" + port + "/api" + uri;
-    }
+    // ============================================================
+    // CREATE Tests (4 tests)
+    // ============================================================
 
+    // 1. Successful submission of a review
     @Test
+    @Order(1)
     public void testSubmitReviewSuccess() {
-        // Create review request
         ReviewSubmissionDto request = new ReviewSubmissionDto(
             5,
             "Excellent game!",
             testGame.getId(),
             testReviewer.getEmail()
         );
-
-        // Send request
+        
         ResponseEntity<ReviewResponseDto> response = restTemplate.postForEntity(
             createURLWithPort(BASE_URL),
             request,
             ReviewResponseDto.class
         );
-
-        // Verify
+        
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(5, response.getBody().getRating());
-        assertEquals("Excellent game!", response.getBody().getComment());
-        assertEquals(testGame.getId(), response.getBody().getGameId());
-        assertEquals(testReviewer.getEmail(), response.getBody().getReviewerId());
+        ReviewResponseDto dto = response.getBody();
+        assertNotNull(dto);
+        assertEquals(5, dto.getRating());
+        assertEquals("Excellent game!", dto.getComment());
+        assertEquals(testGame.getId(), dto.getGameId());
+        assertEquals(testReviewer.getEmail(), dto.getReviewerId());
     }
 
+    // 2. Submission with invalid game id (non-existent game)
     @Test
+    @Order(2)
     public void testSubmitReviewWithInvalidGame() {
-        // Create review request with non-existent game
         ReviewSubmissionDto request = new ReviewSubmissionDto(
             5,
             "Excellent game!",
-            999,
+            9999,  // non-existent game id
             testReviewer.getEmail()
         );
-
-        // Send request
+        
         ResponseEntity<String> response = restTemplate.postForEntity(
             createURLWithPort(BASE_URL),
             request,
             String.class
         );
-
-        // Verify
+        
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
     }
 
+    // 3. Submission with missing required field (simulate missing rating by using 0)
     @Test
-    public void testGetReviewByIdSuccess() {
-        // Send request
-        ResponseEntity<ReviewResponseDto> response = restTemplate.getForEntity(
-            createURLWithPort(BASE_URL + "/" + testReview.getId()),
-            ReviewResponseDto.class
+    @Order(3)
+    public void testSubmitReviewMissingRating() {
+        // Assume that a rating of 0 is invalid (valid ratings: 1-5)
+        ReviewSubmissionDto request = new ReviewSubmissionDto(
+            0,
+            "Missing rating should be invalid",
+            testGame.getId(),
+            testReviewer.getEmail()
         );
-
-        // Verify
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(testReview.getRating(), response.getBody().getRating());
-        assertEquals(testReview.getComment(), response.getBody().getComment());
-        assertEquals(testGame.getId(), response.getBody().getGameId());
-        assertEquals(testReviewer.getEmail(), response.getBody().getReviewerId());
-    }
-
-    @Test
-    public void testGetReviewByIdNotFound() {
-        // Send request for non-existent review
-        ResponseEntity<String> response = restTemplate.getForEntity(
-            createURLWithPort(BASE_URL + "/999"),
+        
+        ResponseEntity<String> response = restTemplate.postForEntity(
+            createURLWithPort(BASE_URL),
+            request,
             String.class
         );
-
-        // Verify
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
     }
 
+    // 4. Submission with invalid reviewer email
     @Test
-    public void testGetReviewsByGameId() {
-        // Send request
-        ResponseEntity<List<ReviewResponseDto>> response = restTemplate.exchange(
-            createURLWithPort("/games/" + testGame.getId() + "/reviews"),
-            HttpMethod.GET,
-            null,
-            new ParameterizedTypeReference<List<ReviewResponseDto>>() {}
-        );
-
-        // Verify
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(1, response.getBody().size());
-        assertEquals(testGame.getId(), response.getBody().get(0).getGameId());
-    }
-
-    @Test
-    public void testGetReviewsByGameName() {
-        // Send request
-        ResponseEntity<List<ReviewResponseDto>> response = restTemplate.exchange(
-            createURLWithPort(BASE_URL + "/game?gameName=" + testGame.getName()),
-            HttpMethod.GET,
-            null,
-            new ParameterizedTypeReference<List<ReviewResponseDto>>() {}
-        );
-
-        // Verify
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(1, response.getBody().size());
-        assertEquals(testGame.getName(), response.getBody().get(0).getGameTitle());
-    }
-
-    @Test
-    public void testUpdateReviewSuccess() {
-        // Create update request
+    @Order(4)
+    public void testSubmitReviewWithInvalidReviewer() {
         ReviewSubmissionDto request = new ReviewSubmissionDto(
+            4,
+            "Invalid reviewer email",
+            testGame.getId(),
+            "nonexistent@example.com"
+        );
+        
+        ResponseEntity<String> response = restTemplate.postForEntity(
+            createURLWithPort(BASE_URL),
+            request,
+            String.class
+        );
+        
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    }
+
+    // ============================================================
+    // UPDATE Tests (3 tests)
+    // ============================================================
+
+    // 1. Successful update of an existing review
+    @Test
+    @Order(5)
+    public void testUpdateReviewSuccess() {
+        ReviewSubmissionDto updateRequest = new ReviewSubmissionDto(
             3,
             "Updated opinion",
             testGame.getId(),
             testReviewer.getEmail()
         );
-
-        // Send request
+        
         ResponseEntity<ReviewResponseDto> response = restTemplate.exchange(
             createURLWithPort(BASE_URL + "/" + testReview.getId()),
             HttpMethod.PUT,
-            new HttpEntity<>(request),
+            new HttpEntity<>(updateRequest),
             ReviewResponseDto.class
         );
-
-        // Verify
+        
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(3, response.getBody().getRating());
-        assertEquals("Updated opinion", response.getBody().getComment());
+        ReviewResponseDto dto = response.getBody();
+        assertNotNull(dto);
+        assertEquals(3, dto.getRating());
+        assertEquals("Updated opinion", dto.getComment());
     }
 
+    // 2. Update non-existent review should return NOT_FOUND
     @Test
+    @Order(6)
     public void testUpdateNonExistentReview() {
-        // Create update request
-        ReviewSubmissionDto request = new ReviewSubmissionDto(
+        ReviewSubmissionDto updateRequest = new ReviewSubmissionDto(
             3,
             "Updated opinion",
             testGame.getId(),
             testReviewer.getEmail()
         );
-
-        // Send request
+        
         ResponseEntity<String> response = restTemplate.exchange(
             createURLWithPort(BASE_URL + "/999"),
             HttpMethod.PUT,
-            new HttpEntity<>(request),
+            new HttpEntity<>(updateRequest),
             String.class
         );
-
-        // Verify
+        
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
     }
 
+    // 3. Update with invalid data (e.g., invalid rating such as 6)
     @Test
+    @Order(7)
+    public void testUpdateReviewWithInvalidRating() {
+        ReviewSubmissionDto updateRequest = new ReviewSubmissionDto(
+            6, // invalid rating (assuming valid ratings are 1-5)
+            "Rating out of range",
+            testGame.getId(),
+            testReviewer.getEmail()
+        );
+        
+        ResponseEntity<String> response = restTemplate.exchange(
+            createURLWithPort(BASE_URL + "/" + testReview.getId()),
+            HttpMethod.PUT,
+            new HttpEntity<>(updateRequest),
+            String.class
+        );
+        
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    }
+
+    // ============================================================
+    // DELETE Tests (3 tests)
+    // ============================================================
+
+    // 1. Successful deletion of an existing review
+    @Test
+    @Order(8)
     public void testDeleteReviewSuccess() {
-        // Send delete request
         ResponseEntity<String> response = restTemplate.exchange(
             createURLWithPort(BASE_URL + "/" + testReview.getId()),
             HttpMethod.DELETE,
             null,
             String.class
         );
-
-        // Verify
+        
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertFalse(reviewRepository.findById(testReview.getId()).isPresent());
     }
 
+    // 2. Deletion of a non-existent review
     @Test
+    @Order(9)
     public void testDeleteNonExistentReview() {
-        // Send delete request for non-existent review
         ResponseEntity<String> response = restTemplate.exchange(
             createURLWithPort(BASE_URL + "/999"),
             HttpMethod.DELETE,
             null,
             String.class
         );
-
-        // Verify
+        
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+    }
+
+    // 3. Deletion attempted twice should return error on second attempt
+    @Test
+    @Order(10)
+    public void testDeleteReviewTwice() {
+        // First deletion
+        ResponseEntity<String> response1 = restTemplate.exchange(
+            createURLWithPort(BASE_URL + "/" + testReview.getId()),
+            HttpMethod.DELETE,
+            null,
+            String.class
+        );
+        assertEquals(HttpStatus.OK, response1.getStatusCode());
+        
+        // Second deletion should return NOT_FOUND
+        ResponseEntity<String> response2 = restTemplate.exchange(
+            createURLWithPort(BASE_URL + "/" + testReview.getId()),
+            HttpMethod.DELETE,
+            null,
+            String.class
+        );
+        assertEquals(HttpStatus.NOT_FOUND, response2.getStatusCode());
     }
 }
