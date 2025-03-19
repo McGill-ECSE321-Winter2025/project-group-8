@@ -8,6 +8,9 @@ At McGill University, as part of ECSE 321, we are developing an application for 
 - port: 5433
 - password: skibidi
 
+## Build System
+The build system documentation can be found [here](https://github.com/McGill-ECSE321-Winter2025/project-group-8/wiki/Build-System-Documentation)
+
 ## Project Scope
 ### Functional Scope
 - User authentication and role-based access control
