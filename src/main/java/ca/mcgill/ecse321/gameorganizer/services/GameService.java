@@ -294,16 +294,27 @@ public class GameService {
         if (game == null) {
             throw new IllegalArgumentException("Game with ID " + id + " does not exist");
         }
-
+    
+        // Validate the update data
+        if (updateDto.getName() == null || updateDto.getName().trim().isEmpty()) {
+            throw new IllegalArgumentException("Game name cannot be empty");
+        }
+        if (updateDto.getMinPlayers() < 1) {
+            throw new IllegalArgumentException("Minimum players must be at least 1");
+        }
+        if (updateDto.getMaxPlayers() < updateDto.getMinPlayers()) {
+            throw new IllegalArgumentException("Maximum players must be greater than or equal to minimum players");
+        }
+    
         // Update only the fields you want to change
         game.setName(updateDto.getName());
         game.setMinPlayers(updateDto.getMinPlayers());
         game.setMaxPlayers(updateDto.getMaxPlayers());
         game.setImage(updateDto.getImage());
-
+    
         // Save the updated game
         gameRepository.save(game);
-
+    
         // Return the updated game as DTO
         return new GameResponseDto(game);
     }

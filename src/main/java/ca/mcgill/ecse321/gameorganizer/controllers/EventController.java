@@ -19,9 +19,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import ca.mcgill.ecse321.gameorganizer.dto.CreateEventRequest;
-import ca.mcgill.ecse321.gameorganizer.services.EventService;
 import ca.mcgill.ecse321.gameorganizer.dto.EventResponse;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
+import ca.mcgill.ecse321.gameorganizer.services.EventService;
 
 /**
  * REST controller for managing gaming events.
@@ -30,7 +30,7 @@ import ca.mcgill.ecse321.gameorganizer.models.Event;
  * @author @Yessine-glitch
  */
 @RestController
-@RequestMapping("/events")
+@RequestMapping("/api/v1/events")
 public class EventController {
     
     private final EventService eventService;

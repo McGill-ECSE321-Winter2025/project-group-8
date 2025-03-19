@@ -55,32 +55,38 @@ public class AccountService {
 
     @Transactional
     public ResponseEntity<String> createAccount(CreateAccountRequest request) {
+        try {
+            // Validate request
+            if (request.getEmail() == null || request.getEmail().isEmpty()) {
+                return ResponseEntity.badRequest().body("Invalid email address");
+            }
+            if (request.getUsername() == null || request.getUsername().isEmpty()) {
+                return ResponseEntity.badRequest().body("Username is required");
+            }
+            if (request.getPassword() == null || request.getPassword().isEmpty()) {
+                return ResponseEntity.badRequest().body("Password is required");
+            }
 
-        String email = request.getEmail();
-        if (email == null || email.isEmpty()) {
-            return ResponseEntity.badRequest().body("Invalid email address");
-        }
+            // Check for existing email
+            if (accountRepository.findByEmail(request.getEmail()).isPresent()) {
+                return ResponseEntity.badRequest().body("Email address already in use");
+            }
 
-        if (accountRepository.findByEmail(email).isPresent()) {
-            return ResponseEntity.badRequest().body("Email address already in use.");
-        }
+            // Create and save account
+            Account account = request.isGameOwner() 
+                ? new GameOwner(request.getUsername(), request.getEmail(), request.getPassword())
+                : new Account(request.getUsername(), request.getEmail(), request.getPassword());
 
-        if (!request.isGameOwner()) { // not game owner -> make account
-            Account aNewAccount = new Account(
-                    request.getUsername(),
-                    request.getPassword(),
-                    request.getEmail()
-            );
-            accountRepository.save(aNewAccount);
-        } else {
-            GameOwner aNewAccount = new GameOwner( // game owner -> make game owner
-                    request.getUsername(),
-                    request.getPassword(),
-                    request.getEmail()
-            );
-            accountRepository.save(aNewAccount);
+            Account savedAccount = accountRepository.save(account);
+
+            if (savedAccount == null || savedAccount.getId() == 0) {
+                return ResponseEntity.status(500).body("Failed to create account");
+            }
+
+            return ResponseEntity.status(201).body("Account created successfully");
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error creating account: " + e.getMessage());
         }
-        return ResponseEntity.ok("Account created successfully");
     }
 
 
@@ -259,8 +265,8 @@ public class AccountService {
 
         GameOwner gameOwner = new GameOwner(
                 accountName,
-                account.getPassword(),
-                account.getEmail()
+                account.getEmail(),
+                account.getPassword()
         );
 
         // Delete old account

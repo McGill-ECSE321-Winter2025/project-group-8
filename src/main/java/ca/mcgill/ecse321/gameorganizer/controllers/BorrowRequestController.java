@@ -1,15 +1,23 @@
 package ca.mcgill.ecse321.gameorganizer.controllers;
 
-import ca.mcgill.ecse321.gameorganizer.dto.BorrowRequestDto;
-import ca.mcgill.ecse321.gameorganizer.dto.CreateBorrowRequestDto;
-import ca.mcgill.ecse321.gameorganizer.services.BorrowRequestService;
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.List;
+import ca.mcgill.ecse321.gameorganizer.dto.BorrowRequestDto;
+import ca.mcgill.ecse321.gameorganizer.dto.CreateBorrowRequestDto;
+import ca.mcgill.ecse321.gameorganizer.services.BorrowRequestService;
 
 /**
  * Controller for managing borrow requests.
@@ -18,7 +26,7 @@ import java.util.List;
  * @author Rayan Baida
  */
 @RestController
-@RequestMapping("/borrowrequests")
+@RequestMapping("/api/v1/borrowrequests")
 public class BorrowRequestController {
 
     private final BorrowRequestService borrowRequestService;
