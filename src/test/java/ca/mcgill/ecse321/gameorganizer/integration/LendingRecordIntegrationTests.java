@@ -27,7 +27,9 @@ import org.springframework.test.context.ActiveProfiles;
 
 import ca.mcgill.ecse321.gameorganizer.config.TestConfig;
 import ca.mcgill.ecse321.gameorganizer.config.SecurityTestConfig;
+import ca.mcgill.ecse321.gameorganizer.dto.LendingHistoryFilterDto;
 import ca.mcgill.ecse321.gameorganizer.dto.LendingRecordResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dto.UpdateLendingRecordStatusDto;
 import ca.mcgill.ecse321.gameorganizer.models.LendingRecord;
 import ca.mcgill.ecse321.gameorganizer.models.LendingRecord.LendingStatus;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
@@ -335,5 +337,267 @@ public class LendingRecordIntegrationTests {
             String.class
         );
         assertEquals(HttpStatus.BAD_REQUEST, response2.getStatusCode(), "Second deletion did not return NOT_FOUND");
+    }
+
+    // ============================================================
+    // GET Tests
+    // ============================================================
+
+    @Test
+    @Order(11)
+    public void testGetAllLendingRecords() {
+        ResponseEntity<Map> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL),
+            Map.class
+        );
+        
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertTrue(response.getBody().containsKey("records"));
+        assertTrue(response.getBody().containsKey("totalItems"));
+        assertTrue(response.getBody().containsKey("currentPage"));
+    }
+
+    @Test
+    @Order(12)
+    public void testGetLendingRecordById() {
+        ResponseEntity<Map> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "/" + testRecord.getId()),
+            Map.class
+        );
+        
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(testRecord.getId(), ((Number)response.getBody().get("id")).intValue());
+    }
+
+    @Test
+    @Order(13)
+    public void testGetLendingRecordsByOwner() {
+        ResponseEntity<List> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "/owner/" + testOwner.getId()),
+            List.class
+        );
+        
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertTrue(response.getBody().size() > 0);
+        Map<String, Object> record = (Map<String, Object>) response.getBody().get(0);
+        assertEquals(testRecord.getId(), ((Number)record.get("id")).intValue());
+    }
+
+    @Test
+    @Order(14)
+    public void testGetLendingRecordsByOwnerAndStatus() {
+        ResponseEntity<List> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "/owner/" + testOwner.getId() + "/status/ACTIVE"),
+            List.class
+        );
+        
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertTrue(response.getBody().size() > 0);
+        Map<String, Object> record = (Map<String, Object>) response.getBody().get(0);
+        assertEquals("ACTIVE", record.get("status"));
+    }
+
+    @Test
+    @Order(15)
+    public void testGetLendingRecordsByBorrower() {
+        ResponseEntity<List> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "/borrower/" + testBorrower.getId()),
+            List.class
+        );
+        
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertTrue(response.getBody().size() > 0);
+        Map<String, Object> record = (Map<String, Object>) response.getBody().get(0);
+        Map<String, Object> borrower = (Map<String, Object>) record.get("borrower");
+        assertEquals(testBorrower.getId(), ((Number)borrower.get("id")).intValue());
+    }
+
+    @Test
+    @Order(16)
+    public void testGetActiveLendingRecordsByBorrower() {
+        ResponseEntity<List> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "/borrower/" + testBorrower.getId() + "/active"),
+            List.class
+        );
+        
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertTrue(response.getBody().size() > 0);
+        Map<String, Object> record = (Map<String, Object>) response.getBody().get(0);
+        assertEquals("ACTIVE", record.get("status"));
+    }
+
+    @Test
+    @Order(17)
+    public void testFilterLendingRecords() {
+        LendingHistoryFilterDto filterDto = new LendingHistoryFilterDto();
+        filterDto.setStatus(LendingStatus.ACTIVE.name());
+        
+        ResponseEntity<Map> response = restTemplate.postForEntity(
+            createURLWithPort(BASE_URL + "/filter"),
+            filterDto,
+            Map.class
+        );
+        
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertTrue(response.getBody().containsKey("records"));
+    }
+
+    @Test
+    @Order(18)
+    public void testGetOverdueRecords() {
+        // First create an overdue record
+        LendingRecord overdueRecord = new LendingRecord();
+        overdueRecord.setStartDate(new Date(System.currentTimeMillis() - 2 * 86400000L)); // 2 days ago
+        overdueRecord.setEndDate(new Date(System.currentTimeMillis() - 86400000L));      // Yesterday
+        overdueRecord.setStatus(LendingStatus.ACTIVE);  // Still active but end date has passed
+        overdueRecord.setRecordOwner(testOwner);
+        
+        // Create a new borrow request for this overdue record
+        BorrowRequest overdueRequest = new BorrowRequest();
+        overdueRequest.setRequestedGame(dummyGame);
+        overdueRequest.setRequester(testBorrower);
+        overdueRequest = borrowRequestRepository.save(overdueRequest);
+        
+        overdueRecord.setRequest(overdueRequest);
+        overdueRecord = lendingRecordRepository.save(overdueRecord);
+        
+        ResponseEntity<List> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "/overdue"),
+            List.class
+        );
+        
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertTrue(response.getBody().size() > 0);
+    }
+
+    @Test
+    @Order(19)
+    public void testGetOverdueRecordsByOwner() {
+        // First create an overdue record
+        LendingRecord overdueRecord = new LendingRecord();
+        overdueRecord.setStartDate(new Date(System.currentTimeMillis() - 2 * 86400000L)); // 2 days ago
+        overdueRecord.setEndDate(new Date(System.currentTimeMillis() - 86400000L));      // Yesterday
+        overdueRecord.setStatus(LendingStatus.ACTIVE);  // Still active but end date has passed
+        overdueRecord.setRecordOwner(testOwner);
+        
+        // Create a new borrow request for this overdue record
+        BorrowRequest overdueRequest = new BorrowRequest();
+        overdueRequest.setRequestedGame(dummyGame);
+        overdueRequest.setRequester(testBorrower);
+        overdueRequest = borrowRequestRepository.save(overdueRequest);
+        
+        overdueRecord.setRequest(overdueRequest);
+        overdueRecord = lendingRecordRepository.save(overdueRecord);
+        
+        ResponseEntity<List> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "/owner/" + testOwner.getId() + "/overdue"),
+            List.class
+        );
+        
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertTrue(response.getBody().size() > 0);
+    }
+
+    // ============================================================
+    // UPDATE Status Tests
+    // ============================================================
+
+    @Test
+    @Order(20)
+    public void testUpdateLendingRecordStatus() {
+        UpdateLendingRecordStatusDto statusDto = new UpdateLendingRecordStatusDto();
+        statusDto.setNewStatus(LendingStatus.OVERDUE.name());
+        statusDto.setUserId(testOwner.getId());
+        statusDto.setReason("Game is overdue");
+        
+        ResponseEntity<Map> response = restTemplate.exchange(
+            createURLWithPort(BASE_URL + "/" + testRecord.getId() + "/status"),
+            HttpMethod.PUT,
+            new HttpEntity<>(statusDto),
+            Map.class
+        );
+        
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertTrue((Boolean) response.getBody().get("success"));
+        assertEquals(LendingStatus.OVERDUE.name(), response.getBody().get("newStatus"));
+    }
+
+    @Test
+    @Order(21)
+    public void testInvalidStatusTransition() {
+        // First, close the record
+        ResponseEntity<String> closeResponse = restTemplate.postForEntity(
+            createURLWithPort(BASE_URL + "/" + testRecord.getId() + "/confirm-return?isDamaged=false"),
+            null,
+            String.class
+        );
+        assertEquals(HttpStatus.OK, closeResponse.getStatusCode(), "Closing the record failed");
+        
+        // Now try to change from CLOSED to ACTIVE, which should be invalid
+        UpdateLendingRecordStatusDto statusDto = new UpdateLendingRecordStatusDto();
+        statusDto.setNewStatus(LendingStatus.ACTIVE.name());
+        statusDto.setUserId(testOwner.getId());
+        statusDto.setReason("Trying invalid transition");
+        
+        ResponseEntity<Map> response = restTemplate.exchange(
+            createURLWithPort(BASE_URL + "/" + testRecord.getId() + "/status"),
+            HttpMethod.PUT,
+            new HttpEntity<>(statusDto),
+            Map.class
+        );
+        
+        assertFalse((Boolean) response.getBody().get("success"));
+    }
+
+    @Test
+    @Order(22)
+    public void testMarkGameAsReturned() {
+        ResponseEntity<String> response = restTemplate.postForEntity(
+            createURLWithPort(BASE_URL + "/" + testRecord.getId() + "/mark-returned?userId=" + testBorrower.getId()),
+            null,
+            String.class
+        );
+        
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        // The status should now be OVERDUE which is used as placeholder for "Pending Return Confirmation"
+        LendingRecord updatedRecord = lendingRecordRepository.findById(testRecord.getId()).orElse(null);
+        assertNotNull(updatedRecord);
+        assertEquals(LendingStatus.OVERDUE, updatedRecord.getStatus());
+    }
+
+    @Test
+    @Order(23)
+    public void testConfirmGameReturn() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("isDamaged", true);
+        params.put("damageNotes", "The game box is damaged");
+        params.put("damageSeverity", 2);
+        params.put("userId", testOwner.getId());
+        
+        String url = createURLWithPort(BASE_URL + "/" + testRecord.getId() + 
+                      "/confirm-return?isDamaged=true&damageNotes=The game box is damaged&damageSeverity=2&userId=" + 
+                      testOwner.getId());
+        
+        ResponseEntity<Map> response = restTemplate.postForEntity(url, null, Map.class);
+        
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertTrue((Boolean) response.getBody().get("success"));
+        assertTrue((Boolean) response.getBody().get("isDamaged"));
+        assertEquals(2, response.getBody().get("damageSeverity"));
+        
+        // Verify the record status is now CLOSED
+        LendingRecord updatedRecord = lendingRecordRepository.findById(testRecord.getId()).orElse(null);
+        assertNotNull(updatedRecord);
+        assertEquals(LendingStatus.CLOSED, updatedRecord.getStatus());
     }
 }

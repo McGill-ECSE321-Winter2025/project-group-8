@@ -24,6 +24,13 @@ public class LendingRecordResponseDto {
     private Date damageAssessmentDate;
 
     /**
+     * Default constructor required for Jackson deserialization
+     */
+    public LendingRecordResponseDto() {
+        // Required for Jackson deserialization
+    }
+
+    /**
      * Constructs a new LendingRecordResponseDto with the specified properties.
      *
      * @param id The unique identifier of the lending record
@@ -135,6 +142,13 @@ public class LendingRecordResponseDto {
         private String name;
         private String category;
         
+        /**
+         * Default constructor required for Jackson deserialization
+         */
+        public GameInfo() {
+            // Required for Jackson deserialization
+        }
+        
         public GameInfo(int id, String name, String category) {
             this.id = id;
             this.name = name;
@@ -153,6 +167,13 @@ public class LendingRecordResponseDto {
         private int id;
         private String name;
         private String email;
+        
+        /**
+         * Default constructor required for Jackson deserialization
+         */
+        public UserInfo() {
+            // Required for Jackson deserialization
+        }
         
         public UserInfo(int id, String name, String email) {
             this.id = id;

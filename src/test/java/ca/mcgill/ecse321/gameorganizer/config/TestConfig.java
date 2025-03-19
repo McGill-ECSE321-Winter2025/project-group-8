@@ -27,13 +27,14 @@ public class TestConfig implements WebMvcConfigurer {
 
     @Bean
     public UserAuthInterceptor userAuthInterceptor() {
-        return new UserAuthInterceptor(accountRepository, eventRepository, userContext());
+        UserAuthInterceptor interceptor = new UserAuthInterceptor(accountRepository, eventRepository, userContext());
+        interceptor.setTestMode(true);
+        return interceptor;
     }
     
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(userAuthInterceptor())
-                .addPathPatterns("/**")
-                .excludePathPatterns("/auth/login", "/auth/reset-password", "/account");
+                .addPathPatterns("/**");
     }
 }
