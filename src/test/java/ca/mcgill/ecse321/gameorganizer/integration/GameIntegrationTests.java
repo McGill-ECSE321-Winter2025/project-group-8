@@ -391,7 +391,7 @@ public class GameIntegrationTests {
     @Order(11)
     public void testSearchGamesWithName() {
         ResponseEntity<List<GameResponseDto>> response = restTemplate.exchange(
-            createURLWithPort("/api/games/search?name=Test"),
+            createURLWithPort("/games/search?name=Test"),
             HttpMethod.GET,
             null,
             new ParameterizedTypeReference<List<GameResponseDto>>() {}
@@ -407,7 +407,7 @@ public class GameIntegrationTests {
     @Order(12)
     public void testSearchGamesWithPlayerRange() {
         ResponseEntity<List<GameResponseDto>> response = restTemplate.exchange(
-            createURLWithPort("/api/games/search?minPlayers=2&maxPlayers=4"),
+            createURLWithPort("/games/search?minPlayers=2&maxPlayers=4"),
             HttpMethod.GET,
             null,
             new ParameterizedTypeReference<List<GameResponseDto>>() {}
@@ -423,7 +423,7 @@ public class GameIntegrationTests {
     @Order(13)
     public void testSearchGamesWithCategory() {
         ResponseEntity<List<GameResponseDto>> response = restTemplate.exchange(
-            createURLWithPort("/api/games/search?category=Board Game"),
+            createURLWithPort("/games/search?category=Board Game"),
             HttpMethod.GET,
             null,
             new ParameterizedTypeReference<List<GameResponseDto>>() {}
@@ -439,7 +439,7 @@ public class GameIntegrationTests {
     @Order(14)
     public void testSearchGamesWithSorting() {
         ResponseEntity<List<GameResponseDto>> response = restTemplate.exchange(
-            createURLWithPort("/api/games/search?sort=name&order=asc"),
+            createURLWithPort("/games/search?sort=name&order=asc"),
             HttpMethod.GET,
             null,
             new ParameterizedTypeReference<List<GameResponseDto>>() {}
@@ -463,7 +463,7 @@ public class GameIntegrationTests {
     @Order(15)
     public void testGetGamesByOwnerSuccess() {
         ResponseEntity<List<GameResponseDto>> response = restTemplate.exchange(
-            createURLWithPort("/api/users/" + VALID_EMAIL + "/games"),
+            createURLWithPort("/users/" + VALID_EMAIL + "/games"),
             HttpMethod.GET,
             null,
             new ParameterizedTypeReference<List<GameResponseDto>>() {}
@@ -479,7 +479,7 @@ public class GameIntegrationTests {
     @Order(16)
     public void testGetGamesByNonExistentOwner() {
         ResponseEntity<String> response = restTemplate.exchange(
-            createURLWithPort("/api/users/nonexistent@example.com/games"),
+            createURLWithPort("/users/nonexistent@example.com/games"),
             HttpMethod.GET,
             null,
             String.class
@@ -493,7 +493,7 @@ public class GameIntegrationTests {
     @Order(17)
     public void testGetGameReviews() {
         ResponseEntity<List<ReviewResponseDto>> response = restTemplate.exchange(
-            createURLWithPort("/api/games/" + testGame.getId() + "/reviews"),
+            createURLWithPort("/games/" + testGame.getId() + "/reviews"),
             HttpMethod.GET,
             null,
             new ParameterizedTypeReference<List<ReviewResponseDto>>() {}
@@ -512,7 +512,7 @@ public class GameIntegrationTests {
         reviewDto.setReviewerId(VALID_EMAIL);
         
         ResponseEntity<ReviewResponseDto> response = restTemplate.postForEntity(
-            createURLWithPort("/api/games/" + testGame.getId() + "/reviews"),
+            createURLWithPort("/games/" + testGame.getId() + "/reviews"),
             reviewDto,
             ReviewResponseDto.class
         );
@@ -528,7 +528,7 @@ public class GameIntegrationTests {
     @Order(19)
     public void testGetGameRating() {
         ResponseEntity<Double> response = restTemplate.getForEntity(
-            createURLWithPort("/api/games/" + testGame.getId() + "/rating"),
+            createURLWithPort("/games/" + testGame.getId() + "/rating"),
             Double.class
         );
         assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -541,7 +541,7 @@ public class GameIntegrationTests {
     @Order(20)
     public void testGetRatingForNonExistentGame() {
         ResponseEntity<String> response = restTemplate.getForEntity(
-            createURLWithPort("/api/games/999/rating"),
+            createURLWithPort("/games/999/rating"),
             String.class
         );
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());

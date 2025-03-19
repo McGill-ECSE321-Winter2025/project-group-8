@@ -149,7 +149,7 @@ public class GameController {
     /**
      * Advanced search endpoint for games with multiple criteria
      */
-    @GetMapping("/api/games/search")
+    @GetMapping("/games/search")
     public ResponseEntity<List<GameResponseDto>> searchGames(GameSearchCriteria criteria) {
         List<Game> games = service.searchGames(criteria);
         List<GameResponseDto> gameResponseDtos = games.stream()
@@ -161,7 +161,7 @@ public class GameController {
     /**
      * Get all games owned by a specific user
      */
-    @GetMapping("/api/users/{ownerId}/games")
+    @GetMapping("/users/{ownerId}/games")
     public ResponseEntity<List<GameResponseDto>> getGamesByOwner(@PathVariable String ownerId) {
         Account account = accountService.getAccountByEmail(ownerId);
         if (!(account instanceof GameOwner)) {
@@ -177,7 +177,7 @@ public class GameController {
     /**
      * Get all reviews for a specific game
      */
-    @GetMapping("/api/games/{id}/reviews")
+    @GetMapping("/games/{id}/reviews")
     public ResponseEntity<List<ReviewResponseDto>> getGameReviews(@PathVariable int id) {
         List<ReviewResponseDto> reviews = service.getReviewsByGameId(id);
         return ResponseEntity.ok(reviews);
@@ -186,7 +186,7 @@ public class GameController {
     /**
      * Submit a new review for a game
      */
-    @PostMapping("/api/games/{id}/reviews")
+    @PostMapping("/games/{id}/reviews")
     public ResponseEntity<ReviewResponseDto> submitGameReview(
             @PathVariable int id,
             @RequestBody ReviewSubmissionDto reviewDto) {
@@ -198,7 +198,7 @@ public class GameController {
     /**
      * Get average rating for a game
      */
-    @GetMapping("/api/games/{id}/rating")
+    @GetMapping("/games/{id}/rating")
     public ResponseEntity<Double> getGameRating(@PathVariable int id) {
         double rating = service.getAverageRatingForGame(id);
         return ResponseEntity.ok(rating);
