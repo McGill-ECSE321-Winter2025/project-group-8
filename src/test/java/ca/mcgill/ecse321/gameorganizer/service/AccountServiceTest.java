@@ -1,4 +1,4 @@
-package ca.mcgill.ecse321.gameorganizer.service.unit;
+package ca.mcgill.ecse321.gameorganizer.service;
 
 import java.util.ArrayList;
 import java.util.List;
