@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Collections;
 
 /**
  * REST controller for managing lending records.
@@ -196,11 +197,19 @@ public class LendingRecordController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Date startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Date endDate) {
         try {
+            // Validate that the start date is before the end date
+            if (startDate.after(endDate)) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Collections.emptyList());
+            }
+
+            // Validate owner existence
+            GameOwner owner = (GameOwner) accountService.getAccountById(ownerId);
+
             List<LendingRecord> records = lendingRecordService.getLendingRecordsByDateRange(startDate, endDate);
             
             // Further filter by owner
             List<LendingRecord> filteredRecords = records.stream()
-                    .filter(record -> record.getRecordOwner().getId() == ownerId)
+                    .filter(record -> record.getRecordOwner().getId() == owner.getId())
                     .collect(Collectors.toList());
             
             List<LendingRecordResponseDto> recordDtos = filteredRecords.stream()
@@ -209,7 +218,7 @@ public class LendingRecordController {
             
             return ResponseEntity.ok(recordDtos);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Collections.emptyList());
         }
     }
 
@@ -740,4 +749,4 @@ class LendingRecordControllerAdvice {
         
         return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
-} 
+}

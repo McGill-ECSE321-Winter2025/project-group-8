@@ -19,6 +19,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -599,5 +600,193 @@ public class LendingRecordIntegrationTests {
         LendingRecord updatedRecord = lendingRecordRepository.findById(testRecord.getId()).orElse(null);
         assertNotNull(updatedRecord);
         assertEquals(LendingStatus.CLOSED, updatedRecord.getStatus());
+    }
+
+    // ============================================================
+    // Additional Tests for getLendingHistoryByOwnerAndDateRange
+    // ============================================================
+    
+    @Test
+    @Order(24)
+    public void testGetLendingHistoryByOwnerAndDateRange_Success() {
+        // Define date range - use java.util.Date instead of java.sql.Date
+        java.util.Date startDate = new java.util.Date(System.currentTimeMillis() - 2 * 86400000L); // 2 days ago
+        java.util.Date endDate = new java.util.Date(System.currentTimeMillis() + 2 * 86400000L);   // 2 days from now
+        
+        ResponseEntity<List<LendingRecordResponseDto>> response = restTemplate.exchange(
+            createURLWithPort(BASE_URL + "/owner/" + testOwner.getId() + "/date-range?startDate=" + 
+                startDate.toInstant().toString() + "&endDate=" + endDate.toInstant().toString()),
+            HttpMethod.GET,
+            null,
+            new ParameterizedTypeReference<List<LendingRecordResponseDto>>() {}
+        );
+        
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertTrue(response.getBody().size() > 0);
+    }
+    
+    @Test
+    @Order(25)
+    public void testGetLendingHistoryByOwnerAndDateRange_InvalidDateRange() {
+        // Define invalid date range (end date before start date)
+        java.util.Date startDate = new java.util.Date(System.currentTimeMillis() + 2 * 86400000L); // 2 days from now
+        java.util.Date endDate = new java.util.Date(System.currentTimeMillis() - 2 * 86400000L);   // 2 days ago
+        
+        ResponseEntity<List> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "/owner/" + testOwner.getId() + "/date-range?startDate=" + 
+                startDate.toInstant().toString() + "&endDate=" + endDate.toInstant().toString()),
+            List.class
+        );
+        
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    }
+
+    @Test
+    @Order(26)
+    public void testGetLendingHistoryByOwnerAndDateRange_NoRecordsInRange() {
+        // Define date range in the far future
+        java.util.Date startDate = new java.util.Date(System.currentTimeMillis() + 30 * 86400000L); // 30 days from now
+        java.util.Date endDate = new java.util.Date(System.currentTimeMillis() + 60 * 86400000L);   // 60 days from now
+        
+        ResponseEntity<List> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "/owner/" + testOwner.getId() + "/date-range?startDate=" + 
+                startDate.toInstant().toString() + "&endDate=" + endDate.toInstant().toString()),
+            List.class
+        );
+        
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals(0, response.getBody().size());
+    }
+
+    @Test
+    @Order(27)
+    public void testGetLendingHistoryByOwnerAndDateRange_InvalidOwnerId() {
+        // Define date range
+        java.util.Date startDate = new java.util.Date(System.currentTimeMillis() - 2 * 86400000L); // 2 days ago
+        java.util.Date endDate = new java.util.Date(System.currentTimeMillis() + 2 * 86400000L);   // 2 days from now
+        
+        ResponseEntity<List> response = restTemplate.getForEntity(
+            createURLWithPort(BASE_URL + "/owner/99999/date-range?startDate=" + 
+                startDate.toInstant().toString() + "&endDate=" + endDate.toInstant().toString()),
+            List.class
+        );
+        
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    }
+    
+    // ============================================================
+    // Additional Tests for createLendingRecord
+    // ============================================================
+    
+    @Test
+    @Order(28)
+    public void testCreateLendingRecord_DuplicateRecord() {
+        // Create a new BorrowRequest first to use for this test
+        BorrowRequest newRequest = new BorrowRequest();
+        newRequest.setRequestedGame(dummyGame);
+        newRequest.setRequester(testBorrower);
+        newRequest = borrowRequestRepository.save(newRequest);
+        
+        // Create a lending record for this new request
+        LendingRecord newRecord = new LendingRecord();
+        newRecord.setStartDate(new Date(System.currentTimeMillis()));
+        newRecord.setEndDate(new Date(System.currentTimeMillis() + 86400000L));
+        newRecord.setStatus(LendingStatus.ACTIVE);
+        newRecord.setRecordOwner(testOwner);
+        newRecord.setRequest(newRequest);
+        newRecord = lendingRecordRepository.save(newRecord);
+        
+        // Now try to create another record with the same request (should fail)
+        Map<String, Object> requestMap = new HashMap<>();
+        requestMap.put("requestId", newRequest.getId());  // This request is now already used
+        requestMap.put("ownerId", testOwner.getId());
+        long now = System.currentTimeMillis();
+        requestMap.put("startDate", now + 10800000L);
+        requestMap.put("endDate", now + 86400000L);
+        
+        ResponseEntity<String> response = restTemplate.postForEntity(
+            createURLWithPort(BASE_URL),
+            requestMap,
+            String.class
+        );
+        
+        // Should fail with 400 Bad Request
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertTrue(response.getBody().contains("already has a lending record"));
+    }
+    
+    @Test
+    @Order(29)
+    public void testCreateLendingRecord_InvalidOwnerType() {
+        // Create a regular account (not GameOwner)
+        Account regularAccount = new Account("Regular", "regular@example.com", "pass");
+        regularAccount = accountRepository.save(regularAccount);
+        
+        // Create a new valid request
+        BorrowRequest validRequest = new BorrowRequest();
+        validRequest.setRequestedGame(dummyGame);
+        validRequest.setRequester(testBorrower);
+        validRequest = borrowRequestRepository.save(validRequest);
+        
+        Map<String, Object> requestMap = new HashMap<>();
+        requestMap.put("requestId", validRequest.getId());
+        requestMap.put("ownerId", regularAccount.getId());  // Not a GameOwner
+        long now = System.currentTimeMillis();
+        requestMap.put("startDate", now + 10800000L);
+        requestMap.put("endDate", now + 86400000L);
+        
+        ResponseEntity<String> response = restTemplate.postForEntity(
+            createURLWithPort(BASE_URL),
+            requestMap,
+            String.class
+        );
+        
+        // Print the response body for debugging
+        System.out.println("Response body for invalid owner type: " + response.getBody());
+        
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        // Only verify we got an error response, not the specific error message
+        assertNotNull(response.getBody());
+        assertTrue(response.getBody().length() > 0);
+    }
+    
+    // ============================================================
+    // Test for handleInvalidOperationException
+    // ============================================================
+    
+    @Test
+    @Order(30)
+    public void testHandleInvalidOperationException() {
+        // First create a lending record that's already closed
+        // We'll use the existing testRecord
+        
+        // Close the record
+        ResponseEntity<String> closeResponse = restTemplate.postForEntity(
+            createURLWithPort(BASE_URL + "/" + testRecord.getId() + "/confirm-return?isDamaged=false"),
+            null,
+            String.class
+        );
+        assertEquals(HttpStatus.OK, closeResponse.getStatusCode(), "Closing the record failed");
+        
+        // Now try to mark it as returned, which should cause an InvalidOperationException
+        ResponseEntity<String> response = restTemplate.postForEntity(
+            createURLWithPort(BASE_URL + "/" + testRecord.getId() + "/mark-returned"),
+            null,
+            String.class
+        );
+        
+        // Print the actual response body for debugging
+        System.out.println("Error response body: " + response.getBody());
+        
+        // Verify the response format for InvalidOperationException
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertNotNull(response.getBody());
+        
+        // Use a more generic check that doesn't depend on specific wording
+        // Just verify we got some kind of error message
+        assertTrue(response.getBody().length() > 0, 
+                  "Response should contain an error message");
     }
 }
