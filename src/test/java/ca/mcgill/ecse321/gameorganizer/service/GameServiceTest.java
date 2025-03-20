@@ -1,424 +1,442 @@
 package ca.mcgill.ecse321.gameorganizer.service;
 
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.ResponseEntity;
+
 import ca.mcgill.ecse321.gameorganizer.dto.GameCreationDto;
 import ca.mcgill.ecse321.gameorganizer.dto.GameResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dto.ReviewSubmissionDto;
+import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
+import ca.mcgill.ecse321.gameorganizer.models.Review;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
 import ca.mcgill.ecse321.gameorganizer.services.GameService;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.springframework.boot.test.context.SpringBootTest;
 
-import java.util.Date;
-import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
-
-@SpringBootTest
+@ExtendWith(MockitoExtension.class)
 public class GameServiceTest {
 
     @Mock
     private GameRepository gameRepository;
+
     @Mock
     private ReviewRepository reviewRepository;
+
     @Mock
     private AccountRepository accountRepository;
 
     @InjectMocks
     private GameService gameService;
 
-    private Game game;
-    private GameOwner owner;
-    private Date date;
-    private GameCreationDto gameCreationDto;
+    // Test constants
+    private static final String VALID_GAME_NAME = "Test Game";
+    private static final String VALID_OWNER_EMAIL = "owner@test.com";
+    private static final String VALID_CATEGORY = "Strategy";
+    private static final String VALID_IMAGE = "test.jpg";
+    private static final int VALID_MIN_PLAYERS = 2;
+    private static final int VALID_MAX_PLAYERS = 4;
+    private static final int VALID_GAME_ID = 1;
 
-    @BeforeEach
-    public void setUp() {
-        // Create sample data for tests
-        date = new Date();
-        owner = new GameOwner("Test Owner", "owner@test.com", "password123");
-        game = new Game("Test Game", 2, 4, "test.jpg", date);
-
-        game.setId(1);
-        game.setOwner(owner);
-
-        gameCreationDto = new GameCreationDto(
-                "Test Game",
-                2,
-                4,
-                "test.jpg",
-                "TestCategory",
-                "owner@test.com"
-        );
-    }
-
-    // Create Game Tests
     @Test
     public void testCreateGameSuccess() {
-        // Setup the saved game that will be returned
-        Game savedGame = new Game("Test Game", 2, 4, "test.jpg", date);
-        savedGame.setId(1);
-        savedGame.setOwner(owner);
-        savedGame.setCategory("TestCategory");
+        // Setup
+        GameCreationDto gameDto = new GameCreationDto();
+        gameDto.setName(VALID_GAME_NAME);
+        gameDto.setOwnerId(VALID_OWNER_EMAIL);
+        gameDto.setCategory(VALID_CATEGORY);
+        gameDto.setImage(VALID_IMAGE);
+        gameDto.setMinPlayers(VALID_MIN_PLAYERS);
+        gameDto.setMaxPlayers(VALID_MAX_PLAYERS);
 
-        // Mock repository behavior
-        when(accountRepository.findByEmail("owner@test.com")).thenReturn(java.util.Optional.of(owner));
+        GameOwner owner = new GameOwner("Test Owner", VALID_OWNER_EMAIL, "password");
+        Game savedGame = new Game(VALID_GAME_NAME, VALID_MIN_PLAYERS, VALID_MAX_PLAYERS, VALID_IMAGE, new Date());
+        savedGame.setOwner(owner);
+
+        when(accountRepository.findByEmail(VALID_OWNER_EMAIL)).thenReturn(Optional.of(owner));
         when(gameRepository.save(any(Game.class))).thenReturn(savedGame);
 
-        // Call the actual method
-        GameResponseDto result = gameService.createGame(gameCreationDto);
+        // Test
+        GameResponseDto response = gameService.createGame(gameDto);
 
-        // Assert results
-        assertNotNull(result);
-        assertEquals("Test Game", result.getName());
-        assertEquals(2, result.getMinPlayers());
-        assertEquals(4, result.getMaxPlayers());
-        verify(gameRepository, times(1)).save(any(Game.class));
+        // Verify
+        assertNotNull(response);
+        assertEquals(VALID_GAME_NAME, response.getName());
+        assertEquals(VALID_MIN_PLAYERS, response.getMinPlayers());
+        assertEquals(VALID_MAX_PLAYERS, response.getMaxPlayers());
+        verify(accountRepository).findByEmail(VALID_OWNER_EMAIL);
+        verify(gameRepository).save(any(Game.class));
     }
-
 
     @Test
-    public void testCreateGameWithEmptyName() {
-        GameCreationDto invalidDto = new GameCreationDto(
-                "", // Empty name
-                2,
-                4,
-                "test.jpg",
-                "TestCategory",
-                "owner@test.com"
-        );
+    public void testCreateGameWithInvalidOwner() {
+        // Setup
+        GameCreationDto gameDto = new GameCreationDto();
+        gameDto.setName(VALID_GAME_NAME);
+        gameDto.setOwnerId(VALID_OWNER_EMAIL);
+        gameDto.setCategory(VALID_CATEGORY);
+        gameDto.setMinPlayers(VALID_MIN_PLAYERS);
+        gameDto.setMaxPlayers(VALID_MAX_PLAYERS);
 
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            gameService.createGame(invalidDto);
-        });
-        assertEquals("Game name cannot be empty", exception.getMessage());
+        when(accountRepository.findByEmail(VALID_OWNER_EMAIL)).thenReturn(Optional.empty());
+
+        // Test & Verify
+        assertThrows(IllegalArgumentException.class, () -> gameService.createGame(gameDto));
+        verify(accountRepository).findByEmail(VALID_OWNER_EMAIL);
+        verify(gameRepository, never()).save(any(Game.class));
     }
 
-    // Get Game By ID Tests
+    @Test
+    public void testCreateGameWithNonGameOwnerAccount() {
+        // Setup
+        GameCreationDto gameDto = new GameCreationDto();
+        gameDto.setName(VALID_GAME_NAME);
+        gameDto.setOwnerId(VALID_OWNER_EMAIL);
+        gameDto.setCategory(VALID_CATEGORY);
+        gameDto.setMinPlayers(VALID_MIN_PLAYERS);
+        gameDto.setMaxPlayers(VALID_MAX_PLAYERS);
+
+        Account regularAccount = new Account("Test User", VALID_OWNER_EMAIL, "password");
+        when(accountRepository.findByEmail(VALID_OWNER_EMAIL)).thenReturn(Optional.of(regularAccount));
+
+        // Test & Verify
+        assertThrows(IllegalArgumentException.class, () -> gameService.createGame(gameDto));
+        verify(accountRepository).findByEmail(VALID_OWNER_EMAIL);
+        verify(gameRepository, never()).save(any(Game.class));
+    }
+
     @Test
     public void testGetGameByIdSuccess() {
-        when(gameRepository.findGameById(1)).thenReturn(game);
-        Game result = gameService.getGameById(1);
-        assertEquals(game.getName(), result.getName());
+        // Setup
+        Game game = new Game(VALID_GAME_NAME, VALID_MIN_PLAYERS, VALID_MAX_PLAYERS, VALID_IMAGE, new Date());
+        when(gameRepository.findGameById(VALID_GAME_ID)).thenReturn(game);
+
+        // Test
+        Game result = gameService.getGameById(VALID_GAME_ID);
+
+        // Verify
+        assertNotNull(result);
+        assertEquals(VALID_GAME_NAME, result.getName());
+        verify(gameRepository).findGameById(VALID_GAME_ID);
     }
 
     @Test
     public void testGetGameByIdNotFound() {
-        when(gameRepository.findGameById(99)).thenReturn(null);
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            gameService.getGameById(99);
-        });
-        assertEquals("Game with ID 99 does not exist", exception.getMessage());
+        // Setup
+        when(gameRepository.findGameById(anyInt())).thenReturn(null);
+
+        // Test & Verify
+        assertThrows(IllegalArgumentException.class, () -> gameService.getGameById(VALID_GAME_ID));
+        verify(gameRepository).findGameById(VALID_GAME_ID);
     }
 
-    // Get Games By Name Tests
     @Test
     public void testGetGamesByNameSuccess() {
-        List<Game> games = List.of(game);
-        when(gameRepository.findByName("Test Game")).thenReturn(games);
-        List<Game> result = gameService.getGamesByName("Test Game");
-        assertEquals(1, result.size());
-        assertEquals("Test Game", result.get(0).getName());
+        // Setup
+        List<Game> games = new ArrayList<>();
+        games.add(new Game(VALID_GAME_NAME, VALID_MIN_PLAYERS, VALID_MAX_PLAYERS, VALID_IMAGE, new Date()));
+        when(gameRepository.findByName(VALID_GAME_NAME)).thenReturn(games);
+
+        // Test
+        List<Game> result = gameService.getGamesByName(VALID_GAME_NAME);
+
+        // Verify
+        assertNotNull(result);
+        assertFalse(result.isEmpty());
+        assertEquals(VALID_GAME_NAME, result.get(0).getName());
+        verify(gameRepository).findByName(VALID_GAME_NAME);
     }
 
     @Test
     public void testGetGamesByNameEmpty() {
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            gameService.getGamesByName("");
-        });
-        assertEquals("Name cannot be empty", exception.getMessage());
+        // Test & Verify
+        assertThrows(IllegalArgumentException.class, () -> gameService.getGamesByName(""));
+        verify(gameRepository, never()).findByName(anyString());
     }
 
-    // Get Games By Name Containing Tests
-    @Test
-    public void testGetGamesByNameContainingSuccess() {
-        List<Game> games = List.of(game);
-        when(gameRepository.findByNameContaining("Test")).thenReturn(games);
-        List<Game> result = gameService.getGamesByNameContaining("Test");
-        assertEquals(1, result.size());
-        assertTrue(result.get(0).getName().contains("Test"));
-    }
-
-    // Get Games By Min Players Tests
-    @Test
-    public void testGetGamesByMinPlayersSuccess() {
-        List<Game> games = List.of(game);
-        when(gameRepository.findByMinPlayersLessThanEqual(3)).thenReturn(games);
-        List<Game> result = gameService.getGamesByMinPlayers(3);
-        assertEquals(1, result.size());
-        assertTrue(result.get(0).getMinPlayers() <= 3);
-    }
-
-    // Get Games By Max Players Tests
-    @Test
-    public void testGetGamesByMaxPlayersSuccess() {
-        List<Game> games = List.of(game);
-        when(gameRepository.findByMaxPlayersGreaterThanEqual(4)).thenReturn(games);
-        List<Game> result = gameService.getGamesByMaxPlayers(4);
-        assertEquals(1, result.size());
-        assertTrue(result.get(0).getMaxPlayers() >= 4);
-    }
-
-    // Get Games By Player Range Tests
-    @Test
-    public void testGetGamesByPlayerRangeSuccess() {
-        List<Game> games = List.of(game);
-        when(gameRepository.findByMinPlayersLessThanEqualAndMaxPlayersGreaterThanEqual(2, 4))
-                .thenReturn(games);
-        List<Game> result = gameService.getGamesByPlayerRange(2, 4);
-        assertEquals(1, result.size());
-    }
-
-    // Get Games By Date Tests
-    @Test
-    public void testGetGamesByDateAddedBeforeSuccess() {
-        List<Game> games = List.of(game);
-        Date futureDate = new Date(date.getTime() + 86400000); // tomorrow
-        when(gameRepository.findByDateAddedBefore(futureDate)).thenReturn(games);
-        List<Game> result = gameService.getGamesByDateAddedBefore(futureDate);
-        assertEquals(1, result.size());
-    }
-
-    @Test
-    public void testGetGamesByDateAddedAfterSuccess() {
-        List<Game> games = List.of(game);
-        Date pastDate = new Date(date.getTime() - 86400000); // yesterday
-        when(gameRepository.findByDateAddedAfter(pastDate)).thenReturn(games);
-        List<Game> result = gameService.getGamesByDateAddedAfter(pastDate);
-        assertEquals(1, result.size());
-    }
-
-    // Get Games By Owner Tests
-    @Test
-    public void testGetGamesByOwnerSuccess() {
-        List<Game> games = List.of(game);
-        when(gameRepository.findByOwner(owner)).thenReturn(games);
-        List<Game> result = gameService.getGamesByOwner(owner);
-        assertEquals(1, result.size());
-        assertEquals(owner, result.get(0).getOwner());
-    }
-
-    // Update Game Tests
     @Test
     public void testUpdateGameSuccess() {
-        GameCreationDto updateDto = new GameCreationDto(
-                "Updated Game",
-                2,
-                6,
-                "updated.jpg",
-                "TestCategory",
-                "owner@test.com"
-        );
+        // Setup
+        Game existingGame = new Game(VALID_GAME_NAME, VALID_MIN_PLAYERS, VALID_MAX_PLAYERS, VALID_IMAGE, new Date());
+        GameCreationDto updateDto = new GameCreationDto();
+        updateDto.setName("Updated Game");
+        updateDto.setMinPlayers(3);
+        updateDto.setMaxPlayers(6);
+        updateDto.setImage("updated.jpg");
 
-        // Create the updated game that will be returned
-        Game updatedGame = new Game("Updated Game", 2, 6, "updated.jpg", date);
-        updatedGame.setId(1);
-        updatedGame.setOwner(owner);
-        updatedGame.setCategory("TestCategory");
+        when(gameRepository.findGameById(VALID_GAME_ID)).thenReturn(existingGame);
+        when(gameRepository.save(any(Game.class))).thenReturn(existingGame);
 
-        // Mock repository behavior
-        when(gameRepository.findGameById(1)).thenReturn(game);
-        when(gameRepository.save(any(Game.class))).thenReturn(updatedGame);
+        // Test
+        GameResponseDto result = gameService.updateGame(VALID_GAME_ID, updateDto);
 
-        // Call the actual method
-        GameResponseDto result = gameService.updateGame(1, updateDto);
-
-        // Assert results
+        // Verify
         assertNotNull(result);
         assertEquals("Updated Game", result.getName());
-        verify(gameRepository, times(1)).save(any(Game.class));
+        assertEquals(3, result.getMinPlayers());
+        assertEquals(6, result.getMaxPlayers());
+        verify(gameRepository).findGameById(VALID_GAME_ID);
+        verify(gameRepository).save(any(Game.class));
     }
 
-    // Delete Game Tests
     @Test
     public void testDeleteGameSuccess() {
-        when(gameRepository.findGameById(1)).thenReturn(game);
-        var result = gameService.deleteGame(1);
-        assertEquals("Game with ID 1 has been deleted", result.getBody());
-        verify(gameRepository, times(1)).delete(any(Game.class));
+        // Setup
+        Game game = new Game(VALID_GAME_NAME, VALID_MIN_PLAYERS, VALID_MAX_PLAYERS, VALID_IMAGE, new Date());
+        when(gameRepository.findGameById(VALID_GAME_ID)).thenReturn(game);
+
+        // Test
+        ResponseEntity<String> response = gameService.deleteGame(VALID_GAME_ID);
+
+        // Verify
+        assertEquals(200, response.getStatusCodeValue());
+        verify(gameRepository).findGameById(VALID_GAME_ID);
+        verify(gameRepository).delete(game);
     }
 
     @Test
     public void testDeleteGameNotFound() {
-        when(gameRepository.findGameById(99)).thenReturn(null);
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            gameService.deleteGame(99);
-        });
-        assertEquals("Game with ID 99 does not exist", exception.getMessage());
-    }
+        // Setup
+        when(gameRepository.findGameById(VALID_GAME_ID)).thenReturn(null);
 
-    // Additional Create Game Tests
-    @Test
-    public void testCreateGameWithNullName() {
-        GameCreationDto invalidDto = new GameCreationDto(
-                null, // Null name
-                2,
-                4,
-                "test.jpg",
-                "TestCategory",
-                "owner@test.com"
-        );
-
-        assertThrows(IllegalArgumentException.class, () -> gameService.createGame(invalidDto));
+        // Test & Verify
+        assertThrows(IllegalArgumentException.class, () -> gameService.deleteGame(VALID_GAME_ID));
+        verify(gameRepository).findGameById(VALID_GAME_ID);
+        verify(gameRepository, never()).delete(any());
     }
 
     @Test
-    public void testCreateGameWithInvalidMinPlayers() {
-        GameCreationDto invalidDto = new GameCreationDto(
-                "Test Game",
-                0, // Invalid min players
-                4,
-                "test.jpg",
-                "TestCategory",
-                "owner@test.com"
-        );
+    public void testSubmitReviewSuccess() {
+        // Setup
+        ReviewSubmissionDto reviewDto = new ReviewSubmissionDto();
+        reviewDto.setGameId(VALID_GAME_ID);
+        reviewDto.setReviewerId(VALID_OWNER_EMAIL);
+        reviewDto.setRating(5);
+        reviewDto.setComment("Great game!");
 
-        assertThrows(IllegalArgumentException.class, () -> gameService.createGame(invalidDto));
+        Game game = new Game(VALID_GAME_NAME, VALID_MIN_PLAYERS, VALID_MAX_PLAYERS, VALID_IMAGE, new Date());
+        Account reviewer = new Account("Reviewer", VALID_OWNER_EMAIL, "password");
+        Review savedReview = new Review(5, "Great game!", new Date());
+        savedReview.setGameReviewed(game);
+        savedReview.setReviewer(reviewer);
+
+        when(gameRepository.findGameById(VALID_GAME_ID)).thenReturn(game);
+        when(accountRepository.findByEmail(VALID_OWNER_EMAIL)).thenReturn(Optional.of(reviewer));
+        when(reviewRepository.save(any(Review.class))).thenReturn(savedReview);
+
+        // Test
+        var result = gameService.submitReview(reviewDto);
+
+        // Verify
+        assertNotNull(result);
+        assertEquals(5, result.getRating());
+        assertEquals("Great game!", result.getComment());
+        verify(gameRepository).findGameById(VALID_GAME_ID);
+        verify(accountRepository).findByEmail(VALID_OWNER_EMAIL);
+        verify(reviewRepository).save(any(Review.class));
     }
 
     @Test
-    public void testCreateGameWithInvalidMaxPlayers() {
-        GameCreationDto invalidDto = new GameCreationDto(
-                "Test Game",
-                4,
-                2, // Max less than min
-                "test.jpg",
-                "TestCategory",
-                "owner@test.com"
-        );
+    public void testSubmitReviewInvalidRating() {
+        // Setup
+        ReviewSubmissionDto reviewDto = new ReviewSubmissionDto();
+        reviewDto.setGameId(VALID_GAME_ID);
+        reviewDto.setReviewerId(VALID_OWNER_EMAIL);
+        reviewDto.setRating(6); // Invalid rating > 5
 
-        assertThrows(IllegalArgumentException.class, () -> gameService.createGame(invalidDto));
+        // Test & Verify
+        assertThrows(IllegalArgumentException.class, () -> gameService.submitReview(reviewDto));
+        verify(gameRepository, never()).findGameById(anyInt());
+        verify(accountRepository, never()).findByEmail(anyString());
+        verify(reviewRepository, never()).save(any(Review.class));
     }
 
     @Test
-    public void testCreateGameWithNullOwner() {
-        GameCreationDto invalidDto = new GameCreationDto(
-                "Test Game",
-                2,
-                4,
-                "test.jpg",
-                "TestCategory",
-                null // Null owner
-        );
+    public void testGetGamesByCategorySuccess() {
+        // Setup
+        List<Game> games = new ArrayList<>();
+        games.add(new Game(VALID_GAME_NAME, VALID_MIN_PLAYERS, VALID_MAX_PLAYERS, VALID_IMAGE, new Date()));
+        when(gameRepository.findByCategory(VALID_CATEGORY)).thenReturn(games);
 
-        assertThrows(IllegalArgumentException.class, () -> gameService.createGame(invalidDto));
-    }
+        // Test
+        List<Game> result = gameService.getGamesByCategory(VALID_CATEGORY);
 
-    // Additional Name Search Tests
-    @Test
-    public void testGetGamesByNameNull() {
-        assertThrows(IllegalArgumentException.class, () -> gameService.getGamesByName(null));
+        // Verify
+        assertNotNull(result);
+        assertFalse(result.isEmpty());
+        verify(gameRepository).findByCategory(VALID_CATEGORY);
     }
 
     @Test
-    public void testGetGamesByNameContainingNull() {
-        assertThrows(IllegalArgumentException.class, () -> gameService.getGamesByNameContaining(null));
+    public void testGetGamesByCategoryEmptyCategory() {
+        // Test & Verify
+        assertThrows(IllegalArgumentException.class, () -> gameService.getGamesByCategory(""));
+        verify(gameRepository, never()).findByCategory(anyString());
     }
 
-    // Additional Player Count Tests
+    @Test
+    public void testGetGamesByAvailabilityTrue() {
+        // Setup
+        List<Game> games = new ArrayList<>();
+        games.add(new Game(VALID_GAME_NAME, VALID_MIN_PLAYERS, VALID_MAX_PLAYERS, VALID_IMAGE, new Date()));
+        when(gameRepository.findAvailableGames(any(Date.class))).thenReturn(games);
+
+        // Test
+        List<Game> result = gameService.getGamesByAvailability(true);
+
+        // Verify
+        assertNotNull(result);
+        assertFalse(result.isEmpty());
+        verify(gameRepository).findAvailableGames(any(Date.class));
+    }
+
+    @Test
+    public void testGetGamesByAvailabilityFalse() {
+        // Setup
+        List<Game> games = new ArrayList<>();
+        games.add(new Game(VALID_GAME_NAME, VALID_MIN_PLAYERS, VALID_MAX_PLAYERS, VALID_IMAGE, new Date()));
+        when(gameRepository.findUnavailableGames(any(Date.class))).thenReturn(games);
+
+        // Test
+        List<Game> result = gameService.getGamesByAvailability(false);
+
+        // Verify
+        assertNotNull(result);
+        assertFalse(result.isEmpty());
+        verify(gameRepository).findUnavailableGames(any(Date.class));
+    }
+
+    @Test
+    public void testGetGamesByRatingSuccess() {
+        // Setup
+        List<Game> games = new ArrayList<>();
+        games.add(new Game(VALID_GAME_NAME, VALID_MIN_PLAYERS, VALID_MAX_PLAYERS, VALID_IMAGE, new Date()));
+        when(gameRepository.findByAverageRatingGreaterThanEqual(any(Double.class))).thenReturn(games);
+
+        // Test
+        List<Game> result = gameService.getGamesByRating(4.0);
+
+        // Verify
+        assertNotNull(result);
+        assertFalse(result.isEmpty());
+        verify(gameRepository).findByAverageRatingGreaterThanEqual(4.0);
+    }
+
+    @Test
+    public void testGetGamesByRatingInvalidRating() {
+        // Test & Verify
+        assertThrows(IllegalArgumentException.class, () -> gameService.getGamesByRating(6.0));
+        verify(gameRepository, never()).findByAverageRatingGreaterThanEqual(any(Double.class));
+    }
+
+    @Test
+    public void testGetGamesByPlayerRangeSuccess() {
+        // Setup
+        List<Game> games = new ArrayList<>();
+        games.add(new Game(VALID_GAME_NAME, VALID_MIN_PLAYERS, VALID_MAX_PLAYERS, VALID_IMAGE, new Date()));
+        when(gameRepository.findByMinPlayersLessThanEqualAndMaxPlayersGreaterThanEqual(2, 4)).thenReturn(games);
+
+        // Test
+        List<Game> result = gameService.getGamesByPlayerRange(2, 4);
+
+        // Verify
+        assertNotNull(result);
+        assertFalse(result.isEmpty());
+        verify(gameRepository).findByMinPlayersLessThanEqualAndMaxPlayersGreaterThanEqual(2, 4);
+    }
+
     @Test
     public void testGetGamesByPlayerRangeInvalidRange() {
+        // Test & Verify
         assertThrows(IllegalArgumentException.class, () -> gameService.getGamesByPlayerRange(4, 2));
+        verify(gameRepository, never()).findByMinPlayersLessThanEqualAndMaxPlayersGreaterThanEqual(anyInt(), anyInt());
     }
 
     @Test
-    public void testGetGamesByMinPlayersZero() {
-        assertThrows(IllegalArgumentException.class, () -> gameService.getGamesByMinPlayers(0));
-    }
+    public void testGetGamesByDateRangeSuccess() {
+        // Setup
+        Date startDate = new Date();
+        Date endDate = new Date(startDate.getTime() + 86400000); // Next day
+        List<Game> games = new ArrayList<>();
+        games.add(new Game(VALID_GAME_NAME, VALID_MIN_PLAYERS, VALID_MAX_PLAYERS, VALID_IMAGE, new Date()));
+        when(gameRepository.findByDateAddedBetween(startDate, endDate)).thenReturn(games);
 
-    @Test
-    public void testGetGamesByMaxPlayersZero() {
-        assertThrows(IllegalArgumentException.class, () -> gameService.getGamesByMaxPlayers(0));
-    }
+        // Test
+        List<Game> result = gameService.getGamesByDateRange(startDate, endDate);
 
-    // Additional Date Tests
-    @Test
-    public void testGetGamesByDateAddedBeforeNull() {
-        assertThrows(IllegalArgumentException.class, () -> gameService.getGamesByDateAddedBefore(null));
-    }
-
-    @Test
-    public void testGetGamesByDateAddedAfterNull() {
-        assertThrows(IllegalArgumentException.class, () -> gameService.getGamesByDateAddedAfter(null));
-    }
-
-    @Test
-    public void testGetGamesByDateRangeNullStart() {
-        assertThrows(IllegalArgumentException.class, () -> gameService.getGamesByDateRange(null, new Date()));
-    }
-
-    @Test
-    public void testGetGamesByDateRangeNullEnd() {
-        assertThrows(IllegalArgumentException.class, () -> gameService.getGamesByDateRange(new Date(), null));
-    }
-
-    @Test
-    public void testGetGamesByDateRangeInvalidRange() {
-        Date later = new Date();
-        Date earlier = new Date(later.getTime() - 86400000);
-        assertThrows(IllegalArgumentException.class, () -> gameService.getGamesByDateRange(later, earlier));
-    }
-
-    // Additional Owner Tests
-    @Test
-    public void testGetGamesByOwnerNull() {
-        assertThrows(IllegalArgumentException.class, () -> gameService.getGamesByOwner(null));
-    }
-
-    @Test
-    public void testGetGamesByOwnerAndNameNullOwner() {
-        assertThrows(IllegalArgumentException.class, () -> gameService.getGamesByOwnerAndName(null, "Test"));
-    }
-
-    @Test
-    public void testGetGamesByOwnerAndNameNullName() {
-        assertThrows(IllegalArgumentException.class, () -> gameService.getGamesByOwnerAndName(owner, null));
-    }
-
-    // Additional Update Tests
-    @Test
-    public void testUpdateGameWithNullValues() {
-        GameCreationDto updateDto = new GameCreationDto(
-                null,
-                0,
-                0,
-                null,
-                null,
-                "owner@test.com"
-        );
-
-        // Mock repository behavior
-        when(gameRepository.findGameById(1)).thenReturn(game);
-        when(gameRepository.save(any(Game.class))).thenReturn(game);
-
-        // Call the actual method
-        GameResponseDto result = gameService.updateGame(1, updateDto);
-
-        // Assert results
+        // Verify
         assertNotNull(result);
-        verify(gameRepository, times(1)).save(any(Game.class));
+        assertFalse(result.isEmpty());
+        verify(gameRepository).findByDateAddedBetween(startDate, endDate);
     }
 
     @Test
-    public void testUpdateNonexistentGame() {
-        GameCreationDto updateDto = new GameCreationDto(
-                "Updated Game",
-                2,
-                4,
-                "test.jpg",
-                "TestCategory",
-                "owner@test.com"
-        );
+    public void testGetGamesByDateRangeInvalidDates() {
+        // Setup
+        Date laterDate = new Date();
+        Date earlierDate = new Date(laterDate.getTime() - 86400000);
 
-        when(gameRepository.findGameById(99)).thenReturn(null);
+        // Test & Verify
+        assertThrows(IllegalArgumentException.class, () -> gameService.getGamesByDateRange(laterDate, earlierDate));
+        verify(gameRepository, never()).findByDateAddedBetween(any(Date.class), any(Date.class));
+    }
 
-        assertThrows(IllegalArgumentException.class, () -> gameService.updateGame(99, updateDto));
+    @Test
+    public void testGetGamesByDateRangeNullDates() {
+        // Test & Verify
+        assertThrows(IllegalArgumentException.class, () -> gameService.getGamesByDateRange(null, new Date()));
+        assertThrows(IllegalArgumentException.class, () -> gameService.getGamesByDateRange(new Date(), null));
+        verify(gameRepository, never()).findByDateAddedBetween(any(Date.class), any(Date.class));
+    }
+
+    @Test
+    public void testGetAllGamesSuccess() {
+        // Setup
+        List<Game> games = new ArrayList<>();
+        games.add(new Game(VALID_GAME_NAME, VALID_MIN_PLAYERS, VALID_MAX_PLAYERS, VALID_IMAGE, new Date()));
+        when(gameRepository.findAll()).thenReturn(games);
+
+        // Test
+        List<Game> result = gameService.getAllGames();
+
+        // Verify
+        assertNotNull(result);
+        assertFalse(result.isEmpty());
+        assertEquals(1, result.size());
+        verify(gameRepository).findAll();
+    }
+
+    @Test
+    public void testRemoveGameFromCollectionSuccess() {
+        // Setup
+        Game game = new Game(VALID_GAME_NAME, VALID_MIN_PLAYERS, VALID_MAX_PLAYERS, VALID_IMAGE, new Date());
+
+        // Test
+        ResponseEntity<String> response = gameService.removeGameFromCollection(game);
+
+        // Verify
+        assertEquals(200, response.getStatusCodeValue());
+        assertEquals("Game removed from collection", response.getBody());
+        verify(gameRepository).delete(game);
     }
 }

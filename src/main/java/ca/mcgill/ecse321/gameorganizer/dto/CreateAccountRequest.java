@@ -19,5 +19,15 @@ public class CreateAccountRequest {
 
     private boolean gameOwner;
 
-    public CreateAccountRequest(String email, String username, String password, boolean gameOwner) {}
+    public CreateAccountRequest(String email, String username, String password, boolean gameOwner) {
+        this.email = email;
+        this.username = username;
+        this.password = password;
+        this.gameOwner = gameOwner;
+    }
+
+    // Default constructor needed for JSON deserialization
+    public CreateAccountRequest() {
+        this.gameOwner = false;
+    }
 }

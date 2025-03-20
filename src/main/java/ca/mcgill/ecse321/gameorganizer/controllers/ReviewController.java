@@ -18,6 +18,7 @@ import java.util.List;
  * @author Alexander
  */
 @RestController
+@RequestMapping("/api/v1/reviews")
 public class ReviewController {
 
     @Autowired
@@ -29,7 +30,7 @@ public class ReviewController {
      * @param reviewDto Data for the new review
      * @return The created review
      */
-    @PostMapping("/reviews")
+    @PostMapping
     public ResponseEntity<ReviewResponseDto> submitReview(@RequestBody ReviewSubmissionDto reviewDto) {
         ReviewResponseDto createdReview = gameService.submitReview(reviewDto);
         return new ResponseEntity<>(createdReview, HttpStatus.CREATED);
@@ -41,7 +42,7 @@ public class ReviewController {
      * @param id ID of the review to retrieve
      * @return The requested review
      */
-    @GetMapping("/reviews/{id}")
+    @GetMapping("/{id}")
     public ResponseEntity<ReviewResponseDto> getReviewById(@PathVariable int id) {
         ReviewResponseDto review = gameService.getReviewById(id);
         return ResponseEntity.ok(review);
@@ -66,7 +67,7 @@ public class ReviewController {
      * @param gameName Name of the game to find reviews for
      * @return List of reviews for games with the specified name
      */
-    @GetMapping("/reviews/game")
+    @GetMapping("/game")
     public ResponseEntity<List<ReviewResponseDto>> getReviewsByGameName(@RequestParam String gameName) {
         List<ReviewResponseDto> reviews = gameService.getReviewsByGameName(gameName);
         return ResponseEntity.ok(reviews);
@@ -79,7 +80,7 @@ public class ReviewController {
      * @param reviewDto Updated review data
      * @return The updated review
      */
-    @PutMapping("/reviews/{id}")
+    @PutMapping("/{id}")
     public ResponseEntity<ReviewResponseDto> updateReview(
             @PathVariable int id,
             @RequestBody ReviewSubmissionDto reviewDto) {
@@ -93,7 +94,7 @@ public class ReviewController {
      * @param id ID of the review to delete
      * @return Confirmation message
      */
-    @DeleteMapping("/reviews/{id}")
+    @DeleteMapping("/{id}")
     public ResponseEntity<String> deleteReview(@PathVariable int id) {
         return gameService.deleteReview(id);
     }

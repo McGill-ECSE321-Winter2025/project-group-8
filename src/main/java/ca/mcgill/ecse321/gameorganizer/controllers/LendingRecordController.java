@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Collections;
 
 /**
  * REST controller for managing lending records.
@@ -37,7 +38,7 @@ import java.util.HashMap;
  * @author @YoussGm3o8
  */
 @RestController
-@RequestMapping("/api/lending-records")
+@RequestMapping("/api/v1/lending-records")
 public class LendingRecordController {
 
     @Autowired
@@ -88,9 +89,11 @@ public class LendingRecordController {
         int end = Math.min((start + pageable.getPageSize()), allRecords.size());
         
         // Check if start is valid
+        int adjustedPage = page;
         if (start > allRecords.size()) {
             start = 0;
             end = Math.min(pageable.getPageSize(), allRecords.size());
+            adjustedPage = 0;
         }
         
         List<LendingRecord> paginatedRecords = allRecords.subList(start, end);
@@ -103,7 +106,7 @@ public class LendingRecordController {
         // Create response with pagination metadata
         Map<String, Object> response = new HashMap<>();
         response.put("records", recordDtos);
-        response.put("currentPage", page);
+        response.put("currentPage", adjustedPage);
         response.put("totalItems", allRecords.size());
         response.put("totalPages", (int) Math.ceil((double) allRecords.size() / size));
         
@@ -196,11 +199,19 @@ public class LendingRecordController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Date startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Date endDate) {
         try {
+            // Validate that the start date is before the end date
+            if (startDate.after(endDate)) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Collections.emptyList());
+            }
+
+            // Validate owner existence
+            GameOwner owner = (GameOwner) accountService.getAccountById(ownerId);
+
             List<LendingRecord> records = lendingRecordService.getLendingRecordsByDateRange(startDate, endDate);
             
             // Further filter by owner
             List<LendingRecord> filteredRecords = records.stream()
-                    .filter(record -> record.getRecordOwner().getId() == ownerId)
+                    .filter(record -> record.getRecordOwner().getId() == owner.getId())
                     .collect(Collectors.toList());
             
             List<LendingRecordResponseDto> recordDtos = filteredRecords.stream()
@@ -209,7 +220,7 @@ public class LendingRecordController {
             
             return ResponseEntity.ok(recordDtos);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Collections.emptyList());
         }
     }
 
@@ -379,6 +390,7 @@ public class LendingRecordController {
             if (start > filteredRecords.size()) {
                 start = 0;
                 end = Math.min(size, filteredRecords.size());
+                page = 0; // Adjust currentPage to 0 when no records are available
             }
             
             List<LendingRecord> paginatedRecords = filteredRecords.subList(start, end);
@@ -439,6 +451,12 @@ public class LendingRecordController {
             int ownerId = (int) requestDetails.get("ownerId");
             Date startDate = new Date((long) requestDetails.get("startDate"));
             Date endDate = new Date((long) requestDetails.get("endDate"));
+            
+            // Validate that end date is after start date
+            if (endDate.before(startDate) || endDate.equals(startDate)) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("End date must be after start date");
+            }
             
             // Get the game owner
             GameOwner owner = (GameOwner) accountService.getAccountById(ownerId);
@@ -740,4 +758,4 @@ class LendingRecordControllerAdvice {
         
         return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
-} 
+}

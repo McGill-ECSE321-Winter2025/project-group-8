@@ -1,15 +1,24 @@
 package ca.mcgill.ecse321.gameorganizer.controllers;
 
-import ca.mcgill.ecse321.gameorganizer.dto.BorrowRequestDto;
-import ca.mcgill.ecse321.gameorganizer.dto.CreateBorrowRequestDto;
-import ca.mcgill.ecse321.gameorganizer.services.BorrowRequestService;
+import java.util.List;
+import java.util.stream.Collectors;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.List;
+import ca.mcgill.ecse321.gameorganizer.dto.BorrowRequestDto;
+import ca.mcgill.ecse321.gameorganizer.dto.CreateBorrowRequestDto;
+import ca.mcgill.ecse321.gameorganizer.services.BorrowRequestService;
 
 /**
  * Controller for managing borrow requests.
@@ -18,7 +27,7 @@ import java.util.List;
  * @author Rayan Baida
  */
 @RestController
-@RequestMapping("/borrowrequests")
+@RequestMapping("/api/v1/borrowrequests")
 public class BorrowRequestController {
 
     private final BorrowRequestService borrowRequestService;
@@ -107,4 +116,33 @@ public class BorrowRequestController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Borrow request with ID " + id + " not found.");
         }
     }
+
+    /**
+     * Retrieve borrow requests filtered by status.
+     *
+     * @param status The status to filter by (e.g., "PENDING", "APPROVED", etc.).
+     * @return A list of borrow requests with the specified status.
+     */
+    @GetMapping("/status/{status}")
+    public ResponseEntity<List<BorrowRequestDto>> getBorrowRequestsByStatus(@PathVariable String status) {
+        List<BorrowRequestDto> filteredRequests = borrowRequestService.getAllBorrowRequests().stream()
+                .filter(request -> request.getStatus().equalsIgnoreCase(status))
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(filteredRequests);
+    }
+
+    /**
+     * Retrieve all borrow requests for a particular requester.
+     * 
+     * @param requesterId The ID of the user who initiated the borrow request.
+     * @return A list of borrow requests for the specified requester.
+     */
+    @GetMapping("/requester/{requesterId}")
+    public ResponseEntity<List<BorrowRequestDto>> getBorrowRequestsByRequester(@PathVariable int requesterId) {
+        List<BorrowRequestDto> filteredRequests = borrowRequestService.getAllBorrowRequests().stream()
+                .filter(request -> request.getRequesterId() == requesterId)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(filteredRequests);
+    }
+
 }

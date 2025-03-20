@@ -1,5 +1,8 @@
 package ca.mcgill.ecse321.gameorganizer.services;
 
+import java.util.Date;
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -8,17 +11,15 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Date;
-import java.util.List;
-import ca.mcgill.ecse321.gameorganizer.models.LendingRecord;
-import ca.mcgill.ecse321.gameorganizer.models.LendingRecord.LendingStatus;
-import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
-import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
-import ca.mcgill.ecse321.gameorganizer.models.Account;
-import ca.mcgill.ecse321.gameorganizer.repositories.LendingRecordRepository;
-import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;
 import ca.mcgill.ecse321.gameorganizer.dto.LendingHistoryFilterDto;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
+import ca.mcgill.ecse321.gameorganizer.models.Account;
+import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
+import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
+import ca.mcgill.ecse321.gameorganizer.models.LendingRecord;
+import ca.mcgill.ecse321.gameorganizer.models.LendingRecord.LendingStatus;
+import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.LendingRecordRepository;
 
 /**
  * Service class that handles business logic for lending record operations.
@@ -65,9 +66,15 @@ public class LendingRecordService {
                 throw new IllegalArgumentException("Required parameters cannot be null");
             }
 
-            // Validate owner
-            if (!request.getRequestedGame().getOwner().equals(owner)) {
+            // Validate owner consistency: the owner of the game must match the passed owner.
+            if (request.getRequestedGame() == null || request.getRequestedGame().getOwner() == null ||
+                request.getRequestedGame().getOwner().getId() != owner.getId()) {
                 throw new IllegalArgumentException("The record owner must be the owner of the game in the borrow request");
+            }
+
+            // Check if the BorrowRequest is already associated with an existing LendingRecord
+            if (lendingRecordRepository.findByRequest(request).isPresent()) {
+                throw new IllegalArgumentException("The borrow request already has a lending record associated with it");
             }
 
             // Validate dates
@@ -75,12 +82,13 @@ public class LendingRecordService {
             if (endDate.before(startDate)) {
                 throw new IllegalArgumentException("End date cannot be before start date");
             }
-            if (startDate.before(now)) {
+            // Allow a margin of 1 second for the start date (to account for processing delays)
+            if (startDate.getTime() < now.getTime() - 1000) {
                 throw new IllegalArgumentException("Start date cannot be in the past");
             }
 
             // Create and save new lending record
-            LendingRecord record = new LendingRecord(startDate, endDate, LendingRecord.LendingStatus.ACTIVE, request, owner);
+            LendingRecord record = new LendingRecord(startDate, endDate, LendingStatus.ACTIVE, request, owner);
             lendingRecordRepository.save(record);
 
             return ResponseEntity.ok("Lending record created successfully");
@@ -109,7 +117,7 @@ public class LendingRecordService {
         BorrowRequest request = borrowRequestRepository.findBorrowRequestById(requestId)
                 .orElseThrow(() -> new IllegalArgumentException("No borrow request found with ID " + requestId));
                 
-        // Now use the existing method to create the lending record
+        // Delegate to the other method
         return createLendingRecord(startDate, endDate, request, owner);
     }
 
@@ -190,17 +198,14 @@ public class LendingRecordService {
      */
     @Transactional
     public List<LendingRecord> filterLendingRecords(LendingHistoryFilterDto filterDto) {
-        // Convert string status to enum if provided
         LendingStatus status = null;
         if (filterDto.getStatus() != null && !filterDto.getStatus().isEmpty()) {
             try {
                 status = LendingStatus.valueOf(filterDto.getStatus().toUpperCase());
             } catch (IllegalArgumentException e) {
-                // Invalid status - will be treated as null (no filter)
+                // Invalid status is ignored
             }
         }
-        
-        // Use the new repository method for database-level filtering
         return lendingRecordRepository.filterLendingRecords(
             filterDto.getFromDate(),
             filterDto.getToDate(),
@@ -219,17 +224,14 @@ public class LendingRecordService {
      */
     @Transactional
     public Page<LendingRecord> filterLendingRecordsPaginated(LendingHistoryFilterDto filterDto, Pageable pageable) {
-        // Convert string status to enum if provided
         LendingStatus status = null;
         if (filterDto.getStatus() != null && !filterDto.getStatus().isEmpty()) {
             try {
                 status = LendingStatus.valueOf(filterDto.getStatus().toUpperCase());
             } catch (IllegalArgumentException e) {
-                // Invalid status - will be treated as null (no filter)
+                // Invalid status is ignored
             }
         }
-        
-        // Use the new repository method for database-level filtering with pagination
         return lendingRecordRepository.filterLendingRecords(
             filterDto.getFromDate(),
             filterDto.getToDate(),
@@ -258,36 +260,30 @@ public class LendingRecordService {
             throw new IllegalArgumentException("New status cannot be null");
         }
         
-        LendingRecord record = getLendingRecordById(id);
+        LendingRecord record;
+        try {
+            record = getLendingRecordById(id);
+        } catch (ResourceNotFoundException e) {
+            return createErrorResponse(HttpStatus.NOT_FOUND, e.getMessage());
+        }
         LendingStatus currentStatus = record.getStatus();
         
-        // Don't update if status is not changing
         if (currentStatus == newStatus) {
             return ResponseEntity.ok("Status already set to " + newStatus.name());
         }
         
-        // Validate state transitions based on business rules
         validateStatusTransition(record, newStatus);
         
-        // Perform automatic status updates if needed
         if (isRecordOverdue(record) && newStatus == LendingStatus.ACTIVE) {
-            // If a record is actually overdue but someone tries to set it to ACTIVE,
-            // automatically set it to OVERDUE instead
             record.setStatus(LendingStatus.OVERDUE);
-            
-            // Record audit information
             record.setLastModifiedDate(new Date());
             record.setLastModifiedBy(userId);
             record.setStatusChangeReason("System automated change: Record is overdue");
-            
             lendingRecordRepository.save(record);
             return ResponseEntity.ok("Record is overdue - status automatically set to OVERDUE instead of ACTIVE");
         }
         
-        // Update the status
         record.setStatus(newStatus);
-        
-        // Record audit information
         record.setLastModifiedDate(new Date());
         record.setLastModifiedBy(userId);
         record.setStatusChangeReason(reason != null ? reason : "Status updated by user");
@@ -307,7 +303,6 @@ public class LendingRecordService {
      */
     @Transactional
     public ResponseEntity<String> updateStatus(int id, LendingStatus newStatus) {
-        // Call the full method with null audit values
         return updateStatus(id, newStatus, null, "Status updated via API");
     }
     
@@ -321,21 +316,15 @@ public class LendingRecordService {
     private void validateStatusTransition(LendingRecord record, LendingStatus newStatus) {
         LendingStatus currentStatus = record.getStatus();
         
-        // Rule 1: Cannot change status of a closed record
         if (currentStatus == LendingStatus.CLOSED && newStatus != LendingStatus.CLOSED) {
             throw new IllegalStateException(
                 String.format("Cannot change status of a closed lending record (ID: %d)", record.getId()));
         }
         
-        // Rule 2: Cannot set to ACTIVE if the end date is in the past
         if (newStatus == LendingStatus.ACTIVE && isRecordOverdue(record)) {
             throw new IllegalStateException(
                 String.format("Cannot set record (ID: %d) to ACTIVE as it is overdue", record.getId()));
         }
-        
-        // Additional rules could be added here, for example:
-        // - Only certain user roles can make certain transitions
-        // - Transitions might require additional data (like return verification)
     }
     
     /**
@@ -349,7 +338,7 @@ public class LendingRecordService {
         Date now = new Date();
         return record.getEndDate().before(now);
     }
-
+    
     /**
      * Closes a lending record by setting its status to CLOSED.
      * Performs additional validation before closing the record.
@@ -357,7 +346,7 @@ public class LendingRecordService {
      * @param id The ID of the record to close
      * @param userId ID of the user closing the record
      * @param reason Reason for closing the record
-     * @return ResponseEntity with the result of the operation
+     * @return ResponseEntity with the result of the operation including the updated record ID
      * @throws IllegalArgumentException if no record is found with the given ID
      * @throws IllegalStateException if the record is already closed or cannot be closed
      */
@@ -366,12 +355,10 @@ public class LendingRecordService {
         LendingRecord record = getLendingRecordById(id);
         LendingStatus currentStatus = record.getStatus();
         
-        // Check if already closed
         if (currentStatus == LendingStatus.CLOSED) {
             throw new IllegalStateException("Lending record is already closed");
         }
         
-        // Record closing with audit information
         record.recordClosing(userId, reason != null ? reason : "Game returned in good condition");
         
         lendingRecordRepository.save(record);
@@ -414,17 +401,14 @@ public class LendingRecordService {
         LendingRecord record = getLendingRecordById(id);
         LendingStatus currentStatus = record.getStatus();
         
-        // Check if already closed
         if (currentStatus == LendingStatus.CLOSED) {
             throw new IllegalStateException("Lending record is already closed");
         }
         
-        // Record damage information
         if (isDamaged) {
             record.recordDamage(true, damageNotes, damageSeverity);
         }
         
-        // Prepare closing reason
         String damageDetails = isDamaged ? 
                 String.format("Game returned with %s damage.", 
                         damageSeverity == 1 ? "minor" : 
@@ -434,7 +418,6 @@ public class LendingRecordService {
                 
         String closingReason = reason != null ? reason + ". " + damageDetails : damageDetails;
         
-        // Record closing with audit information
         record.recordClosing(userId, closingReason);
         
         lendingRecordRepository.save(record);
@@ -457,7 +440,7 @@ public class LendingRecordService {
             int id, boolean isDamaged, String damageNotes, int damageSeverity) {
         return closeLendingRecordWithDamageAssessment(id, isDamaged, damageNotes, damageSeverity, null, null);
     }
-
+    
     /**
      * Finds overdue lending records.
      *
@@ -467,7 +450,7 @@ public class LendingRecordService {
     public List<LendingRecord> findOverdueRecords() {
         return lendingRecordRepository.findByEndDateBeforeAndStatus(new Date(), LendingStatus.ACTIVE);
     }
-
+    
     /**
      * Updates the end date of a lending record.
      *
@@ -498,7 +481,7 @@ public class LendingRecordService {
         
         return ResponseEntity.ok("End date updated successfully");
     }
-
+    
     /**
      * Deletes a lending record.
      *
@@ -508,13 +491,17 @@ public class LendingRecordService {
      */
     @Transactional
     public ResponseEntity<String> deleteLendingRecord(int id) {
-        LendingRecord record = getLendingRecordById(id);
-        
-        if (record.getStatus() == LendingStatus.ACTIVE) {
-            throw new IllegalStateException("Cannot delete an active lending record");
-        }
+        try {
+            LendingRecord record = getLendingRecordById(id);
+            
+            if (record.getStatus() == LendingStatus.ACTIVE) {
+                throw new IllegalStateException("Cannot delete an active lending record");
+            }
 
-        lendingRecordRepository.delete(record);
-        return ResponseEntity.ok("Lending record deleted successfully");
+            lendingRecordRepository.delete(record);
+            return ResponseEntity.ok("Lending record deleted successfully");
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        }
     }
 }
