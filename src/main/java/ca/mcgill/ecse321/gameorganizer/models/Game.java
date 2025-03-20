@@ -1,12 +1,16 @@
 package ca.mcgill.ecse321.gameorganizer.models;
 
-import jakarta.persistence.*;
+import java.util.Date;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.ManyToOne;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-
-import java.util.Date;
-import java.util.List;
 
 /**
  * Represents a board game in the system.
@@ -23,9 +27,10 @@ public class Game {
 
     /** Unique identifier for the game */
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.AUTO)
     private int id;
 
+    @Column(unique = true) // Should make names unique in db
     /** Name of the game */
     private String name;
 
@@ -47,6 +52,8 @@ public class Game {
     /** Owner of the game */
     @ManyToOne
     private GameOwner owner;
+
+
 
     /**
      * Creates a new game with the specified details.

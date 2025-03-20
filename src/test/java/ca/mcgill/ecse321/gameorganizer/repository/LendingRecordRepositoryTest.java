@@ -1,36 +1,35 @@
 package ca.mcgill.ecse321.gameorganizer.repository;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import java.util.Date;
 import java.util.List;
 
 import org.junit.jupiter.api.AfterEach;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 
-import ca.mcgill.ecse321.gameorganizer.models.*;
-import ca.mcgill.ecse321.gameorganizer.repositories.*;
+import ca.mcgill.ecse321.gameorganizer.models.Account;
+import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
+import ca.mcgill.ecse321.gameorganizer.models.BorrowRequestStatus;
+import ca.mcgill.ecse321.gameorganizer.models.Game;
+import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
+import ca.mcgill.ecse321.gameorganizer.models.LendingRecord;
+import ca.mcgill.ecse321.gameorganizer.repositories.LendingRecordRepository;
 
-@SpringBootTest
+@DataJpaTest
 public class LendingRecordRepositoryTest {
     
     @Autowired
+    private TestEntityManager entityManager;
+    
+    @Autowired
     private LendingRecordRepository lendingRecordRepository;
-    
-    @Autowired
-    private AccountRepository gameOwnerRepository;
-    
-    @Autowired
-    private GameRepository gameRepository;
-    
-    @Autowired
-    private AccountRepository accountRepository;
-    
-    @Autowired
-    private BorrowRequestRepository borrowRequestRepository;
 
     private GameOwner owner;
     private Game game;
@@ -47,31 +46,30 @@ public class LendingRecordRepositoryTest {
         endDate = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days after start
 
         owner = new GameOwner("Test Owner", "owner@test.com", "password123");
-        gameOwnerRepository.save(owner);
+        owner = entityManager.persist(owner);
 
         game = new Game("Test Game", 2, 4, "test.jpg", new Date());
         game.setOwner(owner);
-        gameRepository.save(game);
+        game = entityManager.persist(game);
 
         borrower = new Account("Test Borrower", "borrower@test.com", "password123");
-        accountRepository.save(borrower);
+        borrower = entityManager.persist(borrower);
 
         request = new BorrowRequest(startDate, endDate, BorrowRequestStatus.APPROVED, new Date(), game);
         request.setRequester(borrower);
         request.setResponder(owner);
-        borrowRequestRepository.save(request);
+        request = entityManager.persist(request);
 
         record = new LendingRecord(startDate, endDate, LendingRecord.LendingStatus.ACTIVE, request, owner);
-        lendingRecordRepository.save(record);
+        record = entityManager.persistAndFlush(record);
+
+        entityManager.clear();
     }
 
     @AfterEach
     public void cleanup() {
         lendingRecordRepository.deleteAll();
-        borrowRequestRepository.deleteAll();
-        gameRepository.deleteAll();
-        gameOwnerRepository.deleteAll();
-        accountRepository.deleteAll();
+        entityManager.flush();
     }
 
     @Test
@@ -119,14 +117,14 @@ public class LendingRecordRepositoryTest {
         Date pastStart = new Date(System.currentTimeMillis() - 14 * 24 * 60 * 60 * 1000); // 14 days ago
         Date pastEnd = new Date(System.currentTimeMillis() - 7 * 24 * 60 * 60 * 1000); // 7 days ago
         
-        // Create new borrow request for the overdue record
         BorrowRequest overdueRequest = new BorrowRequest(pastStart, pastEnd, BorrowRequestStatus.APPROVED, new Date(), game);
         overdueRequest.setRequester(borrower);
         overdueRequest.setResponder(owner);
-        borrowRequestRepository.save(overdueRequest);
+        overdueRequest = entityManager.persist(overdueRequest);
         
         LendingRecord overdueRecord = new LendingRecord(pastStart, pastEnd, LendingRecord.LendingStatus.ACTIVE, overdueRequest, owner);
-        lendingRecordRepository.save(overdueRecord);
+        overdueRecord = entityManager.persistAndFlush(overdueRecord);
+        entityManager.clear();
 
         List<LendingRecord> overdueRecords = lendingRecordRepository.findByEndDateBeforeAndStatus(
             new Date(), LendingRecord.LendingStatus.ACTIVE);
@@ -145,13 +143,22 @@ public class LendingRecordRepositoryTest {
 
     @Test
     public void testCascadeDelete() {
-        // Test that deleting a lending record doesn't cascade to related entities
+        // Store IDs for verification
+        final int ownerId = owner.getId();
+        final int gameId = game.getId();
+        final int borrowerId = borrower.getId();
+        final int requestId = request.getId();
+
+        // Delete the lending record
         lendingRecordRepository.delete(record);
+        entityManager.flush();
+        entityManager.clear();
         
-        assertTrue(gameOwnerRepository.existsById(owner.getId()));
-        assertTrue(gameRepository.existsById(game.getId()));
-        assertTrue(accountRepository.existsById(borrower.getId()));
-        assertTrue(borrowRequestRepository.existsById(request.getId()));
+        // Verify that related entities still exist
+        assertNotNull(entityManager.find(GameOwner.class, ownerId));
+        assertNotNull(entityManager.find(Game.class, gameId));
+        assertNotNull(entityManager.find(Account.class, borrowerId));
+        assertNotNull(entityManager.find(BorrowRequest.class, requestId));
     }
 
     @Test
@@ -173,28 +180,25 @@ public class LendingRecordRepositoryTest {
     }
 
     @Test
-    public void testUpdateAttributes() {
-        // Test updating various attributes
+    public void testUpdateBasicAttributes() {
         LendingRecord found = lendingRecordRepository.findLendingRecordById(record.getId()).orElse(null);
         assertNotNull(found);
         
-        // Update dates
+        // Update dates and status
         Date newStartDate = new Date(startDate.getTime() + 86400000); // +1 day
         Date newEndDate = new Date(endDate.getTime() + 86400000); // +1 day
         found.setStartDate(newStartDate);
         found.setEndDate(newEndDate);
+        found.setStatus(LendingRecord.LendingStatus.CLOSED);
         
-        // Update status
-        found.setStatus(LendingRecord.LendingStatus.OVERDUE);
-        
-        // Save changes
-        lendingRecordRepository.save(found);
+        entityManager.persistAndFlush(found);
+        entityManager.clear();
         
         // Verify changes persisted
         LendingRecord updated = lendingRecordRepository.findLendingRecordById(record.getId()).orElse(null);
         assertNotNull(updated);
         assertEquals(newStartDate, updated.getStartDate());
         assertEquals(newEndDate, updated.getEndDate());
-        assertEquals(LendingRecord.LendingStatus.OVERDUE, updated.getStatus());
+        assertEquals(LendingRecord.LendingStatus.CLOSED, updated.getStatus());
     }
 }

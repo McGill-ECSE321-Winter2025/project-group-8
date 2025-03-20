@@ -7,6 +7,7 @@ import lombok.Setter;
 
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Represents a gaming event in the system.
@@ -25,8 +26,8 @@ public class Event {
      * Unique identifier for the event.
      */
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    private int id;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
     /**
      * The title or name of the event.
@@ -66,7 +67,7 @@ public class Event {
     private Account host;
 
     /**
-     * Creates a new event with the specified details.
+     * Creates a new event with the specified details. (except host)
      *
      * @param aTitle The title of the event
      * @param aDateTime The date and time when the event will occur
@@ -82,6 +83,27 @@ public class Event {
         description = aDescription;
         maxParticipants = aMaxParticipants;
         featuredGame = aFeaturedGame;
+    }
+
+    /**
+     * Creates a new event with the specified details.
+     *
+     * @param aTitle The title of the event
+     * @param aDateTime The date and time when the event will occur
+     * @param aLocation The location where the event will be held
+     * @param aDescription A description of the event
+     * @param aMaxParticipants The maximum number of participants allowed
+     * @param aFeaturedGame The game that will be featured at the event
+     * @param host The account of the user hosting the event
+     */
+    public Event(String aTitle, Date aDateTime, String aLocation, String aDescription, int aMaxParticipants, Game aFeaturedGame, Account aHost) {
+        title = aTitle;
+        dateTime = aDateTime;
+        location = aLocation;
+        description = aDescription;
+        maxParticipants = aMaxParticipants;
+        featuredGame = aFeaturedGame;
+        this.host = aHost;
     }
 
     /**
