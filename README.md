@@ -37,7 +37,7 @@ The build system documentation can be found [here](https://github.com/McGill-ECS
 | Youssef El Kesti                  | Scrum Master         | 6                   | 12                   | X                   | X           |
 | David Wang                        | Project Manager      | 5.5                   | X                   | X                   | X           |
 | Yessine Chaari                    | DevOps               | 8.0                   | X                   | X                   | X           |
-| Rayan Baida                       | Fullstack Developer  | 7.5                   | X                   | X                   | X           |
+| Rayan Baida                       | Fullstack Developer  | 7.5                   | 17                   | X                   | X           |
 - The details on the contribution of each member are available at [Team Contribution Report](https://github.com/McGill-ECSE321-Winter2025/project-group-8/wiki/Team-contributions#team-contributions), as well as [projects/Deliverable1](https://github.com/orgs/McGill-ECSE321-Winter2025/projects/22), and [meeting minutes](https://github.com/McGill-ECSE321-Winter2025/project-group-8/wiki/Project-report#meeting-minutes)
 
 ## Info on Project Branches
