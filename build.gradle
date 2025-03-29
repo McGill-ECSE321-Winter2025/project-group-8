@@ -1,32 +1,89 @@
 plugins {
-	id 'java'
-	id 'org.springframework.boot' version '3.4.2'
-	id 'io.spring.dependency-management' version '1.1.7'
-	id("io.freefair.lombok") version "8.12.1"
+    id 'java'
+    id 'org.springframework.boot' version '3.2.3'
+    id 'io.spring.dependency-management' version '1.1.4'
+    id("io.freefair.lombok") version "8.12.1"
+    id 'jacoco'
 }
 
 group = 'ca.mcgill.ecse321'
 version = '0.0.1-SNAPSHOT'
 
 java {
-	toolchain {
-		languageVersion = JavaLanguageVersion.of(21)
-	}
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
 }
 
 repositories {
-	mavenCentral()
+    mavenCentral()
 }
 
 dependencies {
-	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-	implementation 'org.springframework.boot:spring-boot-starter-web'
-	runtimeOnly 'org.postgresql:postgresql'
-	testImplementation 'org.springframework.boot:spring-boot-starter-test'
-	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-	testImplementation 'com.h2database:h2'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'jakarta.validation:jakarta.validation-api'
+    runtimeOnly 'org.postgresql:postgresql'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation 'com.h2database:h2'
+
+    // Servlet API
+    implementation 'jakarta.servlet:jakarta.servlet-api:6.0.0'
+
+    // Spring Security
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+
+    // JWT
+    implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
+
+    // Mockito
+    testImplementation 'org.mockito:mockito-core:5.10.0'
 }
 
+// Ensure unit tests run with JUnit
 tasks.named('test') {
-	useJUnitPlatform()
+    useJUnitPlatform()
+    // JaCoCo report runs after tests
+    finalizedBy tasks.jacocoTestReport
 }
+
+// Configure JaCoCo for test coverage
+jacoco {
+    toolVersion = "0.8.11"
+}
+
+tasks.jacocoTestReport {
+    dependsOn tasks.test
+    reports {
+        xml.required = true
+        csv.required = false
+        html.outputLocation = layout.buildDirectory.dir('reports/jacocoHtml')
+    }
+}
+
+tasks.jacocoTestCoverageVerification {
+    dependsOn tasks.jacocoTestReport
+    violationRules {
+        rule {
+            limit {
+                minimum = 0.50 // 50% test coverage threshold
+            }
+        }
+    }
+}
+
+task integrationTest(type: Test) {
+    useJUnitPlatform()
+    shouldRunAfter test
+    filter {
+        includeTestsMatching "ca.mcgill.ecse321.gameorganizer.integration.*IntegrationTests"
+    }
+    testLogging {
+        events "passed", "skipped", "failed"
+    }
+}
+
+check.dependsOn integrationTest

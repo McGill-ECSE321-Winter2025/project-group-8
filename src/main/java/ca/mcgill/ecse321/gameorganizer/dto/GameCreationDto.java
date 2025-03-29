@@ -1,4 +1,4 @@
-package ca.mcgill.ecse321.gameorganizer.dtos;
+package ca.mcgill.ecse321.gameorganizer.dto;
 
 /**
  * DTO for game creation and update requests

@@ -1,193 +1,183 @@
 package ca.mcgill.ecse321.gameorganizer.repository;
 
 import java.util.Date;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.AfterEach;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
+import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.Registration;
-import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
-import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.RegistrationRepository;
-import ca.mcgill.ecse321.gameorganizer.services.RegistrationService;
 
-@SpringBootTest
+@DataJpaTest
 public class RegistrationRepositoryTest {
 
     @Autowired
-    private RegistrationService registrationService;
+    private TestEntityManager entityManager;
 
     @Autowired
     private RegistrationRepository registrationRepository;
 
-    @Autowired
-    private AccountRepository accountRepository;
-
-    @Autowired
-    private EventRepository eventRepository;
-
-    private Registration testRegistration;
-    private Account testAccount;
+    private Account testAttendee;
     private Event testEvent;
+    private Game testGame;
+    private Registration testRegistration;
     private Date testDate;
 
     @BeforeEach
     public void setUp() {
-        // Clear the database before each test
-        registrationRepository.deleteAll();
-        accountRepository.deleteAll();
-        eventRepository.deleteAll();
-
         // Create test data
         testDate = new Date();
         
-        // Create and save test account
-        testAccount = new Account();
-        testAccount.setEmail("test@example.com");
-        testAccount.setName("Test User");
-        testAccount.setPassword("password123"); // Set the required password field
-        // Set other required Account properties here
-        testAccount = accountRepository.save(testAccount);
+        // Create and save test attendee
+        testAttendee = new Account("Test User", "test@example.com", "password123");
+        testAttendee = entityManager.persist(testAttendee);
+
+        // Create and save test game
+        testGame = new Game("Test Game", 2, 4, "test.jpg", new Date());
+        testGame = entityManager.persist(testGame);
 
         // Create and save test event
-        testEvent = new Event();
-        testEvent.setTitle("Test Event");
-        // Set other required Event properties here
-        testEvent = eventRepository.save(testEvent);
+        testEvent = new Event("Test Event", new Date(), "Test Location", "Test Description", 10, testGame);
+        testEvent = entityManager.persist(testEvent);
+
+        // Create and save test registration
+        testRegistration = new Registration(testDate);
+        testRegistration.setAttendee(testAttendee);
+        testRegistration.setEventRegisteredFor(testEvent);
+        testRegistration = entityManager.persistAndFlush(testRegistration);
+
+        entityManager.clear();
     }
 
     @AfterEach
     public void cleanUp() {
         registrationRepository.deleteAll();
-        accountRepository.deleteAll();
-        eventRepository.deleteAll();
+        entityManager.flush();
     }
 
     @Test
-    public void testCreateRegistration() {
-        // Act
-        Registration result = registrationService.createRegistration(testDate, testAccount, testEvent);
+    public void testPersistAndLoadRegistration() {
+        // Create a new registration
+        Registration registration = new Registration(testDate);
+        registration.setAttendee(testAttendee);
+        registration.setEventRegisteredFor(testEvent);
 
-        // Assert
-        assertNotNull(result);
-        assertNotNull(result.getId());
-        assertEquals(testDate, result.getRegistrationDate());
-        assertEquals(testAccount.getId(), result.getAttendee().getId());
-        assertEquals(testEvent.getId(), result.getEventRegisteredFor().getId());
+        // Save the registration
+        registration = entityManager.persistAndFlush(registration);
+        int id = registration.getId();
 
-        // Verify it's in the database
-        Optional<Registration> storedRegistration = registrationRepository.findRegistrationById(result.getId());
-        assertTrue(storedRegistration.isPresent());
+        entityManager.clear();
+
+        // Retrieve the registration
+        Optional<Registration> retrievedOpt = registrationRepository.findRegistrationById(id);
+        assertTrue(retrievedOpt.isPresent(), "The registration should be present in the database");
+
+        Registration retrieved = retrievedOpt.get();
+        assertEquals(testDate, retrieved.getRegistrationDate());
+        assertEquals(testAttendee.getId(), retrieved.getAttendee().getId());
+        assertEquals(testEvent.getId(), retrieved.getEventRegisteredFor().getId());
     }
 
     @Test
-    public void testGetRegistration() {
-        // Arrange
-        Registration savedRegistration = registrationService.createRegistration(testDate, testAccount, testEvent);
-
-        // Act
-        Optional<Registration> result = registrationService.getRegistration(savedRegistration.getId());
-
-        // Assert
-        assertTrue(result.isPresent());
-        assertEquals(savedRegistration.getId(), result.get().getId());
-        assertEquals(testDate, result.get().getRegistrationDate());
+    public void testFindByAttendeeName() {
+        // Find registrations by attendee name
+        final String attendeeName = testAttendee.getName();
+        List<Registration> registrations = registrationRepository.findRegistrationByAttendeeName(attendeeName);
+        
+        assertFalse(registrations.isEmpty(), "Should find registrations for the attendee");
+        assertEquals(1, registrations.size(), "Should find exactly one registration");
+        assertEquals(testAttendee.getId(), registrations.get(0).getAttendee().getId());
+        assertEquals(testEvent.getId(), registrations.get(0).getEventRegisteredFor().getId());
     }
 
     @Test
-    public void testGetNonExistentRegistration() {
-        // Act
-        Optional<Registration> result = registrationService.getRegistration(999);
-
-        // Assert
-        assertFalse(result.isPresent());
-    }
-
-    @Test
-    public void testGetAllRegistrations() {
-        // Arrange
-        Registration registration1 = registrationService.createRegistration(testDate, testAccount, testEvent);
-        Registration registration2 = registrationService.createRegistration(new Date(), testAccount, testEvent);
-
-        // Act
-        Iterable<Registration> results = registrationService.getAllRegistrations();
-
-        // Assert
-        int count = 0;
-        for (Registration reg : results) {
-            count++;
-        }
-        assertEquals(2, count);
-    }
-
-    @Test
-    public void testUpdateRegistration() {
-        // Arrange
-        Registration savedRegistration = registrationService.createRegistration(testDate, testAccount, testEvent);
-        Date newDate = new Date(testDate.getTime() + 86400000); // Next day
-
-        // Create new account and event for update
-        Account newAccount = new Account();
-        newAccount.setEmail("new@example.com");
-        newAccount.setName("New User");
-        newAccount.setPassword("newpassword123"); // Set the required password field
-        // Set other required Account properties here
-        newAccount = accountRepository.save(newAccount);
-
-        Event newEvent = new Event();
-        newEvent.setTitle("New Event");
-        // Set other required Event properties here
-        newEvent = eventRepository.save(newEvent);
-
-        // Act
-        Registration result = registrationService.updateRegistration(
-            savedRegistration.getId(), 
-            newDate, 
-            newAccount, 
-            newEvent
-        );
-
-        // Assert
-        assertNotNull(result);
-        assertEquals(newDate, result.getRegistrationDate());
-        assertEquals(newAccount.getId(), result.getAttendee().getId());
-        assertEquals(newEvent.getId(), result.getEventRegisteredFor().getId());
-
-        // Verify changes are persisted
-        Optional<Registration> storedRegistration = registrationRepository.findRegistrationById(result.getId());
-        assertTrue(storedRegistration.isPresent());
-        assertEquals(newDate, storedRegistration.get().getRegistrationDate());
-    }
-
-    @Test
-    public void testUpdateNonExistentRegistration() {
-        // Act & Assert
-        assertThrows(IllegalArgumentException.class, () -> {
-            registrationService.updateRegistration(999, testDate, testAccount, testEvent);
-        });
+    public void testFindByNonExistentAttendeeName() {
+        // Find registrations for non-existent attendee
+        List<Registration> registrations = registrationRepository.findRegistrationByAttendeeName("NonExistentUser");
+        assertTrue(registrations.isEmpty(), "Should not find any registrations for non-existent attendee");
     }
 
     @Test
     public void testDeleteRegistration() {
-        // Arrange
-        Registration savedRegistration = registrationService.createRegistration(testDate, testAccount, testEvent);
-        assertTrue(registrationRepository.findRegistrationById(savedRegistration.getId()).isPresent());
+        // Get the ID before deletion
+        int id = testRegistration.getId();
 
-        // Act
-        registrationService.deleteRegistration(savedRegistration.getId());
+        // Delete the registration
+        registrationRepository.delete(testRegistration);
+        entityManager.flush();
 
-        // Assert
-        assertFalse(registrationRepository.findRegistrationById(savedRegistration.getId()).isPresent());
+        // Try to find the deleted registration
+        Optional<Registration> deletedOpt = registrationRepository.findRegistrationById(id);
+        assertFalse(deletedOpt.isPresent(), "The registration should be deleted from the database");
+    }
+
+    @Test
+    public void testUpdateRegistration() {
+        // Get the registration to update
+        Optional<Registration> registrationOpt = registrationRepository.findRegistrationById(testRegistration.getId());
+        assertTrue(registrationOpt.isPresent());
+        Registration registration = registrationOpt.get();
+
+        // Create a new date for update
+        Date newDate = new Date(testDate.getTime() + 86400000); // One day later
+        registration.setRegistrationDate(newDate);
+
+        // Save the updated registration
+        entityManager.persistAndFlush(registration);
+        entityManager.clear();
+
+        // Verify the update
+        Optional<Registration> updatedOpt = registrationRepository.findRegistrationById(registration.getId());
+        assertTrue(updatedOpt.isPresent());
+        assertEquals(newDate, updatedOpt.get().getRegistrationDate());
+    }
+
+    @Test
+    public void testMultipleRegistrationsForAttendee() {
+        // Create another event
+        Event secondEvent = new Event("Second Event", new Date(), "Another Location", "Another Description", 20, testGame);
+        secondEvent = entityManager.persist(secondEvent);
+
+        // Create another registration for the same attendee
+        Registration secondRegistration = new Registration(new Date());
+        secondRegistration.setAttendee(testAttendee);
+        secondRegistration.setEventRegisteredFor(secondEvent);
+        entityManager.persistAndFlush(secondRegistration);
+        entityManager.clear();
+
+        // Find all registrations for the attendee
+        final String attendeeName = testAttendee.getName();
+        List<Registration> registrations = registrationRepository.findRegistrationByAttendeeName(attendeeName);
+        assertEquals(2, registrations.size(), "Should find two registrations for the attendee");
+    }
+
+    @Test
+    public void testCascadeOnDelete() {
+        // Store IDs for verification
+        final Account storedAttendee = entityManager.find(Account.class, testAttendee.getId());
+        final Event storedEvent = entityManager.find(Event.class, testEvent.getId());
+        final Game storedGame = entityManager.find(Game.class, testGame.getId());
+
+        // Delete the registration
+        registrationRepository.delete(testRegistration);
+        entityManager.flush();
+        entityManager.clear();
+
+        // Verify that the related entities still exist
+        assertTrue(entityManager.find(Account.class, storedAttendee.getId()) != null, "Attendee should still exist");
+        assertTrue(entityManager.find(Event.class, storedEvent.getId()) != null, "Event should still exist");
+        assertTrue(entityManager.find(Game.class, storedGame.getId()) != null, "Game should still exist");
     }
 }

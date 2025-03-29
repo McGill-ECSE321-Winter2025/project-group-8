@@ -2,131 +2,99 @@ package ca.mcgill.ecse321.gameorganizer.repository;
 
 import java.util.Optional;
 
+import org.junit.jupiter.api.AfterEach;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import org.junit.jupiter.api.BeforeEach;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
-import static org.mockito.ArgumentMatchers.any;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import org.mockito.MockitoAnnotations;
-import org.springframework.http.ResponseEntity;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 
 import ca.mcgill.ecse321.gameorganizer.models.Account;
+import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
-import ca.mcgill.ecse321.gameorganizer.services.AccountService;
 
+@DataJpaTest
 public class AccountRepositoryTest {
 
-    @Mock
+    @Autowired
+    private TestEntityManager entityManager;
+
+    @Autowired
     private AccountRepository accountRepository;
 
-    @InjectMocks
-    private AccountService accountService;
-
-    private Account testAccount;
-
-    @BeforeEach
-    public void setUp() {
-        MockitoAnnotations.openMocks(this);
-        testAccount = new Account("TestUser", "test@example.com", "password123");
+    @AfterEach
+    public void clearDatabase() {
+        accountRepository.deleteAll();
+        entityManager.flush();
     }
 
     @Test
-    public void testCreateAccountSuccess() {
-        when(accountRepository.findByEmail(any(String.class))).thenReturn(Optional.empty());
-        when(accountRepository.save(any(Account.class))).thenReturn(testAccount);
+    public void testPersistAndLoadAccount() {
+        // Create a new Account instance
+        Account account = new Account("John Doe", "john.doe@example.com", "secret123");
 
-        ResponseEntity<String> response = accountService.createAccount(testAccount);
+        // Save the account using entity manager to ensure it's in the persistence context
+        account = entityManager.persistAndFlush(account);
 
-        assertEquals("Account created", response.getBody());
-        verify(accountRepository, times(1)).save(any(Account.class));
+        // Clear the persistence context to force a database read
+        entityManager.clear();
+
+        // Retrieve the account by its id
+        Account fetchedById = accountRepository.findById(account.getId()).orElse(null);
+        assertNotNull(fetchedById, "The account should be found");
+        assertEquals("John Doe", fetchedById.getName());
+        assertEquals("john.doe@example.com", fetchedById.getEmail());
+        assertEquals("secret123", fetchedById.getPassword());
+
+        // Test findByEmail
+        Optional<Account> fetchedByEmail = accountRepository.findByEmail("john.doe@example.com");
+        assertTrue(fetchedByEmail.isPresent(), "The account should be found by email");
+        assertEquals(account.getId(), fetchedByEmail.get().getId());
     }
 
     @Test
-    public void testCreateAccountFailure() {
-        when(accountRepository.findByEmail(testAccount.getEmail())).thenReturn(Optional.of(testAccount));
+    public void testPersistAndLoadGameOwner() {
+        // Create a new GameOwner instance
+        GameOwner gameOwner = new GameOwner("Jane Smith", "jane.smith@example.com", "password123");
 
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            accountService.createAccount(testAccount);
-        });
+        // Save the game owner using entity manager
+        gameOwner = entityManager.persistAndFlush(gameOwner);
 
-        assertEquals("Account with email test@example.com already exists", exception.getMessage());
-        verify(accountRepository, never()).save(any(Account.class));
+        // Clear the persistence context
+        entityManager.clear();
+
+        // Retrieve and verify
+        Account fetchedById = accountRepository.findById(gameOwner.getId()).orElse(null);
+        assertNotNull(fetchedById, "The game owner should be found");
+        assertTrue(fetchedById instanceof GameOwner, "The fetched account should be a GameOwner");
+        assertEquals("Jane Smith", fetchedById.getName());
+        assertEquals("jane.smith@example.com", fetchedById.getEmail());
+        assertEquals("password123", fetchedById.getPassword());
     }
 
     @Test
-    public void testGetAccountSuccess() {
-        when(accountRepository.findByEmail(testAccount.getEmail())).thenReturn(Optional.of(testAccount));
+    public void testDeleteAccount() {
+        // Create and save an account
+        Account account = new Account("Bob", "bob@example.com", "bobpass");
+        account = entityManager.persistAndFlush(account);
 
-        Account foundAccount = accountService.getAccountByEmail(testAccount.getEmail());
+        // Verify it exists
+        assertTrue(accountRepository.findById(account.getId()).isPresent(), "Account should exist before deletion");
 
-        assertNotNull(foundAccount);
-        assertEquals("TestUser", foundAccount.getName());
-        assertEquals("test@example.com", foundAccount.getEmail());
-        verify(accountRepository, times(1)).findByEmail(any(String.class));
+        // Delete the account
+        accountRepository.delete(account);
+        entityManager.flush();
+
+        // Verify it's deleted
+        assertFalse(accountRepository.findById(account.getId()).isPresent(), "Account should be deleted");
     }
 
     @Test
-    public void testGetAccountFailure() {
-        when(accountRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
-
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            accountService.getAccountByEmail("nonexistent@example.com");
-        });
-
-        assertEquals("Account with email nonexistent@example.com does not exist", exception.getMessage());
-    }
-
-    @Test
-    public void testUpdateAccountSuccess() {
-        when(accountRepository.findByEmail(testAccount.getEmail())).thenReturn(Optional.of(testAccount));
-
-        ResponseEntity<String> response = accountService.updateAccountByEmail(
-                testAccount.getEmail(), "UpdatedUser", "newpassword123");
-
-        assertEquals("Account updated successfully", response.getBody());
-        assertEquals("UpdatedUser", testAccount.getName());
-        assertEquals("newpassword123", testAccount.getPassword());
-
-        verify(accountRepository, times(1)).findByEmail(testAccount.getEmail());
-    }
-
-    @Test
-    public void testUpdateAccountFailure() {
-        when(accountRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
-
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            accountService.updateAccountByEmail("nonexistent@example.com", "NewUser", "newpassword");
-        });
-
-        assertEquals("Account with email nonexistent@example.com does not exist", exception.getMessage());
-    }
-
-    @Test
-    public void testDeleteAccountSuccess() {
-        when(accountRepository.findByEmail(testAccount.getEmail())).thenReturn(Optional.of(testAccount));
-
-        ResponseEntity<String> response = accountService.deleteAccountByEmail(testAccount.getEmail());
-
-        assertEquals("Account with email test@example.com has been deleted", response.getBody());
-        verify(accountRepository, times(1)).delete(testAccount);
-    }
-
-    @Test
-    public void testDeleteAccountFailure() {
-        when(accountRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
-
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            accountService.deleteAccountByEmail("nonexistent@example.com");
-        });
-
-        assertEquals("Account with email nonexistent@example.com does not exist", exception.getMessage());
-        verify(accountRepository, never()).delete(any(Account.class));
+    public void testFindByNonExistentEmail() {
+        Optional<Account> account = accountRepository.findByEmail("nonexistent@example.com");
+        assertFalse(account.isPresent(), "No account should be found for non-existent email");
     }
 }

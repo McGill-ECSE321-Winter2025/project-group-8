@@ -78,4 +78,12 @@ public interface ReviewRepository extends JpaRepository<Review, Integer> {
      * @return List of reviews with ratings at or above the minimum
      */
     List<Review> findByRatingGreaterThanEqual(int minRating);
+
+    /**
+     * Finds review(s) by the name of its reviewer
+     *
+     * @param username the name of the reviewer
+     * @return Optional containing the review if found, empty otherwise
+     */
+    List<Review> findReviewsByReviewerName(String username);
 }

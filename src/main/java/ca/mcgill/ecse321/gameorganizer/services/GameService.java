@@ -1,9 +1,11 @@
 package ca.mcgill.ecse321.gameorganizer.services;
 
-import ca.mcgill.ecse321.gameorganizer.dtos.GameCreationDto;
-import ca.mcgill.ecse321.gameorganizer.dtos.GameResponseDto;
-import ca.mcgill.ecse321.gameorganizer.dtos.ReviewResponseDto;
-import ca.mcgill.ecse321.gameorganizer.dtos.ReviewSubmissionDto;
+import ca.mcgill.ecse321.gameorganizer.dto.GameCreationDto;
+import ca.mcgill.ecse321.gameorganizer.dto.GameResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dto.GameSearchCriteria;
+import ca.mcgill.ecse321.gameorganizer.dto.ReviewResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dto.ReviewSubmissionDto;
+import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
@@ -19,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Service class that handles business logic for game management operations.
@@ -294,16 +297,27 @@ public class GameService {
         if (game == null) {
             throw new IllegalArgumentException("Game with ID " + id + " does not exist");
         }
-
+    
+        // Validate the update data
+        if (updateDto.getName() == null || updateDto.getName().trim().isEmpty()) {
+            throw new IllegalArgumentException("Game name cannot be empty");
+        }
+        if (updateDto.getMinPlayers() < 1) {
+            throw new IllegalArgumentException("Minimum players must be at least 1");
+        }
+        if (updateDto.getMaxPlayers() < updateDto.getMinPlayers()) {
+            throw new IllegalArgumentException("Maximum players must be greater than or equal to minimum players");
+        }
+    
         // Update only the fields you want to change
         game.setName(updateDto.getName());
         game.setMinPlayers(updateDto.getMinPlayers());
         game.setMaxPlayers(updateDto.getMaxPlayers());
         game.setImage(updateDto.getImage());
-
+    
         // Save the updated game
         gameRepository.save(game);
-
+    
         // Return the updated game as DTO
         return new GameResponseDto(game);
     }
@@ -466,25 +480,16 @@ public class GameService {
      */
     @Transactional
     public ReviewResponseDto updateReview(int id, ReviewSubmissionDto reviewDto) {
-        Optional<Review> reviewOpt = reviewRepository.findReviewById(id);
-        if (reviewOpt.isEmpty()) {
-            throw new IllegalArgumentException("Review with ID " + id + " does not exist");
-        }
-
-        Review review = reviewOpt.get();
-
-        // Validate the rating
-        int rating = reviewDto.getRating();
-        if (rating < 1 || rating > 5) {
+        // Validate rating must be between 1 and 5.
+        if (reviewDto.getRating() < 1 || reviewDto.getRating() > 5) {
             throw new IllegalArgumentException("Rating must be between 1 and 5");
         }
-
-        // Update the review fields
-        review.setRating(rating);
-        String comment = reviewDto.getComment() != null ? reviewDto.getComment() : "";
-        review.setComment(comment);
-
-        // Save the updated review
+        Review review = reviewRepository.findReviewById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Review with id " + id + " not found"));
+        // Update review details.
+        review.setRating(reviewDto.getRating());
+        review.setComment(reviewDto.getComment());
+        // (Add any other field updates as necessary)
         reviewRepository.save(review);
         return new ReviewResponseDto(review);
     }
@@ -498,14 +503,116 @@ public class GameService {
      */
     @Transactional
     public ResponseEntity<String> deleteReview(int id) {
-        Optional<Review> reviewOpt = reviewRepository.findReviewById(id);
-        if (reviewOpt.isEmpty()) {
-            throw new IllegalArgumentException("Review with ID " + id + " does not exist");
-        }
-
-        reviewRepository.delete(reviewOpt.get());
-        return ResponseEntity.ok("Review with ID " + id + " has been deleted");
+        Review review = reviewRepository.findReviewById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Review with id " + id + " not found"));
+        reviewRepository.delete(review);
+        return ResponseEntity.ok("Review deleted successfully");
     }
 
+    /**
+     * Advanced search for games based on multiple criteria
+     */
+    @Transactional
+    public List<Game> searchGames(GameSearchCriteria criteria) {
+        List<Game> games = getAllGames();
+        
+        // Apply filters based on criteria
+        if (criteria.getName() != null && !criteria.getName().trim().isEmpty()) {
+            games = games.stream()
+                    .filter(game -> game.getName().toLowerCase().contains(criteria.getName().toLowerCase()))
+                    .collect(Collectors.toList());
+        }
+        
+        if (criteria.getMinPlayers() != null) {
+            games = games.stream()
+                    .filter(game -> game.getMinPlayers() >= criteria.getMinPlayers())
+                    .collect(Collectors.toList());
+        }
+        
+        if (criteria.getMaxPlayers() != null) {
+            games = games.stream()
+                    .filter(game -> game.getMaxPlayers() <= criteria.getMaxPlayers())
+                    .collect(Collectors.toList());
+        }
+        
+        if (criteria.getCategory() != null && !criteria.getCategory().trim().isEmpty()) {
+            games = games.stream()
+                    .filter(game -> game.getCategory().equalsIgnoreCase(criteria.getCategory()))
+                    .collect(Collectors.toList());
+        }
+        
+        if (criteria.getMinRating() != null) {
+            games = games.stream()
+                    .filter(game -> getAverageRatingForGame(game.getId()) >= criteria.getMinRating())
+                    .collect(Collectors.toList());
+        }
+        
+        if (criteria.getAvailable() != null) {
+            games = games.stream()
+                    .filter(game -> isGameAvailable(game.getId()) == criteria.getAvailable())
+                    .collect(Collectors.toList());
+        }
+        
+        if (criteria.getOwnerId() != null && !criteria.getOwnerId().trim().isEmpty()) {
+            Account owner = accountRepository.findByEmail(criteria.getOwnerId())
+                    .orElseThrow(() -> new IllegalArgumentException("Owner not found"));
+            if (owner instanceof GameOwner) {
+                games = games.stream()
+                        .filter(game -> game.getOwner() != null && game.getOwner().getId() == owner.getId())
+                        .collect(Collectors.toList());
+            }
+        }
+        
+        // Apply sorting if specified
+        if (criteria.getSort() != null && !criteria.getSort().trim().isEmpty()) {
+            boolean ascending = "asc".equalsIgnoreCase(criteria.getOrder());
+            games = games.stream()
+                    .sorted((g1, g2) -> {
+                int comparison = 0;
+                switch (criteria.getSort().toLowerCase()) {
+                    case "name":
+                        comparison = g1.getName().compareTo(g2.getName());
+                        break;
+                    case "rating":
+                        comparison = Double.compare(getAverageRatingForGame(g1.getId()), getAverageRatingForGame(g2.getId()));
+                        break;
+                    case "date":
+                        comparison = g1.getDateAdded().compareTo(g2.getDateAdded());
+                        break;
+                    default:
+                        return 0;
+                }
+                return ascending ? comparison : -comparison;
+                    })
+                    .collect(Collectors.toList());
+        }
+        
+        return games;
+    }
+
+    /**
+     * Get the average rating for a game
+     */
+    @Transactional
+    public double getAverageRatingForGame(int gameId) {
+        Game game = getGameById(gameId);
+        List<Review> reviews = reviewRepository.findByGameReviewed(game);
+        if (reviews.isEmpty()) {
+            return 0.0;
+        }
+        return reviews.stream()
+                .mapToInt(Review::getRating)
+                .average()
+                .orElse(0.0);
+    }
+
+    /**
+     * Check if a game is currently available
+     */
+    private boolean isGameAvailable(int gameId) {
+        Game game = getGameById(gameId);
+        Date currentDate = new Date();
+        return gameRepository.findAvailableGames(currentDate).contains(game);
+    }
 
 }
