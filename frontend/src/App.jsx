@@ -9,12 +9,14 @@ import RegistrationPage from "./pages/RegistrationPage.jsx";
 import UserProfilePage from "./pages/UserProfilePage.jsx";
 import UserSearchPage from "./pages/UserSearchPage.jsx";
 import DashboardPage from "./pages/DashboardPage.jsx";
+import MenuBar from "./components/menubar/MenuBar.jsx";
 
 function App() {
   const [count, setCount] = useState(0)
 
   return (
-    <>
+    <div>
+      <MenuBar/>
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<LandingPage />} />
@@ -27,7 +29,7 @@ function App() {
           <Route path="/dashboard" element={<DashboardPage />}/>
         </Routes>
       </BrowserRouter>
-    </>
+    </div>
   )
 }
 
