@@ -77,23 +77,23 @@ public class AccountIntegrationTests {
     }
     
     private HttpHeaders createAuthHeaders() {
-        // Login to get the session cookie
         AuthenticationDTO loginRequest = new AuthenticationDTO();
         loginRequest.setEmail(VALID_EMAIL);
         loginRequest.setPassword(VALID_PASSWORD);
-        
+
         ResponseEntity<LoginResponse> loginResponse = restTemplate.postForEntity(
-            createURLWithPort("/auth/login"),
+            createURLWithPort("/api/v1/auth/login"),
             loginRequest,
             LoginResponse.class
         );
-        
+
         String sessionId = loginResponse.getHeaders().getFirst(HttpHeaders.SET_COOKIE);
         HttpHeaders headers = new HttpHeaders();
         headers.add(HttpHeaders.COOKIE, sessionId);
         headers.set("User-Id", String.valueOf(testAccount.getId()));
         return headers;
     }
+
     
     // ----- CREATE tests -----
     

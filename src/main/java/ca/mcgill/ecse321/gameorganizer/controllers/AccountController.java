@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import ca.mcgill.ecse321.gameorganizer.dto.CreateAccountRequest;
 import ca.mcgill.ecse321.gameorganizer.dto.UpdateAccountRequest;
+import ca.mcgill.ecse321.gameorganizer.middleware.RequireUser;
 import ca.mcgill.ecse321.gameorganizer.services.AccountService;
 import jakarta.validation.Valid;
 
@@ -37,6 +38,7 @@ import jakarta.validation.Valid;
  */
 @RestController
 @RequestMapping("/api/v1/account")
+//@RequireUser
 public class AccountController {
 
     private final AccountService accountService;

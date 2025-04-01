@@ -19,31 +19,14 @@ public class SecurityConfig {
     
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        // Check if we're running in test profile
-        boolean isTestProfile = false;
-        for (String profile : environment.getActiveProfiles()) {
-            if ("test".equals(profile)) {
-                isTestProfile = true;
-                break;
-            }
-        }
-        
-        if (isTestProfile) {
-            // For test profile, disable security constraints
-            http.authorizeHttpRequests(authz -> authz
-                    .anyRequest().permitAll())
-                .csrf(csrf -> csrf.disable());
-        } else {
-            // For non-test profiles, apply security constraints
-            http.authorizeHttpRequests(authz -> authz
-                    // Allow unauthenticated access for account creation and auth endpoints
-                    .requestMatchers("/api/v1/account", "/auth/**").permitAll()
-                    .anyRequest().authenticated()
-                )
-                // Disable CSRF for REST APIs (or configure accordingly)
-                .csrf(csrf -> csrf.disable());
-        }
-        
+        http.authorizeHttpRequests(authz -> authz
+                // Allow unauthenticated access to authentication and account creation endpoints
+                .requestMatchers("/api/v1/auth/**", "/api/v1/account").permitAll()
+                // Require authentication for all other endpoints
+                .anyRequest().authenticated()
+            )
+            .csrf(csrf -> csrf.disable()); // Disable CSRF for simplicity in REST APIs
+
         return http.build();
     }
     

@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.MethodOrderer; 
 import org.junit.jupiter.api.Order;
@@ -20,6 +19,7 @@ import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -27,8 +27,10 @@ import org.springframework.test.context.ActiveProfiles;
 
 import ca.mcgill.ecse321.gameorganizer.config.SecurityTestConfig;
 import ca.mcgill.ecse321.gameorganizer.config.TestConfig;
+import ca.mcgill.ecse321.gameorganizer.dto.AuthenticationDTO;
 import ca.mcgill.ecse321.gameorganizer.dto.BorrowRequestDto;
 import ca.mcgill.ecse321.gameorganizer.dto.CreateBorrowRequestDto;
+import ca.mcgill.ecse321.gameorganizer.dto.LoginResponse;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequestStatus;
@@ -106,6 +108,24 @@ public class BorrowRequestIntegrationTests {
         return "http://localhost:" + port + uri;
     }
 
+    private HttpHeaders createAuthHeaders() {
+        AuthenticationDTO loginRequest = new AuthenticationDTO();
+        loginRequest.setEmail(testRequester.getEmail());
+        loginRequest.setPassword("password123"); // Use the correct password for the testRequester
+
+        ResponseEntity<LoginResponse> loginResponse = restTemplate.postForEntity(
+            createURLWithPort("/api/v1/auth/login"),
+            loginRequest,
+            LoginResponse.class
+        );
+
+        String sessionId = loginResponse.getHeaders().getFirst(HttpHeaders.SET_COOKIE);
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.COOKIE, sessionId);
+        headers.set("User-Id", String.valueOf(testRequester.getId()));
+        return headers;
+    }
+
     // ----- CREATE Tests (4 tests) -----
 
     @Test
@@ -119,6 +139,10 @@ public class BorrowRequestIntegrationTests {
             startDate,
             endDate
         );
+
+
+        HttpHeaders headers = createAuthHeaders(); // Add authentication headers
+        HttpEntity<CreateBorrowRequestDto> requestEntity = new HttpEntity<>(request, headers);
 
         ResponseEntity<BorrowRequestDto> response = restTemplate.postForEntity(
             createURLWithPort(BASE_URL),

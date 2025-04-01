@@ -47,15 +47,15 @@ public class UserAuthInterceptor implements HandlerInterceptor {
         this.userContext = userContext;
     }
     
-    /**
-     * Sets whether the interceptor is in test mode.
-     * In test mode, authentication checks are bypassed.
-     * 
-     * @param testMode true if in test mode, false otherwise
-     */
-    public void setTestMode(boolean testMode) {
-        this.testMode = testMode;
-    }
+    // /**
+    //  * Sets whether the interceptor is in test mode.
+    //  * In test mode, authentication checks are bypassed.
+    //  * 
+    //  * @param testMode true if in test mode, false otherwise
+    //  */
+    // public void setTestMode(boolean testMode) {
+    //     this.testMode = testMode;
+    // }
 
     /**
      * Pre-handle method to check user authentication and authorization.
@@ -68,13 +68,42 @@ public class UserAuthInterceptor implements HandlerInterceptor {
      */
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws UnauthedException {
-        // In test mode, bypass all auth checks
-        if (testMode) {
-            return true;
+        System.out.println("Intercepting request: " + request.getRequestURI());
+        String userIdHeader = request.getHeader("User-Id");
+        System.out.println("User-Id header: " + userIdHeader);
+
+        if (request.getRequestURI().startsWith("/api/v1/borrowrequests")) {
+            // Ensure only GameOwners can manage borrow requests
+            if (userIdHeader == null) {
+                throw new UnauthedException("No User-Id header provided");
+            }
+
+            Integer userId = Integer.parseInt(userIdHeader);
+            Account user = accountRepository.findById(userId).orElseThrow(() -> new UnauthedException("User not found"));
+
+            if (!(user instanceof GameOwner)) {
+                throw new UnauthedException("Access denied: Only GameOwners can manage borrow requests");
+            }
         }
-        
+
+        if (request.getRequestURI().startsWith("/api/v1/account") && request.getMethod().equals("DELETE")) {
+            // Allow authenticated users to delete their own account
+            if (userIdHeader == null) {
+                throw new UnauthedException("No User-Id header provided");
+            }
+
+            Integer userId = Integer.parseInt(userIdHeader);
+            Account user = accountRepository.findById(userId).orElseThrow(() -> new UnauthedException("User not found"));
+
+            // Ensure the user is deleting their own account
+            String email = request.getRequestURI().split("/")[4]; // Extract email from URI
+            if (!user.getEmail().equals(email)) {
+                throw new UnauthedException("Access denied: Users can only delete their own account");
+            }
+        }
+
         if (!(handler instanceof HandlerMethod)) {
-            return true;
+            return true; // Allow non-handler requests (e.g., static resources)
         }
 
         HandlerMethod handlerMethod = (HandlerMethod) handler;
@@ -85,8 +114,6 @@ public class UserAuthInterceptor implements HandlerInterceptor {
         }
 
         if (requireUser != null) {
-            String userIdHeader = request.getHeader("User-Id");
-
             if (userIdHeader == null) {
                 throw new UnauthedException("No User-Id header provided");
             }
@@ -98,22 +125,24 @@ public class UserAuthInterceptor implements HandlerInterceptor {
 
                 // Check user role and permissions
                 String requestURI = request.getRequestURI();
-                if (requestURI.startsWith("/events")) {
-                    String eventIdParam = request.getParameter("eventId");
-                    if (eventIdParam != null) {
-                        try {
-                            UUID eventId = UUID.fromString(eventIdParam); // Convert to UUID
+                if (requestURI.startsWith("/api/v1/events")) {
+                    // Ensure only organizers can update/delete events
+                    if (request.getMethod().equals("PUT") || request.getMethod().equals("DELETE")) {
+                        String eventIdParam = request.getParameter("eventId");
+                        if (eventIdParam != null) {
+                            UUID eventId = UUID.fromString(eventIdParam);
                             Event event = eventRepository.findById(eventId)
                                     .orElseThrow(() -> new UnauthedException("Event not found"));
                             if (!event.getHost().equals(user)) {
-                                throw new UnauthedException("Access denied: Only event hosts can manage events");
+                                throw new UnauthedException("Access denied: Only event organizers can manage events");
                             }
-                        } catch (IllegalArgumentException e) {
-                            throw new UnauthedException("Invalid event ID format");
                         }
                     }
-                } else if (requestURI.startsWith("/borrowRequests") && !(user instanceof GameOwner)) {
-                    throw new UnauthedException("Access denied: Only GameOwners can manage borrow requests");
+                } else if (requestURI.startsWith("/api/v1/borrowrequests")) {
+                    // Ensure only GameOwners can manage borrow requests
+                    if (!(user instanceof GameOwner)) {
+                        throw new UnauthedException("Access denied: Only GameOwners can manage borrow requests");
+                    }
                 }
             } catch (IllegalArgumentException e) {
                 throw new UnauthedException("Invalid User-Id format");

@@ -8,4 +8,5 @@ import java.lang.annotation.Target;
 // Middleware annotation for auth
 @Target({ElementType.METHOD, ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface RequireUser {}
+public @interface RequireUser {
+}

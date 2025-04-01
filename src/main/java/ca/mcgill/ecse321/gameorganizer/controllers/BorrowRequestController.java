@@ -18,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import ca.mcgill.ecse321.gameorganizer.dto.BorrowRequestDto;
 import ca.mcgill.ecse321.gameorganizer.dto.CreateBorrowRequestDto;
+import ca.mcgill.ecse321.gameorganizer.middleware.RequireUser;
 import ca.mcgill.ecse321.gameorganizer.services.BorrowRequestService;
 
 /**
@@ -28,6 +29,7 @@ import ca.mcgill.ecse321.gameorganizer.services.BorrowRequestService;
  */
 @RestController
 @RequestMapping("/api/v1/borrowrequests")
+@RequireUser
 public class BorrowRequestController {
 
     private final BorrowRequestService borrowRequestService;

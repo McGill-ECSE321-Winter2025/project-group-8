@@ -28,7 +28,6 @@ public class TestConfig implements WebMvcConfigurer {
     @Bean
     public UserAuthInterceptor userAuthInterceptor() {
         UserAuthInterceptor interceptor = new UserAuthInterceptor(accountRepository, eventRepository, userContext());
-        interceptor.setTestMode(true);
         return interceptor;
     }
     
