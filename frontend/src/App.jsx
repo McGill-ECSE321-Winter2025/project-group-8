@@ -12,12 +12,9 @@ import DashboardPage from "./pages/DashboardPage.jsx";
 import MenuBar from "./components/menubar/MenuBar.jsx";
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <div>
-      <MenuBar/>
-      <BrowserRouter>
+    <div className="flex flex-col min-h-screen mx-auto">
+        <MenuBar />
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/events" element={<EventsPage />} />
@@ -28,7 +25,6 @@ function App() {
           <Route path="/user-search" element={<UserSearchPage />}/>
           <Route path="/dashboard" element={<DashboardPage />}/>
         </Routes>
-      </BrowserRouter>
     </div>
   )
 }
