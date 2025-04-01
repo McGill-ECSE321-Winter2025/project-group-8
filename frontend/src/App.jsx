@@ -16,14 +16,14 @@ function App() {
     <div className="flex flex-col min-h-screen mx-auto">
         <MenuBar />
         <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/events" element={<EventsPage />} />
-          <Route path="/games" element={<GameSearchPage />}/>
-          <Route path="/login" element={<LoginPage />}/>
-          <Route path="/signup" element={<RegistrationPage/>}/>
-          <Route path="/profile" element={<UserProfilePage />}/>
-          <Route path="/user-search" element={<UserSearchPage />}/>
-          <Route path="/dashboard" element={<DashboardPage />}/>
+          <Route path="/"               element={<LandingPage />} />
+          <Route path="/events"         element={<EventsPage />} />
+          <Route path="/games"          element={<GameSearchPage />}/>
+          <Route path="/login"          element={<LoginPage />}/>
+          <Route path="/register"       element={<RegistrationPage />}/>
+          <Route path="/profile"        element={<UserProfilePage />}/>
+          <Route path="/user-search"    element={<UserSearchPage />}/>
+          <Route path="/dashboard"      element={<DashboardPage />}/>
         </Routes>
     </div>
   )
