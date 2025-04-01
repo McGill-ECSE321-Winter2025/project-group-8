@@ -21,7 +21,7 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.authorizeHttpRequests(authz -> authz
                 // Allow unauthenticated access to authentication and account creation endpoints
-                .requestMatchers("/api/v1/auth/**", "/api/v1/account").permitAll()
+                .requestMatchers("/api/v1/auth/**", "/api/v1/account/**", "/api/v1/account").permitAll()
                 // Require authentication for all other endpoints
                 .anyRequest().authenticated()
             )

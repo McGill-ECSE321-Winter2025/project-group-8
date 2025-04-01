@@ -32,7 +32,6 @@ import ca.mcgill.ecse321.gameorganizer.services.EventService;
  */
 @RestController
 @RequestMapping("/api/v1/events")
-@RequireUser
 public class EventController {
     
     private final EventService eventService;
@@ -91,6 +90,7 @@ public class EventController {
      * @param maxParticipants The new maximum number of participants (optional)
      * @return The updated event
      */
+    @RequireUser
     @PutMapping("/{eventId}")
 public ResponseEntity<EventResponse> updateEvent(
         @PathVariable UUID eventId,

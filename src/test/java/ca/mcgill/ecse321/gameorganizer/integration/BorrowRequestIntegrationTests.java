@@ -25,7 +25,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
 
-import ca.mcgill.ecse321.gameorganizer.config.SecurityTestConfig;
+import ca.mcgill.ecse321.gameorganizer.config.SecurityConfig;
 import ca.mcgill.ecse321.gameorganizer.config.TestConfig;
 import ca.mcgill.ecse321.gameorganizer.dto.AuthenticationDTO;
 import ca.mcgill.ecse321.gameorganizer.dto.BorrowRequestDto;
@@ -42,7 +42,7 @@ import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
-@Import({TestConfig.class, SecurityTestConfig.class})
+@Import({TestConfig.class, SecurityConfig.class})
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class BorrowRequestIntegrationTests {

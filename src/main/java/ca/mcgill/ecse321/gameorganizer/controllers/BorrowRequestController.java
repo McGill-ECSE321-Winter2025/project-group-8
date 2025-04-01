@@ -29,7 +29,6 @@ import ca.mcgill.ecse321.gameorganizer.services.BorrowRequestService;
  */
 @RestController
 @RequestMapping("/api/v1/borrowrequests")
-@RequireUser
 public class BorrowRequestController {
 
     private final BorrowRequestService borrowRequestService;
@@ -50,6 +49,7 @@ public class BorrowRequestController {
      * @param dto Data transfer object containing request details.
      * @return The created borrow request.
      */
+    @RequireUser
     @PostMapping
     public ResponseEntity<BorrowRequestDto> createBorrowRequest(@RequestBody CreateBorrowRequestDto dto) {
         System.out.println("Received Borrow Request: " + dto);
