@@ -2,8 +2,6 @@ package ca.mcgill.ecse321.gameorganizer.services;
 
 import java.util.Optional;
 
-import javax.servlet.http.HttpSession;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -15,6 +13,7 @@ import ca.mcgill.ecse321.gameorganizer.exceptions.InvalidCredentialsException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.InvalidPasswordException;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
+import jakarta.servlet.http.HttpSession;
 
 /**
  * Service to handle authentication-related operations.
@@ -39,8 +38,15 @@ public class AuthenticationService {
      * @return the authenticated Account if login is successful
      * @throws InvalidCredentialsException if the email or password is invalid
      */
-    @Transactional
     public Account login(AuthenticationDTO authenticationDTO, HttpSession session) {
+        if (authenticationDTO == null) {
+            throw new IllegalArgumentException("Authentication data cannot be null");
+        }
+        // Optionally, you might also check for null session
+        if (session == null) {
+            throw new IllegalArgumentException("Session cannot be null");
+        }
+        
         Optional<Account> accountOpt = accountRepository.findByEmail(authenticationDTO.getEmail());
         if (accountOpt.isPresent() && passwordEncoder.matches(authenticationDTO.getPassword(), accountOpt.get().getPassword())) {
             Account account = accountOpt.get();
@@ -59,6 +65,9 @@ public class AuthenticationService {
      */
     @Transactional
     public String logout(HttpSession session) {
+        if (session == null) {
+            throw new IllegalArgumentException("Session cannot be null");
+        }
         session.invalidate();
         return "Successfully logged out";
     }
@@ -74,8 +83,11 @@ public class AuthenticationService {
      */
     @Transactional
     public String resetPassword(String email, String newPassword) {
+        if (email == null || email.isEmpty()) {
+            throw new IllegalArgumentException("Email cannot be null or empty");
+        }
         validatePassword(newPassword);
-
+        
         Optional<Account> accountOpt = accountRepository.findByEmail(email);
         if (accountOpt.isPresent()) {
             Account account = accountOpt.get();
@@ -94,10 +106,13 @@ public class AuthenticationService {
      * @throws InvalidPasswordException if the password does not meet the validation criteria
      */
     private void validatePassword(String password) {
+        if (password == null || password.isEmpty()) {
+            throw new InvalidPasswordException("Password cannot be null or empty");
+        }
         if (password.length() < 8) {
             throw new InvalidPasswordException("Password must be at least 8 characters long");
         }
-        // TODO: Add more validation criteria as needed (e.g., complexity, special characters, etc.)
+        // Additional validation criteria can be added here.
     }
 
 }

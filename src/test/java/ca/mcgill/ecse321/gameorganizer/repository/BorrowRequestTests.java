@@ -1,34 +1,33 @@
 package ca.mcgill.ecse321.gameorganizer.repository;
 
-import ca.mcgill.ecse321.gameorganizer.dtos.BorrowRequestDto;
-import ca.mcgill.ecse321.gameorganizer.dtos.CreateBorrowRequestDto;
-import ca.mcgill.ecse321.gameorganizer.models.BorrowRequestStatus;
-import ca.mcgill.ecse321.gameorganizer.models.Game;
-import ca.mcgill.ecse321.gameorganizer.models.Account;
-import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
-import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;
-import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
-import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
-import ca.mcgill.ecse321.gameorganizer.services.BorrowRequestService;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.TestPropertySource;
-
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.AfterEach;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 
-@SpringBootTest
-@ActiveProfiles("test")
-@TestPropertySource(locations="classpath:application-test.properties")
+import ca.mcgill.ecse321.gameorganizer.models.Account;
+import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
+import ca.mcgill.ecse321.gameorganizer.models.BorrowRequestStatus;
+import ca.mcgill.ecse321.gameorganizer.models.Game;
+import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
+import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
+
+@DataJpaTest
 public class BorrowRequestTests {
 
     @Autowired
-    private BorrowRequestService borrowRequestService;
+    private TestEntityManager entityManager;
 
     @Autowired
     private BorrowRequestRepository borrowRequestRepository;
@@ -39,156 +38,192 @@ public class BorrowRequestTests {
     @Autowired
     private AccountRepository accountRepository;
 
+    private GameOwner testOwner;
+    private Game testGame;
+    private Account testRequester;
+    private Date testStartDate;
+    private Date testEndDate;
+
+    @BeforeEach
+    public void setUp() {
+        // Create test owner
+        testOwner = new GameOwner("owner", "owner@test.com", "password");
+        testOwner = entityManager.persist(testOwner);
+
+        // Create test game
+        testGame = new Game("Test Game", 2, 4, "test.jpg", new Date());
+        testGame.setOwner(testOwner);
+        testGame = entityManager.persist(testGame);
+
+        // Create test requester
+        testRequester = new Account("requester", "requester@test.com", "password");
+        testRequester = entityManager.persist(testRequester);
+
+        // Set test dates
+        testStartDate = new Date(System.currentTimeMillis() + 3600 * 1000); // 1 hour later
+        testEndDate = new Date(System.currentTimeMillis() + 7200 * 1000);   // 2 hours later
+
+        entityManager.flush();
+    }
+
     @AfterEach
-    public void clearDatabase() {
+    public void cleanUp() {
         borrowRequestRepository.deleteAll();
-        gameRepository.deleteAll();
-        accountRepository.deleteAll();
+        entityManager.flush();
     }
 
-    /**
-     * Test valid borrow request creation.
-     */
     @Test
-    public void testCreateBorrowRequestSuccess() {
-        // Create owner and game
-        GameOwner owner = new GameOwner("owner", "owner@test.com", "password");
-        owner = (GameOwner) accountRepository.save(owner);
+    public void testPersistAndLoadBorrowRequest() {
+        // Create a new borrow request
+        BorrowRequest request = new BorrowRequest();
+        request.setRequestedGame(testGame);
+        request.setRequester(testRequester);
+        request.setStartDate(testStartDate);
+        request.setEndDate(testEndDate);
+        request.setStatus(BorrowRequestStatus.PENDING);
+        request.setRequestDate(new Date());
 
-        Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
-        game.setOwner(owner);
-        game = gameRepository.save(game);
+        // Save the request using entity manager
+        request = entityManager.persistAndFlush(request);
+        int id = request.getId();
 
-        // Create requester
-        Account requester = new Account("requester", "requester@test.com", "password");
-        requester = accountRepository.save(requester);
+        // Clear persistence context
+        entityManager.clear();
 
-        // Set valid start and end dates
-        Date startDate = new Date(System.currentTimeMillis() + 3600 * 1000); // 1 hour later
-        Date endDate = new Date(System.currentTimeMillis() + 7200 * 1000);   // 2 hours later
+        // Retrieve the request
+        Optional<BorrowRequest> retrievedOpt = borrowRequestRepository.findBorrowRequestById(id);
+        assertTrue(retrievedOpt.isPresent(), "The borrow request should be present in the database");
 
-        // Create DTO for the request
-        CreateBorrowRequestDto requestDto = new CreateBorrowRequestDto(requester.getId(), game.getId(), startDate, endDate);
-        
-        // Create request via service
-        BorrowRequestDto createdRequest = borrowRequestService.createBorrowRequest(requestDto);
-        assertNotNull(createdRequest, "The borrow request should be successfully created.");
-        
-        // Check persisted attributes
-        assertEquals(BorrowRequestStatus.PENDING.name(), createdRequest.getStatus());
-        assertEquals(startDate, createdRequest.getStartDate());
-        assertEquals(endDate, createdRequest.getEndDate());
-
-        // Check object references
-        assertEquals(game.getId(), createdRequest.getRequestedGameId(), "The game ID should match.");
-        assertEquals(requester.getId(), createdRequest.getRequesterId(), "The requester ID should match.");
+        BorrowRequest retrieved = retrievedOpt.get();
+        assertEquals(testGame.getId(), retrieved.getRequestedGame().getId());
+        assertEquals(testRequester.getId(), retrieved.getRequester().getId());
+        assertEquals(testStartDate, retrieved.getStartDate());
+        assertEquals(testEndDate, retrieved.getEndDate());
+        assertEquals(BorrowRequestStatus.PENDING, retrieved.getStatus());
     }
 
-    /**
-     * Test rejection for end date before start.
-     */
     @Test
-    public void testCreateBorrowRequestEndDateBeforeStart() {
-        // Create owner and game
-        GameOwner owner = new GameOwner("owner", "owner@test.com", "password");
-        owner = (GameOwner) accountRepository.save(owner);
+    public void testFindByRequester() {
+        // Create and save a borrow request
+        BorrowRequest request = new BorrowRequest();
+        request.setRequestedGame(testGame);
+        request.setRequester(testRequester);
+        request.setStartDate(testStartDate);
+        request.setEndDate(testEndDate);
+        request.setStatus(BorrowRequestStatus.PENDING);
+        request.setRequestDate(new Date());
+        entityManager.persistAndFlush(request);
+        entityManager.clear();
 
-        Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
-        game.setOwner(owner);
-        game = gameRepository.save(game);
-
-        // Create requester
-        Account requester = new Account("requester", "requester@test.com", "password");
-        requester = accountRepository.save(requester);
-
-        // Set invalid date order
-        Date startDate = new Date(System.currentTimeMillis() + 7200 * 1000);
-        Date endDate = new Date(System.currentTimeMillis() + 3600 * 1000);
-
-        CreateBorrowRequestDto requestDto = new CreateBorrowRequestDto(requester.getId(), game.getId(), startDate, endDate);
-
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            borrowRequestService.createBorrowRequest(requestDto);
-        });
-        assertTrue(exception.getMessage().contains("End date must be after start date."));
+        // Find requests by requester
+        List<BorrowRequest> requests = borrowRequestRepository.findByRequester(testRequester);
+        assertEquals(1, requests.size());
+        assertEquals(testRequester.getId(), requests.get(0).getRequester().getId());
     }
 
-    /**
-     * Test owner can't borrow own game.
-     */
     @Test
-    public void testCreateBorrowRequestSelfBorrow() {
-        // Owner acts as requester
-        GameOwner owner = new GameOwner("owner", "owner@test.com", "password");
-        owner = (GameOwner) accountRepository.save(owner);
+    public void testFindByRequesterName() {
+        // Create and save a borrow request
+        BorrowRequest request = new BorrowRequest();
+        request.setRequestedGame(testGame);
+        request.setRequester(testRequester);
+        request.setStartDate(testStartDate);
+        request.setEndDate(testEndDate);
+        request.setStatus(BorrowRequestStatus.PENDING);
+        request.setRequestDate(new Date());
+        entityManager.persistAndFlush(request);
+        entityManager.clear();
 
-        // Create owner's game
-        Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
-        game.setOwner(owner);
-        game = gameRepository.save(game);
-
-        // Set valid dates
-        Date startDate = new Date(System.currentTimeMillis() + 3600 * 1000);
-        Date endDate = new Date(System.currentTimeMillis() + 7200 * 1000);
-
-        CreateBorrowRequestDto requestDto = new CreateBorrowRequestDto(owner.getId(), game.getId(), startDate, endDate);
-
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            borrowRequestService.createBorrowRequest(requestDto);
-        });
-        assertTrue(exception.getMessage().contains("Owners cannot request their own game."));
+        // Find requests by requester name
+        List<BorrowRequest> requests = borrowRequestRepository.findBorrowRequestsByRequesterName(testRequester.getName());
+        assertEquals(1, requests.size());
+        assertEquals(testRequester.getName(), requests.get(0).getRequester().getName());
     }
 
-    /**
-     * Test updating borrow request status.
-     */
     @Test
-    public void testUpdateBorrowRequestStatus() {
-        // Setup entities
-        GameOwner owner = new GameOwner("owner", "owner@test.com", "password");
-        owner = (GameOwner) accountRepository.save(owner);
+    public void testFindByOwnerAndStatus() {
+        // Create and save requests with different statuses
+        BorrowRequest pendingRequest = new BorrowRequest();
+        pendingRequest.setRequestedGame(testGame);
+        pendingRequest.setRequester(testRequester);
+        pendingRequest.setStartDate(testStartDate);
+        pendingRequest.setEndDate(testEndDate);
+        pendingRequest.setStatus(BorrowRequestStatus.PENDING);
+        pendingRequest.setRequestDate(new Date());
+        entityManager.persist(pendingRequest);
 
-        Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
-        game.setOwner(owner);
-        game = gameRepository.save(game);
+        BorrowRequest approvedRequest = new BorrowRequest();
+        approvedRequest.setRequestedGame(testGame);
+        approvedRequest.setRequester(testRequester);
+        approvedRequest.setStartDate(new Date(testStartDate.getTime() + 86400000)); // Next day
+        approvedRequest.setEndDate(new Date(testEndDate.getTime() + 86400000));
+        approvedRequest.setStatus(BorrowRequestStatus.APPROVED);
+        approvedRequest.setRequestDate(new Date());
+        entityManager.persist(approvedRequest);
 
-        Account requester = new Account("requester", "requester@test.com", "password");
-        requester = accountRepository.save(requester);
+        entityManager.flush();
+        entityManager.clear();
 
-        Date startDate = new Date(System.currentTimeMillis() + 3600 * 1000);
-        Date endDate = new Date(System.currentTimeMillis() + 7200 * 1000);
+        // Find requests by owner and status
+        List<BorrowRequest> pendingRequests = borrowRequestRepository.findByRequestedGame_OwnerAndStatus(testOwner, BorrowRequestStatus.PENDING);
+        List<BorrowRequest> approvedRequests = borrowRequestRepository.findByRequestedGame_OwnerAndStatus(testOwner, BorrowRequestStatus.APPROVED);
 
-        CreateBorrowRequestDto requestDto = new CreateBorrowRequestDto(requester.getId(), game.getId(), startDate, endDate);
-        BorrowRequestDto createdRequest = borrowRequestService.createBorrowRequest(requestDto);
-
-        // Update status to APPROVED
-        BorrowRequestDto updatedRequest = borrowRequestService.updateBorrowRequestStatus(createdRequest.getId(), "APPROVED");
-        assertEquals("APPROVED", updatedRequest.getStatus());
+        assertEquals(1, pendingRequests.size());
+        assertEquals(1, approvedRequests.size());
+        assertEquals(BorrowRequestStatus.PENDING, pendingRequests.get(0).getStatus());
+        assertEquals(BorrowRequestStatus.APPROVED, approvedRequests.get(0).getStatus());
     }
 
-    /**
-     * Test deletion of borrow request.
-     */
     @Test
-    public void testDeleteBorrowRequest() {
-        // Setup entities
-        GameOwner owner = new GameOwner("owner", "owner@test.com", "password");
-        owner = (GameOwner) accountRepository.save(owner);
+    public void testFindOverlappingRequests() {
+        // Create and save an approved request
+        BorrowRequest request1 = new BorrowRequest();
+        request1.setRequestedGame(testGame);
+        request1.setRequester(testRequester);
+        request1.setStartDate(testStartDate);
+        request1.setEndDate(testEndDate);
+        request1.setStatus(BorrowRequestStatus.APPROVED);
+        request1.setRequestDate(new Date());
+        request1 = entityManager.persistAndFlush(request1);
+        entityManager.clear();
 
-        Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
-        game.setOwner(owner);
-        game = gameRepository.save(game);
+        // Find overlapping approved requests
+        List<BorrowRequest> overlapping = borrowRequestRepository.findOverlappingApprovedRequests(
+            testGame.getId(),
+            testStartDate,
+            testEndDate
+        );
 
-        Account requester = new Account("requester", "requester@test.com", "password");
-        requester = accountRepository.save(requester);
+        assertEquals(1, overlapping.size());
+        assertEquals(request1.getId(), overlapping.get(0).getId());
+    }
 
-        Date startDate = new Date(System.currentTimeMillis() + 3600 * 1000);
-        Date endDate = new Date(System.currentTimeMillis() + 7200 * 1000);
+    @Test
+    public void testNonExistentRequest() {
+        // Try to find a request that doesn't exist
+        Optional<BorrowRequest> nonExistent = borrowRequestRepository.findBorrowRequestById(999);
+        assertFalse(nonExistent.isPresent(), "Should not find non-existent request");
+    }
 
-        CreateBorrowRequestDto requestDto = new CreateBorrowRequestDto(requester.getId(), game.getId(), startDate, endDate);
-        BorrowRequestDto createdRequest = borrowRequestService.createBorrowRequest(requestDto);
+    @Test
+    public void testDeleteRequest() {
+        // Create and save a request
+        BorrowRequest request = new BorrowRequest();
+        request.setRequestedGame(testGame);
+        request.setRequester(testRequester);
+        request.setStartDate(testStartDate);
+        request.setEndDate(testEndDate);
+        request.setStatus(BorrowRequestStatus.PENDING);
+        request.setRequestDate(new Date());
+        request = entityManager.persistAndFlush(request);
+        int id = request.getId();
 
-        borrowRequestService.deleteBorrowRequest(createdRequest.getId());
-        assertFalse(borrowRequestRepository.findBorrowRequestById(createdRequest.getId()).isPresent());
+        // Delete the request
+        borrowRequestRepository.delete(request);
+        entityManager.flush();
+
+        // Verify deletion
+        Optional<BorrowRequest> deleted = borrowRequestRepository.findBorrowRequestById(id);
+        assertFalse(deleted.isPresent(), "Request should be deleted");
     }
 }

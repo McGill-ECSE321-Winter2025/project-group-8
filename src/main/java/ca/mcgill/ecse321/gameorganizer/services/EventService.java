@@ -1,22 +1,18 @@
 package ca.mcgill.ecse321.gameorganizer.services;
 
-import ca.mcgill.ecse321.gameorganizer.models.Account;
-import ca.mcgill.ecse321.gameorganizer.models.Event;
-import ca.mcgill.ecse321.gameorganizer.models.Registration;
-import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
-import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
-import ca.mcgill.ecse321.gameorganizer.requests.CreateEventRequest;
+import java.util.Date;
+import java.util.List;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.http.HttpStatus;
-import org.springframework.validation.annotation.Validated;
 
-import java.util.List;
-import java.util.UUID;
-import java.util.Date;
+import ca.mcgill.ecse321.gameorganizer.dto.CreateEventRequest;
+import ca.mcgill.ecse321.gameorganizer.models.Event;
+import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
 
 
 
@@ -140,7 +136,7 @@ public class EventService {
      */
     @Transactional
     public Event updateEvent(UUID id, String title, Date dateTime,
-                             String location, String description, int maxParticipants) {
+                            String location, String description, int maxParticipants) {
         Event event = eventRepository.findEventById(id).orElseThrow(
                 () -> new IllegalArgumentException("Event with id " + id + " does not exist")
         );
@@ -157,7 +153,10 @@ public class EventService {
         if (description != null) {
             event.setDescription(description);
         }
-        if (maxParticipants > 0) {
+        // Throw an exception if maxParticipants is not valid
+        if (maxParticipants <= 0) {
+            throw new IllegalArgumentException("Invalid maxParticipants value");
+        } else {
             event.setMaxParticipants(maxParticipants);
         }
 

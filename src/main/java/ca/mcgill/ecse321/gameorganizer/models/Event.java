@@ -96,14 +96,14 @@ public class Event {
      * @param aFeaturedGame The game that will be featured at the event
      * @param host The account of the user hosting the event
      */
-    public Event(String aTitle, Date aDateTime, String aLocation, String aDescription, int aMaxParticipants, Game aFeaturedGame, Account host) {
+    public Event(String aTitle, Date aDateTime, String aLocation, String aDescription, int aMaxParticipants, Game aFeaturedGame, Account aHost) {
         title = aTitle;
         dateTime = aDateTime;
         location = aLocation;
         description = aDescription;
         maxParticipants = aMaxParticipants;
         featuredGame = aFeaturedGame;
-        host = host;
+        this.host = aHost;
     }
 
     /**

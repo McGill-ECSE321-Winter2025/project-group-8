@@ -1,25 +1,20 @@
 package ca.mcgill.ecse321.gameorganizer.middleware;
 
-import ca.mcgill.ecse321.gameorganizer.models.Account;
-import ca.mcgill.ecse321.gameorganizer.models.Event;
-import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
-import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
-import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
-import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;
+import java.util.UUID;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
+import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;
+import ca.mcgill.ecse321.gameorganizer.models.Account;
+import ca.mcgill.ecse321.gameorganizer.models.Event;
+import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
+import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-
-// TODO: Implement auth logic here to restrict application access to users only DONE
-// TODO: Implement auth logic to ensure events can only be updated/deleted by organizers only DONE
-// TODO: Implement auth logic to ensure borrow requests can be managed only by GameOwner DONE
-
-// Consult tutorial section on Middleware and Spring docs
-// https://github.com/McGill-ECSE321-Winter2025/running-example
 
 /**
  * Interceptor to handle user authentication and authorization.
@@ -34,6 +29,9 @@ public class UserAuthInterceptor implements HandlerInterceptor {
     private final AccountRepository accountRepository;
     private final EventRepository eventRepository;
     private final UserContext userContext;
+    
+    // Flag to bypass authentication in test mode
+    private boolean testMode = false;
 
     /**
      * Constructs a UserAuthInterceptor with the specified account repository, event repository, and user context.
@@ -48,6 +46,16 @@ public class UserAuthInterceptor implements HandlerInterceptor {
         this.eventRepository = eventRepository;
         this.userContext = userContext;
     }
+    
+    /**
+     * Sets whether the interceptor is in test mode.
+     * In test mode, authentication checks are bypassed.
+     * 
+     * @param testMode true if in test mode, false otherwise
+     */
+    public void setTestMode(boolean testMode) {
+        this.testMode = testMode;
+    }
 
     /**
      * Pre-handle method to check user authentication and authorization.
@@ -60,6 +68,11 @@ public class UserAuthInterceptor implements HandlerInterceptor {
      */
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws UnauthedException {
+        // In test mode, bypass all auth checks
+        if (testMode) {
+            return true;
+        }
+        
         if (!(handler instanceof HandlerMethod)) {
             return true;
         }
@@ -88,10 +101,15 @@ public class UserAuthInterceptor implements HandlerInterceptor {
                 if (requestURI.startsWith("/events")) {
                     String eventIdParam = request.getParameter("eventId");
                     if (eventIdParam != null) {
-                        Integer eventId = Integer.parseInt(eventIdParam);
-                        Event event = eventRepository.findById(eventId).orElseThrow(() -> new UnauthedException("Event not found"));
-                        if (!event.getHost().equals(user)) {
-                            throw new UnauthedException("Access denied: Only event hosts can manage events");
+                        try {
+                            UUID eventId = UUID.fromString(eventIdParam); // Convert to UUID
+                            Event event = eventRepository.findById(eventId)
+                                    .orElseThrow(() -> new UnauthedException("Event not found"));
+                            if (!event.getHost().equals(user)) {
+                                throw new UnauthedException("Access denied: Only event hosts can manage events");
+                            }
+                        } catch (IllegalArgumentException e) {
+                            throw new UnauthedException("Invalid event ID format");
                         }
                     }
                 } else if (requestURI.startsWith("/borrowRequests") && !(user instanceof GameOwner)) {

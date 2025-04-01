@@ -1,8 +1,7 @@
 package ca.mcgill.ecse321.gameorganizer.controllers;
 
-import javax.servlet.http.HttpSession;
-
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -11,9 +10,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import ca.mcgill.ecse321.gameorganizer.dto.AuthenticationDTO;
-import ca.mcgill.ecse321.gameorganizer.responses.LoginResponse;
+import ca.mcgill.ecse321.gameorganizer.dto.LoginResponse;
+import ca.mcgill.ecse321.gameorganizer.exceptions.EmailNotFoundException;
+import ca.mcgill.ecse321.gameorganizer.exceptions.InvalidCredentialsException;
+import ca.mcgill.ecse321.gameorganizer.exceptions.InvalidPasswordException;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.services.AuthenticationService;
+import jakarta.servlet.http.HttpSession;
 
 /**
  * Controller to handle authentication-related endpoints.
@@ -22,7 +25,7 @@ import ca.mcgill.ecse321.gameorganizer.services.AuthenticationService;
  * @author Shine111111
  */
 @RestController
-@RequestMapping("/auth")
+@RequestMapping("/api/v1/auth")
 public class AuthenticationController {
 
     @Autowired
@@ -37,8 +40,13 @@ public class AuthenticationController {
      */
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@RequestBody AuthenticationDTO authenticationDTO, HttpSession session) {
-        Account user = authenticationService.login(authenticationDTO, session);
-        return ResponseEntity.ok(new LoginResponse(user.getId(), user.getEmail()));
+        try {
+            Account user = authenticationService.login(authenticationDTO, session);
+            return ResponseEntity.ok(new LoginResponse(user.getId(), user.getEmail()));
+        } catch (InvalidCredentialsException e) {
+            // Return 401 UNAUTHORIZED when credentials are invalid
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
     }
 
     /**
@@ -57,10 +65,16 @@ public class AuthenticationController {
      * 
      * @param email the user's email
      * @param newPassword the new password to set
-     * @return a ResponseEntity indicating that the password has been updated successfully, or an error message if the email is not found
+     * @return a ResponseEntity indicating that the password has been updated successfully, or an error message if the email is not found or the new password is invalid
      */
     @PostMapping("/reset-password")
     public ResponseEntity<String> resetPassword(@RequestParam String email, @RequestParam String newPassword) {
-        return ResponseEntity.ok(authenticationService.resetPassword(email, newPassword));
+        try {
+            String result = authenticationService.resetPassword(email, newPassword);
+            return ResponseEntity.ok(result);
+        } catch (EmailNotFoundException | InvalidPasswordException e) {
+            // Return 400 BAD REQUEST when the email is not found or password is invalid
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        }
     }
 }
