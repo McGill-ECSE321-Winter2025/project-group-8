@@ -1,5 +1,5 @@
 import {Link} from "react-router-dom";
-import {Button} from "@/components/ui/button.jsx";
+import {Button} from "../ui/button.jsx";
 
 export default function MenuBar() {
     return (
