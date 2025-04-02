@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
@@ -11,18 +11,13 @@ import {
 import { Button } from '/src/components/ui/button.jsx';
 import { Avatar, AvatarFallback, AvatarImage } from './avatar.jsx';
 import Tag from '../common/Tag.jsx';
+import GameOwnerTag from '../common/GameOwnerTag.jsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Users, GamepadIcon, Mail } from 'lucide-react';
 import { formatJoinDate, formatRelativeTime } from '../../lib/dateUtils';
 
 const UserPreviewOverlay = ({ user, isOpen, onClose }) => {
   const navigate = useNavigate();
-
-  const handleGameClick = (gameName) => {
-    // Navigate to /games and pass gameName as search query param
-    navigate(`/games?search=${encodeURIComponent(gameName)}`);
-    onClose();
-  };
 
   if (!user) return null;
   
@@ -58,11 +53,27 @@ const UserPreviewOverlay = ({ user, isOpen, onClose }) => {
     visible: { opacity: 1, y: 0 }
   };
 
+  // Render game tag directly without motion wrapper to ensure visibility
+  const renderGameTag = (game, index) => (
+    <Tag 
+      key={index}
+      text={game} 
+      variant="primary" 
+      interactive={true}
+      searchable={true}
+      fromUserId={user.id}
+      className="transition-all duration-200"
+    />
+  );
+
   return (
     <AnimatePresence>
       {isOpen && (
         <Dialog open={isOpen} onOpenChange={onClose}>
-          <DialogContent className="sm:max-w-[450px] p-0 overflow-hidden">
+          <DialogContent className="sm:max-w-[450px] p-0 overflow-hidden" aria-describedby="user-profile-description">
+            <DialogDescription id="user-profile-description" className="sr-only">
+              User profile information for {user.username || 'User'}
+            </DialogDescription>
             <motion.div
               variants={overlayVariants}
               initial="hidden"
@@ -89,7 +100,7 @@ const UserPreviewOverlay = ({ user, isOpen, onClose }) => {
                 <motion.div variants={itemVariants} className="flex items-center gap-2 mb-1">
                   <DialogTitle className="text-xl">{user.username || 'User'}</DialogTitle>
                   {user.isGameOwner && (
-                    <Tag text="Game Owner" variant="owner" className="animate-pulse" />
+                    <GameOwnerTag />
                   )}
                 </motion.div>
 
@@ -108,36 +119,30 @@ const UserPreviewOverlay = ({ user, isOpen, onClose }) => {
                   </p>
                 </motion.div>
 
-                {/* Common Games Section */}
+                {/* All Games Section - Simplified rendering without complex animations */}
+                {user?.gamesPlayed?.length > 0 && (
+                  <div className="mb-6">
+                    <div className="flex items-center gap-2 mb-2">
+                      <GamepadIcon className="h-4 w-4 text-primary" />
+                      <h4 className="text-sm font-medium">Games Played:</h4>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {user.gamesPlayed.map((game, index) => renderGameTag(game, index))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Common Games Section - Simplified rendering without complex animations */}
                 {commonGames.length > 0 && (
-                  <motion.div variants={itemVariants} className="mb-6">
+                  <div className="mb-6">
                     <div className="flex items-center gap-2 mb-2">
                       <GamepadIcon className="h-4 w-4 text-primary" />
                       <h4 className="text-sm font-medium">Games Played in Common:</h4>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {commonGames.map((game, index) => (
-                        <motion.div
-                          key={index}
-                          initial={{ opacity: 0, scale: 0.8 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          transition={{ delay: index * 0.05 }}
-                        >
-                          <button
-                            onClick={() => handleGameClick(game)}
-                            className="focus:outline-none"
-                          >
-                            <Tag 
-                              text={game} 
-                              variant="primary" 
-                              interactive={true}
-                              className="transition-all duration-200"
-                            />
-                          </button>
-                        </motion.div>
-                      ))}
+                      {commonGames.map((game, index) => renderGameTag(game, index + 100))}
                     </div>
-                  </motion.div>
+                  </div>
                 )}
               </div>
 

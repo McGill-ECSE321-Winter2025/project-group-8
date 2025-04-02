@@ -12,6 +12,7 @@ import {
   AvatarImage,
 } from '../../../src/components/ui/avatar.jsx';
 import Tag from '../common/Tag.jsx';
+import GameOwnerTag from '../common/GameOwnerTag.jsx';
 import { motion } from 'framer-motion'; // Add framer-motion for animations
 import { cn } from '../../../src/lib/utils';
 import { formatJoinDate } from '../../../src/lib/dateUtils';
@@ -56,7 +57,7 @@ const UserProfileCard = ({ user, onClick }) => {
           <div className="space-y-1">
             <CardTitle className="text-base leading-tight">{username}</CardTitle>
             <div className="flex flex-wrap gap-1 items-center">
-              {isGameOwner && <Tag text="Game Owner" variant="owner" className="mt-1" />}
+              {isGameOwner && <GameOwnerTag className="mt-1" />}
               {formattedJoinDate && (
                 <div className="flex items-center text-xs text-muted-foreground mt-1">
                   <Calendar className="h-3 w-3 mr-1" />
@@ -77,6 +78,9 @@ const UserProfileCard = ({ user, onClick }) => {
                     text={game}
                     variant="primary"
                     interactive
+                    searchable
+                    fromUserId={user.id}
+                    onClick={(e) => e.stopPropagation()} // Prevent card click when game tag is clicked
                   />
                 ))}
                 {hasMoreGames && (

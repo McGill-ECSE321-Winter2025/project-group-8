@@ -1,8 +1,9 @@
-import { useState } from "react";
-import { Search, Filter, X } from "lucide-react";
-import { Dialog, DialogTrigger } from "../ui/dialog";
+import { useState, useEffect } from "react";
+import { Search, Filter, X, ArrowLeft } from "lucide-react";
+import { Dialog, DialogTrigger } from "../components/ui/dialog";
 import { Button } from "../components/ui/button";
-import { Input } from "../ui/input";
+import { Input } from "../components/ui/input";
+import { useSearchParams, useNavigate } from "react-router-dom";
 
 // Import game components
 import { GameCard } from "../components/game-search-page/GameCard";
@@ -11,7 +12,10 @@ import { RequestGameDialog } from "../components/game-search-page/RequestGameDia
 import { getUniqueGameNames } from "../components/game-search-page/data";
 
 export default function GameSearchPage() {
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const [searchTerm, setSearchTerm] = useState(searchParams.get("q") || "");
+  const fromUserId = searchParams.get("fromUser");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [filters, setFilters] = useState({
     category: "",
@@ -79,11 +83,51 @@ export default function GameSearchPage() {
     console.log("Game request submitted:", requestData);
   };
 
+  // Effect to update search from URL parameters
+  useEffect(() => {
+    const queryParam = searchParams.get("q");
+    if (queryParam) {
+      setSearchTerm(queryParam);
+    }
+  }, [searchParams]);
+  
+  // Effect to update URL when search term changes
+  useEffect(() => {
+    if (searchTerm) {
+      searchParams.set("q", searchTerm);
+      setSearchParams(searchParams);
+    } else if (searchParams.has("q")) {
+      searchParams.delete("q");
+      setSearchParams(searchParams);
+    }
+  }, [searchTerm]);
+
+  // Function to navigate back to the user search page while preserving the user preview state
+  const handleBackToUsers = () => {
+    if (fromUserId) {
+      navigate(`/user-search?previewUser=${fromUserId}`);
+    } else {
+      navigate('/user-search');
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-screen">
       {/* Main container with page-level scroll */}
       <div className="flex-1 flex flex-col p-4 sm:p-6 lg:p-8 overflow-y-auto">
-        <h1 className="text-3xl font-bold mb-6">Game Library</h1>
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-bold">Game Library</h1>
+          {fromUserId && (
+            <Button 
+              variant="outline" 
+              className="flex items-center gap-2"
+              onClick={handleBackToUsers}
+            >
+              <ArrowLeft size={16} />
+              Back to Users
+            </Button>
+          )}
+        </div>
         
         {/* Search and filter bar - fixed height */}
         <div className="flex flex-col md:flex-row gap-4 mb-6">
