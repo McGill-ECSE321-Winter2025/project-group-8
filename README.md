@@ -2,11 +2,14 @@
 
 ## Project Introduction
 
-At McGill University, as part of ECSE 321, we are developing an application for board game enthusiasts. The objective of this application is to enable the lending and borrowing of board games, the creation and joining of events, and connecting with other board game enthusiasts. The project report can be found [here](https://github.com/McGill-ECSE321-Winter2025/project-group-8/wiki/Project-report)
+At McGill University, as part of ECSE 321, we are developing an application for board game enthusiasts. The objective of this application is to enable the lending and borrowing of board games, the creation and joining of events, and connecting with other board game enthusiasts. The project report for deliverable 2 can be found [here](https://github.com/McGill-ECSE321-Winter2025/project-group-8/wiki/Project-Report-2)
 
 ## Database Configuration
 - port: 5433
 - password: skibidi
+
+## Build System
+The build system documentation can be found [here](https://github.com/McGill-ECSE321-Winter2025/project-group-8/wiki/Build-System-Documentation)
 
 ## Project Scope
 ### Functional Scope
@@ -28,14 +31,14 @@ At McGill University, as part of ECSE 321, we are developing an application for 
 
 | Name                              | Role                  | Deliverable 1 (hrs) | Deliverable 2 (hrs) | Deliverable 3 (hrs) | Total Hours |
 |-----------------------------------|-----------------------|---------------------|---------------------|---------------------|-------------|
-| Alexander Kudinov                | Backend Developer     | 7                   | X                   | X                   | X           |
-| Shayan Yamanidouzi Sorkhabi       | Frontend Developer    | 6                   | X                   | X                   | X           |
-| Jiwoong Choi                      | Test Lead            | 2                   | X                   | X                   | X           |
-| Youssef El Kesti                  | Scrum Master         | 6                   | X                   | X                   | X           |
-| David Wang                        | Project Manager      | 5.5                   | X                   | X                   | X           |
-| Yessine Chaari                    | DevOps               | 8.0                   | X                   | X                   | X           |
-| Rayan Baida                       | Fullstack Developer  | 7.5                   | X                   | X                   | X           |
-- The details on the contribution of each member are available at [Team Contribution Report](https://github.com/McGill-ECSE321-Winter2025/project-group-8/wiki/Team-contributions#team-contributions), as well as [projects/Deliverable1](https://github.com/orgs/McGill-ECSE321-Winter2025/projects/22), and [meeting minutes](https://github.com/McGill-ECSE321-Winter2025/project-group-8/wiki/Project-report#meeting-minutes)
+| Alexander Kudinov                | Backend Developer     | 7                   | 15                   | X                   | X           |
+| Shayan Yamanidouzi Sorkhabi       | Frontend Developer    | 6                   | 15                   | X                   | X           |
+| Jiwoong Choi                      | Test Lead            | 2                   | 18                   | X                   | X           |
+| Youssef El Kesti                  | Scrum Master         | 6                   | 14                   | X                   | X           |
+| David Wang                        | Project Manager      | 5.5                   | 15                   | X                   | X           |
+| Yessine Chaari                    | DevOps               | 8.0                   | 15                   | X                   | X           |
+| Rayan Baida                       | Fullstack Developer  | 7.5                   | 17                   | X                   | X           |
+- The details on the contribution of each member are available at [Team Contribution Report](https://github.com/McGill-ECSE321-Winter2025/project-group-8/wiki/Team-contributions#team-contributions), as well as [projects/Deliverable1](https://github.com/orgs/McGill-ECSE321-Winter2025/projects/22), [projects/Deliverable2](https://github.com/orgs/McGill-ECSE321-Winter2025/projects/34), and [meeting minutes](https://github.com/McGill-ECSE321-Winter2025/project-group-8/wiki/Project-report#meeting-minutes)
 
 ## Info on Project Branches
 

@@ -1,34 +1,31 @@
 import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
 import './App.css'
+import {BrowserRouter, Route, Routes} from "react-router-dom";
+import LandingPage from "./pages/LandingPage.jsx";
+import EventsPage from "./pages/EventsPage.jsx";
+import GameSearchPage from "./pages/GameSearchPage.jsx";
+import LoginPage from "./pages/LoginPage.jsx";
+import RegistrationPage from "./pages/RegistrationPage.jsx";
+import UserProfilePage from "./pages/UserProfilePage.jsx";
+import UserSearchPage from "./pages/UserSearchPage.jsx";
+import DashboardPage from "./pages/DashboardPage.jsx";
+import MenuBar from "./components/menubar/MenuBar.jsx";
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+    <div className="flex flex-col min-h-screen mx-auto">
+        <MenuBar />
+        <Routes>
+          <Route path="/"               element={<LandingPage />} />
+          <Route path="/events"         element={<EventsPage />} />
+          <Route path="/games"          element={<GameSearchPage />}/>
+          <Route path="/login"          element={<LoginPage />}/>
+          <Route path="/register"       element={<RegistrationPage />}/>
+          <Route path="/profile"        element={<UserProfilePage />}/>
+          <Route path="/user-search"    element={<UserSearchPage />}/>
+          <Route path="/dashboard"      element={<DashboardPage />}/>
+        </Routes>
+    </div>
   )
 }
 
