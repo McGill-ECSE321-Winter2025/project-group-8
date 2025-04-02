@@ -1,13 +1,12 @@
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "@/components/ui/card.jsx";
 import {Avatar, AvatarFallback, AvatarImage} from "@/components/ui/avatar.jsx";
-import {Button} from "@/components/ui/button.jsx";
-import {Link} from "react-router-dom";
-import {Menubar} from "@/components/ui/menubar.jsx";
 import {Tabs, TabsList, TabsTrigger} from "@/components/ui/tabs.jsx";
-import DashboardBorrowRequests from "@/components/dashboard-page/DashboardEvents.jsx";
+import DashboardBorrowRequests from "@/components/dashboard-page/DashboardBorrowRequests.jsx";
 import DashboardEvents from "@/components/dashboard-page/DashboardEvents.jsx";
 import DashboardGameLibrary from "@/components/dashboard-page/DashboardGameLibrary.jsx";
 import DashboardLendingRecord from "@/components/dashboard-page/DashboardLendingRecord.jsx";
+import SideMenuBar from "@/components/dashboard-page/SideMenuBar.jsx";
+import {Route, Routes} from "react-router-dom";
 
 export default function DashboardPage() {
   const userType = "owner";
@@ -29,33 +28,9 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <nav className="flex flex-col gap-2 pt-4">
-                  <Link to="/dashboard">
-                    <Button variant="ghost" className="w-full justify-start gap-2">
-                      Profile
-                    </Button>
-                  </Link>
-                  <Link to="/dashboard/games">
-                    <Button variant="ghost" className="w-full justify-start gap-2">
-                      My Games
-                    </Button>
-                  </Link>
-                  <Link to="/dashboard/events">
-                    <Button variant="ghost" className="w-full justify-start gap-2">
-                      My Events
-                    </Button>
-                  </Link>
-                  {userType === "owner" && (
-                    <Link to="/dashboard/requests">
-                      <Button variant="ghost" className="w-full justify-start gap-2">
-                        Borrow Requests
-                      </Button>
-                    </Link>
-                  )}
-                  <Link to="/dashboard/settings">
-                    <Button variant="ghost" className="w-full justify-start gap-2">
-                      Settings
-                    </Button>
-                  </Link>
+                  <Routes>
+                    <Route path="profile" element={<SideMenuBar userType={userType}/>} />
+                  </Routes>
                 </nav>
               </CardContent>
             </Card>
@@ -69,9 +44,9 @@ export default function DashboardPage() {
               <TabsTrigger value="requests">Borrow Requests</TabsTrigger>
               <TabsTrigger value="borrowing">Lending History</TabsTrigger>
             </TabsList>
+            <DashboardGameLibrary/>
             <DashboardEvents/>
             <DashboardBorrowRequests/>
-            <DashboardGameLibrary/>
             <DashboardLendingRecord/>
           </Tabs>
         </div>
