@@ -1,7 +1,8 @@
 import { useState } from "react";
 
 export function DateFilterComponent({ onFilterChange }) {
-  const [dateFilter, setDateFilter] = useState("");
+  const [dateFilter, setDateFilter] = useState("all");
+
   
   const handleDateFilterChange = (e) => {
     const filterValue = e.target.value;
@@ -16,7 +17,7 @@ export function DateFilterComponent({ onFilterChange }) {
         value={dateFilter}
         onChange={handleDateFilterChange}
       >
-        <option value="">Date range</option>
+        <option value="all">All Dates</option>
         <option value="this-week">This week</option>
         <option value="this-month">This month</option>
         <option value="next-month">Next month</option>

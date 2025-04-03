@@ -56,7 +56,7 @@ export default function EventsPage() {
 
   // Filter events by date range
   const handleDateFilter = (filterValue) => {
-    if (!filterValue) {
+    if (filterValue === "all") {
       setFilteredEvents(upcomingEvents);
       return;
     }
