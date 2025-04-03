@@ -1,8 +1,13 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import game1 from '../assets/games/game1.png';
+import game2 from '../assets/games/game2.png';
+import game3 from '../assets/games/game3.png';
+import game4 from '../assets/games/game4.png';
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const gameImages = [game1, game2, game3, game4];
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -71,17 +76,21 @@ export default function LandingPage() {
           </button>
         </div>
         <div className="grid grid-cols-2 gap-6 w-full lg:w-1/2">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="bg-white rounded shadow h-36 flex items-center justify-center">
-              <i className="fas fa-dice text-3xl text-gray-300"></i>
+          {gameImages.map((img, i) => (
+            <div key={i} className="rounded-xl overflow-hidden shadow-lg transition-transform hover:scale-105">
+              <img
+                src={img}
+                alt={`Game ${i + 1}`}
+                className="w-full h-44 object-cover rounded-xl border border-gray-200"
+              />
             </div>
           ))}
         </div>
       </section>
 
-      {/* Footer section */}
       <footer className="text-center text-sm text-gray-500 py-6 border-t">
         <div className="flex items-center justify-center gap-2 font-semibold text-black">
+          <i className="fas fa-gamepad"></i> BoardGameConnect
         </div>
         <div>© 2025 BoardGameConnect. All rights reserved.</div>
       </footer>
