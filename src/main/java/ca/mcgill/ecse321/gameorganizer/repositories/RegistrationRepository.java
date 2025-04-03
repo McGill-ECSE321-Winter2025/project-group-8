@@ -6,6 +6,8 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import ca.mcgill.ecse321.gameorganizer.models.Account;
+import ca.mcgill.ecse321.gameorganizer.models.Event;
 import ca.mcgill.ecse321.gameorganizer.models.Registration;
 
 /**
@@ -31,5 +33,12 @@ public interface RegistrationRepository extends JpaRepository<Registration, Inte
      * @return Optional containing the registration if found, empty otherwise
      */
     List<Registration> findRegistrationByAttendeeName(String username);
+
+    /**
+     * @param attendee
+     * @param eventRegisteredFor
+     * @return
+     */
+    boolean existsByAttendeeAndEventRegisteredFor(Account attendee, Event eventRegisteredFor);
 
 }

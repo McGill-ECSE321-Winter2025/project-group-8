@@ -1,6 +1,7 @@
 package ca.mcgill.ecse321.gameorganizer.services;
 
 import java.util.Date;
+import java.util.EventObject;
 import java.util.List;
 import java.util.UUID;
 
@@ -330,6 +331,30 @@ public class EventService {
         }
 
         List<Event> events = eventRepository.findEventByLocationContaining(location);
+
+        for (Event event : events) {
+            if (event.getDateTime() instanceof java.sql.Timestamp) {
+                java.sql.Timestamp timestamp = (java.sql.Timestamp) event.getDateTime();
+                event.setDateTime(new java.sql.Date(timestamp.getTime()));
+            }
+        }
+
+        return events;
+    }
+
+    /**
+     * Finds events by title, with partial matching supported.
+     *
+     * @param description The event title to search for
+     * @return List of events with title matching the search text
+     */
+    @Transactional
+    public List<Event> findEventByTitle(String title){
+        if (title == null || title.trim().isEmpty()) {
+            throw new IllegalArgumentException("Title search text cannot be empty");
+        }
+
+        List<Event> events = eventRepository.findEventByTitleContaining(title);
 
         for (Event event : events) {
             if (event.getDateTime() instanceof java.sql.Timestamp) {
