@@ -24,7 +24,7 @@ export default function Game({ name, date, isAvailable }) {
 
   return (
     <>
-      <Card>
+      <Card className="min-w-[260px]">
         <CardContent className="p-0">
           <div className="aspect-[4/3] relative">
             <img
@@ -43,7 +43,7 @@ export default function Game({ name, date, isAvailable }) {
                   variant="outline"
                   className={
                     isAvailable
-                      ? "bg-green-500 text-white hover:bg-green-600"
+                      ? "bg-green-600 text-white hover:bg-green-700"
                       : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                   }
                 >
