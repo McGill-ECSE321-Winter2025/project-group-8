@@ -65,6 +65,11 @@ public class RegistrationController {
         return ResponseEntity.ok(registrations);
     }
 
+    @GetMapping("/{email}")
+    public ResponseEntity<List<RegistrationResponseDto>> getAllRegistrationsByUserEmail(@PathVariable String email) {
+        List<RegistrationResponseDto> response = registrationService.getAllRegistrationsByUserEmail(email);
+        return ResponseEntity.ok(response);
+    }
     /**
      * Updates an existing registration.
      */
