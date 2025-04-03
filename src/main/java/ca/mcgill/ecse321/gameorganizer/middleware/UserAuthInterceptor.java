@@ -75,11 +75,11 @@ public class UserAuthInterceptor implements HandlerInterceptor {
         System.out.println("Cookie header: " + request.getHeader("Cookie"));
         System.out.println("testMode: " + testMode);
 
-        // Add testMode check at the beginning
-        if (testMode) {
-            System.out.println("Test mode enabled, bypassing authentication");
-            return true; // Skip all authentication in test mode
-        }
+        // // Add testMode check at the beginning
+        // if (testMode) {
+        //     System.out.println("Test mode enabled, bypassing authentication");
+        //     return true; // Skip all authentication in test mode
+        // }
 
         // Original logic starts here
         System.out.println("Intercepting request: " + request.getRequestURI()); // Keep original logging too? Or remove? Let's keep for now.

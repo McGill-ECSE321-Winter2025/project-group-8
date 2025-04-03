@@ -54,6 +54,14 @@ public class AuthenticationController {
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@RequestBody AuthenticationDTO authenticationDTO) {
         try {
+            // Validate input fields
+            if (authenticationDTO.getEmail() == null || authenticationDTO.getEmail().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null); // Email is missing
+            }
+            if (authenticationDTO.getPassword() == null || authenticationDTO.getPassword().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null); // Password is missing
+            }
+
             // Create authentication token
             UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                     authenticationDTO.getEmail(), authenticationDTO.getPassword());
@@ -66,7 +74,7 @@ public class AuthenticationController {
 
             // Authentication successful, now get user details for the response
             // The principal's name is the email used for login
-            String email = authentication.getName(); 
+            String email = authentication.getName();
             Account user = accountRepository.findByEmail(email)
                     .orElseThrow(() -> new RuntimeException("Authenticated user not found in repository: " + email)); // Should not happen if auth succeeded
 
