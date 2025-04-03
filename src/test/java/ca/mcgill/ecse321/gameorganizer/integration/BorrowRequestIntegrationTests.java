@@ -37,6 +37,9 @@ import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.LendingRecordRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
@@ -44,6 +47,15 @@ import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class BorrowRequestIntegrationTests {
+
+    @Autowired
+    private LendingRecordRepository lendingRecordRepository;
+
+    @Autowired
+    private ReviewRepository reviewRepository;
+
+    @Autowired
+    private EventRepository eventRepository;
 
     @LocalServerPort
     private int port;
@@ -96,7 +108,11 @@ public class BorrowRequestIntegrationTests {
 
     @AfterEach
     public void cleanup() {
+        // Ensure correct deletion order based on dependencies
+        reviewRepository.deleteAll();
+        lendingRecordRepository.deleteAll();
         borrowRequestRepository.deleteAll();
+        eventRepository.deleteAll();
         gameRepository.deleteAll();
         accountRepository.deleteAll();
     }
@@ -245,8 +261,8 @@ public class BorrowRequestIntegrationTests {
             new HttpEntity<>(updateDto),
             String.class
         );
-        // Controller catches exception and returns NOT_FOUND
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        // Controller catches exception and returns BAD_REQUEST for invalid status
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
     }
 
     @Test

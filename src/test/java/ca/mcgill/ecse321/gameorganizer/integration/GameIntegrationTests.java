@@ -34,6 +34,9 @@ import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.LendingRecordRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 import ca.mcgill.ecse321.gameorganizer.config.TestConfig;
 import ca.mcgill.ecse321.gameorganizer.config.SecurityTestConfig;
 
@@ -43,6 +46,15 @@ import ca.mcgill.ecse321.gameorganizer.config.SecurityTestConfig;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class GameIntegrationTests {
+
+    @Autowired
+    private LendingRecordRepository lendingRecordRepository;
+
+    @Autowired
+    private BorrowRequestRepository borrowRequestRepository;
+
+    @Autowired
+    private EventRepository eventRepository;
 
     @LocalServerPort
     private int port;
@@ -88,6 +100,10 @@ public class GameIntegrationTests {
     @AfterEach
     public void cleanup() {
         reviewRepository.deleteAll();
+        // Add missing repositories and ensure correct order
+        lendingRecordRepository.deleteAll();
+        borrowRequestRepository.deleteAll();
+        eventRepository.deleteAll();
         gameRepository.deleteAll();
         accountRepository.deleteAll();
     }

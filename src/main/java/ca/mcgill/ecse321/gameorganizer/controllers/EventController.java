@@ -1,8 +1,12 @@
 package ca.mcgill.ecse321.gameorganizer.controllers;
 
 import java.sql.Date;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.UUID;
+ // Keep UUID
+import org.springframework.security.core.Authentication; // Import Authentication
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +22,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.server.ResponseStatusException;
 import ca.mcgill.ecse321.gameorganizer.dto.CreateEventRequest;
 import ca.mcgill.ecse321.gameorganizer.dto.EventResponse;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
@@ -33,6 +39,7 @@ import ca.mcgill.ecse321.gameorganizer.services.EventService;
 @RequestMapping("/api/v1/events")
 public class EventController {
     
+    private static final Logger log = LoggerFactory.getLogger(EventController.class);
     private final EventService eventService;
     
     @Autowired
@@ -70,11 +77,19 @@ public class EventController {
      * Creates a new event.
      * 
      * @param request The event creation request
+      * @param authentication The authenticated user details
      * @return The created event
      */
     @PostMapping
-    public ResponseEntity<EventResponse> createEvent(@RequestBody CreateEventRequest request) {
-        Event event = eventService.createEvent(request);
+    public ResponseEntity<EventResponse> createEvent(@RequestBody CreateEventRequest request, Authentication authentication) {
+        log.info("Attempting to create event. Authentication: {}", authentication);
+        if (authentication == null || !authentication.isAuthenticated()) {
+             log.error("Create Event: User not authenticated.");
+             // Or throw an appropriate exception / return 401/403
+             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        String email = authentication.getName(); // Get email from Authentication
+        Event event = eventService.createEvent(request, email);
         return ResponseEntity.status(HttpStatus.CREATED).body(new EventResponse(event));
     }
 
@@ -87,36 +102,54 @@ public class EventController {
      * @param location The new location (optional)
      * @param description The new description (optional)
      * @param maxParticipants The new maximum number of participants (optional)
+      * @param authentication The authenticated user details
      * @return The updated event
      */
     @PutMapping("/{eventId}")
-public ResponseEntity<EventResponse> updateEvent(
-        @PathVariable UUID eventId,
-        @RequestParam(required = false) String title,
-        @RequestParam(required = false) Date dateTime,
-        @RequestParam(required = false) String location,
-        @RequestParam(required = false) String description,
-        @RequestParam(required = false, defaultValue = "0") int maxParticipants) {
-    
-    try {
-        Event updatedEvent = eventService.updateEvent(
-                eventId, title, dateTime, location, description, maxParticipants);
-        return ResponseEntity.ok(new EventResponse(updatedEvent));
-    } catch (IllegalArgumentException e) {
-        return ResponseEntity.notFound().build();
+    public ResponseEntity<EventResponse> updateEvent( // Corrected signature start
+            @PathVariable UUID eventId,
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) java.sql.Date dateTime,
+ // Use explicit java.sql.Date
+            @RequestParam(required = false) String location,
+            @RequestParam(required = false) String description,
+            @RequestParam(required = false, defaultValue = "0") int maxParticipants,
+            Authentication authentication) { // Corrected signature end
+        
+        log.info("Attempting to update event {}. Authentication: {}", eventId, authentication);
+        try {
+            if (authentication == null || !authentication.isAuthenticated()) {
+                 log.error("Update Event {}: User not authenticated.", eventId);
+                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+            String email = authentication.getName(); // Get email from Authentication
+            Event updatedEvent = eventService.updateEvent(
+                   eventId, title, dateTime, location, description, maxParticipants, email);
+            return ResponseEntity.ok(new EventResponse(updatedEvent));
+        } catch (IllegalArgumentException e) {
+            // This specific catch block might become redundant with the @ExceptionHandler,
+            // but leaving it for now doesn't hurt. The handler will take precedence.
+            return ResponseEntity.notFound().build(); 
+        }
     }
-}
     
     /**
      * Deletes an event by its ID.
      * 
      * @param eventId The UUID of the event to delete
+      * @param authentication The authenticated user details
      * @return No content response
      */
     @DeleteMapping("/{eventId}")
-    public ResponseEntity<Void> deleteEvent(@PathVariable UUID eventId) {
-        eventService.deleteEvent(eventId);
-        return ResponseEntity.noContent().build();
+    public ResponseEntity<Void> deleteEvent(@PathVariable UUID eventId, Authentication authentication) {
+        log.info("Attempting to delete event {}. Authentication: {}", eventId, authentication);
+        if (authentication == null || !authentication.isAuthenticated()) {
+             log.error("Delete Event {}: User not authenticated.", eventId);
+             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+         String email = authentication.getName(); // Get email from Authentication
+        eventService.deleteEvent(eventId, email); // Service handles exceptions (NotFound, Forbidden)
+        return ResponseEntity.noContent().build(); // Controller returns 204 on success
     }
 
     /**
@@ -157,15 +190,12 @@ public ResponseEntity<EventResponse> updateEvent(
      */
     @GetMapping("/by-game-name")
     public ResponseEntity<List<EventResponse>> getEventsByGameName(@RequestParam String gameName) {
-        try {
-            List<Event> events = eventService.findEventsByGameName(gameName);
-            List<EventResponse> eventResponses = events.stream()
-                .map(EventResponse::new)
-                .collect(Collectors.toList());
-            return ResponseEntity.ok(eventResponses);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
-        }
+        // Let the exception handler manage potential IllegalArgumentException from service
+        List<Event> events = eventService.findEventsByGameName(gameName);
+        List<EventResponse> eventResponses = events.stream()
+            .map(EventResponse::new)
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(eventResponses);
     }
     
     /**
@@ -191,15 +221,12 @@ public ResponseEntity<EventResponse> updateEvent(
      */
     @GetMapping("/by-host-name")
     public ResponseEntity<List<EventResponse>> getEventsByHostName(@RequestParam String hostUsername) {
-        try {
-            List<Event> events = eventService.findEventsByHostName(hostUsername);
-            List<EventResponse> eventResponses = events.stream()
-                .map(EventResponse::new)
-                .collect(Collectors.toList());
-            return ResponseEntity.ok(eventResponses);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
-        }
+        // Let the exception handler manage potential IllegalArgumentException from service
+        List<Event> events = eventService.findEventsByHostName(hostUsername);
+        List<EventResponse> eventResponses = events.stream()
+            .map(EventResponse::new)
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(eventResponses);
     }
     
     /**
@@ -210,15 +237,12 @@ public ResponseEntity<EventResponse> updateEvent(
      */
     @GetMapping("/by-game-min-players/{minPlayers}")
     public ResponseEntity<List<EventResponse>> getEventsByGameMinPlayers(@PathVariable int minPlayers) {
-        try {
-            List<Event> events = eventService.findEventsByGameMinPlayers(minPlayers);
-            List<EventResponse> eventResponses = events.stream()
-                .map(EventResponse::new)
-                .collect(Collectors.toList());
-            return ResponseEntity.ok(eventResponses);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
-        }
+        // Let the exception handler manage potential IllegalArgumentException from service
+        List<Event> events = eventService.findEventsByGameMinPlayers(minPlayers);
+        List<EventResponse> eventResponses = events.stream()
+            .map(EventResponse::new)
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(eventResponses);
     }
     
     /**
@@ -229,14 +253,38 @@ public ResponseEntity<EventResponse> updateEvent(
      */
     @GetMapping("/by-location")
     public ResponseEntity<List<EventResponse>> getEventsByLocation(@RequestParam String location) {
-        try {
-            List<Event> events = eventService.findEventsByLocationContaining(location);
-            List<EventResponse> eventResponses = events.stream()
-                .map(EventResponse::new)
-                .collect(Collectors.toList());
-            return ResponseEntity.ok(eventResponses);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
+        // Let the exception handler manage potential IllegalArgumentException from service
+        List<Event> events = eventService.findEventsByLocationContaining(location);
+        List<EventResponse> eventResponses = events.stream()
+            .map(EventResponse::new)
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(eventResponses);
+    }
+
+    // --- Exception Handlers ---
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<String> handleIllegalArgumentException(IllegalArgumentException ex) {
+        // Generally, IllegalArgumentException from service implies bad client request or resource not found
+        // Distinguish based on message content if necessary, otherwise default to BAD_REQUEST
+        if (ex.getMessage() != null && (ex.getMessage().contains("not found") || ex.getMessage().contains("does not exist"))) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
         }
+        // Default to BAD_REQUEST for other validation errors (e.g., empty title, invalid participants)
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<String> handleResponseStatusException(ResponseStatusException ex) {
+        // Forward the status and reason from ResponseStatusException (e.g., FORBIDDEN)
+        return ResponseEntity.status(ex.getStatusCode()).body(ex.getReason());
+    }
+
+    // Optional: Add a catch-all handler for unexpected errors
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<String> handleGenericException(Exception ex) {
+        // Log the exception details here (consider adding a logger)
+        // log.error("Unexpected error occurred in EventController", ex); 
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An unexpected error occurred.");
     }
 }

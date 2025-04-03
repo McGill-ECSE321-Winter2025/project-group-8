@@ -6,6 +6,14 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger; // Import Logger
+import org.slf4j.LoggerFactory; // Import LoggerFactory
+import org.springframework.security.core.userdetails.User; // Import User
+import org.springframework.security.core.userdetails.UserDetails; // Import UserDetails
+import org.springframework.security.core.userdetails.UserDetailsService; // Import UserDetailsService
+import org.springframework.security.core.userdetails.UsernameNotFoundException; // Import UsernameNotFoundException
+import org.springframework.security.core.GrantedAuthority; // Import GrantedAuthority
+import org.springframework.security.core.authority.SimpleGrantedAuthority; // Import SimpleGrantedAuthority
 import org.springframework.transaction.annotation.Transactional;
 
 import ca.mcgill.ecse321.gameorganizer.dto.AccountResponse;
@@ -30,7 +38,9 @@ import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
  * @author @dyune
  */
 @Service
-public class AccountService {
+public class AccountService implements UserDetailsService { // Implement UserDetailsService
+
+    private static final Logger log = LoggerFactory.getLogger(AccountService.class); // Add Logger
 
     private final AccountRepository accountRepository;
     private final RegistrationRepository registrationRepository;
@@ -47,6 +57,36 @@ public class AccountService {
         this.registrationRepository = registrationRepository;
         this.reviewRepository = reviewRepository;
         this.borrowRequestRepository = borrowRequestRepository;
+    }
+
+    /**
+     * Loads user-specific data by username (email in this case).
+     * Required by UserDetailsService interface for Spring Security authentication.
+     *
+     * @param email The email address (used as username) of the user to load.
+     * @return UserDetails object containing user information.
+     * @throws UsernameNotFoundException if the user with the given email is not found.
+     */
+    @Override
+    @Transactional // Ensure transaction is active for lazy loading if needed
+    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
+        Account account = accountRepository.findByEmail(email)
+                .orElseThrow(() -> {
+                    log.warn("UserDetailsService: User not found with email: {}", email); // Log if not found
+                    return new UsernameNotFoundException("User not found with email: " + email);
+                });
+
+        log.info("UserDetailsService: Found user {} with email {}", account.getName(), email); // Log if found
+
+        // Define authorities (roles) - adjust as needed based on your application's roles
+        List<GrantedAuthority> authorities = new ArrayList<>();
+        authorities.add(new SimpleGrantedAuthority("ROLE_USER")); // Basic role for all users
+        if (account instanceof GameOwner) {
+            authorities.add(new SimpleGrantedAuthority("ROLE_GAME_OWNER")); // Additional role for GameOwners
+        }
+
+        // Return Spring Security User object
+        return new User(account.getEmail(), account.getPassword(), authorities);
     }
 
     /**

@@ -5,7 +5,11 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,10 +19,10 @@ import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequestStatus;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
+import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
-
 /**
  * Service for managing borrow requests in the game organizer system.
  * Handles request creation, retrieval, updates, and deletion.
@@ -28,9 +32,12 @@ import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
 @Service
 public class BorrowRequestService {
 
+    private static final Logger logger = LoggerFactory.getLogger(BorrowRequestService.class);
+
     private final BorrowRequestRepository borrowRequestRepository;
     private final GameRepository gameRepository;
     private final AccountRepository accountRepository;
+    private final LendingRecordService lendingRecordService; // Added dependency
 
     /**
      * Constructs a BorrowRequestService with required repositories.
@@ -40,10 +47,11 @@ public class BorrowRequestService {
      * @param accountRepository Repository for user accounts.
      */
     @Autowired
-    public BorrowRequestService(BorrowRequestRepository borrowRequestRepository, GameRepository gameRepository, AccountRepository accountRepository) {
+    public BorrowRequestService(BorrowRequestRepository borrowRequestRepository, GameRepository gameRepository, AccountRepository accountRepository, LendingRecordService lendingRecordService) { // Added LendingRecordService
         this.borrowRequestRepository = borrowRequestRepository;
         this.gameRepository = gameRepository;
         this.accountRepository = accountRepository;
+        this.lendingRecordService = lendingRecordService; // Initialize LendingRecordService
     }
 
     /**
@@ -165,20 +173,63 @@ public class BorrowRequestService {
      * @throws IllegalArgumentException if the request is not found or status is invalid.
      */
     @Transactional
-public BorrowRequestDto updateBorrowRequestStatus(int id, String newStatus) {
+public BorrowRequestDto updateBorrowRequestStatus(int id, BorrowRequestStatus newStatus) { // Changed parameter type to Enum
     BorrowRequest request = borrowRequestRepository.findBorrowRequestById(id)
             .orElseThrow(() -> new IllegalArgumentException("No borrow request found with ID " + id));
 
-    if (!newStatus.equals("APPROVED") && !newStatus.equals("DECLINED")) {
-        throw new IllegalArgumentException("Invalid status.");
+    // Validate status - PENDING is not a valid target status for this method
+    if (newStatus != BorrowRequestStatus.APPROVED && newStatus != BorrowRequestStatus.DECLINED) {
+        throw new IllegalArgumentException("Invalid target status. Must be APPROVED or DECLINED.");
     }
 
-    request.setStatus(BorrowRequestStatus.valueOf(newStatus));
+    // If the status is being set to APPROVED, create a LendingRecord
+    if (newStatus == BorrowRequestStatus.APPROVED) {
+        Game requestedGame = request.getRequestedGame();
+        if (requestedGame == null) {
+            throw new IllegalStateException("Cannot approve request: Game details are missing.");
+        }
+        GameOwner owner = requestedGame.getOwner();
+        if (owner == null) {
+            // This case might indicate an orphaned game or configuration issue.
+            throw new IllegalStateException("Cannot approve request: Game owner is not set.");
+        }
+
+        try {
+            // Call LendingRecordService to create the record
+            ResponseEntity<String> response = lendingRecordService.createLendingRecord(
+                    request.getStartDate(),
+                    request.getEndDate(),
+                    request,
+                    owner
+            );
+
+            // Check if the lending record creation was successful
+            if (response.getStatusCode() != HttpStatus.OK) {
+                // Log the error and throw an exception to indicate failure during the transaction
+                String errorMessage = String.format("Failed to create lending record for approved borrow request %d. Status: %s, Body: %s",
+                                                    request.getId(), response.getStatusCode(), response.getBody());
+                logger.error(errorMessage);
+                throw new RuntimeException(errorMessage);
+            }
+             logger.info("Successfully created lending record for approved borrow request {}", request.getId());
+
+        } catch (Exception e) {
+            // Catch potential exceptions from createLendingRecord (e.g., validation errors)
+             String errorMessage = String.format("Error creating lending record for approved borrow request %d: %s",
+                                                 request.getId(), e.getMessage());
+             logger.error(errorMessage, e);
+            // Re-throw as a runtime exception to ensure transaction rollback if needed
+            throw new RuntimeException(errorMessage, e);
+        }
+    }
+
+    // Update the status of the BorrowRequest
+    request.setStatus(newStatus);
     BorrowRequest updatedRequest = borrowRequestRepository.save(request);
 
-    // If requester or game is missing, substitute a default value (e.g., 0) instead of null.
-    Integer requesterId = (updatedRequest.getRequester() != null) ? updatedRequest.getRequester().getId() : 0;
-    Integer gameId = (updatedRequest.getRequestedGame() != null) ? updatedRequest.getRequestedGame().getId() : 0;
+    // Prepare and return the DTO
+    Integer requesterId = (updatedRequest.getRequester() != null) ? updatedRequest.getRequester().getId() : null; // Keep null if missing
+    Integer gameId = (updatedRequest.getRequestedGame() != null) ? updatedRequest.getRequestedGame().getId() : null; // Keep null if missing
 
     return new BorrowRequestDto(
             updatedRequest.getId(),

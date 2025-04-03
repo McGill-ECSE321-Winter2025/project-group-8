@@ -1,18 +1,31 @@
 package ca.mcgill.ecse321.gameorganizer.services;
 
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.transaction.annotation.Transactional;
 
 import ca.mcgill.ecse321.gameorganizer.dto.CreateEventRequest;
+import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
+import ca.mcgill.ecse321.gameorganizer.models.Game;
+import ca.mcgill.ecse321.gameorganizer.models.LendingRecord;
+import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
+// import ca.mcgill.ecse321.gameorganizer.models.LendingRecord.LendingStatus; // No longer needed directly here due to FQN access
+import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.LendingRecordRepository;
 
 
 
@@ -31,26 +44,32 @@ public class EventService {
     @Autowired
     private GameRepository gameRepository;
 
+    @Autowired
+    private AccountRepository accountRepository;
+
+    @Autowired
+    private LendingRecordRepository lendingRecordRepository;
+
     /**
      * Constructs an EventService with the required repository dependency.
      *
      * @param eventRepository The repository for event data access
      */
-    @Autowired
     public EventService(EventRepository eventRepository) {
         this.eventRepository = eventRepository;
     }
 
-    // TODO: Associate an event to a host
     /**
      * Creates a new event in the system after validating required fields.
      *
-     * @param newEvent The event object to create
-     * @return ResponseEntity with creation confirmation message
+     * @param newEvent The DTO containing event details (excluding host).
+     * @param hostEmail The email of the account hosting the event.
+     * @return The created Event object.
      * @throws IllegalArgumentException if required fields are missing or invalid
      */
     @Transactional
-    public Event createEvent(CreateEventRequest newEvent) {
+    public Event createEvent(CreateEventRequest newEvent, String hostEmail) {
+ 
 
         if (newEvent.getTitle() == null || newEvent.getTitle().trim().isEmpty()) {
             throw new IllegalArgumentException("Event title cannot be empty");
@@ -64,10 +83,10 @@ public class EventService {
         if (newEvent.getFeaturedGame() == null) {
             throw new IllegalArgumentException("Featured game cannot be null");
         }
-        if (newEvent.getHost() == null) {
-            throw new IllegalArgumentException("Host cannot be null");
-        }
-
+        // Fetch the host account using the provided email
+        Account host = accountRepository.findByEmail(hostEmail)
+                .orElseThrow(() -> new IllegalArgumentException("Host account with email " + hostEmail + " not found."));
+ 
         Event e = new Event(
                 newEvent.getTitle(),
                 newEvent.getDateTime(),
@@ -75,7 +94,7 @@ public class EventService {
                 newEvent.getDescription(),
                 newEvent.getMaxParticipants(),
                 newEvent.getFeaturedGame(),
-                newEvent.getHost()
+                host // Use the fetched host account
         );
 
         return eventRepository.save(e);
@@ -121,26 +140,39 @@ public class EventService {
         return events;
     }
 
-    // TODO: Change to be callable by associated owner only
     /**
      * Updates an existing event's information.
      *
      * @param id The ID of the event to update
+.
      * @param title The new title for the event (optional)
+.
      * @param dateTime The new date and time for the event (optional)
+.
      * @param location The new location for the event (optional)
+.
      * @param description The new description for the event (optional)
+.
      * @param maxParticipants The new maximum number of participants (must be greater than 0)
-     * @return ResponseEntity with update confirmation message
+     * @param userEmail The email of the user attempting the update.
+     * @return The updated Event object.
      * @throws IllegalArgumentException if the event is not found or if maxParticipants is invalid
+.
+     * @throws ResponseStatusException if the user attempting the update is not the host (HttpStatus.FORBIDDEN).
      */
     @Transactional
     public Event updateEvent(UUID id, String title, Date dateTime,
-                            String location, String description, int maxParticipants) {
+                            String location, String description, int maxParticipants, String userEmail) {
         Event event = eventRepository.findEventById(id).orElseThrow(
                 () -> new IllegalArgumentException("Event with id " + id + " does not exist")
         );
 
+ 
+        // Ownership check
+        if (event.getHost() == null || !event.getHost().getEmail().equals(userEmail)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the host can update the event.");
+        }
+ 
         if (title != null && !title.trim().isEmpty()) {
             event.setTitle(title);
         }
@@ -164,21 +196,31 @@ public class EventService {
     }
 
 
-    // TODO: Change to be callable by associated owner only
 
     /**
      * Deletes an event from the system.
      *
      * @param id The ID of the event to delete
+.
+     * @param userEmail The email of the user attempting the deletion.
      * @return ResponseEntity with deletion confirmation message
+.
      * @throws IllegalArgumentException if no event is found with the given ID
+.
+     * @throws ResponseStatusException if the user attempting the deletion is not the host (HttpStatus.FORBIDDEN).
      */
 
     @Transactional
-    public ResponseEntity<String> deleteEvent(UUID id) {
+    public ResponseEntity<String> deleteEvent(UUID id, String userEmail) {
         Event eventToDelete = eventRepository.findEventById(id).orElseThrow(
                 () -> new IllegalArgumentException("Event with id " + id + " does not exist")
         );
+ 
+        // Ownership check
+        if (eventToDelete.getHost() == null || !eventToDelete.getHost().getEmail().equals(userEmail)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the host can delete the event.");
+        }
+ 
         eventRepository.delete(eventToDelete);
         return ResponseEntity.ok("Event with id " + id + " has been deleted");
     }
@@ -313,7 +355,6 @@ public class EventService {
                 event.setDateTime(new java.sql.Date(timestamp.getTime()));
             }
         }
-
         return events;
     }
 
@@ -339,5 +380,51 @@ public class EventService {
         }
 
         return events;
+    }
+
+    /**
+     * Retrieves a list of games available for a user to associate with a new event.
+     * This includes games owned by the user and games they are currently actively borrowing.
+     *
+     * @param userEmail The email of the user creating the event.
+     * @return A list of unique Game objects available to the user.
+     * @throws IllegalArgumentException if the userEmail is invalid or the user is not found.
+     */
+    public List<Game> getAvailableGamesForEventCreation(String userEmail) {
+        if (userEmail == null || userEmail.trim().isEmpty()) {
+            throw new IllegalArgumentException("User email cannot be empty.");
+        } // Correctly placed brace
+
+        // Corrected Optional handling
+        Account user = accountRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new IllegalArgumentException("User with email " + userEmail + " not found."));
+
+        // Use a Set to automatically handle duplicates
+        Set<Game> availableGames = new HashSet<>();
+
+        // 1. Get games owned by the user
+        // Check if the user is a GameOwner before fetching owned games
+        List<Game> ownedGames = new ArrayList<>(); // Initialize as empty
+        if (user instanceof GameOwner) {
+            ownedGames = gameRepository.findByOwner((GameOwner) user); // Cast and call findByOwner
+        }
+        if (ownedGames != null) {
+            availableGames.addAll(ownedGames);
+        }
+
+        // 2. Get games actively borrowed by the user
+        // Fetch all records for the borrower, then filter by status and map to game
+        List<LendingRecord> userLendingRecords = lendingRecordRepository.findByRequest_Requester(user); // Use correct method
+        if (userLendingRecords != null) {
+            List<Game> borrowedGames = userLendingRecords.stream()
+                .filter(record -> record.getStatus() == LendingRecord.LendingStatus.ACTIVE) // Filter for ACTIVE status
+                    .map(record -> record.getRequest() != null ? record.getRequest().getRequestedGame() : null) // Map to Game via BorrowRequest
+                    .filter(java.util.Objects::nonNull) // Filter out null games
+                    .collect(Collectors.toList());
+            availableGames.addAll(borrowedGames);
+        }
+
+        // Convert the Set back to a List for the return type
+        return new ArrayList<>(availableGames);
     }
 }
