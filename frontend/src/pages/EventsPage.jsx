@@ -13,30 +13,36 @@ const upcomingEvents = [
     title: "Sahria Chkoba",
     dateTime: "2025-04-05T18:00:00",
     location: "Yessine's House, 789 Pine St",
-    featuredGame: "Cards",
+    featuredGame: {name: "Chkoba"},
+    host: {name: "Yessine"},
     featuredGameImage: "https://play-lh.googleusercontent.com/JQt2sr9XF-5JPXZVJ8fV3vGsOZTm-R6RrsNpwZL1x0f-W9Kis9U2FegyT-yVl0PCfA",
     maxParticipants: 16,
-    participantCount: 8
+    participantCount: 8,
+    description: "Join us for a fun night of Chkoba! Food provided!"
   },
   {
     id: 1,
     title: "Friday Night Strategy Games",
     dateTime: "2025-03-15T19:00:00",
     location: "Board Game Cafe, 123 Main St",
-    featuredGame: "Settlers of Catan",
+    host: {name: "Rayan"},
+    featuredGame: {name: "Settlers of Catan"},
     featuredGameImage: "https://www.asdesjeux.com/cdn/shop/files/qzfkij6xaovkewqw1kht.png?v=1725899582",
     maxParticipants: 6,
-    participantCount: 4
+    participantCount: 4,
+    description: "Join us for a night of strategy games! Bring your favorite snacks."
   },
   {
     id: 2,
     title: "Weekend Board Game Marathon",
     dateTime: "2025-03-22T13:00:00",
     location: "Community Center, 456 Oak Ave",
-    featuredGame: "Monopoly",
+    host: {name: "David"},
+    featuredGame: {name: "Monopoly: The Mega Edition"},
     featuredGameImage: "https://i5.walmartimages.com/seo/Monopoly-The-Mega-Edition-Board-Game_71fb2957-622e-45ac-9f2e-9871836991c7.13d6146918d3670bb3661408d2ab6d89.jpeg",
     maxParticipants: 20,
-    participantCount: 12
+    participantCount: 12,
+    description: "A full day of board games! Bring your favorite game and a dish to share."
   },
   {
     id: 3,
