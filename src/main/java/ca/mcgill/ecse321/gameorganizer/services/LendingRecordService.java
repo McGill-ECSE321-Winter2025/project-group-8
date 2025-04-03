@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import ca.mcgill.ecse321.gameorganizer.dto.LendingHistoryFilterDto;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
+import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException; // Import UnauthedException
+import ca.mcgill.ecse321.gameorganizer.middleware.UserContext; // Import UserContext
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
@@ -32,9 +34,11 @@ public class LendingRecordService {
     
     @Autowired
     private LendingRecordRepository lendingRecordRepository;
-    
     @Autowired
     private BorrowRequestRepository borrowRequestRepository;
+
+    @Autowired
+    private UserContext userContext; // Inject UserContext
 
     /**
      * Helper method to create a standardized error response.
@@ -271,6 +275,12 @@ public class LendingRecordService {
         if (currentStatus == newStatus) {
             return ResponseEntity.ok("Status already set to " + newStatus.name());
         }
+
+        // Authorization Check: Only owner or borrower can update status
+        Account currentUser = userContext.getCurrentUser();
+        if (!isOwnerOrBorrower(currentUser, record)) {
+             throw new UnauthedException("Access denied: Only the game owner or borrower can update the lending status.");
+        }
         
         validateStatusTransition(record, newStatus);
         
@@ -354,6 +364,12 @@ public class LendingRecordService {
     public ResponseEntity<String> closeLendingRecord(int id, Integer userId, String reason) {
         LendingRecord record = getLendingRecordById(id);
         LendingStatus currentStatus = record.getStatus();
+
+        // Authorization Check: Only owner can close
+        Account currentUser = userContext.getCurrentUser();
+        if (currentUser == null || record.getRecordOwner() == null || record.getRecordOwner().getId() != currentUser.getId()) {
+             throw new UnauthedException("Access denied: Only the game owner can close the lending record.");
+        }
         
         if (currentStatus == LendingStatus.CLOSED) {
             throw new IllegalStateException("Lending record is already closed");
@@ -400,6 +416,12 @@ public class LendingRecordService {
             Integer userId, String reason) {
         LendingRecord record = getLendingRecordById(id);
         LendingStatus currentStatus = record.getStatus();
+
+        // Authorization Check: Only owner can close
+        Account currentUser = userContext.getCurrentUser();
+        if (currentUser == null || record.getRecordOwner() == null || record.getRecordOwner().getId() != currentUser.getId()) {
+             throw new UnauthedException("Access denied: Only the game owner can close the lending record.");
+        }
         
         if (currentStatus == LendingStatus.CLOSED) {
             throw new IllegalStateException("Lending record is already closed");
@@ -467,6 +489,12 @@ public class LendingRecordService {
         }
 
         LendingRecord record = getLendingRecordById(id);
+
+        // Authorization Check: Only owner can update end date
+        Account currentUser = userContext.getCurrentUser();
+        if (currentUser == null || record.getRecordOwner() == null || record.getRecordOwner().getId() != currentUser.getId()) {
+             throw new UnauthedException("Access denied: Only the game owner can update the end date.");
+        }
         
         if (record.getStatus() == LendingStatus.CLOSED) {
             throw new IllegalStateException("Cannot update end date of a closed lending record");
@@ -493,6 +521,12 @@ public class LendingRecordService {
     public ResponseEntity<String> deleteLendingRecord(int id) {
         try {
             LendingRecord record = getLendingRecordById(id);
+
+            // Authorization Check: Only owner can delete (non-active) record
+            Account currentUser = userContext.getCurrentUser();
+            if (currentUser == null || record.getRecordOwner() == null || record.getRecordOwner().getId() != currentUser.getId()) {
+                 throw new UnauthedException("Access denied: Only the game owner can delete this lending record.");
+            }
             
             if (record.getStatus() == LendingStatus.ACTIVE) {
                 throw new IllegalStateException("Cannot delete an active lending record");
@@ -503,5 +537,21 @@ public class LendingRecordService {
         } catch (ResourceNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         }
+    }
+
+    /**
+     * Helper method to check if the current user is the owner or the borrower of the lending record.
+     * @param currentUser The currently authenticated user.
+     * @param record The lending record.
+     * @return true if the user is the owner or borrower, false otherwise.
+     */
+    private boolean isOwnerOrBorrower(Account currentUser, LendingRecord record) {
+        if (currentUser == null || record == null) {
+            return false;
+        }
+        boolean isOwner = record.getRecordOwner() != null && record.getRecordOwner().getId() == currentUser.getId();
+        boolean isBorrower = record.getRequest() != null && record.getRequest().getRequester() != null &&
+                             record.getRequest().getRequester().getId() == currentUser.getId();
+        return isOwner || isBorrower;
     }
 }

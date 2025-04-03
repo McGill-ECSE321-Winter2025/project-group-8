@@ -12,6 +12,8 @@ import ca.mcgill.ecse321.gameorganizer.dto.AccountResponse;
 import ca.mcgill.ecse321.gameorganizer.dto.CreateAccountRequest;
 import ca.mcgill.ecse321.gameorganizer.dto.EventResponse;
 import ca.mcgill.ecse321.gameorganizer.dto.UpdateAccountRequest;
+import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException; // Import UnauthedException
+import ca.mcgill.ecse321.gameorganizer.middleware.UserContext; // Import UserContext
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
@@ -36,6 +38,9 @@ public class AccountService {
     private final RegistrationRepository registrationRepository;
     private final ReviewRepository reviewRepository;
     private final BorrowRequestRepository borrowRequestRepository;
+
+    @Autowired
+    private UserContext userContext; // Inject UserContext
 
     @Autowired
     public AccountService(
@@ -164,8 +169,22 @@ public class AccountService {
         String password = request.getPassword();
         String newPassword = request.getNewPassword();
 
+        Account currentUser = userContext.getCurrentUser(); // Get current user
+        if (currentUser == null) {
+            return ResponseEntity.status(401).body("Bad request: No authenticated user found."); // Or throw UnauthedException
+        }
+
         Account account;
         try {
+            account = accountRepository.findByEmail(email).orElseThrow(
+                () -> new IllegalArgumentException("Account with email " + email + " does not exist")
+            );
+
+            // Authorization Check: Ensure the current user is the one being updated
+            if (account.getId() != currentUser.getId()) { // Use == for primitive int comparison
+                 throw new UnauthedException("Access denied: You can only update your own account.");
+            }
+
             account = accountRepository.findByEmail(email).orElseThrow(
                 () -> new IllegalArgumentException("Account with email " + email + " does not exist")
             );

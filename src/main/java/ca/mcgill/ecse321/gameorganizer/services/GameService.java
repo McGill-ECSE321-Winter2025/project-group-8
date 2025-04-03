@@ -1,11 +1,23 @@
 package ca.mcgill.ecse321.gameorganizer.services;
 
+import java.util.Date;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service; // Import UnauthedException
+import org.springframework.transaction.annotation.Transactional; // Import UserContext
+
 import ca.mcgill.ecse321.gameorganizer.dto.GameCreationDto;
 import ca.mcgill.ecse321.gameorganizer.dto.GameResponseDto;
 import ca.mcgill.ecse321.gameorganizer.dto.GameSearchCriteria;
 import ca.mcgill.ecse321.gameorganizer.dto.ReviewResponseDto;
 import ca.mcgill.ecse321.gameorganizer.dto.ReviewSubmissionDto;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
+import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;
+import ca.mcgill.ecse321.gameorganizer.middleware.UserContext;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
@@ -13,15 +25,6 @@ import ca.mcgill.ecse321.gameorganizer.models.Review;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Date;
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
 
 /**
  * Service class that handles business logic for game management operations.
@@ -38,10 +41,14 @@ public class GameService {
     private AccountRepository accountRepository;
 
     @Autowired
-    public GameService(GameRepository gameRepository, ReviewRepository reviewRepository, AccountRepository accountRepository) {
+    private UserContext userContext; // Inject UserContext
+
+    @Autowired
+    public GameService(GameRepository gameRepository, ReviewRepository reviewRepository, AccountRepository accountRepository, UserContext userContext) { // Add UserContext
         this.gameRepository = gameRepository;
         this.reviewRepository = reviewRepository;
         this.accountRepository = accountRepository;
+        this.userContext = userContext; // Initialize UserContext
     }
 
     /**
@@ -297,6 +304,12 @@ public class GameService {
         if (game == null) {
             throw new IllegalArgumentException("Game with ID " + id + " does not exist");
         }
+
+        // Authorization Check
+        Account currentUser = userContext.getCurrentUser();
+        if (currentUser == null || game.getOwner() == null || game.getOwner().getId() != currentUser.getId()) {
+            throw new UnauthedException("Access denied: You are not the owner of this game.");
+        }
     
         // Validate the update data
         if (updateDto.getName() == null || updateDto.getName().trim().isEmpty()) {
@@ -328,6 +341,13 @@ public class GameService {
         if (gameToDelete == null) {
             throw new IllegalArgumentException("Game with ID " + id + " does not exist");
         }
+
+        // Authorization Check
+        Account currentUser = userContext.getCurrentUser();
+        if (currentUser == null || gameToDelete.getOwner() == null || gameToDelete.getOwner().getId() != currentUser.getId()) {
+            throw new UnauthedException("Access denied: You are not the owner of this game.");
+        }
+
         gameRepository.delete(gameToDelete);
         return ResponseEntity.ok("Game with ID " + id + " has been deleted");
     }
@@ -399,6 +419,12 @@ public class GameService {
      */
     @Transactional
     public ResponseEntity<String> removeGameFromCollection(Game aGame){
+        // Authorization Check
+        Account currentUser = userContext.getCurrentUser();
+        if (currentUser == null || aGame.getOwner() == null || aGame.getOwner().getId() != currentUser.getId()) {
+            throw new UnauthedException("Access denied: You are not the owner of this game.");
+        }
+
         //print statements
 
         aGame.setOwner(null);
@@ -486,6 +512,13 @@ public class GameService {
         }
         Review review = reviewRepository.findReviewById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Review with id " + id + " not found"));
+
+        // Authorization Check
+        Account currentUser = userContext.getCurrentUser();
+        if (currentUser == null || review.getReviewer() == null || review.getReviewer().getId() != currentUser.getId()) {
+            throw new UnauthedException("Access denied: You can only update your own reviews.");
+        }
+
         // Update review details.
         review.setRating(reviewDto.getRating());
         review.setComment(reviewDto.getComment());
@@ -505,6 +538,13 @@ public class GameService {
     public ResponseEntity<String> deleteReview(int id) {
         Review review = reviewRepository.findReviewById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Review with id " + id + " not found"));
+
+        // Authorization Check
+        Account currentUser = userContext.getCurrentUser();
+        if (currentUser == null || review.getReviewer() == null || review.getReviewer().getId() != currentUser.getId()) {
+            throw new UnauthedException("Access denied: You can only delete your own reviews.");
+        }
+
         reviewRepository.delete(review);
         return ResponseEntity.ok("Review deleted successfully");
     }

@@ -10,6 +10,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import ca.mcgill.ecse321.gameorganizer.dto.CreateEventRequest;
+import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException; // Import UnauthedException
+import ca.mcgill.ecse321.gameorganizer.middleware.UserContext; // Import UserContext
+import ca.mcgill.ecse321.gameorganizer.models.Account; // Import Account
 import ca.mcgill.ecse321.gameorganizer.models.Event;
 import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
@@ -31,14 +34,18 @@ public class EventService {
     @Autowired
     private GameRepository gameRepository;
 
+    @Autowired
+    private UserContext userContext; // Inject UserContext
+
     /**
      * Constructs an EventService with the required repository dependency.
      *
      * @param eventRepository The repository for event data access
      */
     @Autowired
-    public EventService(EventRepository eventRepository) {
+    public EventService(EventRepository eventRepository, UserContext userContext) { // Add UserContext to constructor
         this.eventRepository = eventRepository;
+        this.userContext = userContext; // Initialize UserContext
     }
 
     // TODO: Associate an event to a host
@@ -141,6 +148,12 @@ public class EventService {
                 () -> new IllegalArgumentException("Event with id " + id + " does not exist")
         );
 
+        // Authorization Check
+        Account currentUser = userContext.getCurrentUser();
+        if (currentUser == null || event.getHost() == null || event.getHost().getId() != currentUser.getId()) {
+            throw new UnauthedException("Access denied: You are not the host of this event.");
+        }
+
         if (title != null && !title.trim().isEmpty()) {
             event.setTitle(title);
         }
@@ -179,6 +192,13 @@ public class EventService {
         Event eventToDelete = eventRepository.findEventById(id).orElseThrow(
                 () -> new IllegalArgumentException("Event with id " + id + " does not exist")
         );
+
+        // Authorization Check
+        Account currentUser = userContext.getCurrentUser();
+        if (currentUser == null || eventToDelete.getHost() == null || eventToDelete.getHost().getId() != currentUser.getId()) {
+            throw new UnauthedException("Access denied: You are not the host of this event.");
+        }
+
         eventRepository.delete(eventToDelete);
         return ResponseEntity.ok("Event with id " + id + " has been deleted");
     }
