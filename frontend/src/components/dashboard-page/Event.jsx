@@ -35,7 +35,7 @@ export default function Event( { name, date, time, location, game, participants:
               <Button variant="outline" size="sm">
                 View Details
               </Button>
-              <Button variant="outline" size="sm">
+              <Button variant="destructive" size="sm">
                 Cancel Registration
               </Button>
             </div>

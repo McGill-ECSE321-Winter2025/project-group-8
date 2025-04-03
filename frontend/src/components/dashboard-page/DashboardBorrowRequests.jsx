@@ -1,6 +1,5 @@
 import BorrowRequest from "@/components/dashboard-page/BorrowRequest.jsx";
 import {TabsContent} from "@/components/ui/tabs.jsx";
-import {Button} from "@/components/ui/button.jsx";
 
 export default function DashboardBorrowRequests() {
 

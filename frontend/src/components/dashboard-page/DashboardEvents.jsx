@@ -7,7 +7,7 @@ export default function DashboardEvents() {
   const dummyEvents = [
     {
       id: 1,
-      title: "Friday Night Strategy Games",
+      name: "Friday Night Strategy Games",
       date: "2025-03-15",
       time: "7:00 PM - 10:00 PM",
       location: "Board Game Cafe, 123 Main St",
