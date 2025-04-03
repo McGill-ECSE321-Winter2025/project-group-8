@@ -50,6 +50,11 @@ public class Event {
     private String description;
 
     /**
+     * The current number of participants attending the event.
+     */
+    private int currentNumberParticipants;
+
+    /**
      * The maximum number of participants that can attend the event.
      */
     private int maxParticipants;
@@ -83,6 +88,7 @@ public class Event {
         description = aDescription;
         maxParticipants = aMaxParticipants;
         featuredGame = aFeaturedGame;
+        currentNumberParticipants = 0; 
     }
 
     /**
@@ -104,6 +110,7 @@ public class Event {
         maxParticipants = aMaxParticipants;
         featuredGame = aFeaturedGame;
         this.host = aHost;
+        currentNumberParticipants = 0; 
     }
 
     /**
@@ -114,12 +121,13 @@ public class Event {
      */
     public String toString() {
         return super.toString() + "[" +
-                "id" + ":" + getId() + "," +
-                "title" + ":" + getTitle() + "," +
-                "location" + ":" + getLocation() + "," +
-                "description" + ":" + getDescription() + "," +
-                "maxParticipants" + ":" + getMaxParticipants() + "]" + System.getProperties().getProperty("line.separator") +
-                "  " + "dateTime" + "=" + (getDateTime() != null ? !getDateTime().equals(this) ? getDateTime().toString().replaceAll("  ", "    ") : "this" : "null") + System.getProperties().getProperty("line.separator") +
-                "  " + "featuredGame = " + (getFeaturedGame() != null ? Integer.toHexString(System.identityHashCode(getFeaturedGame())) : "null");
+            "id" + ":" + getId() + "," +
+            "title" + ":" + getTitle() + "," +
+            "location" + ":" + getLocation() + "," +
+            "description" + ":" + getDescription() + "," +
+            "maxParticipants" + ":" + getMaxParticipants() + "," +
+            "currentNumberParticipants" + ":" + getCurrentNumberParticipants() + "]" + System.getProperties().getProperty("line.separator") +
+            "  " + "dateTime" + "=" + (getDateTime() != null ? !getDateTime().equals(this) ? getDateTime().toString().replaceAll("  ", "    ") : "this" : "null") + System.getProperties().getProperty("line.separator") +
+            "  " + "featuredGame = " + (getFeaturedGame() != null ? Integer.toHexString(System.identityHashCode(getFeaturedGame())) : "null");
     }
 }
