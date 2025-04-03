@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import game1 from '../assets/games/game1.png';
 import game2 from '../assets/games/game2.png';
@@ -8,6 +8,13 @@ import game4 from '../assets/games/game4.png';
 export default function LandingPage() {
   const navigate = useNavigate();
   const gameImages = [game1, game2, game3, game4];
+
+  useEffect(() => {
+    const isLoggedIn = localStorage.getItem("user");
+    if (isLoggedIn) {
+      navigate("/dashboard/profile");
+    }
+  }, [navigate]);
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -81,7 +88,7 @@ export default function LandingPage() {
               <img
                 src={img}
                 alt={`Game ${i + 1}`}
-                className="w-full h-44 object-cover rounded-xl border border-gray-200"
+                className={`w-full h-44 object-cover rounded-xl border border-gray-200 ${i === 2 ? 'object-top' : ''}`}
               />
             </div>
           ))}
