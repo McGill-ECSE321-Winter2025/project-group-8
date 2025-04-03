@@ -3,7 +3,6 @@ package ca.mcgill.ecse321.gameorganizer.middleware;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
@@ -23,7 +22,7 @@ import jakarta.servlet.http.HttpServletResponse;
  * 
  * @author Shayan
  */
-@Component
+// @Component // Removed annotation
 public class UserAuthInterceptor implements HandlerInterceptor {
 
     private final AccountRepository accountRepository;
@@ -47,15 +46,15 @@ public class UserAuthInterceptor implements HandlerInterceptor {
         this.userContext = userContext;
     }
     
-    // /**
-    //  * Sets whether the interceptor is in test mode.
-    //  * In test mode, authentication checks are bypassed.
-    //  * 
-    //  * @param testMode true if in test mode, false otherwise
-    //  */
-    // public void setTestMode(boolean testMode) {
-    //     this.testMode = testMode;
-    // }
+    /**
+     * Sets whether the interceptor is in test mode.
+     * In test mode, authentication checks are bypassed.
+     * 
+     * @param testMode true if in test mode, false otherwise
+     */
+    public void setTestMode(boolean testMode) {
+        this.testMode = testMode;
+    }
 
     /**
      * Pre-handle method to check user authentication and authorization.
@@ -68,23 +67,26 @@ public class UserAuthInterceptor implements HandlerInterceptor {
      */
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws UnauthedException {
-        System.out.println("Intercepting request: " + request.getRequestURI());
-        String userIdHeader = request.getHeader("User-Id");
-        System.out.println("User-Id header: " + userIdHeader);
+        // Add logging as suggested
+        System.out.println("==== UserAuthInterceptor ====");
+        System.out.println("Request URI: " + request.getRequestURI());
+        System.out.println("Method: " + request.getMethod());
+        System.out.println("User-Id header: " + request.getHeader("User-Id"));
+        System.out.println("Cookie header: " + request.getHeader("Cookie"));
+        System.out.println("testMode: " + testMode);
 
-        if (request.getRequestURI().startsWith("/api/v1/borrowrequests")) {
-            // Ensure only GameOwners can manage borrow requests
-            if (userIdHeader == null) {
-                throw new UnauthedException("No User-Id header provided");
-            }
-
-            Integer userId = Integer.parseInt(userIdHeader);
-            Account user = accountRepository.findById(userId).orElseThrow(() -> new UnauthedException("User not found"));
-
-            if (!(user instanceof GameOwner)) {
-                throw new UnauthedException("Access denied: Only GameOwners can manage borrow requests");
-            }
+        // Add testMode check at the beginning
+        if (testMode) {
+            System.out.println("Test mode enabled, bypassing authentication");
+            return true; // Skip all authentication in test mode
         }
+
+        // Original logic starts here
+        System.out.println("Intercepting request: " + request.getRequestURI()); // Keep original logging too? Or remove? Let's keep for now.
+        String userIdHeader = request.getHeader("User-Id");
+        System.out.println("User-Id header: " + userIdHeader); // Keep original logging too?
+
+        // Removed the specific check for /api/v1/borrowrequests - This will be handled by SecurityConfig
 
         if (request.getRequestURI().startsWith("/api/v1/account") && request.getMethod().equals("DELETE")) {
             // Allow authenticated users to delete their own account

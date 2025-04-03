@@ -3,6 +3,12 @@ package ca.mcgill.ecse321.gameorganizer.controllers;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationManager; // Import
+import org.springframework.security.authentication.BadCredentialsException; // Import
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken; // Import
+import org.springframework.security.core.Authentication; // Import
+import org.springframework.security.core.AuthenticationException; // Import
+import org.springframework.security.core.context.SecurityContextHolder; // Import
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -12,10 +18,10 @@ import org.springframework.web.bind.annotation.RestController;
 import ca.mcgill.ecse321.gameorganizer.dto.AuthenticationDTO;
 import ca.mcgill.ecse321.gameorganizer.dto.LoginResponse;
 import ca.mcgill.ecse321.gameorganizer.exceptions.EmailNotFoundException;
-import ca.mcgill.ecse321.gameorganizer.exceptions.InvalidCredentialsException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.InvalidPasswordException;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
-import ca.mcgill.ecse321.gameorganizer.services.AuthenticationService;
+import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
+import ca.mcgill.ecse321.gameorganizer.services.AuthenticationService; // Import
 import jakarta.servlet.http.HttpSession;
 
 /**
@@ -28,24 +34,59 @@ import jakarta.servlet.http.HttpSession;
 @RequestMapping("/api/v1/auth")
 public class AuthenticationController {
 
+    // Keep AuthenticationService for logout/reset password for now, but not for login
     @Autowired
-    private AuthenticationService authenticationService;
+    private AuthenticationService authenticationService; 
+
+    @Autowired // Inject AuthenticationManager
+    private AuthenticationManager authenticationManager;
+
+    @Autowired // Inject AccountRepository to get ID after successful auth
+    private AccountRepository accountRepository;
 
     /**
      * Endpoint for user login.
      * 
      * @param authenticationDTO the authentication data transfer object containing email and password
      * @param session the HTTP session
-     * @return a ResponseEntity containing the LoginResponse if login is successful, or an error message if login fails
+     * @return a ResponseEntity containing the LoginResponse if login is successful, or an UNAUTHORIZED status if login fails
      */
     @PostMapping("/login")
-    public ResponseEntity<LoginResponse> login(@RequestBody AuthenticationDTO authenticationDTO, HttpSession session) {
+    public ResponseEntity<LoginResponse> login(@RequestBody AuthenticationDTO authenticationDTO) {
         try {
-            Account user = authenticationService.login(authenticationDTO, session);
+            // Create authentication token
+            UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                    authenticationDTO.getEmail(), authenticationDTO.getPassword());
+
+            // Authenticate using AuthenticationManager (which uses UserDetailsService)
+            Authentication authentication = authenticationManager.authenticate(authToken);
+
+            // Set the successful authentication in the SecurityContext
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+
+            // Authentication successful, now get user details for the response
+            // The principal's name is the email used for login
+            String email = authentication.getName(); 
+            Account user = accountRepository.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("Authenticated user not found in repository: " + email)); // Should not happen if auth succeeded
+
+            // Note: Spring Security manages the session implicitly after successful authentication.
+            // We don't need to manually set session attributes like before.
+
             return ResponseEntity.ok(new LoginResponse(user.getId(), user.getEmail()));
-        } catch (InvalidCredentialsException e) {
-            // Return 401 UNAUTHORIZED when credentials are invalid
+
+        } catch (BadCredentialsException e) {
+            // Authentication failed (wrong email/password)
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (AuthenticationException e) {
+            // Other authentication issues (e.g., user disabled, locked - depends on UserDetails implementation)
+             System.err.println("Authentication failed: " + e.getMessage()); // Log other auth errors
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (Exception e) {
+             // Catch unexpected errors during login
+             System.err.println("Unexpected error during login: " + e.getMessage());
+             e.printStackTrace(); // Log stack trace for debugging
+             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
