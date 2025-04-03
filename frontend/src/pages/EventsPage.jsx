@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { EventSearchBar } from "../components/events-page/EventSearchBar";
 import { EventCard } from "../components/events-page/EventCard";
 import { DateFilterComponent } from "../components/events-page/DateFilterComponent";
 import CreateEventDialog from "../components/events-page/CreateEventDialog";
+import { AnimatePresence, motion } from "framer-motion";
 
 // Mock data is used here while waiting to really implement API calls
 const upcomingEvents = [
@@ -53,6 +54,14 @@ export default function EventsPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [filteredEvents, setFilteredEvents] = useState(upcomingEvents);
   const [isSearchActive, setIsSearchActive] = useState(false);
+  const [displayedEvents, setDisplayedEvents] = useState(upcomingEvents);
+
+  // Update displayed events with animation delay
+  useEffect(() => {
+    if (!isSearchActive) {
+      setDisplayedEvents(filteredEvents);
+    }
+  }, [filteredEvents, isSearchActive]);
 
   // Filter events by date range
   const handleDateFilter = (filterValue) => {
@@ -117,9 +126,29 @@ export default function EventsPage() {
       {/* Display filtered events only when no search is active */}
       {!isSearchActive && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredEvents.map((event) => (
-            <EventCard key={event.id} event={event} />
-          ))}
+          <AnimatePresence>
+            {displayedEvents.map((event) => (
+              <motion.div
+                key={event.id}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ 
+                  opacity: 0, 
+                  scale: 0.8, 
+                  y: 20,
+                  transition: { duration: 0.3 }
+                }}
+                transition={{ 
+                  type: "spring", 
+                  stiffness: 300, 
+                  damping: 20 
+                }}
+                layout
+              >
+                <EventCard event={event} />
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </div>
       )}
 

@@ -8,6 +8,7 @@ export function EventSearchBar({ onSearchStateChange }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
@@ -16,6 +17,7 @@ export function EventSearchBar({ onSearchStateChange }) {
         onSearchStateChange && onSearchStateChange(true);
       } else {
         setSearchResults([]);
+        setHasSearched(false);
         onSearchStateChange && onSearchStateChange(false);
       }
     }, 300);
@@ -28,9 +30,11 @@ export function EventSearchBar({ onSearchStateChange }) {
     try {
       const results = await searchEventsByTitle(searchTerm);
       setSearchResults(results);
+      setHasSearched(true);
     } catch (error) {
       console.error("Search error:", error);
       setSearchResults([]);
+      setHasSearched(true);
     } finally {
       setIsLoading(false);
     }
@@ -56,7 +60,7 @@ export function EventSearchBar({ onSearchStateChange }) {
           <RefreshCw className="h-12 w-12 mx-auto mb-4 text-gray-400 animate-spin" />
           <p className="text-muted-foreground text-lg">Searching for events...</p>
         </div>
-      ) : searchTerm && searchResults.length === 0 ? (
+      ) : searchTerm && hasSearched && searchResults.length === 0 ? (
         <div className="py-12 text-center">
           <div className="flex flex-col items-center justify-center">
             <div className="relative">
