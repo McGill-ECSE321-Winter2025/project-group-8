@@ -53,7 +53,7 @@ export default function Game({ name, date, isAvailable }) {
               <Dialog open={open} onOpenChange={setOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm">
-                    Manage
+                    Remove
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-[425px]">

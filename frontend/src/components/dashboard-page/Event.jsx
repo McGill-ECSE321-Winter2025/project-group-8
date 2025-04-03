@@ -1,8 +1,40 @@
-import {Card, CardContent} from "@/components/ui/card.jsx";
-import {Calendar} from "lucide-react";
-import {Button} from "@/components/ui/button.jsx";
+"use client"
 
-export default function Event( { name, date, time, location, game, participants: {current, capacity} } ) {
+import { useState } from "react"
+import { Card, CardContent } from "@/components/ui/card"
+import { Calendar, AlertCircle } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+
+export default function Event({
+                                name,
+                                date,
+                                time,
+                                location,
+                                game,
+                                participants: { current, capacity },
+                                onCancelRegistration,
+                              }) {
+  const [open, setOpen] = useState(false)
+
+  const handleCancelRegistration = () => {
+    // Call the provided callback function
+    if (typeof onCancelRegistration === "function") {
+      onCancelRegistration()
+    }
+
+    // Close the dialog
+    setOpen(false)
+  }
+
   return (
     <Card>
       <CardContent className="p-4">
@@ -32,12 +64,48 @@ export default function Event( { name, date, time, location, game, participants:
               </div>
             </div>
             <div className="flex gap-2 mt-4">
-              <Button variant="outline" size="sm">
-                View Details
-              </Button>
-              <Button variant="destructive" size="sm">
-                Cancel Registration
-              </Button>
+              <Dialog open={open} onOpenChange={setOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="destructive" size="sm">
+                    Cancel Registration
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <AlertCircle className="h-5 w-5 text-destructive" />
+                      Cancel Registration
+                    </DialogTitle>
+                    <DialogDescription>
+                      Are you sure you want to cancel your registration? This action cannot be undone.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="py-4">
+                    <div className="rounded-lg bg-muted p-4 text-sm">
+                      <p>
+                        <span className="font-medium">Event:</span> {name}
+                      </p>
+                      <p>
+                        <span className="font-medium">Date:</span> {date}
+                      </p>
+                      <p>
+                        <span className="font-medium">Time:</span> {time}
+                      </p>
+                      <p>
+                        <span className="font-medium">Location:</span> {location}
+                      </p>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setOpen(false)}>
+                      Keep Registration
+                    </Button>
+                    <Button variant="destructive" onClick={handleCancelRegistration}>
+                      Cancel Registration
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
         </div>
@@ -45,3 +113,4 @@ export default function Event( { name, date, time, location, game, participants:
     </Card>
   )
 }
+
