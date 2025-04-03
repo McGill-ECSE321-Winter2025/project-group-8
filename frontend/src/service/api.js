@@ -21,6 +21,27 @@ export async function registerForEvent(attendeeId, eventId) {
     });
   }
   
+ /* export async function unregisterFromEvent(registrationId) {
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        const responses = [
+          { status: 200, ok: true, json: () => Promise.resolve({ message: "Unregistered successfully" }) },
+          { status: 404, ok: false, json: () => Promise.resolve({ message: "Registration not found" }) },
+          { status: 500, ok: false, json: () => Promise.resolve({ message: "Server error, please try again later." }) },
+        ];
+  
+        // Simulate random API response
+        const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+  
+        if (randomResponse.ok) {
+          resolve(randomResponse);
+        } else {
+          reject(randomResponse);
+        }
+      }, 1000); // Simulate network delay
+    });
+  }*/
+  
 export const createEvent = async (eventData) => {
     const formattedData = {
       ...eventData,
@@ -103,5 +124,22 @@ export const searchEventsByTitle = async (title) => {
   
     return responseData;
   };*/
+
+  export async function unregisterFromEvent(registrationId) {
+    const response = await fetch(`/api/v1/registrations/${registrationId}`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+  
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || "Failed to unregister");
+    }
+  
+    return response.json(); // Assuming the backend returns some response data
+  }
+  
   
   

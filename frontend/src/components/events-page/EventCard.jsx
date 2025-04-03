@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import confetti from "canvas-confetti";
-import { registerForEvent } from "../../service/api";
+import { registerForEvent, unregisterFromEvent } from "../../service/api";
 
 export function EventCard({ event, attendeeId }) {
   const [isRegistered, setIsRegistered] = useState(false);
@@ -12,11 +12,26 @@ export function EventCard({ event, attendeeId }) {
     setError(null); // Reset error state
 
     if (isRegistered) {
-      // Handle unregister logic if needed
-      setIsRegistered(false);
+      // Unregister logic
+      try {
+        setIsAnimating(true);
+        const response = await unregisterFromEvent(event.registrationId);
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || "Unregistration failed");
+        }
+
+        setIsRegistered(false);
+        setIsAnimating(false);
+      } catch (error) {
+        setIsAnimating(false);
+        setError(error.message || "Something went wrong. Please try again.");
+      }
       return;
     }
 
+    // Register logic
     try {
       setIsAnimating(true);
       const { clientX: x, clientY: y } = e;
@@ -143,7 +158,7 @@ export function EventCard({ event, attendeeId }) {
           </div>
         )}
 
-        {/* Register Button */}
+        {/* Register/Unregister Button */}
         <Button
           className={`w-full text-white transition-all duration-300 ${
             isRegistered
