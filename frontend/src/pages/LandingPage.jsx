@@ -90,7 +90,6 @@ export default function LandingPage() {
 
       <footer className="text-center text-sm text-gray-500 py-6 border-t">
         <div className="flex items-center justify-center gap-2 font-semibold text-black">
-          <i className="fas fa-gamepad"></i> BoardGameConnect
         </div>
         <div>© 2025 BoardGameConnect. All rights reserved.</div>
       </footer>
