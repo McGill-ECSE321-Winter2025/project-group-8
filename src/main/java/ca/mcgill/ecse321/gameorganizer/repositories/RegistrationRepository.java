@@ -35,6 +35,14 @@ public interface RegistrationRepository extends JpaRepository<Registration, Inte
     List<Registration> findRegistrationByAttendeeName(String username);
 
     /**
+     * Finds a registration by its associated user.
+     *
+     * @param email the email of the user registered
+     * @return Optional containing the registration if found, empty otherwise
+     */
+    List<Registration> findRegistrationByAttendeeEmail(String email);
+
+    /**
      * @param attendee
      * @param eventRegisteredFor
      * @return
