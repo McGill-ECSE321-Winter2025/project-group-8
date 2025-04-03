@@ -13,15 +13,42 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const [isLoading, setIsLoading] = useState(false)
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setIsLoading(true)
 
-    // Simulate login process
-    setTimeout(() => {
+    const email = document.getElementById("email").value
+    const password = document.getElementById("password").value
+
+    try {
+      const response = await fetch("http://localhost:8080/api/v1/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        console.log("Login successful:", data)
+
+        // Store user ID in localStorage
+        localStorage.setItem("userId", data.id)
+
+        // Redirect to dashboard
+        navigate("/dashboard")
+      } else if (response.status === 401) {
+        alert("Invalid email or password")
+      } else {
+        alert("An unexpected error occurred")
+      }
+    } catch (error) {
+      console.error("Error during login:", error)
+      alert("Failed to connect to the server")
+    } finally {
       setIsLoading(false)
-      navigate("/dashboard")
-    }, 1000)
+    }
   }
 
   return (

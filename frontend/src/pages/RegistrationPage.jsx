@@ -15,15 +15,64 @@ export default function RegistrationPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [accountType, setAccountType] = useState("player")
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setIsLoading(true)
 
-    // Simulate registration process
-    setTimeout(() => {
+    const firstName = document.getElementById("first-name").value
+    const lastName = document.getElementById("last-name").value
+    const email = document.getElementById("email").value
+    const password = document.getElementById("password").value
+
+    try {
+      // Step 1: Register the user
+      const registrationResponse = await fetch("http://localhost:8080/api/v1/account", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: `${firstName} ${lastName}`,
+          email,
+          password,
+          isGameOwner: accountType === "owner",
+        }),
+      })
+
+      if (registrationResponse.ok) {
+        console.log("Registration successful")
+
+        // Step 2: Log the user in
+        const loginResponse = await fetch("http://localhost:8080/api/v1/auth/login", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email, password }),
+        })
+
+        if (loginResponse.ok) {
+          const loginData = await loginResponse.json()
+          console.log("Login successful:", loginData)
+
+          // Store user ID in localStorage
+          localStorage.setItem("userId", loginData.id)
+
+          // Redirect to dashboard
+          navigate("/dashboard")
+        } else {
+          alert("Login failed after registration. Please try logging in manually.")
+        }
+      } else {
+        const errorMessage = await registrationResponse.text()
+        alert(`Registration failed: ${errorMessage}`)
+      }
+    } catch (error) {
+      console.error("Error during registration or login:", error)
+      alert("Failed to connect to the server")
+    } finally {
       setIsLoading(false)
-      navigate("/dashboard")
-    }, 1000)
+    }
   }
 
   return (
