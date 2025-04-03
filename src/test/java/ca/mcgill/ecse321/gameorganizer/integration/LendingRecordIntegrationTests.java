@@ -375,61 +375,93 @@ public class LendingRecordIntegrationTests {
     @Test
     @Order(13)
     public void testGetLendingRecordsByOwner() {
-        ResponseEntity<List> response = restTemplate.getForEntity(
+        ResponseEntity<Map> response = restTemplate.getForEntity(
             createURLWithPort(BASE_URL + "/owner/" + testOwner.getId()),
-            List.class
+            Map.class
         );
-        
+
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
-        assertTrue(response.getBody().size() > 0);
-        Map<String, Object> record = (Map<String, Object>) response.getBody().get(0);
-        assertEquals(testRecord.getId(), ((Number)record.get("id")).intValue());
+        assertTrue(response.getBody().containsKey("records"));
+
+        // Extract the records list from the response
+        List<Map<String, Object>> records = (List<Map<String, Object>>) response.getBody().get("records");
+        assertNotNull(records);
+        assertTrue(records.size() > 0);
+
+        // Validate the first record
+        Map<String, Object> record = records.get(0);
+        assertEquals(testRecord.getId(), ((Number) record.get("id")).intValue());
     }
 
     @Test
     @Order(14)
     public void testGetLendingRecordsByOwnerAndStatus() {
-        ResponseEntity<List> response = restTemplate.getForEntity(
+        ResponseEntity<Map> response = restTemplate.getForEntity(
             createURLWithPort(BASE_URL + "/owner/" + testOwner.getId() + "/status/ACTIVE"),
-            List.class
+            Map.class
         );
-        
+
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
-        assertTrue(response.getBody().size() > 0);
-        Map<String, Object> record = (Map<String, Object>) response.getBody().get(0);
+        assertTrue(response.getBody().containsKey("records"));
+
+        // Extract the records list from the response
+        List<Map<String, Object>> records = (List<Map<String, Object>>) response.getBody().get("records");
+        assertNotNull(records);
+        assertTrue(records.size() > 0);
+
+        // Validate the first record
+        Map<String, Object> record = records.get(0);
         assertEquals("ACTIVE", record.get("status"));
     }
 
     @Test
     @Order(15)
     public void testGetLendingRecordsByBorrower() {
-        ResponseEntity<List> response = restTemplate.getForEntity(
+        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
             createURLWithPort(BASE_URL + "/borrower/" + testBorrower.getId()),
-            List.class
+            HttpMethod.GET,
+            null,
+            new ParameterizedTypeReference<Map<String, Object>>() {}
         );
-        
+
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
-        assertTrue(response.getBody().size() > 0);
-        Map<String, Object> record = (Map<String, Object>) response.getBody().get(0);
+        assertTrue(response.getBody().containsKey("records"));
+
+        // Extract the records list from the response
+        List<Map<String, Object>> records = (List<Map<String, Object>>) response.getBody().get("records");
+        assertNotNull(records);
+        assertFalse(records.isEmpty());
+
+        // Validate the first record
+        Map<String, Object> record = records.get(0);
         Map<String, Object> borrower = (Map<String, Object>) record.get("borrower");
-        assertEquals(testBorrower.getId(), ((Number)borrower.get("id")).intValue());
+        assertEquals(testBorrower.getId(), ((Number) borrower.get("id")).intValue());
     }
 
     @Test
     @Order(16)
     public void testGetActiveLendingRecordsByBorrower() {
-        ResponseEntity<List> response = restTemplate.getForEntity(
+        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
             createURLWithPort(BASE_URL + "/borrower/" + testBorrower.getId() + "/active"),
-            List.class
+            HttpMethod.GET,
+            null,
+            new ParameterizedTypeReference<Map<String, Object>>() {}
         );
-        
+
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
-        assertTrue(response.getBody().size() > 0);
-        Map<String, Object> record = (Map<String, Object>) response.getBody().get(0);
+        assertTrue(response.getBody().containsKey("records"));
+
+        // Extract the records list from the response
+        List<Map<String, Object>> records = (List<Map<String, Object>>) response.getBody().get("records");
+        assertNotNull(records);
+        assertFalse(records.isEmpty());
+
+        // Validate the first record
+        Map<String, Object> record = records.get(0);
         assertEquals("ACTIVE", record.get("status"));
     }
 

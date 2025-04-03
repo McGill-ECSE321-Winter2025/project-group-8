@@ -17,6 +17,10 @@ public class BorrowRequestDto {
     private String status;
     private Date requestDate;
 
+    public BorrowRequestDto() {
+        // Default constructor for deserialization
+    }
+
     /**
      * Constructs a new borrow request DTO.
      * 

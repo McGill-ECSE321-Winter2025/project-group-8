@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.sql.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
@@ -326,63 +327,85 @@ public class GameIntegrationTests {
     @Test
     public void testGetAllGames() {
         // Use the /api/v1/games endpoint to get all games
-        ResponseEntity<List<GameResponseDto>> response = restTemplate.exchange(
+        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
             createURLWithPort(BASE_URL_ALL),
             HttpMethod.GET,
             null,
-            new ParameterizedTypeReference<List<GameResponseDto>>() {}
+            new ParameterizedTypeReference<Map<String, Object>>() {}
         );
+
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        List<GameResponseDto> games = response.getBody();
+        assertNotNull(response.getBody());
+        assertTrue(response.getBody().containsKey("games"));
+
+        // Extract the games list from the response
+        List<Map<String, Object>> games = (List<Map<String, Object>>) response.getBody().get("games");
         assertNotNull(games);
         // We already have one test game in setup
         assertEquals(1, games.size());
+        assertEquals("Test Game", games.get(0).get("name"));
     }
     
     @Test
     public void testGetGamesByOwner() {
         // Filter games by owner using ownerId query parameter on /api/v1/games endpoint
-        ResponseEntity<List<GameResponseDto>> response = restTemplate.exchange(
+        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
             createURLWithPort(BASE_URL_ALL + "?ownerId=" + VALID_EMAIL),
             HttpMethod.GET,
             null,
-            new ParameterizedTypeReference<List<GameResponseDto>>() {}
+            new ParameterizedTypeReference<Map<String, Object>>() {}
         );
+
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        List<GameResponseDto> games = response.getBody();
+        assertNotNull(response.getBody());
+        assertTrue(response.getBody().containsKey("games"));
+
+        // Extract the games list from the response
+        List<Map<String, Object>> games = (List<Map<String, Object>>) response.getBody().get("games");
         assertNotNull(games);
         assertEquals(1, games.size());
-        assertEquals(VALID_EMAIL, games.get(0).getOwner().getEmail());
+        assertEquals(VALID_EMAIL, ((Map<String, Object>) games.get(0).get("owner")).get("email"));
     }
     
     @Test
     public void testGetGamesByPlayerCount() {
-        ResponseEntity<List<GameResponseDto>> response = restTemplate.exchange(
+        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
             createURLWithPort("/games/players?players=3"),
             HttpMethod.GET,
             null,
-            new ParameterizedTypeReference<List<GameResponseDto>>() {}
+            new ParameterizedTypeReference<Map<String, Object>>() {}
         );
+
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        List<GameResponseDto> games = response.getBody();
+        assertNotNull(response.getBody());
+        assertTrue(response.getBody().containsKey("games"));
+
+        // Extract the games list from the response
+        List<Map<String, Object>> games = (List<Map<String, Object>>) response.getBody().get("games");
         assertNotNull(games);
         // All games returned should have minPlayers <= 3 and maxPlayers >= 3.
-        assertTrue(games.stream().allMatch(game -> game.getMinPlayers() <= 3 && game.getMaxPlayers() >= 3));
+        assertTrue(games.stream().allMatch(game -> 
+            (int) game.get("minPlayers") <= 3 && (int) game.get("maxPlayers") >= 3));
     }
     
     @Test
     public void testGetGamesByNameContaining() {
-        ResponseEntity<List<GameResponseDto>> response = restTemplate.exchange(
+        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
             createURLWithPort(BASE_URL_ALL + "?namePart=Test"),
             HttpMethod.GET,
             null,
-            new ParameterizedTypeReference<List<GameResponseDto>>() {}
+            new ParameterizedTypeReference<Map<String, Object>>() {}
         );
+
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        List<GameResponseDto> games = response.getBody();
+        assertNotNull(response.getBody());
+        assertTrue(response.getBody().containsKey("games"));
+
+        // Extract the games list from the response
+        List<Map<String, Object>> games = (List<Map<String, Object>>) response.getBody().get("games");
         assertNotNull(games);
         assertFalse(games.isEmpty());
-        assertTrue(games.get(0).getName().contains("Test"));
+        assertTrue(games.get(0).get("name").toString().contains("Test"));
     }
     
     // ----- Advanced Search Tests -----
@@ -462,17 +485,22 @@ public class GameIntegrationTests {
     @Test
     @Order(15)
     public void testGetGamesByOwnerSuccess() {
-        ResponseEntity<List<GameResponseDto>> response = restTemplate.exchange(
+        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
             createURLWithPort("/users/" + VALID_EMAIL + "/games"),
             HttpMethod.GET,
             null,
-            new ParameterizedTypeReference<List<GameResponseDto>>() {}
+            new ParameterizedTypeReference<Map<String, Object>>() {}
         );
+
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        List<GameResponseDto> games = response.getBody();
+        assertNotNull(response.getBody());
+        assertTrue(response.getBody().containsKey("games"));
+
+        // Extract the games list from the response
+        List<Map<String, Object>> games = (List<Map<String, Object>>) response.getBody().get("games");
         assertNotNull(games);
         assertFalse(games.isEmpty());
-        assertEquals(VALID_EMAIL, games.get(0).getOwner().getEmail());
+        assertEquals(VALID_EMAIL, ((Map<String, Object>) games.get(0).get("owner")).get("email"));
     }
     
     @Test
@@ -492,15 +520,23 @@ public class GameIntegrationTests {
     @Test
     @Order(17)
     public void testGetGameReviews() {
-        ResponseEntity<List<ReviewResponseDto>> response = restTemplate.exchange(
+        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
             createURLWithPort("/games/" + testGame.getId() + "/reviews"),
             HttpMethod.GET,
             null,
-            new ParameterizedTypeReference<List<ReviewResponseDto>>() {}
+            new ParameterizedTypeReference<Map<String, Object>>() {}
         );
+
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        List<ReviewResponseDto> reviews = response.getBody();
+        assertNotNull(response.getBody());
+        assertTrue(response.getBody().containsKey("reviews"));
+
+        // Extract the reviews list from the response
+        List<Map<String, Object>> reviews = (List<Map<String, Object>>) response.getBody().get("reviews");
         assertNotNull(reviews);
+        assertFalse(reviews.isEmpty());
+        assertEquals(5, reviews.get(0).get("rating"));
+        assertEquals("Great game!", reviews.get(0).get("comment"));
     }
     
     @Test
@@ -527,12 +563,19 @@ public class GameIntegrationTests {
     @Test
     @Order(19)
     public void testGetGameRating() {
-        ResponseEntity<Double> response = restTemplate.getForEntity(
+        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
             createURLWithPort("/games/" + testGame.getId() + "/rating"),
-            Double.class
+            HttpMethod.GET,
+            null,
+            new ParameterizedTypeReference<Map<String, Object>>() {}
         );
+
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        Double rating = response.getBody();
+        assertNotNull(response.getBody());
+        assertTrue(response.getBody().containsKey("rating"));
+
+        // Extract the rating from the response
+        Double rating = ((Number) response.getBody().get("rating")).doubleValue();
         assertNotNull(rating);
         assertTrue(rating >= 0 && rating <= 5);
     }
