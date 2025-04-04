@@ -6,7 +6,7 @@ import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
 import { Textarea } from "../../ui/textarea";
 import { Label } from "../../ui/label";
-import { createEvent } from "../../service/api";
+import { createEvent } from "../../service/event-api.js";
 
 export default function CreateEventDialog({ open, onOpenChange }) {
   const [isLoading, setIsLoading] = useState(false);

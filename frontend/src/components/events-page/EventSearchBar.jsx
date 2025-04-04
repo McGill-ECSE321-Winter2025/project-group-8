@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Input } from "../../ui/input";
 import { Search, CalendarX, RefreshCw } from "lucide-react";
-import { searchEventsByTitle } from "../../service/api";
+import { searchEventsByTitle } from "../../service/event-api.js";
 import { EventCard } from "./EventCard";
 import { motion, AnimatePresence } from "framer-motion";
 

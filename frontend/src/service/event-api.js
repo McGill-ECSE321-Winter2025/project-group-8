@@ -125,7 +125,7 @@ export const searchEventsByTitle = async (title) => {
     return responseData;
   };*/
 
-  export async function unregisterFromEvent(registrationId) {
+export async function unregisterFromEvent(registrationId) {
     const response = await fetch(`/api/v1/registrations/${registrationId}`, {
       method: "DELETE",
       headers: {
@@ -140,6 +140,4 @@ export const searchEventsByTitle = async (title) => {
   
     return response.json(); // Assuming the backend returns some response data
   }
-  
-  
   
