@@ -3,6 +3,8 @@ package ca.mcgill.ecse321.gameorganizer.services;
 import java.util.Date;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -34,6 +36,7 @@ import ca.mcgill.ecse321.gameorganizer.repositories.LendingRecordRepository;
 @Service
 public class LendingRecordService {
     
+    private static final Logger log = LoggerFactory.getLogger(LendingRecordService.class);
     @Autowired
     private LendingRecordRepository lendingRecordRepository;
     private final BorrowRequestRepository borrowRequestRepository;
@@ -266,6 +269,7 @@ public class LendingRecordService {
      */
     @Transactional
     public ResponseEntity<String> updateStatus(int id, LendingStatus newStatus, Integer userId, String reason) {
+        log.info("Attempting to update status for record ID: {} to {} by user ID: {}. Reason: {}", id, newStatus, userId, reason);
         if (newStatus == null) {
             throw new IllegalArgumentException("New status cannot be null");
         }
@@ -277,6 +281,7 @@ public class LendingRecordService {
             return createErrorResponse(HttpStatus.NOT_FOUND, e.getMessage());
         }
         LendingStatus currentStatus = record.getStatus();
+        log.debug("Record found: ID={}, Status={}", record.getId(), currentStatus);
         
         if (currentStatus == newStatus) {
             return ResponseEntity.ok("Status already set to " + newStatus.name());
@@ -284,17 +289,35 @@ public class LendingRecordService {
 
         // Authorization Check: Only owner or borrower can update status
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        log.debug("Authentication object: {}", authentication != null ? authentication.getName() : "null");
+        if (authentication == null) {
+            throw new IllegalStateException("Authentication context is missing.");
+        }
         if (authentication == null || !authentication.isAuthenticated() || authentication.getPrincipal().equals("anonymousUser")) {
             throw new UnauthedException("User not authenticated.");
         }
         String userEmail = authentication.getName(); // Assuming email is the username used in UserDetails
-        Account currentUser = accountRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new UnauthedException("Authenticated user not found in database."));
-        if (!isOwnerOrBorrower(currentUser, record)) {
+        log.debug("Auth check: Authenticated user email: '{}'", userEmail);
+        Account currentUser = accountRepository.findByEmail(userEmail).orElseThrow(() -> new UnauthedException("Authenticated user not found in database."));
+        log.debug("Current user fetched from DB: {}", currentUser != null ? currentUser.getEmail() : "null");
+        // Note: orElseThrow in the line above handles the case where the account is not found for the email.
+        // If we need to handle a null currentUser specifically (e.g., if orElseThrow was removed or changed),
+        // a check like this would be appropriate:
+        // if (currentUser == null) {
+        //     throw new ResourceNotFoundException("Authenticated user account could not be retrieved for email: " + userEmail);
+        // }
+        log.debug("Auth check: Found current user in DB: {}", currentUser != null ? currentUser.getEmail() : "null");
+        boolean ownerOrBorrowerCheck = isOwnerOrBorrower(currentUser, record);
+        log.debug("isOwnerOrBorrower check result for user {} on record {}: {}", currentUser != null ? currentUser.getEmail() : "null", id, ownerOrBorrowerCheck);
+        if (!ownerOrBorrowerCheck) {
+             log.warn("Authorization failed for user {} to update status for record ID: {}. User is not owner or borrower.", currentUser != null ? currentUser.getEmail() : "null", id);
              throw new UnauthedException("Access denied: Only the game owner or borrower can update the lending status.");
         }
         
+        log.debug("Auth check passed for user {} on record ID: {}", currentUser.getEmail(), id);
+        log.debug("Attempting validateStatusTransition for record {} from {} to {}", id, currentStatus, newStatus);
         validateStatusTransition(record, newStatus);
+        log.debug("validateStatusTransition passed for record {}", id);
         
         if (isRecordOverdue(record) && newStatus == LendingStatus.ACTIVE) {
             record.setStatus(LendingStatus.OVERDUE);
@@ -310,8 +333,18 @@ public class LendingRecordService {
         record.setLastModifiedBy(userId);
         record.setStatusChangeReason(reason != null ? reason : "Status updated by user");
         
+        log.debug("Attempting to save updated record ID: {} with status {}", record.getId(), record.getStatus());
         lendingRecordRepository.save(record);
+        try {
+            log.debug("Attempting final save for record ID: {}", record.getId());
+            lendingRecordRepository.save(record);
+            log.info("Successfully saved updated record ID: {}", record.getId());
+        } catch (Exception e) {
+            log.error("Error saving record ID: {} during status update", record.getId(), e);
+            throw e; // Re-throw the exception to be handled by controller advice or caller
+        }
         
+        // Original save call removed, handled in try-catch above
         return ResponseEntity.ok("Lending record status updated successfully");
     }
     
@@ -433,6 +466,7 @@ public class LendingRecordService {
             int id, boolean isDamaged, String damageNotes, int damageSeverity,
             Integer userId, String reason) {
         LendingRecord record = getLendingRecordById(id);
+        log.info("Attempting closeLendingRecordWithDamageAssessment for record ID: {}. isDamaged={}, damageSeverity={}, userId={}, reason={}", id, isDamaged, damageSeverity, userId, reason);
         LendingStatus currentStatus = record.getStatus();
 
         // Authorization Check: Only owner can close
@@ -441,13 +475,17 @@ public class LendingRecordService {
             throw new UnauthedException("User not authenticated.");
         }
         String userEmail = authentication.getName(); // Assuming email is the username used in UserDetails
-        Account currentUser = accountRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new UnauthedException("Authenticated user not found in database."));
+        log.debug("Auth check (close): Authenticated user email: '{}'", userEmail);
+        Account currentUser = accountRepository.findByEmail(userEmail).orElseThrow(() -> new UnauthedException("Authenticated user not found in database."));
+        log.debug("Auth check (close): Found current user in DB: {}", currentUser != null ? currentUser.getEmail() : "null");
         if (currentUser == null || record.getRecordOwner() == null || record.getRecordOwner().getId() != currentUser.getId()) {
+             log.warn("Authorization failed for user {} to close record ID: {}. User is not owner.", currentUser != null ? currentUser.getEmail() : "null", id);
              throw new UnauthedException("Access denied: Only the game owner can close the lending record.");
         }
         
+        log.debug("Checking current status for record ID: {}. Current status: {}", id, currentStatus);
         if (currentStatus == LendingStatus.CLOSED) {
+            log.warn("Attempted to close already closed record ID: {}", id);
             throw new IllegalStateException("Lending record is already closed");
         }
         
@@ -466,8 +504,17 @@ public class LendingRecordService {
         
         record.recordClosing(userId, closingReason);
         
+        log.debug("Attempting to save closed record ID: {} with damage assessment.", record.getId());
         lendingRecordRepository.save(record);
+        try {
+            lendingRecordRepository.save(record);
+            log.info("Successfully saved closed record ID: {}", record.getId());
+        } catch (Exception e) {
+            log.error("Error saving record ID: {} during close with damage assessment", record.getId(), e);
+            throw e;
+        }
         
+        // Original save call removed
         return ResponseEntity.ok("Lending record closed successfully");
     }
     
@@ -508,6 +555,7 @@ public class LendingRecordService {
      */
     @Transactional
     public ResponseEntity<String> updateEndDate(int id, Date newEndDate) {
+        log.info("Attempting to update end date for record ID: {} to {}", id, newEndDate);
         if (newEndDate == null) {
             throw new IllegalArgumentException("New end date cannot be null");
         }
@@ -520,23 +568,36 @@ public class LendingRecordService {
             throw new UnauthedException("User not authenticated.");
         }
         String userEmail = authentication.getName(); // Assuming email is the username used in UserDetails
-        Account currentUser = accountRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new UnauthedException("Authenticated user not found in database."));
+        log.debug("Auth check (updateEndDate): Authenticated user email: '{}'", userEmail);
+        Account currentUser = accountRepository.findByEmail(userEmail).orElseThrow(() -> new UnauthedException("Authenticated user not found in database."));
+        log.debug("Auth check (updateEndDate): Found current user in DB: {}", currentUser != null ? currentUser.getEmail() : "null");
         if (currentUser == null || record.getRecordOwner() == null || record.getRecordOwner().getId() != currentUser.getId()) {
+             log.warn("Authorization failed for user {} to update end date for record ID: {}. User is not owner.", currentUser != null ? currentUser.getEmail() : "null", id);
              throw new UnauthedException("Access denied: Only the game owner can update the end date.");
         }
         
         if (record.getStatus() == LendingStatus.CLOSED) {
+            log.warn("Attempted to update end date on closed record ID: {}", id);
             throw new IllegalStateException("Cannot update end date of a closed lending record");
         }
         
         if (newEndDate.before(record.getStartDate())) {
+            log.warn("Attempted to set invalid end date ({}) for record ID: {}. End date cannot be before start date ({}).", newEndDate, id, record.getStartDate());
             throw new IllegalArgumentException("New end date cannot be before start date");
         }
         
         record.setEndDate(newEndDate);
+        log.debug("Attempting to save record ID: {} with updated end date.", record.getId());
         lendingRecordRepository.save(record);
+        try {
+            lendingRecordRepository.save(record);
+            log.info("Successfully saved record ID: {} with updated end date.", record.getId());
+        } catch (Exception e) {
+            log.error("Error saving record ID: {} during end date update", record.getId(), e);
+            throw e;
+        }
         
+        // Original save call removed
         return ResponseEntity.ok("End date updated successfully");
     }
     

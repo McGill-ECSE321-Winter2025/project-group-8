@@ -120,7 +120,7 @@ export const createEvent = async (eventData) => {
     maxParticipants: parseInt(eventData.maxParticipants, 10),
   };
 
-  const response = await fetch("http://localhost:8080/api/v1/events", {
+  const response = await fetch("http://localhost:8080/events", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -138,7 +138,7 @@ export const createEvent = async (eventData) => {
 
 export const getAccountInfo = async (email) => {
   // TODO: Add authentication headers if required by the backend @RequireUser annotation
-  const response = await fetch(`http://localhost:8080/api/v1/account/${encodeURIComponent(email)}`, {
+  const response = await fetch(`http://localhost:8080/account/${encodeURIComponent(email)}`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
@@ -157,7 +157,7 @@ export const getAccountInfo = async (email) => {
 
 // Search events by title (actual API implementation)
 export const searchEventsByTitle = async (title) => {
-  const response = await fetch(`http://localhost:8080/api/v1/events/by-title?title=${encodeURIComponent(title)}`, {
+  const response = await fetch(`http://localhost:8080/events/by-title?title=${encodeURIComponent(title)}`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
@@ -173,7 +173,7 @@ export const searchEventsByTitle = async (title) => {
 
 // Unregister from an event
 export async function unregisterFromEvent(registrationId) {
-  const response = await fetch(`/api/v1/registrations/${registrationId}`, {
+  const response = await fetch(`/registrations/${registrationId}`, {
     method: "DELETE",
     headers: {
       "Content-Type": "application/json",

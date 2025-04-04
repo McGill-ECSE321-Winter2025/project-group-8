@@ -14,6 +14,7 @@ import org.springframework.security.core.userdetails.UserDetailsService; // Impo
 import org.springframework.security.core.userdetails.UsernameNotFoundException; // Import UsernameNotFoundException
 import org.springframework.security.core.GrantedAuthority; // Import GrantedAuthority
 import org.springframework.security.core.authority.SimpleGrantedAuthority; // Import SimpleGrantedAuthority
+import org.springframework.security.crypto.password.PasswordEncoder; // Import PasswordEncoder
 import org.springframework.transaction.annotation.Transactional;
 
 import ca.mcgill.ecse321.gameorganizer.dto.AccountResponse;
@@ -51,6 +52,7 @@ public class AccountService implements UserDetailsService { // Implement UserDet
     private final RegistrationRepository registrationRepository;
     private final ReviewRepository reviewRepository;
     private final BorrowRequestRepository borrowRequestRepository;
+    private final PasswordEncoder passwordEncoder; // Add PasswordEncoder field
 
     // UserContext removed
 
@@ -59,11 +61,13 @@ public class AccountService implements UserDetailsService { // Implement UserDet
             AccountRepository accountRepository,
             RegistrationRepository registrationRepository,
             ReviewRepository reviewRepository,
-            BorrowRequestRepository borrowRequestRepository) {
+            BorrowRequestRepository borrowRequestRepository,
+            PasswordEncoder passwordEncoder) { // Add PasswordEncoder to constructor
         this.accountRepository = accountRepository;
         this.registrationRepository = registrationRepository;
         this.reviewRepository = reviewRepository;
         this.borrowRequestRepository = borrowRequestRepository;
+        this.passwordEncoder = passwordEncoder; // Initialize PasswordEncoder
     }
 
     /**
@@ -255,9 +259,9 @@ public class AccountService implements UserDetailsService { // Implement UserDet
                  throw new UnauthedException("Access denied: You can only update your own account.");
             }
 
-            // Password check (target account already fetched)
-            if (!account.getPassword().equals(password)) {
-                throw new IllegalArgumentException("Passwords do not match");
+            // Password check using PasswordEncoder
+            if (!passwordEncoder.matches(password, account.getPassword())) {
+                throw new IllegalArgumentException("Incorrect current password provided.");
             }
         } catch (IllegalArgumentException e){
             return ResponseEntity.badRequest().body("Bad request: " + e.getMessage());
@@ -265,7 +269,7 @@ public class AccountService implements UserDetailsService { // Implement UserDet
         // Update using setName() since the domain model uses "name" for the username.
         account.setName(newUsername);
         if (newPassword != null && !newPassword.isEmpty()) {
-            account.setPassword(newPassword);
+            account.setPassword(passwordEncoder.encode(newPassword)); // Encode the new password before saving
         }
         accountRepository.save(account);
         return ResponseEntity.ok("Account updated successfully");

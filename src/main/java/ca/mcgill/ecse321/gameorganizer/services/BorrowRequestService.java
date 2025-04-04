@@ -211,7 +211,7 @@ public BorrowRequestDto updateBorrowRequestStatus(int id, BorrowRequestStatus ne
         throw new UnauthedException("Access denied: Only the game owner can approve or decline requests.");
     }
 
-    if (!newStatus.equals("APPROVED") && !newStatus.equals("DECLINED")) {
+    if (newStatus != BorrowRequestStatus.APPROVED && newStatus != BorrowRequestStatus.DECLINED) {
         throw new IllegalArgumentException("Invalid status.");
     }
 

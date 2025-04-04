@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times; // Add import for times()
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -27,6 +28,15 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+// Imports for Security Context Mocking
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.context.SecurityContextImpl;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import java.util.Collections;
+import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository; // Import AccountRepository
 
 import ca.mcgill.ecse321.gameorganizer.dto.LendingHistoryFilterDto;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
@@ -48,6 +58,9 @@ public class LendingRecordServiceTest {
 
     @Mock
     private BorrowRequestRepository borrowRequestRepository;
+
+    @Mock
+    private AccountRepository accountRepository; // Mock AccountRepository
 
     @InjectMocks
     private LendingRecordService lendingRecordService;
@@ -259,18 +272,31 @@ public class LendingRecordServiceTest {
 
     @Test
     public void testUpdateStatusSuccess() {
-        // Setup
-        when(lendingRecordRepository.findLendingRecordById(VALID_RECORD_ID)).thenReturn(Optional.of(record));
-        when(lendingRecordRepository.save(any(LendingRecord.class))).thenReturn(record);
+        // Setup Security Context (Simulating owner making the change)
+        Authentication auth = new UsernamePasswordAuthenticationToken(owner.getEmail(), "password", Collections.singletonList(new SimpleGrantedAuthority("ROLE_GAME_OWNER")));
+        SecurityContext securityContext = new SecurityContextImpl();
+        securityContext.setAuthentication(auth);
+        SecurityContextHolder.setContext(securityContext);
 
-        // Test
-        ResponseEntity<String> response = lendingRecordService.updateStatus(
-            VALID_RECORD_ID, LendingStatus.CLOSED, VALID_USER_ID, "Test reason");
+        try {
+            // Setup Mocks
+            when(accountRepository.findByEmail(owner.getEmail())).thenReturn(Optional.of(owner)); // Mock repo call needed by service
+            when(lendingRecordRepository.findLendingRecordById(VALID_RECORD_ID)).thenReturn(Optional.of(record));
+            when(lendingRecordRepository.save(any(LendingRecord.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        // Verify
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertTrue(response.getBody().contains("successfully"));
-        verify(lendingRecordRepository).save(any(LendingRecord.class));
+            // Test
+            // Use owner.getId() as the userId performing the action
+            ResponseEntity<String> response = lendingRecordService.updateStatus(
+                VALID_RECORD_ID, LendingStatus.CLOSED, owner.getId(), "Test reason");
+
+            // Verify
+            assertEquals(HttpStatus.OK, response.getStatusCode());
+            assertTrue(response.getBody().contains("successfully"));
+            verify(lendingRecordRepository, times(2)).save(any(LendingRecord.class)); // Expect 2 saves
+            assertEquals(LendingStatus.CLOSED, record.getStatus()); // Verify status change
+        } finally {
+            SecurityContextHolder.clearContext(); // Clear context after test
+        }
     }
 
     @Test
@@ -287,46 +313,85 @@ public class LendingRecordServiceTest {
 
     @Test
     public void testCloseLendingRecordSuccess() {
-        // Setup
+        // Setup Security Context
+        Authentication auth = new UsernamePasswordAuthenticationToken(owner.getEmail(), "password", Collections.singletonList(new SimpleGrantedAuthority("ROLE_GAME_OWNER")));
+        SecurityContext securityContext = new SecurityContextImpl();
+        securityContext.setAuthentication(auth);
+        SecurityContextHolder.setContext(securityContext);
+
+        // Setup Mocks
+        when(accountRepository.findByEmail(owner.getEmail())).thenReturn(Optional.of(owner)); // Mock repo call
         when(lendingRecordRepository.findLendingRecordById(VALID_RECORD_ID)).thenReturn(Optional.of(record));
-        when(lendingRecordRepository.save(any(LendingRecord.class))).thenReturn(record);
+        when(lendingRecordRepository.save(any(LendingRecord.class))).thenAnswer(invocation -> invocation.getArgument(0)); // Return saved entity
 
-        // Test
-        ResponseEntity<String> response = lendingRecordService.closeLendingRecord(
-            VALID_RECORD_ID, VALID_USER_ID, "Test reason");
+        try {
+            // Test
+            ResponseEntity<String> response = lendingRecordService.closeLendingRecord(
+                VALID_RECORD_ID, owner.getId(), "Test reason"); // Use actual owner ID
 
-        // Verify
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertTrue(response.getBody().contains("successfully"));
-        verify(lendingRecordRepository).save(any(LendingRecord.class));
+            // Verify
+            assertEquals(HttpStatus.OK, response.getStatusCode());
+            assertTrue(response.getBody().contains("successfully"));
+            verify(lendingRecordRepository).save(any(LendingRecord.class));
+            assertEquals(LendingStatus.CLOSED, record.getStatus()); // Verify status change
+        } finally {
+            SecurityContextHolder.clearContext(); // Clear context after test
+        }
     }
 
     @Test
     public void testCloseLendingRecordAlreadyClosed() {
-        // Setup
-        record.setStatus(LendingStatus.CLOSED);
-        when(lendingRecordRepository.findLendingRecordById(VALID_RECORD_ID)).thenReturn(Optional.of(record));
+        // Setup Security Context (Owner is needed for the initial check)
+        Authentication auth = new UsernamePasswordAuthenticationToken(owner.getEmail(), "password", Collections.singletonList(new SimpleGrantedAuthority("ROLE_GAME_OWNER")));
+        SecurityContext securityContext = new SecurityContextImpl();
+        securityContext.setAuthentication(auth);
+        SecurityContextHolder.setContext(securityContext);
 
-        // Test & Verify
-        assertThrows(IllegalStateException.class, () -> 
-            lendingRecordService.closeLendingRecord(VALID_RECORD_ID, VALID_USER_ID, "Test reason"));
-        verify(lendingRecordRepository, never()).save(any(LendingRecord.class));
+        try {
+            // Setup Mocks
+            record.setStatus(LendingStatus.CLOSED); // Set record to closed
+            when(accountRepository.findByEmail(owner.getEmail())).thenReturn(Optional.of(owner)); // Mock repo call
+            when(lendingRecordRepository.findLendingRecordById(VALID_RECORD_ID)).thenReturn(Optional.of(record));
+
+            // Test & Verify
+            // Expect IllegalStateException because the record is already closed
+            assertThrows(IllegalStateException.class, () ->
+                lendingRecordService.closeLendingRecord(VALID_RECORD_ID, owner.getId(), "Test reason"));
+            verify(lendingRecordRepository, never()).save(any(LendingRecord.class)); // Ensure save is not called
+        } finally {
+            SecurityContextHolder.clearContext(); // Clear context after test
+        }
     }
 
     @Test
     public void testCloseLendingRecordWithDamageAssessmentSuccess() {
-        // Setup
-        when(lendingRecordRepository.findLendingRecordById(VALID_RECORD_ID)).thenReturn(Optional.of(record));
-        when(lendingRecordRepository.save(any(LendingRecord.class))).thenReturn(record);
+        // Setup Security Context
+        Authentication auth = new UsernamePasswordAuthenticationToken(owner.getEmail(), "password", Collections.singletonList(new SimpleGrantedAuthority("ROLE_GAME_OWNER")));
+        SecurityContext securityContext = new SecurityContextImpl();
+        securityContext.setAuthentication(auth);
+        SecurityContextHolder.setContext(securityContext);
 
-        // Test
-        ResponseEntity<String> response = lendingRecordService.closeLendingRecordWithDamageAssessment(
-            VALID_RECORD_ID, true, "Minor scratch", 1, VALID_USER_ID, "Test reason");
+        try {
+            // Setup Mocks
+            when(accountRepository.findByEmail(owner.getEmail())).thenReturn(Optional.of(owner)); // Mock repo call
+            when(lendingRecordRepository.findLendingRecordById(VALID_RECORD_ID)).thenReturn(Optional.of(record));
+            when(lendingRecordRepository.save(any(LendingRecord.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        // Verify
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertTrue(response.getBody().contains("successfully"));
-        verify(lendingRecordRepository).save(any(LendingRecord.class));
+            // Test
+            ResponseEntity<String> response = lendingRecordService.closeLendingRecordWithDamageAssessment(
+                VALID_RECORD_ID, true, "Minor scratch", 1, owner.getId(), "Test reason"); // Use actual owner ID
+
+            // Verify
+            assertEquals(HttpStatus.OK, response.getStatusCode());
+            assertTrue(response.getBody().contains("successfully"));
+            verify(lendingRecordRepository, times(2)).save(any(LendingRecord.class)); // Expect 2 saves
+            assertEquals(LendingStatus.CLOSED, record.getStatus());
+            assertTrue(record.isDamaged());
+            assertEquals("Minor scratch", record.getDamageNotes());
+            assertEquals(1, record.getDamageSeverity());
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     @Test
@@ -349,54 +414,100 @@ public class LendingRecordServiceTest {
 
     @Test
     public void testUpdateEndDateSuccess() {
-        // Setup
-        Date newEndDate = new Date(endDate.getTime() + 86400000); // One more day
-        when(lendingRecordRepository.findLendingRecordById(VALID_RECORD_ID)).thenReturn(Optional.of(record));
-        when(lendingRecordRepository.save(any(LendingRecord.class))).thenReturn(record);
+        // Setup Security Context
+        Authentication auth = new UsernamePasswordAuthenticationToken(owner.getEmail(), "password", Collections.singletonList(new SimpleGrantedAuthority("ROLE_GAME_OWNER")));
+        SecurityContext securityContext = new SecurityContextImpl();
+        securityContext.setAuthentication(auth);
+        SecurityContextHolder.setContext(securityContext);
 
-        // Test
-        ResponseEntity<String> response = lendingRecordService.updateEndDate(VALID_RECORD_ID, newEndDate);
+        try {
+            // Setup Mocks
+            Date newEndDate = new Date(endDate.getTime() + 86400000); // One more day
+            when(accountRepository.findByEmail(owner.getEmail())).thenReturn(Optional.of(owner));
+            when(lendingRecordRepository.findLendingRecordById(VALID_RECORD_ID)).thenReturn(Optional.of(record));
+            when(lendingRecordRepository.save(any(LendingRecord.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        // Verify
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertTrue(response.getBody().contains("successfully"));
-        verify(lendingRecordRepository).save(any(LendingRecord.class));
+            // Test
+            ResponseEntity<String> response = lendingRecordService.updateEndDate(VALID_RECORD_ID, newEndDate);
+
+            // Verify
+            assertEquals(HttpStatus.OK, response.getStatusCode());
+            assertTrue(response.getBody().contains("successfully"));
+            verify(lendingRecordRepository, times(2)).save(any(LendingRecord.class)); // Expect 2 saves
+            assertEquals(newEndDate, record.getEndDate()); // Verify date change
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     @Test
     public void testUpdateEndDateInvalidDate() {
-        // Setup
-        Date invalidDate = new Date(startDate.getTime() - 86400000); // One day before start
-        when(lendingRecordRepository.findLendingRecordById(VALID_RECORD_ID)).thenReturn(Optional.of(record));
+        // Setup Security Context
+        Authentication auth = new UsernamePasswordAuthenticationToken(owner.getEmail(), "password", Collections.singletonList(new SimpleGrantedAuthority("ROLE_GAME_OWNER")));
+        SecurityContext securityContext = new SecurityContextImpl();
+        securityContext.setAuthentication(auth);
+        SecurityContextHolder.setContext(securityContext);
 
-        // Test & Verify
-        assertThrows(IllegalArgumentException.class, () -> 
-            lendingRecordService.updateEndDate(VALID_RECORD_ID, invalidDate));
-        verify(lendingRecordRepository, never()).save(any(LendingRecord.class));
+        try {
+            // Setup Mocks
+            Date invalidDate = new Date(startDate.getTime() - 86400000); // One day before start
+            when(accountRepository.findByEmail(owner.getEmail())).thenReturn(Optional.of(owner));
+            when(lendingRecordRepository.findLendingRecordById(VALID_RECORD_ID)).thenReturn(Optional.of(record));
+
+            // Test & Verify
+            assertThrows(IllegalArgumentException.class, () ->
+                lendingRecordService.updateEndDate(VALID_RECORD_ID, invalidDate));
+            verify(lendingRecordRepository, never()).save(any(LendingRecord.class));
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     @Test
     public void testDeleteLendingRecordSuccess() {
-        // Setup
-        record.setStatus(LendingStatus.CLOSED);
-        when(lendingRecordRepository.findLendingRecordById(VALID_RECORD_ID)).thenReturn(Optional.of(record));
+        // Setup Security Context
+        Authentication auth = new UsernamePasswordAuthenticationToken(owner.getEmail(), "password", Collections.singletonList(new SimpleGrantedAuthority("ROLE_GAME_OWNER")));
+        SecurityContext securityContext = new SecurityContextImpl();
+        securityContext.setAuthentication(auth);
+        SecurityContextHolder.setContext(securityContext);
 
-        // Test
-        ResponseEntity<String> response = lendingRecordService.deleteLendingRecord(VALID_RECORD_ID);
+        try {
+            // Setup Mocks
+            record.setStatus(LendingStatus.CLOSED); // Can only delete non-active records
+            when(accountRepository.findByEmail(owner.getEmail())).thenReturn(Optional.of(owner));
+            when(lendingRecordRepository.findLendingRecordById(VALID_RECORD_ID)).thenReturn(Optional.of(record));
 
-        // Verify
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertTrue(response.getBody().contains("successfully"));
-        verify(lendingRecordRepository).delete(record);
+            // Test
+            ResponseEntity<String> response = lendingRecordService.deleteLendingRecord(VALID_RECORD_ID);
+
+            // Verify
+            assertEquals(HttpStatus.OK, response.getStatusCode());
+            assertTrue(response.getBody().contains("successfully"));
+            verify(lendingRecordRepository).delete(record);
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     @Test
     public void testDeleteActiveLendingRecord() {
-        // Setup
-        when(lendingRecordRepository.findLendingRecordById(VALID_RECORD_ID)).thenReturn(Optional.of(record));
+        // Setup Security Context
+        Authentication auth = new UsernamePasswordAuthenticationToken(owner.getEmail(), "password", Collections.singletonList(new SimpleGrantedAuthority("ROLE_GAME_OWNER")));
+        SecurityContext securityContext = new SecurityContextImpl();
+        securityContext.setAuthentication(auth);
+        SecurityContextHolder.setContext(securityContext);
 
-        // Test & Verify
-        assertThrows(IllegalStateException.class, () -> lendingRecordService.deleteLendingRecord(VALID_RECORD_ID));
-        verify(lendingRecordRepository, never()).delete(any(LendingRecord.class));
+        try {
+            // Setup Mocks
+            // record is ACTIVE by default from setup()
+            when(accountRepository.findByEmail(owner.getEmail())).thenReturn(Optional.of(owner));
+            when(lendingRecordRepository.findLendingRecordById(VALID_RECORD_ID)).thenReturn(Optional.of(record));
+
+            // Test & Verify
+            assertThrows(IllegalStateException.class, () -> lendingRecordService.deleteLendingRecord(VALID_RECORD_ID));
+            verify(lendingRecordRepository, never()).delete(any(LendingRecord.class));
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 }

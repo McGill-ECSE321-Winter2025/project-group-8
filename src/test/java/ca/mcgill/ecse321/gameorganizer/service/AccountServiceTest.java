@@ -20,6 +20,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder; // Import PasswordEncoder
+// Imports for Security Context Mocking
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.context.SecurityContextImpl;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import java.util.Collections;
 
 import ca.mcgill.ecse321.gameorganizer.dto.AccountResponse;
 import ca.mcgill.ecse321.gameorganizer.dto.CreateAccountRequest;
@@ -41,6 +50,8 @@ public class AccountServiceTest {
     @Mock
     private AccountRepository accountRepository;
 
+    @Mock
+    private PasswordEncoder passwordEncoder; // Mock PasswordEncoder
     @Mock
     private RegistrationRepository registrationRepository;
 
@@ -182,69 +193,173 @@ public class AccountServiceTest {
 
     @Test
     public void testUpdateAccountSuccess() {
-        when(accountRepository.findByEmail(VALID_EMAIL)).thenReturn(Optional.of(testAccount));
-        when(accountRepository.save(any(Account.class))).thenReturn(testAccount);
+        // Setup Security Context (User being updated must be authenticated)
+        Authentication auth = new UsernamePasswordAuthenticationToken(VALID_EMAIL, VALID_PASSWORD, Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")));
+        SecurityContext securityContext = new SecurityContextImpl();
+        securityContext.setAuthentication(auth);
+        SecurityContextHolder.setContext(securityContext);
 
-        ResponseEntity<String> response = accountService.updateAccount(updateAccountRequest);
+        try {
+            // Setup Mocks
+            when(accountRepository.findByEmail(VALID_EMAIL)).thenReturn(Optional.of(testAccount));
+            when(passwordEncoder.matches(VALID_PASSWORD, testAccount.getPassword())).thenReturn(true); // Mock password check success
+            when(passwordEncoder.encode(NEW_PASSWORD)).thenReturn("encodedNewPassword"); // Mock encoding the new password
+            // Mock the password check (assuming PasswordEncoder is mocked or not used in service test)
+            // If PasswordEncoder is used, mock passwordEncoder.matches()
+            when(accountRepository.save(any(Account.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        assertEquals("Account updated successfully", response.getBody());
-        verify(accountRepository).save(any(Account.class));
+            // Test
+            ResponseEntity<String> response = accountService.updateAccount(updateAccountRequest);
+
+            // Verify
+            assertEquals("Account updated successfully", response.getBody());
+            verify(accountRepository).save(any(Account.class));
+            assertEquals(NEW_USERNAME, testAccount.getName()); // Verify name change
+            assertEquals("encodedNewPassword", testAccount.getPassword()); // Verify password was updated (with encoded value)
+            // Password verification would require mocking PasswordEncoder
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     @Test
     public void testUpdateGameOwnerSuccess() {
-        when(accountRepository.findByEmail(VALID_EMAIL)).thenReturn(Optional.of(testGameOwner));
-        when(accountRepository.save(any(GameOwner.class))).thenReturn(testGameOwner);
+        // Setup Security Context
+        Authentication auth = new UsernamePasswordAuthenticationToken(VALID_EMAIL, VALID_PASSWORD, List.of(new SimpleGrantedAuthority("ROLE_USER"), new SimpleGrantedAuthority("ROLE_GAME_OWNER")));
+        SecurityContext securityContext = new SecurityContextImpl();
+        securityContext.setAuthentication(auth);
+        SecurityContextHolder.setContext(securityContext);
 
-        ResponseEntity<String> response = accountService.updateAccount(updateAccountRequest);
+        try {
+            // Setup Mocks
+            when(accountRepository.findByEmail(VALID_EMAIL)).thenReturn(Optional.of(testGameOwner));
+            when(passwordEncoder.matches(VALID_PASSWORD, testGameOwner.getPassword())).thenReturn(true); // Mock password check success
+            when(passwordEncoder.encode(NEW_PASSWORD)).thenReturn("encodedNewPassword"); // Mock encoding the new password
+            when(accountRepository.save(any(GameOwner.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        assertEquals("Account updated successfully", response.getBody());
-        verify(accountRepository).save(any(GameOwner.class));
+            // Test
+            ResponseEntity<String> response = accountService.updateAccount(updateAccountRequest);
+
+            // Verify
+            assertEquals("Account updated successfully", response.getBody());
+            verify(accountRepository).save(any(GameOwner.class));
+            assertEquals(NEW_USERNAME, testGameOwner.getName());
+            assertEquals("encodedNewPassword", testGameOwner.getPassword()); // Verify password was updated
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     @Test
     public void testUpdateAccountSuccessNoNewPassword() {
-        updateAccountRequest.setNewPassword(null);
-        when(accountRepository.findByEmail(VALID_EMAIL)).thenReturn(Optional.of(testAccount));
-        when(accountRepository.save(any(Account.class))).thenReturn(testAccount);
+        // Setup Security Context
+        Authentication auth = new UsernamePasswordAuthenticationToken(VALID_EMAIL, VALID_PASSWORD, Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")));
+        SecurityContext securityContext = new SecurityContextImpl();
+        securityContext.setAuthentication(auth);
+        SecurityContextHolder.setContext(securityContext);
 
-        ResponseEntity<String> response = accountService.updateAccount(updateAccountRequest);
+        try {
+            // Setup Mocks
+            updateAccountRequest.setNewPassword(null); // No new password provided
+            when(accountRepository.findByEmail(VALID_EMAIL)).thenReturn(Optional.of(testAccount));
+            when(passwordEncoder.matches(VALID_PASSWORD, testAccount.getPassword())).thenReturn(true); // Mock password check success
+            when(accountRepository.findByEmail(VALID_EMAIL)).thenReturn(Optional.of(testAccount));
+            when(accountRepository.save(any(Account.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        assertEquals("Account updated successfully", response.getBody());
-        verify(accountRepository).save(any(Account.class));
+            // Test
+            ResponseEntity<String> response = accountService.updateAccount(updateAccountRequest);
+
+            // Verify
+            assertEquals("Account updated successfully", response.getBody());
+            verify(accountRepository).save(any(Account.class));
+            assertEquals(NEW_USERNAME, testAccount.getName());
+            // Password should remain unchanged
+            // Ensure password didn't change (would need PasswordEncoder mock to be certain)
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     @Test
     public void testUpdateGameOwnerSuccessNoNewPassword() {
-        updateAccountRequest.setNewPassword(null);
-        when(accountRepository.findByEmail(VALID_EMAIL)).thenReturn(Optional.of(testGameOwner));
-        when(accountRepository.save(any(GameOwner.class))).thenReturn(testGameOwner);
+        // Setup Security Context
+        Authentication auth = new UsernamePasswordAuthenticationToken(VALID_EMAIL, VALID_PASSWORD, List.of(new SimpleGrantedAuthority("ROLE_USER"), new SimpleGrantedAuthority("ROLE_GAME_OWNER")));
+        SecurityContext securityContext = new SecurityContextImpl();
+        securityContext.setAuthentication(auth);
+        SecurityContextHolder.setContext(securityContext);
 
-        ResponseEntity<String> response = accountService.updateAccount(updateAccountRequest);
+        try {
+            // Setup Mocks
+            updateAccountRequest.setNewPassword(null);
+            when(accountRepository.findByEmail(VALID_EMAIL)).thenReturn(Optional.of(testGameOwner));
+            when(passwordEncoder.matches(VALID_PASSWORD, testGameOwner.getPassword())).thenReturn(true); // Mock password check success
+            when(accountRepository.findByEmail(VALID_EMAIL)).thenReturn(Optional.of(testGameOwner));
+            when(accountRepository.save(any(GameOwner.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        assertEquals("Account updated successfully", response.getBody());
-        verify(accountRepository).save(any(GameOwner.class));
+            // Test
+            ResponseEntity<String> response = accountService.updateAccount(updateAccountRequest);
+
+            // Verify
+            assertEquals("Account updated successfully", response.getBody());
+            verify(accountRepository).save(any(GameOwner.class));
+            assertEquals(NEW_USERNAME, testGameOwner.getName());
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     @Test
     public void testUpdateAccountFailOnNonExistentAccount() {
-        when(accountRepository.findByEmail(VALID_EMAIL)).thenReturn(Optional.empty());
+         // Setup Security Context (Need an authenticated user to attempt the update)
+        Authentication auth = new UsernamePasswordAuthenticationToken(VALID_EMAIL, VALID_PASSWORD, Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")));
+        SecurityContext securityContext = new SecurityContextImpl();
+        securityContext.setAuthentication(auth);
+        SecurityContextHolder.setContext(securityContext);
 
-        ResponseEntity<String> response = accountService.updateAccount(updateAccountRequest);
+        try {
+            // Setup Mocks
+            // Make the request target a non-existent email, but the authenticated user exists
+            updateAccountRequest.setEmail("nonexistent@example.com");
+            when(accountRepository.findByEmail(VALID_EMAIL)).thenReturn(Optional.of(testAccount)); // Mock finding the authenticated user
+            when(accountRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty()); // Mock finding the target user (fails)
 
-        assertEquals("Bad request: Account with email " + VALID_EMAIL + " does not exist", response.getBody());
-        verify(accountRepository, never()).save(any(Account.class));
+            // Test
+            ResponseEntity<String> response = accountService.updateAccount(updateAccountRequest);
+
+            // Verify
+            assertEquals("Bad request: Account with email nonexistent@example.com does not exist", response.getBody());
+            verify(accountRepository, never()).save(any(Account.class));
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     @Test
     public void testUpdateAccountFailWrongPassword() {
-        updateAccountRequest.setPassword("wrongPassword");
-        when(accountRepository.findByEmail(VALID_EMAIL)).thenReturn(Optional.of(testAccount));
+        // Setup Security Context
+        Authentication auth = new UsernamePasswordAuthenticationToken(VALID_EMAIL, VALID_PASSWORD, Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")));
+        SecurityContext securityContext = new SecurityContextImpl();
+        securityContext.setAuthentication(auth);
+        SecurityContextHolder.setContext(securityContext);
 
-        ResponseEntity<String> response = accountService.updateAccount(updateAccountRequest);
+        try {
+            // Setup Mocks
+            updateAccountRequest.setPassword("wrongPassword"); // Set wrong current password in request
+            when(accountRepository.findByEmail(VALID_EMAIL)).thenReturn(Optional.of(testAccount));
+            when(passwordEncoder.matches("wrongPassword", testAccount.getPassword())).thenReturn(false); // Mock password check failure
+            // Assume PasswordEncoder.matches returns false (need to mock PasswordEncoder if injected)
+            // If PasswordEncoder is not mocked here, the service logic might rely on direct comparison,
+            // which we fixed, so this test should now check the IllegalArgumentException from the service.
 
-        assertEquals("Bad request: Passwords do not match", response.getBody());
-        verify(accountRepository, never()).save(any(Account.class));
+            // Test
+            ResponseEntity<String> response = accountService.updateAccount(updateAccountRequest);
+
+            // Verify (Check for the specific error message from the service)
+            assertEquals("Bad request: Incorrect current password provided.", response.getBody());
+            verify(accountRepository, never()).save(any(Account.class));
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     // -- deleteAccountByEmail -- //

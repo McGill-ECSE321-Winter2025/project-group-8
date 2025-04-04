@@ -81,7 +81,7 @@ public class GameIntegrationTests {
     private PasswordEncoder passwordEncoder;
     private GameOwner testOwner;
     private Game testGame;
-    private static final String BASE_URL_ALL = "/api/v1/games"; // for getAllGames
+    private static final String BASE_URL_ALL = "/games"; // for getAllGames
     private static final String BASE_URL = "/games"; // for other endpoints
     
     private static final String VALID_EMAIL = "owner@example.com";
@@ -129,7 +129,7 @@ public class GameIntegrationTests {
         loginRequest.setPassword(VALID_PASSWORD); // Use the plain text password
 
         ResponseEntity<JwtAuthenticationResponse> loginResponse = restTemplate.postForEntity(
-            createURLWithPort("/api/v1/auth/login"), // Use the correct login endpoint
+            createURLWithPort("/auth/login"), // Use the correct login endpoint
             loginRequest,
             JwtAuthenticationResponse.class
         );

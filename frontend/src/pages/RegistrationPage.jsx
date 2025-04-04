@@ -26,7 +26,7 @@ export default function RegistrationPage() {
 
     try {
       // Step 1: Register the user
-      const registrationResponse = await fetch("http://localhost:8080/api/v1/account", {
+      const registrationResponse = await fetch("http://localhost:8080/account", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -45,7 +45,7 @@ export default function RegistrationPage() {
         console.log("Registration successful")
 
         // Step 2: Log the user in
-        const loginResponse = await fetch("http://localhost:8080/api/v1/auth/login", {
+        const loginResponse = await fetch("http://localhost:8080/auth/login", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

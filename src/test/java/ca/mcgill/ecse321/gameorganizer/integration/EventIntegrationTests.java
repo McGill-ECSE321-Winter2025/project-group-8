@@ -118,7 +118,7 @@ public void setup() {
         loginRequest.setPassword("password123"); // Use the plain text password used during setup
 
         ResponseEntity<JwtAuthenticationResponse> loginResponse = restTemplate.postForEntity(
-            createURLWithPort("/api/v1/auth/login"), // Use the correct login endpoint
+            createURLWithPort("/auth/login"), // Use the correct login endpoint
             loginRequest,
             JwtAuthenticationResponse.class
         );

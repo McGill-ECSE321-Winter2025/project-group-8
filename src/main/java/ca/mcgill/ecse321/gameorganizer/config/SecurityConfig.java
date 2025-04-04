@@ -39,19 +39,19 @@ public class SecurityConfig {
         // Apply security constraints (copied directly from original 'else' block)
         http.authorizeHttpRequests(authz -> authz
                 // Allow unauthenticated access for auth endpoints and account creation (POST)
-                .requestMatchers("/api/v1/auth/**").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/v1/account").permitAll()
+                .requestMatchers("/auth/**").permitAll() // Changed path to /auth/**
+                .requestMatchers(HttpMethod.POST, "/account").permitAll()
                 // Require authentication for account updates (PUT)
-                .requestMatchers(HttpMethod.PUT, "/api/v1/account").authenticated()
+                .requestMatchers(HttpMethod.PUT, "/account").authenticated()
                 // Note: Other /api/v1/account/** endpoints (GET, DELETE) will fall under anyRequest().authenticated() below
                 // Borrow Requests:
                 // - Allow any authenticated user (USER or GAME_OWNER) to create (POST)
-                .requestMatchers(HttpMethod.POST, "/api/v1/borrowrequests").hasRole("USER")
+                .requestMatchers(HttpMethod.POST, "/borrowrequests").hasRole("USER")
                 // - Allow only GAME_OWNER to update (PUT) or delete (DELETE) specific requests
-                .requestMatchers(HttpMethod.PUT, "/api/v1/borrowrequests/**").hasRole("GAME_OWNER")
-                .requestMatchers(HttpMethod.DELETE, "/api/v1/borrowrequests/**").hasRole("GAME_OWNER")
+                .requestMatchers(HttpMethod.PUT, "/borrowrequests/**").hasRole("GAME_OWNER")
+                .requestMatchers(HttpMethod.DELETE, "/borrowrequests/**").hasRole("GAME_OWNER")
                 // - Allow any authenticated user to GET requests (adjust if needed)
-                .requestMatchers(HttpMethod.GET, "/api/v1/borrowrequests/**").hasRole("USER")
+                .requestMatchers(HttpMethod.GET, "/borrowrequests/**").hasRole("USER")
                 // Require authentication for all other endpoints
                 .anyRequest().authenticated()
             )
