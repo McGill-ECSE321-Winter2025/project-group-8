@@ -2,7 +2,7 @@ package ca.mcgill.ecse321.gameorganizer.services;
 
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.HashSet;
+import java.util.EventObject;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -16,7 +16,14 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.transaction.annotation.Transactional;
 
 import ca.mcgill.ecse321.gameorganizer.dto.CreateEventRequest;
-import ca.mcgill.ecse321.gameorganizer.models.Account;
+import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException; // Import UnauthedException
+// UserContext import removed
+import ca.mcgill.ecse321.gameorganizer.models.Account; // Import Account
+import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository; // Added AccountRepository import
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.userdetails.UserDetails;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.LendingRecord;
@@ -44,19 +51,22 @@ public class EventService {
     @Autowired
     private GameRepository gameRepository;
 
-    @Autowired
-    private AccountRepository accountRepository;
+    // UserContext field removed
 
     @Autowired
-    private LendingRecordRepository lendingRecordRepository;
+    private AccountRepository accountRepository; // Inject AccountRepository
 
     /**
      * Constructs an EventService with the required repository dependency.
      *
      * @param eventRepository The repository for event data access
      */
-    public EventService(EventRepository eventRepository) {
+    // Updated constructor to inject AccountRepository instead of UserContext
+    @Autowired
+    public EventService(EventRepository eventRepository, AccountRepository accountRepository, GameRepository gameRepository) {
         this.eventRepository = eventRepository;
+        this.accountRepository = accountRepository;
+        this.gameRepository = gameRepository; // Ensure GameRepository is also initialized if needed elsewhere
     }
 
     /**
@@ -167,12 +177,30 @@ public class EventService {
                 () -> new IllegalArgumentException("Event with id " + id + " does not exist")
         );
 
- 
-        // Ownership check
-        if (event.getHost() == null || !event.getHost().getEmail().equals(userEmail)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the host can update the event.");
+        // Authorization Check using Spring Security
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
+            throw new UnauthedException("User must be authenticated to update an event.");
         }
- 
+
+        String currentUsername;
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof UserDetails) {
+            currentUsername = ((UserDetails) principal).getUsername();
+        } else if (principal instanceof String) {
+            currentUsername = (String) principal;
+        } else {
+            throw new UnauthedException("Unexpected principal type in SecurityContext.");
+        }
+
+        Account currentUser = accountRepository.findByEmail(currentUsername).orElseThrow(
+                () -> new UnauthedException("Authenticated user '" + currentUsername + "' not found in database.")
+        );
+
+        if (event.getHost() == null || event.getHost().getId() != currentUser.getId()) {
+            throw new UnauthedException("Access denied: You are not the host of this event.");
+        }
+
         if (title != null && !title.trim().isEmpty()) {
             event.setTitle(title);
         }
@@ -215,12 +243,31 @@ public class EventService {
         Event eventToDelete = eventRepository.findEventById(id).orElseThrow(
                 () -> new IllegalArgumentException("Event with id " + id + " does not exist")
         );
- 
-        // Ownership check
-        if (eventToDelete.getHost() == null || !eventToDelete.getHost().getEmail().equals(userEmail)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the host can delete the event.");
+
+        // Authorization Check using Spring Security
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
+            throw new UnauthedException("User must be authenticated to delete an event.");
         }
- 
+
+        String currentUsername;
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof UserDetails) {
+            currentUsername = ((UserDetails) principal).getUsername();
+        } else if (principal instanceof String) {
+            currentUsername = (String) principal;
+        } else {
+            throw new UnauthedException("Unexpected principal type in SecurityContext.");
+        }
+
+         Account currentUser = accountRepository.findByEmail(currentUsername).orElseThrow(
+                () -> new UnauthedException("Authenticated user '" + currentUsername + "' not found in database.")
+        );
+
+        if (eventToDelete.getHost() == null || eventToDelete.getHost().getId() != currentUser.getId()) {
+            throw new UnauthedException("Access denied: You are not the host of this event.");
+        }
+
         eventRepository.delete(eventToDelete);
         return ResponseEntity.ok("Event with id " + id + " has been deleted");
     }
@@ -383,48 +430,26 @@ public class EventService {
     }
 
     /**
-     * Retrieves a list of games available for a user to associate with a new event.
-     * This includes games owned by the user and games they are currently actively borrowing.
+     * Finds events by title, with partial matching supported.
      *
-     * @param userEmail The email of the user creating the event.
-     * @return A list of unique Game objects available to the user.
-     * @throws IllegalArgumentException if the userEmail is invalid or the user is not found.
+     * @param description The event title to search for
+     * @return List of events with title matching the search text
      */
-    public List<Game> getAvailableGamesForEventCreation(String userEmail) {
-        if (userEmail == null || userEmail.trim().isEmpty()) {
-            throw new IllegalArgumentException("User email cannot be empty.");
-        } // Correctly placed brace
-
-        // Corrected Optional handling
-        Account user = accountRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new IllegalArgumentException("User with email " + userEmail + " not found."));
-
-        // Use a Set to automatically handle duplicates
-        Set<Game> availableGames = new HashSet<>();
-
-        // 1. Get games owned by the user
-        // Check if the user is a GameOwner before fetching owned games
-        List<Game> ownedGames = new ArrayList<>(); // Initialize as empty
-        if (user instanceof GameOwner) {
-            ownedGames = gameRepository.findByOwner((GameOwner) user); // Cast and call findByOwner
-        }
-        if (ownedGames != null) {
-            availableGames.addAll(ownedGames);
+    @Transactional
+    public List<Event> findEventByTitle(String title){
+        if (title == null || title.trim().isEmpty()) {
+            throw new IllegalArgumentException("Title search text cannot be empty");
         }
 
-        // 2. Get games actively borrowed by the user
-        // Fetch all records for the borrower, then filter by status and map to game
-        List<LendingRecord> userLendingRecords = lendingRecordRepository.findByRequest_Requester(user); // Use correct method
-        if (userLendingRecords != null) {
-            List<Game> borrowedGames = userLendingRecords.stream()
-                .filter(record -> record.getStatus() == LendingRecord.LendingStatus.ACTIVE) // Filter for ACTIVE status
-                    .map(record -> record.getRequest() != null ? record.getRequest().getRequestedGame() : null) // Map to Game via BorrowRequest
-                    .filter(java.util.Objects::nonNull) // Filter out null games
-                    .collect(Collectors.toList());
-            availableGames.addAll(borrowedGames);
+        List<Event> events = eventRepository.findEventByTitleContaining(title);
+
+        for (Event event : events) {
+            if (event.getDateTime() instanceof java.sql.Timestamp) {
+                java.sql.Timestamp timestamp = (java.sql.Timestamp) event.getDateTime();
+                event.setDateTime(new java.sql.Date(timestamp.getTime()));
+            }
         }
 
-        // Convert the Set back to a List for the return type
-        return new ArrayList<>(availableGames);
+        return events;
     }
 }

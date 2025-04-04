@@ -1,9 +1,11 @@
 package ca.mcgill.ecse321.gameorganizer.integration;
 
 import java.sql.Date;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import ca.mcgill.ecse321.gameorganizer.dto.AuthenticationDTO;
+import ca.mcgill.ecse321.gameorganizer.dto.JwtAuthenticationResponse;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
@@ -41,7 +43,7 @@ import org.slf4j.LoggerFactory; // Import LoggerFactory
 import org.springframework.security.crypto.password.PasswordEncoder; // Import PasswordEncoder
 import org.springframework.test.context.ActiveProfiles;
 
-import ca.mcgill.ecse321.gameorganizer.config.SecurityTestConfig;
+import ca.mcgill.ecse321.gameorganizer.config.SecurityConfig;
 import ca.mcgill.ecse321.gameorganizer.config.TestConfig;
 import ca.mcgill.ecse321.gameorganizer.dto.CreateEventRequest;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
@@ -57,7 +59,8 @@ import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
-@Import({TestConfig.class, SecurityTestConfig.class})
+@Import({TestConfig.class, SecurityConfig.class})
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class EventIntegrationTests {
@@ -93,55 +96,42 @@ public class EventIntegrationTests {
     @Autowired // Inject PasswordEncoder
     private PasswordEncoder passwordEncoder;
     
+    @Autowired
+    private PasswordEncoder passwordEncoder;
     private GameOwner testHost;
     private Game testGame;
     private Event testEvent;
     private static final String BASE_URL = "/api/v1/events";
     
     @BeforeEach
-    public void setup() {
-        // Enable test mode
-        userAuthInterceptor.setTestMode(true);
-        
-        // Clean up existing data
-        eventRepository.deleteAll();
-        gameRepository.deleteAll();
-        accountRepository.deleteAll();
-        
-        // Create test host
-        testHost = new GameOwner("testHost", "host@example.com", passwordEncoder.encode("password123"));
-        testHost = (GameOwner) accountRepository.save(testHost);
-        
-        // Create test game
-        testGame = new Game();
-        testGame.setName("Test Game");  // Changed from setTitle to setName
-        testGame.setMinPlayers(2);
-        testGame.setMaxPlayers(4);
-        testGame.setImage("test.jpg");  // Changed from setImageUrl to setImage
-        testGame.setDateAdded(new java.util.Date());
-        testGame.setOwner(testHost);
-        testGame = gameRepository.save(testGame);
-        
-        // Create test event
-        testEvent = new Event();
-        testEvent.setTitle("Test Event");
-        testEvent.setDateTime(Date.valueOf("2023-03-18"));
-        testEvent.setLocation("Test Location");
-        testEvent.setDescription("Test Description");
-        testEvent.setMaxParticipants(10);
-        testEvent.setFeaturedGame(testGame);
-        testEvent.setHost(testHost);
-        testEvent = eventRepository.save(testEvent);
-        
-        // Configure RestTemplate with authentication headers
-        restTemplate = new TestRestTemplate();
-        restTemplate.getRestTemplate().setInterceptors(
-            Collections.singletonList((request, body, execution) -> {
-                request.getHeaders().add("User-Id", String.valueOf(testHost.getId())); // Convert int to String
-                request.getHeaders().add("User-Email", testHost.getEmail());
-                return execution.execute(request, body);
-            }));
-    }
+public void setup() {
+    // Clean repositories first
+    eventRepository.deleteAll();
+    gameRepository.deleteAll();
+    accountRepository.deleteAll();
+    
+    // Create test host as a GameOwner
+    testHost = new GameOwner("host", "host@example.com", passwordEncoder.encode("password123"));
+    testHost = (GameOwner) accountRepository.save(testHost);
+    
+    // Create test game
+    testGame = new Game("Test Game", 2, 4, "test.jpg", new java.util.Date());
+    testGame.setOwner(testHost);
+    testGame = gameRepository.save(testGame);
+    
+    // Create test event with a known date (e.g., 2023-03-18)
+    Date knownDate = Date.valueOf("2023-03-18");
+    testEvent = new Event(
+        "Test Event",
+        knownDate,
+        "Test Location",
+        "Test Description",
+        10,
+        testGame,
+        testHost
+    );
+    testEvent = eventRepository.save(testEvent);
+}
     
     @AfterEach
     public void cleanup() {
@@ -155,6 +145,31 @@ public class EventIntegrationTests {
     private String createURLWithPort(String uri) {
         return "http://localhost:" + port + uri;
     }
+    private HttpHeaders createAuthHeaders() {
+        HttpHeaders headers = new HttpHeaders();
+        
+        // Attempt to login and get a valid JWT token for the test host
+        AuthenticationDTO loginRequest = new AuthenticationDTO();
+        loginRequest.setEmail(testHost.getEmail()); // Use testHost's email
+        loginRequest.setPassword("password123"); // Use the plain text password used during setup
+
+        ResponseEntity<JwtAuthenticationResponse> loginResponse = restTemplate.postForEntity(
+            createURLWithPort("/api/v1/auth/login"), // Use the correct login endpoint
+            loginRequest,
+            JwtAuthenticationResponse.class
+        );
+
+        // Ensure login was successful and we received a token
+        if (loginResponse.getStatusCode() == HttpStatus.OK && loginResponse.getBody() != null && loginResponse.getBody().getToken() != null) {
+            headers.setBearerAuth(loginResponse.getBody().getToken());
+        } else {
+            // If authentication fails here, something is wrong with the test setup or login endpoint.
+            throw new IllegalStateException("Failed to authenticate test host '" + testHost.getEmail() + "' for integration test. Status: " + loginResponse.getStatusCode());
+        }
+        
+        return headers;
+    }
+
     
     // ----- CREATE Tests (4 tests) -----
     
@@ -170,10 +185,11 @@ public class EventIntegrationTests {
         request.setFeaturedGame(testGame);
         request.setHost(testHost); // Note: Service uses principal, this is ignored
         
-        // Request as String
+        // Create HttpEntity with request body and auth headers
+        HttpEntity<CreateEventRequest> requestEntity = new HttpEntity<>(request, createAuthHeaders());
         ResponseEntity<String> response = restTemplate.postForEntity(
             createURLWithPort(BASE_URL),
-            request,
+            requestEntity, // Use the entity with headers
             String.class
         );
         
@@ -262,25 +278,21 @@ public class EventIntegrationTests {
     @Test
     @Order(5)
     public void testUpdateEventSuccess() {
-        String updatedTitle = "Updated Event";
-        String updatedLocation = "Updated Location";
-        int updatedMaxParticipants = 25;
-        
-        Map<String, Object> updates = new HashMap<>();
-        updates.put("title", updatedTitle);
-        updates.put("location", updatedLocation);
-        updates.put("maxParticipants", updatedMaxParticipants);
-        
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(updates, headers);
-        
-        ResponseEntity<Event> response = restTemplate.exchange(
-            createURLWithPort(BASE_URL + "/" + testEvent.getId()),
-            HttpMethod.PUT,
-            entity,
-            Event.class
+        // Supply a valid date string in the proper format
+        String validDate = "2023-03-18";
+        String updateUri = BASE_URL + "/" + testEvent.getId() +
+                "?title=Updated Event" +
+                "&dateTime=" + validDate +
+                "&location=Updated Location" +
+                "&description=Updated Description" +
+                "&maxParticipants=25";
+        // Create HttpEntity with auth headers (no body for this PUT with params)
+        HttpEntity<?> requestEntity = new HttpEntity<>(createAuthHeaders());
+        ResponseEntity<String> response = restTemplate.exchange(
+                createURLWithPort(updateUri),
+                HttpMethod.PUT,
+                requestEntity, // Use the entity with headers
+                String.class
         );
         
         assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -331,10 +343,12 @@ public class EventIntegrationTests {
     @Test
     @Order(8)
     public void testDeleteEventSuccess() {
+        // Create HttpEntity with auth headers
+        HttpEntity<?> requestEntity = new HttpEntity<>(createAuthHeaders());
         ResponseEntity<Void> response = restTemplate.exchange(
             createURLWithPort(BASE_URL + "/" + testEvent.getId()),
             HttpMethod.DELETE,
-            null,
+            requestEntity, // Use the entity with headers
             Void.class
         );
         // Assuming principal matches testHost, delete should succeed

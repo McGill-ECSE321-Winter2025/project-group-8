@@ -157,10 +157,25 @@ public class RegistrationServiceTest {
 
     @Test
     public void testDeleteRegistration() {
+        // Setup
+        Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
+        Event event = new Event("Game Night", new Date(), "Location", "Description", 10, game, new Account());
+        event.setCurrentNumberParticipants(5); // Ensure participants > 0
+        
+        Registration registration = new Registration(new Date());
+        registration.setId(VALID_REGISTRATION_ID);
+        registration.setEventRegisteredFor(event);
+        registration.setAttendee(new Account());
+        
+        when(registrationRepository.findRegistrationById(VALID_REGISTRATION_ID))
+            .thenReturn(Optional.of(registration));
+        when(registrationRepository.existsById(VALID_REGISTRATION_ID)).thenReturn(true);
+
         // Test
         registrationService.deleteRegistration(VALID_REGISTRATION_ID);
 
         // Verify
         verify(registrationRepository).deleteById(VALID_REGISTRATION_ID);
     }
+
 }

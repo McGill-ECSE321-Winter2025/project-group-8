@@ -36,7 +36,7 @@ import ca.mcgill.ecse321.gameorganizer.services.EventService;
  * @author @Yessine-glitch
  */
 @RestController
-@RequestMapping("/api/v1/events")
+@RequestMapping("/events")
 public class EventController {
     
     private static final Logger log = LoggerFactory.getLogger(EventController.class);
@@ -261,30 +261,22 @@ public class EventController {
         return ResponseEntity.ok(eventResponses);
     }
 
-    // --- Exception Handlers ---
-
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<String> handleIllegalArgumentException(IllegalArgumentException ex) {
-        // Generally, IllegalArgumentException from service implies bad client request or resource not found
-        // Distinguish based on message content if necessary, otherwise default to BAD_REQUEST
-        if (ex.getMessage() != null && (ex.getMessage().contains("not found") || ex.getMessage().contains("does not exist"))) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
+    /**
+     * Finds events by title, with partial matching supported.
+     * 
+     * @param title The title text to search for
+     * @return List of events with titles matching the search text
+     */
+    @GetMapping("/by-title")
+    public ResponseEntity<List<EventResponse>> getEventsByTitle(@RequestParam String title) {
+        try {
+            List<Event> events = eventService.findEventByTitle(title);
+            List<EventResponse> eventResponses = events.stream()
+                .map(EventResponse::new)
+                .collect(Collectors.toList());
+            return ResponseEntity.ok(eventResponses);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
         }
-        // Default to BAD_REQUEST for other validation errors (e.g., empty title, invalid participants)
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
-    }
-
-    @ExceptionHandler(ResponseStatusException.class)
-    public ResponseEntity<String> handleResponseStatusException(ResponseStatusException ex) {
-        // Forward the status and reason from ResponseStatusException (e.g., FORBIDDEN)
-        return ResponseEntity.status(ex.getStatusCode()).body(ex.getReason());
-    }
-
-    // Optional: Add a catch-all handler for unexpected errors
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<String> handleGenericException(Exception ex) {
-        // Log the exception details here (consider adding a logger)
-        // log.error("Unexpected error occurred in EventController", ex); 
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An unexpected error occurred.");
     }
 }

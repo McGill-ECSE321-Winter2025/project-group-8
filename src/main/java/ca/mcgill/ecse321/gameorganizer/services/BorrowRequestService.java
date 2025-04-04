@@ -15,6 +15,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import ca.mcgill.ecse321.gameorganizer.dto.BorrowRequestDto;
 import ca.mcgill.ecse321.gameorganizer.dto.CreateBorrowRequestDto;
+import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException; // Import UnauthedException
+// UserContext import removed
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.userdetails.UserDetails;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequestStatus;
@@ -39,6 +45,8 @@ public class BorrowRequestService {
     private final AccountRepository accountRepository;
     private final LendingRecordService lendingRecordService; // Added dependency
 
+    // UserContext field removed
+
     /**
      * Constructs a BorrowRequestService with required repositories.
      * 
@@ -46,6 +54,7 @@ public class BorrowRequestService {
      * @param gameRepository Repository for games.
      * @param accountRepository Repository for user accounts.
      */
+    // Updated constructor to remove UserContext
     @Autowired
     public BorrowRequestService(BorrowRequestRepository borrowRequestRepository, GameRepository gameRepository, AccountRepository accountRepository, LendingRecordService lendingRecordService) { // Added LendingRecordService
         this.borrowRequestRepository = borrowRequestRepository;
@@ -177,9 +186,33 @@ public BorrowRequestDto updateBorrowRequestStatus(int id, BorrowRequestStatus ne
     BorrowRequest request = borrowRequestRepository.findBorrowRequestById(id)
             .orElseThrow(() -> new IllegalArgumentException("No borrow request found with ID " + id));
 
-    // Validate status - PENDING is not a valid target status for this method
-    if (newStatus != BorrowRequestStatus.APPROVED && newStatus != BorrowRequestStatus.DECLINED) {
-        throw new IllegalArgumentException("Invalid target status. Must be APPROVED or DECLINED.");
+    // Authorization Check: Only the game owner can approve/decline using Spring Security
+    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+    if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
+        throw new UnauthedException("User must be authenticated to update borrow request status.");
+    }
+
+    String currentUsername;
+    Object principal = authentication.getPrincipal();
+    if (principal instanceof UserDetails) {
+        currentUsername = ((UserDetails) principal).getUsername();
+    } else if (principal instanceof String) {
+        currentUsername = (String) principal;
+    } else {
+        throw new UnauthedException("Unexpected principal type in SecurityContext.");
+    }
+
+    Account currentUser = accountRepository.findByEmail(currentUsername).orElseThrow(
+            () -> new UnauthedException("Authenticated user '" + currentUsername + "' not found in database.")
+    );
+
+    if (request.getRequestedGame() == null || request.getRequestedGame().getOwner() == null ||
+        request.getRequestedGame().getOwner().getId() != currentUser.getId()) {
+        throw new UnauthedException("Access denied: Only the game owner can approve or decline requests.");
+    }
+
+    if (!newStatus.equals("APPROVED") && !newStatus.equals("DECLINED")) {
+        throw new IllegalArgumentException("Invalid status.");
     }
 
     // If the status is being set to APPROVED, create a LendingRecord
@@ -252,6 +285,31 @@ public BorrowRequestDto updateBorrowRequestStatus(int id, BorrowRequestStatus ne
     public void deleteBorrowRequest(int id) {
         BorrowRequest request = borrowRequestRepository.findBorrowRequestById(id)
                 .orElseThrow(() -> new IllegalArgumentException("No borrow request found with ID " + id));
+
+        // Authorization Check: Only the requester can delete their own request using Spring Security
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
+            throw new UnauthedException("User must be authenticated to delete a borrow request.");
+        }
+
+        String currentUsername;
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof UserDetails) {
+            currentUsername = ((UserDetails) principal).getUsername();
+        } else if (principal instanceof String) {
+            currentUsername = (String) principal;
+        } else {
+            throw new UnauthedException("Unexpected principal type in SecurityContext.");
+        }
+
+        Account currentUser = accountRepository.findByEmail(currentUsername).orElseThrow(
+                () -> new UnauthedException("Authenticated user '" + currentUsername + "' not found in database.")
+        );
+
+        if (request.getRequester() == null || request.getRequester().getId() != currentUser.getId()) {
+            throw new UnauthedException("Access denied: You can only delete your own borrow requests.");
+        }
+
         borrowRequestRepository.delete(request);
     }
 }

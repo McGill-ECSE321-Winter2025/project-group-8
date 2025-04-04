@@ -2,6 +2,12 @@ package ca.mcgill.ecse321.gameorganizer.integration;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import ca.mcgill.ecse321.gameorganizer.dto.AuthenticationDTO;
+import ca.mcgill.ecse321.gameorganizer.dto.JwtAuthenticationResponse;
+import ca.mcgill.ecse321.gameorganizer.dto.LoginResponse;
 import java.sql.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -27,7 +33,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
 
 import ca.mcgill.ecse321.gameorganizer.config.TestConfig;
-import ca.mcgill.ecse321.gameorganizer.config.SecurityTestConfig;
+import ca.mcgill.ecse321.gameorganizer.config.SecurityConfig;
 import ca.mcgill.ecse321.gameorganizer.dto.LendingHistoryFilterDto;
 import ca.mcgill.ecse321.gameorganizer.dto.LendingRecordResponseDto;
 import ca.mcgill.ecse321.gameorganizer.dto.UpdateLendingRecordStatusDto;
@@ -46,7 +52,7 @@ import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
-@Import({TestConfig.class, SecurityTestConfig.class})
+@Import({TestConfig.class, SecurityConfig.class})
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class LendingRecordIntegrationTests {
@@ -75,6 +81,8 @@ public class LendingRecordIntegrationTests {
     @Autowired
     private GameRepository gameRepository;
     
+    @Autowired
+    private PasswordEncoder passwordEncoder;
     private GameOwner testOwner;
     private Account testBorrower;
     private Game dummyGame;             // Dummy game for borrow requests
@@ -88,6 +96,31 @@ public class LendingRecordIntegrationTests {
     private String createURLWithPort(String uri) {
         return "http://localhost:" + port + uri;
     }
+    private HttpHeaders createAuthHeaders(String email, String password) {
+        HttpHeaders headers = new HttpHeaders();
+        
+        // Attempt to login and get a valid JWT token
+        AuthenticationDTO loginRequest = new AuthenticationDTO();
+        loginRequest.setEmail(email);
+        loginRequest.setPassword(password); // Use the plain text password
+
+        ResponseEntity<JwtAuthenticationResponse> loginResponse = restTemplate.postForEntity(
+            createURLWithPort("/api/v1/auth/login"), // Use the correct login endpoint
+            loginRequest,
+            JwtAuthenticationResponse.class
+        );
+
+        // Ensure login was successful and we received a token
+        if (loginResponse.getStatusCode() == HttpStatus.OK && loginResponse.getBody() != null && loginResponse.getBody().getToken() != null) {
+            headers.setBearerAuth(loginResponse.getBody().getToken());
+        } else {
+            // If authentication fails here, something is wrong with the test setup or login endpoint.
+            throw new IllegalStateException("Failed to authenticate user '" + email + "' for integration test. Status: " + loginResponse.getStatusCode());
+        }
+        
+        return headers;
+    }
+
     
     @BeforeEach
     public void setup() {
@@ -98,11 +131,11 @@ public class LendingRecordIntegrationTests {
         gameRepository.deleteAll();
 
         // Create test game owner
-        testOwner = new GameOwner("Owner", "owner@example.com", "pass");
+        testOwner = new GameOwner("Owner", "owner@example.com", passwordEncoder.encode("pass"));
         testOwner = (GameOwner) accountRepository.save(testOwner);
 
         // Create test borrower
-        testBorrower = new Account("Borrower", "borrower@example.com", "pass");
+        testBorrower = new Account("Borrower", "borrower@example.com", passwordEncoder.encode("pass"));
         testBorrower = accountRepository.save(testBorrower);
         
         // Create a dummy game and set its owner to testOwner
@@ -162,9 +195,12 @@ public class LendingRecordIntegrationTests {
         requestMap.put("startDate", startDate);
         requestMap.put("endDate", endDate);
         
+        // Use owner credentials
+        HttpHeaders headers = createAuthHeaders(testOwner.getEmail(), "pass");
+        HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(requestMap, headers);
         ResponseEntity<String> response = restTemplate.postForEntity(
             createURLWithPort(BASE_URL),
-            requestMap,
+            requestEntity, // Use entity with headers
             String.class
         );
         
@@ -187,9 +223,12 @@ public class LendingRecordIntegrationTests {
         requestMap.put("startDate", now + 10800000L);
         requestMap.put("endDate", now + 86400000L);
         
+        // Use owner credentials
+        HttpHeaders headers = createAuthHeaders(testOwner.getEmail(), "pass");
+        HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(requestMap, headers);
         ResponseEntity<String> response = restTemplate.postForEntity(
             createURLWithPort(BASE_URL),
-            requestMap,
+            requestEntity, // Use entity with headers
             String.class
         );
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
@@ -207,9 +246,12 @@ public class LendingRecordIntegrationTests {
         requestMap.put("startDate", now + 86400000L);
         requestMap.put("endDate", now);
         
+        // Use owner credentials
+        HttpHeaders headers = createAuthHeaders(testOwner.getEmail(), "pass");
+        HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(requestMap, headers);
         ResponseEntity<String> response = restTemplate.postForEntity(
             createURLWithPort(BASE_URL),
-            requestMap,
+            requestEntity, // Use entity with headers
             String.class
         );
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
@@ -227,9 +269,12 @@ public class LendingRecordIntegrationTests {
         requestMap.put("startDate", now + 10800000L);
         requestMap.put("endDate", now + 86400000L);
         
+        // Use owner credentials
+        HttpHeaders headers = createAuthHeaders(testOwner.getEmail(), "pass");
+        HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(requestMap, headers);
         ResponseEntity<String> response = restTemplate.postForEntity(
             createURLWithPort(BASE_URL),
-            requestMap,
+            requestEntity, // Use entity with headers
             String.class
         );
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
@@ -244,10 +289,13 @@ public class LendingRecordIntegrationTests {
     @Order(5)
     public void testUpdateEndDateSuccess() {
         Date newEndDate = new Date(System.currentTimeMillis() + 2 * 86400000L);
+        // Use owner credentials
+        HttpHeaders headers = createAuthHeaders(testOwner.getEmail(), "pass");
+        HttpEntity<Date> requestEntity = new HttpEntity<>(newEndDate, headers);
         ResponseEntity<String> response = restTemplate.exchange(
             createURLWithPort(BASE_URL + "/" + testRecord.getId() + "/end-date"),
             HttpMethod.PUT,
-            new HttpEntity<>(newEndDate),
+            requestEntity, // Use entity with headers
             String.class
         );
         assertEquals(HttpStatus.OK, response.getStatusCode());
@@ -258,10 +306,13 @@ public class LendingRecordIntegrationTests {
     @Order(6)
     public void testUpdateEndDateWithInvalidDate() {
         Date invalidEndDate = new Date(System.currentTimeMillis() - 2 * 86400000L);
+        // Use owner credentials
+        HttpHeaders headers = createAuthHeaders(testOwner.getEmail(), "pass");
+        HttpEntity<Date> requestEntity = new HttpEntity<>(invalidEndDate, headers);
         ResponseEntity<String> response = restTemplate.exchange(
             createURLWithPort(BASE_URL + "/" + testRecord.getId() + "/end-date"),
             HttpMethod.PUT,
-            new HttpEntity<>(invalidEndDate),
+            requestEntity, // Use entity with headers
             String.class
         );
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
@@ -272,10 +323,13 @@ public class LendingRecordIntegrationTests {
     @Order(7)
     public void testUpdateNonExistentLendingRecord() {
         Date newEndDate = new Date(System.currentTimeMillis() + 2 * 86400000L);
+        // Use owner credentials
+        HttpHeaders headers = createAuthHeaders(testOwner.getEmail(), "pass");
+        HttpEntity<Date> requestEntity = new HttpEntity<>(newEndDate, headers);
         ResponseEntity<String> response = restTemplate.exchange(
             createURLWithPort(BASE_URL + "/99999/end-date"),
             HttpMethod.PUT,
-            new HttpEntity<>(newEndDate),
+            requestEntity, // Use entity with headers
             String.class
         );
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
@@ -290,17 +344,22 @@ public class LendingRecordIntegrationTests {
     @Order(8)
     public void testDeleteLendingRecordSuccess() {
         // First, close the record via the confirm-return endpoint.
+        // Use owner credentials for confirm return
+        HttpHeaders ownerHeaders = createAuthHeaders(testOwner.getEmail(), "pass");
+        HttpEntity<?> closeRequestEntity = new HttpEntity<>(ownerHeaders);
         ResponseEntity<String> closeResponse = restTemplate.postForEntity(
             createURLWithPort(BASE_URL + "/" + testRecord.getId() + "/confirm-return?isDamaged=false"),
-            null,
+            closeRequestEntity, // Use entity with headers
             String.class
         );
         assertEquals(HttpStatus.OK, closeResponse.getStatusCode(), "Closing the record failed");
         
+        // Use owner credentials for delete
+        HttpEntity<?> deleteRequestEntity = new HttpEntity<>(ownerHeaders); // Reuse headers
         ResponseEntity<String> deleteResponse = restTemplate.exchange(
             createURLWithPort(BASE_URL + "/" + testRecord.getId()),
             HttpMethod.DELETE,
-            null,
+            deleteRequestEntity, // Use entity with headers
             String.class
         );
         assertEquals(HttpStatus.OK, deleteResponse.getStatusCode());
@@ -311,10 +370,13 @@ public class LendingRecordIntegrationTests {
     @Test
     @Order(9)
     public void testDeleteNonExistentLendingRecord() {
+        // Use owner credentials
+        HttpHeaders headers = createAuthHeaders(testOwner.getEmail(), "pass");
+        HttpEntity<?> requestEntity = new HttpEntity<>(headers);
         ResponseEntity<String> response = restTemplate.exchange(
             createURLWithPort(BASE_URL + "/99999"),
             HttpMethod.DELETE,
-            null,
+            requestEntity, // Use entity with headers
             String.class
         );
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
@@ -325,27 +387,34 @@ public class LendingRecordIntegrationTests {
     @Order(10)
     public void testDeleteLendingRecordTwice() {
         // First, close the record via confirm-return.
+        // Use owner credentials for confirm return
+        HttpHeaders ownerHeaders = createAuthHeaders(testOwner.getEmail(), "pass");
+        HttpEntity<?> closeRequestEntity = new HttpEntity<>(ownerHeaders);
         ResponseEntity<String> closeResponse = restTemplate.postForEntity(
             createURLWithPort(BASE_URL + "/" + testRecord.getId() + "/confirm-return?isDamaged=false"),
-            null,
+            closeRequestEntity, // Use entity with headers
             String.class
         );
         assertEquals(HttpStatus.OK, closeResponse.getStatusCode(), "Closing the record failed");
         
         // First deletion attempt
+        // Use owner credentials for delete
+        HttpEntity<?> deleteRequestEntity1 = new HttpEntity<>(ownerHeaders); // Reuse headers
         ResponseEntity<String> response1 = restTemplate.exchange(
             createURLWithPort(BASE_URL + "/" + testRecord.getId()),
             HttpMethod.DELETE,
-            null,
+            deleteRequestEntity1, // Use entity with headers
             String.class
         );
         assertEquals(HttpStatus.OK, response1.getStatusCode(), "First deletion did not return OK");
         
         // Second deletion attempt should return NOT_FOUND
+        // Use owner credentials for second delete attempt
+        HttpEntity<?> deleteRequestEntity2 = new HttpEntity<>(ownerHeaders); // Reuse headers
         ResponseEntity<String> response2 = restTemplate.exchange(
             createURLWithPort(BASE_URL + "/" + testRecord.getId()),
             HttpMethod.DELETE,
-            null,
+            deleteRequestEntity2, // Use entity with headers
             String.class
         );
         assertEquals(HttpStatus.NOT_FOUND, response2.getStatusCode(), "Second deletion did not return NOT_FOUND");
@@ -450,9 +519,12 @@ public class LendingRecordIntegrationTests {
         LendingHistoryFilterDto filterDto = new LendingHistoryFilterDto();
         filterDto.setStatus(LendingStatus.ACTIVE.name());
         
+        // Use owner credentials
+        HttpHeaders headers = createAuthHeaders(testOwner.getEmail(), "pass");
+        HttpEntity<LendingHistoryFilterDto> requestEntity = new HttpEntity<>(filterDto, headers);
         ResponseEntity<Map> response = restTemplate.postForEntity(
             createURLWithPort(BASE_URL + "/filter"),
-            filterDto,
+            requestEntity, // Use entity with headers
             Map.class
         );
         
@@ -531,10 +603,13 @@ public class LendingRecordIntegrationTests {
         statusDto.setUserId(testOwner.getId());
         statusDto.setReason("Game is overdue");
         
+        // Use owner credentials
+        HttpHeaders headers = createAuthHeaders(testOwner.getEmail(), "pass");
+        HttpEntity<UpdateLendingRecordStatusDto> requestEntity = new HttpEntity<>(statusDto, headers);
         ResponseEntity<Map> response = restTemplate.exchange(
             createURLWithPort(BASE_URL + "/" + testRecord.getId() + "/status"),
             HttpMethod.PUT,
-            new HttpEntity<>(statusDto),
+            requestEntity, // Use entity with headers
             Map.class
         );
         
@@ -548,9 +623,12 @@ public class LendingRecordIntegrationTests {
     @Order(21)
     public void testInvalidStatusTransition() {
         // First, close the record
+        // Use owner credentials for confirm return
+        HttpHeaders ownerHeaders = createAuthHeaders(testOwner.getEmail(), "pass");
+        HttpEntity<?> closeRequestEntity = new HttpEntity<>(ownerHeaders);
         ResponseEntity<String> closeResponse = restTemplate.postForEntity(
             createURLWithPort(BASE_URL + "/" + testRecord.getId() + "/confirm-return?isDamaged=false"),
-            null,
+            closeRequestEntity, // Use entity with headers
             String.class
         );
         assertEquals(HttpStatus.OK, closeResponse.getStatusCode(), "Closing the record failed");
@@ -561,10 +639,12 @@ public class LendingRecordIntegrationTests {
         statusDto.setUserId(testOwner.getId());
         statusDto.setReason("Trying invalid transition");
         
+        // Use owner credentials for update status
+        HttpEntity<UpdateLendingRecordStatusDto> updateRequestEntity = new HttpEntity<>(statusDto, ownerHeaders); // Reuse headers
         ResponseEntity<Map> response = restTemplate.exchange(
             createURLWithPort(BASE_URL + "/" + testRecord.getId() + "/status"),
             HttpMethod.PUT,
-            new HttpEntity<>(statusDto),
+            updateRequestEntity, // Use entity with headers
             Map.class
         );
         
@@ -574,9 +654,12 @@ public class LendingRecordIntegrationTests {
     @Test
     @Order(22)
     public void testMarkGameAsReturned() {
+        // Use borrower credentials
+        HttpHeaders borrowerHeaders = createAuthHeaders(testBorrower.getEmail(), "pass");
+        HttpEntity<?> requestEntity = new HttpEntity<>(borrowerHeaders);
         ResponseEntity<String> response = restTemplate.postForEntity(
             createURLWithPort(BASE_URL + "/" + testRecord.getId() + "/mark-returned?userId=" + testBorrower.getId()),
-            null,
+            requestEntity, // Use entity with headers
             String.class
         );
         
@@ -600,7 +683,10 @@ public class LendingRecordIntegrationTests {
                       "/confirm-return?isDamaged=true&damageNotes=The game box is damaged&damageSeverity=2&userId=" + 
                       testOwner.getId());
         
-        ResponseEntity<Map> response = restTemplate.postForEntity(url, null, Map.class);
+        // Use owner credentials
+        HttpHeaders headers = createAuthHeaders(testOwner.getEmail(), "pass");
+        HttpEntity<?> requestEntity = new HttpEntity<>(headers);
+        ResponseEntity<Map> response = restTemplate.postForEntity(url, requestEntity, Map.class);
         
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertTrue((Boolean) response.getBody().get("success"));
@@ -717,9 +803,12 @@ public class LendingRecordIntegrationTests {
         requestMap.put("startDate", now + 10800000L);
         requestMap.put("endDate", now + 86400000L);
         
+        // Use owner credentials
+        HttpHeaders headers = createAuthHeaders(testOwner.getEmail(), "pass");
+        HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(requestMap, headers);
         ResponseEntity<String> response = restTemplate.postForEntity(
             createURLWithPort(BASE_URL),
-            requestMap,
+            requestEntity, // Use entity with headers
             String.class
         );
         
@@ -748,9 +837,12 @@ public class LendingRecordIntegrationTests {
         requestMap.put("startDate", now + 10800000L);
         requestMap.put("endDate", now + 86400000L);
         
+        // Use owner credentials
+        HttpHeaders headers = createAuthHeaders(testOwner.getEmail(), "pass");
+        HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(requestMap, headers);
         ResponseEntity<String> response = restTemplate.postForEntity(
             createURLWithPort(BASE_URL),
-            requestMap,
+            requestEntity, // Use entity with headers
             String.class
         );
         
@@ -774,17 +866,23 @@ public class LendingRecordIntegrationTests {
         // We'll use the existing testRecord
         
         // Close the record
+        // Use owner credentials for confirm return
+        HttpHeaders ownerHeaders = createAuthHeaders(testOwner.getEmail(), "pass");
+        HttpEntity<?> closeRequestEntity = new HttpEntity<>(ownerHeaders);
         ResponseEntity<String> closeResponse = restTemplate.postForEntity(
             createURLWithPort(BASE_URL + "/" + testRecord.getId() + "/confirm-return?isDamaged=false"),
-            null,
+            closeRequestEntity, // Use entity with headers
             String.class
         );
         assertEquals(HttpStatus.OK, closeResponse.getStatusCode(), "Closing the record failed");
         
         // Now try to mark it as returned, which should cause an InvalidOperationException
+        // Use borrower credentials for mark returned
+        HttpHeaders borrowerHeaders = createAuthHeaders(testBorrower.getEmail(), "pass");
+        HttpEntity<?> markReturnedEntity = new HttpEntity<>(borrowerHeaders);
         ResponseEntity<String> response = restTemplate.postForEntity(
             createURLWithPort(BASE_URL + "/" + testRecord.getId() + "/mark-returned"),
-            null,
+            markReturnedEntity, // Use entity with headers
             String.class
         );
         
@@ -808,7 +906,10 @@ public class LendingRecordIntegrationTests {
         String url = createURLWithPort(BASE_URL + "/" + testRecord.getId() + 
                     "/confirm-return?isDamaged=true&damageSeverity=4");
         
-        ResponseEntity<Map> response = restTemplate.postForEntity(url, null, Map.class);
+        // Use owner credentials
+        HttpHeaders headers = createAuthHeaders(testOwner.getEmail(), "pass");
+        HttpEntity<?> requestEntity = new HttpEntity<>(headers);
+        ResponseEntity<Map> response = restTemplate.postForEntity(url, requestEntity, Map.class);
         
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
         assertFalse((Boolean) response.getBody().get("success"));
@@ -859,9 +960,12 @@ public class LendingRecordIntegrationTests {
     @Test
     @Order(35)
     public void testConfirmGameReturn_WithoutUserId() {
+        // Use owner credentials
+        HttpHeaders headers = createAuthHeaders(testOwner.getEmail(), "pass");
+        HttpEntity<?> requestEntity = new HttpEntity<>(headers);
         ResponseEntity<Map> response = restTemplate.postForEntity(
             createURLWithPort(BASE_URL + "/" + testRecord.getId() + "/confirm-return?isDamaged=false"),
-            null,
+            requestEntity, // Use entity with headers
             Map.class
         );
         
@@ -873,10 +977,13 @@ public class LendingRecordIntegrationTests {
     @Order(36)
     public void testConfirmGameReturn_DifferentDamageSeverities() {
         // Test with damage severity 1
+        // Use owner credentials
+        HttpHeaders headers = createAuthHeaders(testOwner.getEmail(), "pass");
+        HttpEntity<?> requestEntity = new HttpEntity<>(headers);
         ResponseEntity<Map> response = restTemplate.postForEntity(
-            createURLWithPort(BASE_URL + "/" + testRecord.getId() + 
+            createURLWithPort(BASE_URL + "/" + testRecord.getId() +
                             "/confirm-return?isDamaged=true&damageSeverity=1"),
-            null,
+            requestEntity, // Use entity with headers
             Map.class
         );
         
@@ -892,9 +999,12 @@ public class LendingRecordIntegrationTests {
         // Use an empty status which should return empty results but not error
         filterDto.setStatus(LendingStatus.CLOSED.name());
         
+        // Use owner credentials
+        HttpHeaders headers = createAuthHeaders(testOwner.getEmail(), "pass");
+        HttpEntity<LendingHistoryFilterDto> requestEntity = new HttpEntity<>(filterDto, headers);
         ResponseEntity<Map> response = restTemplate.postForEntity(
             createURLWithPort(BASE_URL + "/filter"),
-            filterDto,
+            requestEntity, // Use entity with headers
             Map.class
         );
         
@@ -910,9 +1020,12 @@ public class LendingRecordIntegrationTests {
         LendingHistoryFilterDto filterDto = new LendingHistoryFilterDto();
         filterDto.setStatus(LendingStatus.ACTIVE.name());
         
+        // Use owner credentials
+        HttpHeaders headers = createAuthHeaders(testOwner.getEmail(), "pass");
+        HttpEntity<LendingHistoryFilterDto> requestEntity = new HttpEntity<>(filterDto, headers);
         ResponseEntity<Map> response = restTemplate.postForEntity(
             createURLWithPort(BASE_URL + "/filter?page=999&size=10"),
-            filterDto,
+            requestEntity, // Use entity with headers
             Map.class
         );
         
@@ -923,9 +1036,12 @@ public class LendingRecordIntegrationTests {
     @Test
     @Order(39)
     public void testMarkGameAsReturned_WithoutUserId() {
+        // Use borrower credentials
+        HttpHeaders borrowerHeaders = createAuthHeaders(testBorrower.getEmail(), "pass");
+        HttpEntity<?> requestEntity = new HttpEntity<>(borrowerHeaders);
         ResponseEntity<String> response = restTemplate.postForEntity(
             createURLWithPort(BASE_URL + "/" + testRecord.getId() + "/mark-returned"),
-            null,
+            requestEntity, // Use entity with headers
             String.class
         );
         
@@ -949,9 +1065,12 @@ public class LendingRecordIntegrationTests {
         requestMap.put("startDate", now); // 1 day from now
         requestMap.put("endDate", now);               // now (before start date)
         
+        // Use owner credentials
+        HttpHeaders headers = createAuthHeaders(testOwner.getEmail(), "pass");
+        HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(requestMap, headers);
         ResponseEntity<String> response = restTemplate.postForEntity(
             createURLWithPort(BASE_URL),
-            requestMap,
+            requestEntity, // Use entity with headers
             String.class
         );
         
@@ -966,10 +1085,13 @@ public class LendingRecordIntegrationTests {
         statusDto.setUserId(testOwner.getId());
         statusDto.setReason("Testing invalid status");
         
+        // Use owner credentials
+        HttpHeaders headers = createAuthHeaders(testOwner.getEmail(), "pass");
+        HttpEntity<UpdateLendingRecordStatusDto> requestEntity = new HttpEntity<>(statusDto, headers);
         ResponseEntity<Map> response = restTemplate.exchange(
             createURLWithPort(BASE_URL + "/" + testRecord.getId() + "/status"),
             HttpMethod.PUT,
-            new HttpEntity<>(statusDto),
+            requestEntity, // Use entity with headers
             Map.class
         );
         
@@ -985,10 +1107,13 @@ public class LendingRecordIntegrationTests {
         statusDto.setUserId(testOwner.getId());
         statusDto.setReason("Testing empty status");
         
+        // Use owner credentials
+        HttpHeaders headers = createAuthHeaders(testOwner.getEmail(), "pass");
+        HttpEntity<UpdateLendingRecordStatusDto> requestEntity = new HttpEntity<>(statusDto, headers);
         ResponseEntity<Map> response = restTemplate.exchange(
             createURLWithPort(BASE_URL + "/" + testRecord.getId() + "/status"),
             HttpMethod.PUT,
-            new HttpEntity<>(statusDto),
+            requestEntity, // Use entity with headers
             Map.class
         );
         
@@ -1005,10 +1130,13 @@ public class LendingRecordIntegrationTests {
         statusDto.setUserId(testOwner.getId());
         statusDto.setReason("Testing non-existent record");
         
+        // Use owner credentials
+        HttpHeaders headers = createAuthHeaders(testOwner.getEmail(), "pass");
+        HttpEntity<UpdateLendingRecordStatusDto> requestEntity = new HttpEntity<>(statusDto, headers);
         ResponseEntity<Map> response = restTemplate.exchange(
             createURLWithPort(BASE_URL + "/99999/status"),
             HttpMethod.PUT,
-            new HttpEntity<>(statusDto),
+            requestEntity, // Use entity with headers
             Map.class
         );
         
@@ -1076,19 +1204,24 @@ public class LendingRecordIntegrationTests {
     @Order(49)
     public void testHandleIllegalStateException() {
         // First close the record
+        // Use owner credentials for confirm return
+        HttpHeaders ownerHeaders = createAuthHeaders(testOwner.getEmail(), "pass");
+        HttpEntity<?> closeRequestEntity = new HttpEntity<>(ownerHeaders);
         ResponseEntity<String> closeResponse = restTemplate.postForEntity(
             createURLWithPort(BASE_URL + "/" + testRecord.getId() + "/confirm-return?isDamaged=false"),
-            null,
+            closeRequestEntity, // Use entity with headers
             String.class
         );
         assertEquals(HttpStatus.OK, closeResponse.getStatusCode());
         
         // Now try updating end date on a closed record (should trigger IllegalStateException)
         Date newEndDate = new Date(System.currentTimeMillis() + 86400000L);
+        // Use owner credentials for update end date
+        HttpEntity<Date> updateRequestEntity = new HttpEntity<>(newEndDate, ownerHeaders); // Reuse headers
         ResponseEntity<String> response = restTemplate.exchange(
             createURLWithPort(BASE_URL + "/" + testRecord.getId() + "/end-date"),
             HttpMethod.PUT,
-            new HttpEntity<>(newEndDate),
+            updateRequestEntity, // Use entity with headers
             String.class
         );
         

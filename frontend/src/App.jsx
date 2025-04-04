@@ -23,7 +23,7 @@ function App() {
           <Route path="/register"       element={<RegistrationPage />}/>
           <Route path="/profile"        element={<UserProfilePage />}/>
           <Route path="/user-search"    element={<UserSearchPage />}/>
-          <Route path="/dashboard"      element={<DashboardPage />}/>
+          <Route path="/dashboard/*"      element={<DashboardPage />}/>
         </Routes>
     </div>
   )
