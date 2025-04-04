@@ -10,7 +10,6 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import ca.mcgill.ecse321.gameorganizer.middleware.UserContext;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import jakarta.servlet.FilterChain;
@@ -24,14 +23,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtUtil jwtUtil;
     private final UserDetailsService userDetailsService;
     private final AccountRepository accountRepository;
-    private final UserContext userContext;
 
     public JwtAuthenticationFilter(JwtUtil jwtUtil, UserDetailsService userDetailsService,
-                                  AccountRepository accountRepository, UserContext userContext) {
+                                  AccountRepository accountRepository) {
         this.jwtUtil = jwtUtil;
         this.userDetailsService = userDetailsService;
         this.accountRepository = accountRepository;
-        this.userContext = userContext;
     }
 
     @Override
@@ -58,11 +55,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authToken);
 
-                // Set the user in the UserContext for easy access in controllers
-                Account account = accountRepository.findByEmail(userEmail).orElse(null);
-                if (account != null) {
-                    userContext.setCurrentUser(account);
-                }
+                // UserContext is removed, authentication is handled by SecurityContextHolder
             }
         }
 

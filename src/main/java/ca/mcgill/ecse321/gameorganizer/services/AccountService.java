@@ -13,7 +13,10 @@ import ca.mcgill.ecse321.gameorganizer.dto.CreateAccountRequest;
 import ca.mcgill.ecse321.gameorganizer.dto.EventResponse;
 import ca.mcgill.ecse321.gameorganizer.dto.UpdateAccountRequest;
 import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException; // Import UnauthedException
-import ca.mcgill.ecse321.gameorganizer.middleware.UserContext; // Import UserContext
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.userdetails.UserDetails;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
@@ -39,8 +42,7 @@ public class AccountService {
     private final ReviewRepository reviewRepository;
     private final BorrowRequestRepository borrowRequestRepository;
 
-    @Autowired
-    private UserContext userContext; // Inject UserContext
+    // UserContext removed
 
     @Autowired
     public AccountService(
@@ -177,10 +179,29 @@ public class AccountService {
         String password = request.getPassword();
         String newPassword = request.getNewPassword();
 
-        Account currentUser = userContext.getCurrentUser(); // Get current user
-        if (currentUser == null) {
-            return ResponseEntity.status(401).body("Bad request: No authenticated user found."); // Or throw UnauthedException
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
+            // Use exception consistently instead of returning ResponseEntity for auth errors
+            throw new UnauthedException("User must be authenticated to update account.");
         }
+
+        String currentUsername;
+        Object principal = authentication.getPrincipal();
+        // Assuming the principal is the email used for login, as is common with UserDetails
+        if (principal instanceof UserDetails) {
+            currentUsername = ((UserDetails) principal).getUsername();
+        } else if (principal instanceof String) {
+             currentUsername = (String) principal;
+        }
+        else {
+            // Handle unexpected principal type
+             throw new UnauthedException("Unexpected principal type in SecurityContext.");
+        }
+
+
+        Account currentUser = accountRepository.findByEmail(currentUsername).orElseThrow(
+                () -> new UnauthedException("Authenticated user '" + currentUsername + "' not found in database.") // Should ideally not happen if JWT/session is valid
+        );
 
         Account account;
         try {
@@ -188,14 +209,13 @@ public class AccountService {
                 () -> new IllegalArgumentException("Account with email " + email + " does not exist")
             );
 
-            // Authorization Check: Ensure the current user is the one being updated
-            if (account.getId() != currentUser.getId()) { // Use == for primitive int comparison
+            // Authorization Check: Ensure the authenticated user is the one being updated
+            // Use .equals() for safe comparison of IDs (handles both primitives and wrappers)
+            if (currentUser.getId() != account.getId()) {
                  throw new UnauthedException("Access denied: You can only update your own account.");
             }
 
-            account = accountRepository.findByEmail(email).orElseThrow(
-                () -> new IllegalArgumentException("Account with email " + email + " does not exist")
-            );
+            // Password check (target account already fetched)
             if (!account.getPassword().equals(password)) {
                 throw new IllegalArgumentException("Passwords do not match");
             }

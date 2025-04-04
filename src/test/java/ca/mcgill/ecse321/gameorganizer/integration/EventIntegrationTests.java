@@ -1,6 +1,11 @@
 package ca.mcgill.ecse321.gameorganizer.integration;
 
 import java.sql.Date;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import ca.mcgill.ecse321.gameorganizer.dto.AuthenticationDTO;
+import ca.mcgill.ecse321.gameorganizer.dto.JwtAuthenticationResponse;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
@@ -56,6 +61,8 @@ public class EventIntegrationTests {
     @Autowired
     private GameRepository gameRepository;
     
+    @Autowired
+    private PasswordEncoder passwordEncoder;
     private GameOwner testHost;
     private Game testGame;
     private Event testEvent;
@@ -69,7 +76,7 @@ public void setup() {
     accountRepository.deleteAll();
     
     // Create test host as a GameOwner
-    testHost = new GameOwner("host", "host@example.com", "password123");
+    testHost = new GameOwner("host", "host@example.com", passwordEncoder.encode("password123"));
     testHost = (GameOwner) accountRepository.save(testHost);
     
     // Create test game
@@ -102,6 +109,31 @@ public void setup() {
     private String createURLWithPort(String uri) {
         return "http://localhost:" + port + uri;
     }
+    private HttpHeaders createAuthHeaders() {
+        HttpHeaders headers = new HttpHeaders();
+        
+        // Attempt to login and get a valid JWT token for the test host
+        AuthenticationDTO loginRequest = new AuthenticationDTO();
+        loginRequest.setEmail(testHost.getEmail()); // Use testHost's email
+        loginRequest.setPassword("password123"); // Use the plain text password used during setup
+
+        ResponseEntity<JwtAuthenticationResponse> loginResponse = restTemplate.postForEntity(
+            createURLWithPort("/api/v1/auth/login"), // Use the correct login endpoint
+            loginRequest,
+            JwtAuthenticationResponse.class
+        );
+
+        // Ensure login was successful and we received a token
+        if (loginResponse.getStatusCode() == HttpStatus.OK && loginResponse.getBody() != null && loginResponse.getBody().getToken() != null) {
+            headers.setBearerAuth(loginResponse.getBody().getToken());
+        } else {
+            // If authentication fails here, something is wrong with the test setup or login endpoint.
+            throw new IllegalStateException("Failed to authenticate test host '" + testHost.getEmail() + "' for integration test. Status: " + loginResponse.getStatusCode());
+        }
+        
+        return headers;
+    }
+
     
     // ----- CREATE Tests (4 tests) -----
     
@@ -117,10 +149,11 @@ public void setup() {
         request.setFeaturedGame(testGame);
         request.setHost(testHost);
         
-        // Request as String
+        // Create HttpEntity with request body and auth headers
+        HttpEntity<CreateEventRequest> requestEntity = new HttpEntity<>(request, createAuthHeaders());
         ResponseEntity<String> response = restTemplate.postForEntity(
             createURLWithPort(BASE_URL),
-            request,
+            requestEntity, // Use the entity with headers
             String.class
         );
         
@@ -209,10 +242,12 @@ public void testCreateEventWithNonExistentHost() {
                 "&location=Updated Location" +
                 "&description=Updated Description" +
                 "&maxParticipants=25";
+        // Create HttpEntity with auth headers (no body for this PUT with params)
+        HttpEntity<?> requestEntity = new HttpEntity<>(createAuthHeaders());
         ResponseEntity<String> response = restTemplate.exchange(
                 createURLWithPort(updateUri),
                 HttpMethod.PUT,
-                null,
+                requestEntity, // Use the entity with headers
                 String.class
         );
 
@@ -265,10 +300,12 @@ public void testCreateEventWithNonExistentHost() {
     @Test
     @Order(8)
     public void testDeleteEventSuccess() {
+        // Create HttpEntity with auth headers
+        HttpEntity<?> requestEntity = new HttpEntity<>(createAuthHeaders());
         ResponseEntity<Void> response = restTemplate.exchange(
             createURLWithPort(BASE_URL + "/" + testEvent.getId()),
             HttpMethod.DELETE,
-            null,
+            requestEntity, // Use the entity with headers
             Void.class
         );
         assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());

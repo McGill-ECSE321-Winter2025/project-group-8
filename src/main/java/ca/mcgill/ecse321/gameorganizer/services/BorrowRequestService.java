@@ -12,7 +12,11 @@ import org.springframework.transaction.annotation.Transactional;
 import ca.mcgill.ecse321.gameorganizer.dto.BorrowRequestDto;
 import ca.mcgill.ecse321.gameorganizer.dto.CreateBorrowRequestDto;
 import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException; // Import UnauthedException
-import ca.mcgill.ecse321.gameorganizer.middleware.UserContext; // Import UserContext
+// UserContext import removed
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.userdetails.UserDetails;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequestStatus;
@@ -34,8 +38,7 @@ public class BorrowRequestService {
     private final GameRepository gameRepository;
     private final AccountRepository accountRepository;
 
-    @Autowired
-    private UserContext userContext; // Inject UserContext
+    // UserContext field removed
 
     /**
      * Constructs a BorrowRequestService with required repositories.
@@ -44,12 +47,12 @@ public class BorrowRequestService {
      * @param gameRepository Repository for games.
      * @param accountRepository Repository for user accounts.
      */
+    // Updated constructor to remove UserContext
     @Autowired
-    public BorrowRequestService(BorrowRequestRepository borrowRequestRepository, GameRepository gameRepository, AccountRepository accountRepository, UserContext userContext) { // Add UserContext
+    public BorrowRequestService(BorrowRequestRepository borrowRequestRepository, GameRepository gameRepository, AccountRepository accountRepository) {
         this.borrowRequestRepository = borrowRequestRepository;
         this.gameRepository = gameRepository;
         this.accountRepository = accountRepository;
-        this.userContext = userContext; // Initialize UserContext
     }
 
     /**
@@ -175,9 +178,27 @@ public BorrowRequestDto updateBorrowRequestStatus(int id, String newStatus) {
     BorrowRequest request = borrowRequestRepository.findBorrowRequestById(id)
             .orElseThrow(() -> new IllegalArgumentException("No borrow request found with ID " + id));
 
-    // Authorization Check: Only the game owner can approve/decline
-    Account currentUser = userContext.getCurrentUser();
-    if (currentUser == null || request.getRequestedGame() == null || request.getRequestedGame().getOwner() == null ||
+    // Authorization Check: Only the game owner can approve/decline using Spring Security
+    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+    if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
+        throw new UnauthedException("User must be authenticated to update borrow request status.");
+    }
+
+    String currentUsername;
+    Object principal = authentication.getPrincipal();
+    if (principal instanceof UserDetails) {
+        currentUsername = ((UserDetails) principal).getUsername();
+    } else if (principal instanceof String) {
+        currentUsername = (String) principal;
+    } else {
+        throw new UnauthedException("Unexpected principal type in SecurityContext.");
+    }
+
+    Account currentUser = accountRepository.findByEmail(currentUsername).orElseThrow(
+            () -> new UnauthedException("Authenticated user '" + currentUsername + "' not found in database.")
+    );
+
+    if (request.getRequestedGame() == null || request.getRequestedGame().getOwner() == null ||
         request.getRequestedGame().getOwner().getId() != currentUser.getId()) {
         throw new UnauthedException("Access denied: Only the game owner can approve or decline requests.");
     }
@@ -215,9 +236,27 @@ public BorrowRequestDto updateBorrowRequestStatus(int id, String newStatus) {
         BorrowRequest request = borrowRequestRepository.findBorrowRequestById(id)
                 .orElseThrow(() -> new IllegalArgumentException("No borrow request found with ID " + id));
 
-        // Authorization Check: Only the requester can delete their own request
-        Account currentUser = userContext.getCurrentUser();
-        if (currentUser == null || request.getRequester() == null || request.getRequester().getId() != currentUser.getId()) {
+        // Authorization Check: Only the requester can delete their own request using Spring Security
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
+            throw new UnauthedException("User must be authenticated to delete a borrow request.");
+        }
+
+        String currentUsername;
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof UserDetails) {
+            currentUsername = ((UserDetails) principal).getUsername();
+        } else if (principal instanceof String) {
+            currentUsername = (String) principal;
+        } else {
+            throw new UnauthedException("Unexpected principal type in SecurityContext.");
+        }
+
+        Account currentUser = accountRepository.findByEmail(currentUsername).orElseThrow(
+                () -> new UnauthedException("Authenticated user '" + currentUsername + "' not found in database.")
+        );
+
+        if (request.getRequester() == null || request.getRequester().getId() != currentUser.getId()) {
             throw new UnauthedException("Access denied: You can only delete your own borrow requests.");
         }
 

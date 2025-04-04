@@ -90,7 +90,7 @@ public class RegistrationController {
     public ResponseEntity<String> deleteRegistration(@PathVariable int id) {
         Optional<Registration> registration = registrationService.getRegistration(id);
         if (registration.isPresent()) {
-            registrationService.deleteRegistration(id, registration.get().getEventRegisteredFor());
+            registrationService.deleteRegistration(id);
             return ResponseEntity.ok("Registration deleted successfully.");
         } else {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Registration not found.");

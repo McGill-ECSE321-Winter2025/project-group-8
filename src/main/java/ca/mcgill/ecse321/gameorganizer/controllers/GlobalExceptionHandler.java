@@ -33,6 +33,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     public ResponseEntity<String> handleInvalidPasswordException(InvalidPasswordException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
     }
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<String> handleIllegalArgumentException(IllegalArgumentException ex) {
+        // Log the exception for debugging purposes if needed
+        // logger.error("Illegal argument exception: {}", ex.getMessage());
+        return ResponseEntity.badRequest().body(ex.getMessage());
+    }
+
+
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<String> handleGenericException(Exception ex) {

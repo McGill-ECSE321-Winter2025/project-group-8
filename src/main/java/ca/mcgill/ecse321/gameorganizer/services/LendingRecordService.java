@@ -8,18 +8,20 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import ca.mcgill.ecse321.gameorganizer.dto.LendingHistoryFilterDto;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException; // Import UnauthedException
-import ca.mcgill.ecse321.gameorganizer.middleware.UserContext; // Import UserContext
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.models.LendingRecord;
 import ca.mcgill.ecse321.gameorganizer.models.LendingRecord.LendingStatus;
+import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.LendingRecordRepository;
 
@@ -34,11 +36,15 @@ public class LendingRecordService {
     
     @Autowired
     private LendingRecordRepository lendingRecordRepository;
-    @Autowired
-    private BorrowRequestRepository borrowRequestRepository;
+    private final BorrowRequestRepository borrowRequestRepository;
+    private final AccountRepository accountRepository; // Inject AccountRepository
 
     @Autowired
-    private UserContext userContext; // Inject UserContext
+    public LendingRecordService(LendingRecordRepository lendingRecordRepository, BorrowRequestRepository borrowRequestRepository, AccountRepository accountRepository) {
+        this.lendingRecordRepository = lendingRecordRepository;
+        this.borrowRequestRepository = borrowRequestRepository;
+        this.accountRepository = accountRepository;
+    }
 
     /**
      * Helper method to create a standardized error response.
@@ -277,7 +283,13 @@ public class LendingRecordService {
         }
 
         // Authorization Check: Only owner or borrower can update status
-        Account currentUser = userContext.getCurrentUser();
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || authentication.getPrincipal().equals("anonymousUser")) {
+            throw new UnauthedException("User not authenticated.");
+        }
+        String userEmail = authentication.getName(); // Assuming email is the username used in UserDetails
+        Account currentUser = accountRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new UnauthedException("Authenticated user not found in database."));
         if (!isOwnerOrBorrower(currentUser, record)) {
              throw new UnauthedException("Access denied: Only the game owner or borrower can update the lending status.");
         }
@@ -366,7 +378,13 @@ public class LendingRecordService {
         LendingStatus currentStatus = record.getStatus();
 
         // Authorization Check: Only owner can close
-        Account currentUser = userContext.getCurrentUser();
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || authentication.getPrincipal().equals("anonymousUser")) {
+            throw new UnauthedException("User not authenticated.");
+        }
+        String userEmail = authentication.getName(); // Assuming email is the username used in UserDetails
+        Account currentUser = accountRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new UnauthedException("Authenticated user not found in database."));
         if (currentUser == null || record.getRecordOwner() == null || record.getRecordOwner().getId() != currentUser.getId()) {
              throw new UnauthedException("Access denied: Only the game owner can close the lending record.");
         }
@@ -418,7 +436,13 @@ public class LendingRecordService {
         LendingStatus currentStatus = record.getStatus();
 
         // Authorization Check: Only owner can close
-        Account currentUser = userContext.getCurrentUser();
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || authentication.getPrincipal().equals("anonymousUser")) {
+            throw new UnauthedException("User not authenticated.");
+        }
+        String userEmail = authentication.getName(); // Assuming email is the username used in UserDetails
+        Account currentUser = accountRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new UnauthedException("Authenticated user not found in database."));
         if (currentUser == null || record.getRecordOwner() == null || record.getRecordOwner().getId() != currentUser.getId()) {
              throw new UnauthedException("Access denied: Only the game owner can close the lending record.");
         }
@@ -491,7 +515,13 @@ public class LendingRecordService {
         LendingRecord record = getLendingRecordById(id);
 
         // Authorization Check: Only owner can update end date
-        Account currentUser = userContext.getCurrentUser();
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || authentication.getPrincipal().equals("anonymousUser")) {
+            throw new UnauthedException("User not authenticated.");
+        }
+        String userEmail = authentication.getName(); // Assuming email is the username used in UserDetails
+        Account currentUser = accountRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new UnauthedException("Authenticated user not found in database."));
         if (currentUser == null || record.getRecordOwner() == null || record.getRecordOwner().getId() != currentUser.getId()) {
              throw new UnauthedException("Access denied: Only the game owner can update the end date.");
         }
@@ -523,7 +553,13 @@ public class LendingRecordService {
             LendingRecord record = getLendingRecordById(id);
 
             // Authorization Check: Only owner can delete (non-active) record
-            Account currentUser = userContext.getCurrentUser();
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated() || authentication.getPrincipal().equals("anonymousUser")) {
+                throw new UnauthedException("User not authenticated.");
+            }
+            String userEmail = authentication.getName(); // Assuming email is the username used in UserDetails
+            Account currentUser = accountRepository.findByEmail(userEmail)
+                    .orElseThrow(() -> new UnauthedException("Authenticated user not found in database."));
             if (currentUser == null || record.getRecordOwner() == null || record.getRecordOwner().getId() != currentUser.getId()) {
                  throw new UnauthedException("Access denied: Only the game owner can delete this lending record.");
             }

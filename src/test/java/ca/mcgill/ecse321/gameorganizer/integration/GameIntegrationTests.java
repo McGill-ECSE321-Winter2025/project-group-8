@@ -2,6 +2,12 @@ package ca.mcgill.ecse321.gameorganizer.integration;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import ca.mcgill.ecse321.gameorganizer.dto.AuthenticationDTO;
+import ca.mcgill.ecse321.gameorganizer.dto.JwtAuthenticationResponse;
+import ca.mcgill.ecse321.gameorganizer.dto.LoginResponse;
 import java.sql.Date;
 import java.util.List;
 import java.util.UUID;
@@ -59,6 +65,8 @@ public class GameIntegrationTests {
     @Autowired
     private ReviewRepository reviewRepository;
     
+    @Autowired
+    private PasswordEncoder passwordEncoder;
     private GameOwner testOwner;
     private Game testGame;
     private static final String BASE_URL_ALL = "/api/v1/games"; // for getAllGames
@@ -76,7 +84,7 @@ public class GameIntegrationTests {
         accountRepository.deleteAll();
         
         // Create test game owner as a GameOwner
-        testOwner = new GameOwner(VALID_USERNAME, VALID_EMAIL, VALID_PASSWORD);
+        testOwner = new GameOwner(VALID_USERNAME, VALID_EMAIL, passwordEncoder.encode(VALID_PASSWORD));
         testOwner = (GameOwner) accountRepository.save(testOwner);
         
         // Create test game
@@ -96,6 +104,31 @@ public class GameIntegrationTests {
     private String createURLWithPort(String uri) {
         return "http://localhost:" + port + uri;
     }
+    private HttpHeaders createAuthHeaders() {
+        HttpHeaders headers = new HttpHeaders();
+        
+        // Attempt to login and get a valid JWT token for the test owner
+        AuthenticationDTO loginRequest = new AuthenticationDTO();
+        loginRequest.setEmail(VALID_EMAIL); // Use testOwner's email
+        loginRequest.setPassword(VALID_PASSWORD); // Use the plain text password
+
+        ResponseEntity<JwtAuthenticationResponse> loginResponse = restTemplate.postForEntity(
+            createURLWithPort("/api/v1/auth/login"), // Use the correct login endpoint
+            loginRequest,
+            JwtAuthenticationResponse.class
+        );
+
+        // Ensure login was successful and we received a token
+        if (loginResponse.getStatusCode() == HttpStatus.OK && loginResponse.getBody() != null && loginResponse.getBody().getToken() != null) {
+            headers.setBearerAuth(loginResponse.getBody().getToken());
+        } else {
+            // If authentication fails here, something is wrong with the test setup or login endpoint.
+            throw new IllegalStateException("Failed to authenticate test owner '" + VALID_EMAIL + "' for integration test. Status: " + loginResponse.getStatusCode());
+        }
+        
+        return headers;
+    }
+
     
     // ----- CREATE Tests (4 tests) -----
     
@@ -112,9 +145,11 @@ public class GameIntegrationTests {
         // Set a valid category (this is required by your service)
         request.setCategory("Board Game");
 
+        // Create HttpEntity with request body and auth headers
+        HttpEntity<GameCreationDto> requestEntity = new HttpEntity<>(request, createAuthHeaders());
         ResponseEntity<GameResponseDto> response = restTemplate.postForEntity(
             createURLWithPort(BASE_URL),
-            request,
+            requestEntity, // Use the entity with headers
             GameResponseDto.class
         );
 
@@ -197,10 +232,12 @@ public class GameIntegrationTests {
         request.setImage("updated.jpg");
         request.setOwnerId(VALID_EMAIL);
         
+        // Create HttpEntity with request body and auth headers
+        HttpEntity<GameCreationDto> requestEntity = new HttpEntity<>(request, createAuthHeaders());
         ResponseEntity<GameResponseDto> response = restTemplate.exchange(
             createURLWithPort(BASE_URL + "/" + testGame.getId()),
             HttpMethod.PUT,
-            new HttpEntity<>(request),
+            requestEntity, // Use the entity with headers
             GameResponseDto.class
         );
         
@@ -257,10 +294,12 @@ public class GameIntegrationTests {
     @Test
     @Order(8)
     public void testDeleteGameSuccess() {
+        // Create HttpEntity with auth headers
+        HttpEntity<?> requestEntity = new HttpEntity<>(createAuthHeaders());
         ResponseEntity<String> response = restTemplate.exchange(
             createURLWithPort(BASE_URL + "/" + testGame.getId()),
             HttpMethod.DELETE,
-            null,
+            requestEntity, // Use the entity with headers
             String.class
         );
         
@@ -511,9 +550,11 @@ public class GameIntegrationTests {
         reviewDto.setComment("Great game!");
         reviewDto.setReviewerId(VALID_EMAIL);
         
+        // Create HttpEntity with request body and auth headers
+        HttpEntity<ReviewSubmissionDto> requestEntity = new HttpEntity<>(reviewDto, createAuthHeaders());
         ResponseEntity<ReviewResponseDto> response = restTemplate.postForEntity(
             createURLWithPort("/games/" + testGame.getId() + "/reviews"),
-            reviewDto,
+            requestEntity, // Use the entity with headers
             ReviewResponseDto.class
         );
         

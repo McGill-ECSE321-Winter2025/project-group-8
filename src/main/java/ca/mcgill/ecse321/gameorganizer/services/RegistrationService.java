@@ -7,13 +7,15 @@ import java.util.Optional;
 
 import ca.mcgill.ecse321.gameorganizer.dto.RegistrationResponseDto;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException; // Import UnauthedException
-import ca.mcgill.ecse321.gameorganizer.middleware.UserContext; // Import UserContext
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
 import ca.mcgill.ecse321.gameorganizer.models.Registration;
+import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.RegistrationRepository;
 
 /**
@@ -25,11 +27,14 @@ import ca.mcgill.ecse321.gameorganizer.repositories.RegistrationRepository;
 @Service
 public class RegistrationService {
 
-    @Autowired
-    private RegistrationRepository registrationRepository;
+    private final RegistrationRepository registrationRepository;
+    private final AccountRepository accountRepository; // Inject AccountRepository
 
     @Autowired
-    private UserContext userContext; // Inject UserContext
+    public RegistrationService(RegistrationRepository registrationRepository, AccountRepository accountRepository) {
+        this.registrationRepository = registrationRepository;
+        this.accountRepository = accountRepository;
+    }
 
     /**
      * Creates a new registration for an event.
@@ -101,7 +106,13 @@ public class RegistrationService {
             Registration registration = optionalRegistration.get();
 
             // Authorization Check: Only the attendee can update their registration
-            Account currentUser = userContext.getCurrentUser();
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated() || authentication.getPrincipal().equals("anonymousUser")) {
+                throw new UnauthedException("User not authenticated.");
+            }
+            String userEmail = authentication.getName(); // Assuming email is the username used in UserDetails
+            Account currentUser = accountRepository.findByEmail(userEmail)
+                    .orElseThrow(() -> new UnauthedException("Authenticated user not found in database."));
             if (currentUser == null || registration.getAttendee() == null || registration.getAttendee().getId() != currentUser.getId()) {
                 throw new UnauthedException("Access denied: You can only update your own registration.");
             }
@@ -124,27 +135,19 @@ public class RegistrationService {
      * @param event The event associated with the registration
      * @throws IllegalArgumentException if the registration or event is not valid
      */
-<<<<<<< HEAD
-    public void deleteRegistration(int id, Event event) {
-        if (!registrationRepository.existsById(id)) {
-            throw new IllegalArgumentException("Registration with the given ID does not exist.");
-        }
-        if (event == null) {
-            throw new IllegalArgumentException("Event cannot be null.");
-        }
-        if (event.getCurrentNumberParticipants() <= 0) {
-            throw new IllegalArgumentException("Event participant count is already zero.");
-        }
-        event.setCurrentNumberParticipants(event.getCurrentNumberParticipants() - 1);
-        registrationRepository.deleteById(id);
-=======
     public void deleteRegistration(int id) {
         Optional<Registration> optionalRegistration = registrationRepository.findRegistrationById(id);
         if (optionalRegistration.isPresent()) {
             Registration registration = optionalRegistration.get();
 
             // Authorization Check: Only the attendee can delete their registration
-            Account currentUser = userContext.getCurrentUser();
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated() || authentication.getPrincipal().equals("anonymousUser")) {
+                throw new UnauthedException("User not authenticated.");
+            }
+            String userEmail = authentication.getName(); // Assuming email is the username used in UserDetails
+            Account currentUser = accountRepository.findByEmail(userEmail)
+                    .orElseThrow(() -> new UnauthedException("Authenticated user not found in database."));
             if (currentUser == null || registration.getAttendee() == null || registration.getAttendee().getId() != currentUser.getId()) {
                 throw new UnauthedException("Access denied: You can only delete your own registration.");
             }
@@ -153,7 +156,6 @@ public class RegistrationService {
         } else {
              throw new IllegalArgumentException("Registration not found"); // Keep consistency with update method
         }
->>>>>>> 4c31ae232e79f47cf53101a71bb334ebc9d1792d
     }
  
 }

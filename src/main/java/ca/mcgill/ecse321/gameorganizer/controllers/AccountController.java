@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import ca.mcgill.ecse321.gameorganizer.dto.CreateAccountRequest;
 import ca.mcgill.ecse321.gameorganizer.dto.UpdateAccountRequest;
-import ca.mcgill.ecse321.gameorganizer.middleware.RequireUser;
 import ca.mcgill.ecse321.gameorganizer.services.AccountService;
 import jakarta.validation.Valid;
 
@@ -84,7 +83,6 @@ public class AccountController {
      * @return a {@code ResponseEntity<String>} with a confirmation message upon update or an error message
      *         if the given password is wrong or if an account with that email could not be found
      */
-    @RequireUser
     @PutMapping("")
     public ResponseEntity<String> updateAccount(@Valid @RequestBody UpdateAccountRequest request) {
         return accountService.updateAccount(request);
@@ -100,7 +98,6 @@ public class AccountController {
      * @return a {@code ResponseEntity<String>} with a confirmation message if the account is deleted,
      *         or an error message if no account could be found with the given email
      */
-    @RequireUser
     @DeleteMapping("/{email}")
     public ResponseEntity<String> deleteAccount(@PathVariable String email) {
         return accountService.deleteAccountByEmail(email);
@@ -119,7 +116,6 @@ public class AccountController {
      * @return a {@code ResponseEntity<String>} with a success message if the upgrade is successful
      *         or an error message if the account does not exist or is already a GameOwner
      */
-    @RequireUser
     @PutMapping("/{email}")
     public ResponseEntity<String> upgradeAccountToGameOwner(@PathVariable String email) {
         return accountService.upgradeUserToGameOwner(email);
@@ -135,7 +131,6 @@ public class AccountController {
      * @return a {@code ResponseEntity<?>} containing an {@code AccountResponse} DTO with account details
      *         if found or an error message if no account with the provided email exists
      */
-    @RequireUser
     @GetMapping("/{email}")
     public ResponseEntity<?> getAccount(@PathVariable String email) {
         return accountService.getAccountInfoByEmail(email);
