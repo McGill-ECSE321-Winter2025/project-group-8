@@ -25,6 +25,7 @@ export default function GameSearchPage() {
   });
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [selectedGame, setSelectedGame] = useState(null);
+  const [selectedInstance, setSelectedInstance] = useState(null);
   
   // Get unique games grouped by name
   const uniqueGames = getUniqueGameNames();
@@ -73,14 +74,17 @@ export default function GameSearchPage() {
     return Object.values(filters).some(value => value !== "");
   };
   
-  const handleRequestGame = (game) => {
+  const handleRequestGame = (game, instance) => {
     setSelectedGame(game);
+    setSelectedInstance(instance);
     setIsRequestModalOpen(true);
   };
   
   const handleSubmitRequest = (requestData) => {
     // In a real app, this would submit the request to an API
     console.log("Game request submitted:", requestData);
+    // Reset the selected instance
+    setSelectedInstance(null);
   };
 
   // Effect to update search from URL parameters
@@ -275,7 +279,7 @@ export default function GameSearchPage() {
                       </DialogTrigger>
                       <GameDetailsDialog 
                         game={game} 
-                        onRequestGame={handleRequestGame} 
+                        onRequestGame={(game, instance) => handleRequestGame(game, instance)} 
                       />
                     </Dialog>
                   ))}
@@ -292,6 +296,7 @@ export default function GameSearchPage() {
         onOpenChange={setIsRequestModalOpen}
         onSubmit={handleSubmitRequest}
         game={selectedGame}
+        selectedInstance={selectedInstance}
       />
     </div>
   );
