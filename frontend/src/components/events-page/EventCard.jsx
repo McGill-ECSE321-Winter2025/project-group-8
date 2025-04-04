@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import confetti from "canvas-confetti";
 import { registerForEvent, unregisterFromEvent } from "../../service/api";
+import { motion } from "framer-motion";
 
 export function EventCard({ event, attendeeId }) {
   const [isRegistered, setIsRegistered] = useState(false);
@@ -70,7 +71,11 @@ export function EventCard({ event, attendeeId }) {
   };
 
   return (
-    <div className="rounded-lg overflow-hidden bg-white shadow">
+    <motion.div 
+      className="rounded-lg overflow-hidden bg-white shadow"
+      whileHover={{ y: -5, boxShadow: "0 10px 25px rgba(0,0,0,0.1)" }}
+      transition={{ type: "spring", stiffness: 300, damping: 20 }}
+    >
       {/* Event Image */}
       <div className="w-full h-90 bg-gray-200 relative">
         {event.featuredGameImage && (
@@ -153,9 +158,14 @@ export function EventCard({ event, attendeeId }) {
 
         {/* Error Message */}
         {error && (
-          <div className="text-red-500 text-sm mb-2">
+          <motion.div 
+            className="text-red-500 text-sm mb-2"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+          >
             ❌ {error}
-          </div>
+          </motion.div>
         )}
 
         {/* Register/Unregister Button */}
@@ -171,6 +181,6 @@ export function EventCard({ event, attendeeId }) {
           {isRegistered ? "Unregister" : "Register"}
         </Button>
       </div>
-    </div>
+    </motion.div>
   );
 }

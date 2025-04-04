@@ -22,5 +22,5 @@ public interface AccountRepository extends JpaRepository<Account, Integer> {
      * @return Optional containing the account if found, empty otherwise
      */
     Optional<Account> findByEmail(String email);
-
+    Optional<Account> findByName(String name);
 }

@@ -1,8 +1,11 @@
 package ca.mcgill.ecse321.gameorganizer.services;
 
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Optional;
 
+import ca.mcgill.ecse321.gameorganizer.dto.RegistrationResponseDto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -63,7 +66,20 @@ public class RegistrationService {
     public Iterable<Registration> getAllRegistrations() {
         return registrationRepository.findAll();
     }
-
+    /**
+     * Retrieves all registrations in the system for a selected user.
+     * @param email the user's email
+     *
+     * @return List of all RegistrationResponseDTO objects
+     */
+    public List<RegistrationResponseDto> getAllRegistrationsByUserEmail(String email) {
+        List<Registration> registrations = registrationRepository.findRegistrationByAttendeeEmail(email);
+        List<RegistrationResponseDto> response = new ArrayList<>();
+        for (Registration registration : registrations) {
+            response.add(new RegistrationResponseDto(registration));
+        }
+        return response;
+    }
     /**
      * Updates an existing registration.
      *

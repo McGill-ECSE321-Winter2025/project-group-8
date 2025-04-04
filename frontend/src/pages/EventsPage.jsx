@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { EventSearchBar } from "../components/events-page/EventSearchBar";
 import { EventCard } from "../components/events-page/EventCard";
 import { DateFilterComponent } from "../components/events-page/DateFilterComponent";
 import CreateEventDialog from "../components/events-page/CreateEventDialog";
+import { AnimatePresence, motion } from "framer-motion";
 
 // Mock data is used here while waiting to really implement API calls
 const upcomingEvents = [
@@ -49,10 +50,61 @@ const upcomingEvents = [
   }
 ];
 
+// Create card stagger animation variants
+const container = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1
+    }
+  },
+  exit: {
+    opacity: 0,
+    transition: {
+      staggerChildren: 0.05,
+      staggerDirection: -1,
+      when: "afterChildren"
+    }
+  }
+};
+
+const item = {
+  hidden: { opacity: 0, scale: 0.8, y: 20 },
+  show: { 
+    opacity: 1, 
+    scale: 1, 
+    y: 0,
+    transition: { 
+      type: "spring",
+      stiffness: 300,
+      damping: 24
+    }
+  },
+  exit: { 
+    opacity: 0, 
+    scale: 0.8, 
+    y: -20,
+    transition: { 
+      duration: 0.3,
+      ease: "easeInOut"
+    }
+  }
+};
+
 export default function EventsPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [filteredEvents, setFilteredEvents] = useState(upcomingEvents);
   const [isSearchActive, setIsSearchActive] = useState(false);
+  const [displayedEvents, setDisplayedEvents] = useState(upcomingEvents);
+  const [isSearchTransitioning, setIsSearchTransitioning] = useState(false);
+
+  // Update displayed events with animation delay
+  useEffect(() => {
+    if (!isSearchActive) {
+      setDisplayedEvents(filteredEvents);
+    }
+  }, [filteredEvents, isSearchActive]);
 
   // Filter events by date range
   const handleDateFilter = (filterValue) => {
@@ -83,9 +135,20 @@ export default function EventsPage() {
     setFilteredEvents(filtered);
   };
 
-  // Handle search activity state
+  // Handle search activity state with transition
   const handleSearchStateChange = (isActive) => {
-    setIsSearchActive(isActive);
+    if (isActive && !isSearchActive) {
+      // Start transition when search becomes active
+      setIsSearchTransitioning(true);
+      
+      // Delay setting isSearchActive to true to allow exit animations to complete
+      setTimeout(() => {
+        setIsSearchActive(true);
+        setIsSearchTransitioning(false);
+      }, 400); // This should match the total duration of the exit animations
+    } else if (!isActive) {
+      setIsSearchActive(false);
+    }
   };
 
   return (
@@ -114,14 +177,30 @@ export default function EventsPage() {
         </div>
       </div>
 
-      {/* Display filtered events only when no search is active */}
-      {!isSearchActive && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredEvents.map((event) => (
-            <EventCard key={event.id} event={event} />
-          ))}
-        </div>
-      )}
+      {/* Event Card Grid with AnimatePresence for smooth transitions */}
+      <AnimatePresence mode="wait">
+        {!isSearchActive && !isSearchTransitioning ? (
+          <motion.div
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+            key="grid"
+            variants={container}
+            initial="hidden"
+            animate="show"
+            exit="exit"
+          >
+            {displayedEvents.map((event, index) => (
+              <motion.div
+                key={event.id}
+                variants={item}
+                custom={index}
+                layout
+              >
+                <EventCard event={event} />
+              </motion.div>
+            ))}
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       <CreateEventDialog
         open={createDialogOpen}
