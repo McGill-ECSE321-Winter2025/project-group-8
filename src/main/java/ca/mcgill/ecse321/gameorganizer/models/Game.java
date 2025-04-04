@@ -1,13 +1,17 @@
 package ca.mcgill.ecse321.gameorganizer.models;
 
 import java.util.Date;
+import java.util.Set; // Import Set
 
+import jakarta.persistence.CascadeType; // Import CascadeType
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType; // Import FetchType
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany; // Import OneToMany
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -50,9 +54,12 @@ public class Game {
     private String category;
 
     /** Owner of the game */
-    @ManyToOne
+    @ManyToOne // Assuming owner is mandatory, add (optional = false) if needed
     private GameOwner owner;
 
+    /** Reviews associated with this game */
+    @OneToMany(mappedBy = "gameReviewed", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private Set<Review> reviews;
 
 
     /**
