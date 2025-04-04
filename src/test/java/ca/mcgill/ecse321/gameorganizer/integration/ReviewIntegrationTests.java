@@ -15,21 +15,27 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc; // Add this
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.context.annotation.Import;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+// TestRestTemplate removed
+// LocalServerPort removed
+// Import removed
+import org.springframework.test.web.servlet.MockMvc; // Add MockMvc
+import com.fasterxml.jackson.databind.ObjectMapper; // Add ObjectMapper
+import org.springframework.security.test.context.support.WithMockUser; // Add WithMockUser
+import org.springframework.http.MediaType; // Add MediaType
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*; // Add MockMvc builders
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*; // Add MockMvc matchers
+// ParameterizedTypeReference removed
+// HttpEntity, HttpMethod, HttpStatus, ResponseEntity removed
 import org.springframework.test.context.ActiveProfiles;
 
 import ca.mcgill.ecse321.gameorganizer.dto.ReviewResponseDto;
 import ca.mcgill.ecse321.gameorganizer.dto.ReviewSubmissionDto;
+import ca.mcgill.ecse321.gameorganizer.GameorganizerApplication; // Add main app import
 import ca.mcgill.ecse321.gameorganizer.config.TestConfig;
-import ca.mcgill.ecse321.gameorganizer.config.SecurityConfig;
+// Remove SecurityConfig import
+import ca.mcgill.ecse321.gameorganizer.config.TestSecurityConfig; // Add TestSecurityConfig import
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.Review;
@@ -37,18 +43,30 @@ import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+// Apply standard configuration
+@SpringBootTest(
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+    classes = {GameorganizerApplication.class, TestConfig.class, TestSecurityConfig.class}
+)
 @ActiveProfiles("test")
-@Import({TestConfig.class, SecurityConfig.class})
+@AutoConfigureMockMvc // Add this
+// Remove @Import
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class ReviewIntegrationTests {
 
-    @LocalServerPort
-    private int port;
-
-    @Autowired
-    private TestRestTemplate restTemplate;
+        // LocalServerPort removed
+        // private int port;
+    
+        // TestRestTemplate removed
+        // @Autowired
+        // private TestRestTemplate restTemplate;
+    
+        @Autowired
+        private MockMvc mockMvc; // Inject MockMvc
+    
+        @Autowired
+        private ObjectMapper objectMapper; // Inject ObjectMapper
 
     @Autowired
     private ReviewRepository reviewRepository;
@@ -64,9 +82,7 @@ public class ReviewIntegrationTests {
     private Review testReview;
     private static final String BASE_URL = "/api/v1/reviews";
 
-    private String createURLWithPort(String uri) {
-        return "http://localhost:" + port + uri;
-    }
+        // createURLWithPort removed
 
     @BeforeEach
     public void setup() {
@@ -102,8 +118,9 @@ public class ReviewIntegrationTests {
 
     // 1. Successful submission of a review
     @Test
-    @Order(1)
-    public void testSubmitReviewSuccess() {
+        @Order(1)
+        @WithMockUser(username="reviewer@example.com", roles={"USER"}) // Need reviewer auth
+        public void testSubmitReviewSuccess() throws Exception { // Add throws
         ReviewSubmissionDto request = new ReviewSubmissionDto(
             5,
             "Excellent game!",
@@ -111,25 +128,21 @@ public class ReviewIntegrationTests {
             testReviewer.getEmail()
         );
         
-        ResponseEntity<ReviewResponseDto> response = restTemplate.postForEntity(
-            createURLWithPort(BASE_URL),
-            request,
-            ReviewResponseDto.class
-        );
-        
-        assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        ReviewResponseDto dto = response.getBody();
-        assertNotNull(dto);
-        assertEquals(5, dto.getRating());
-        assertEquals("Excellent game!", dto.getComment());
-        assertEquals(testGame.getId(), dto.getGameId());
-        assertEquals(testReviewer.getEmail(), dto.getReviewer().getEmail());
+                mockMvc.perform(post(BASE_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.rating").value(5))
+                    .andExpect(jsonPath("$.comment").value("Excellent game!"))
+                    .andExpect(jsonPath("$.gameId").value(testGame.getId()))
+                    .andExpect(jsonPath("$.reviewer.email").value(testReviewer.getEmail()));
     }
 
     // 2. Submission with invalid game id (non-existent game)
     @Test
-    @Order(2)
-    public void testSubmitReviewWithInvalidGame() {
+        @Order(2)
+        @WithMockUser(username="reviewer@example.com", roles={"USER"}) // Need reviewer auth
+        public void testSubmitReviewWithInvalidGame() throws Exception { // Add throws
         ReviewSubmissionDto request = new ReviewSubmissionDto(
             5,
             "Excellent game!",
@@ -137,19 +150,17 @@ public class ReviewIntegrationTests {
             testReviewer.getEmail()
         );
         
-        ResponseEntity<String> response = restTemplate.postForEntity(
-            createURLWithPort(BASE_URL),
-            request,
-            String.class
-        );
-        
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+                mockMvc.perform(post(BASE_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest());
     }
 
     // 3. Submission with missing required field (simulate missing rating by using 0)
     @Test
-    @Order(3)
-    public void testSubmitReviewMissingRating() {
+        @Order(3)
+        @WithMockUser(username="reviewer@example.com", roles={"USER"}) // Need reviewer auth
+        public void testSubmitReviewMissingRating() throws Exception { // Add throws
         // Assume that a rating of 0 is invalid (valid ratings: 1-5)
         ReviewSubmissionDto request = new ReviewSubmissionDto(
             0,
@@ -158,19 +169,18 @@ public class ReviewIntegrationTests {
             testReviewer.getEmail()
         );
         
-        ResponseEntity<String> response = restTemplate.postForEntity(
-            createURLWithPort(BASE_URL),
-            request,
-            String.class
-        );
-        
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+                mockMvc.perform(post(BASE_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest());
     }
 
     // 4. Submission with invalid reviewer email
     @Test
-    @Order(4)
-    public void testSubmitReviewWithInvalidReviewer() {
+        @Order(4)
+        // No @WithMockUser needed? The DTO contains the email, controller should handle it.
+        // Let's assume the controller uses the DTO email, not authenticated user for this specific check.
+        public void testSubmitReviewWithInvalidReviewer() throws Exception { // Add throws
         ReviewSubmissionDto request = new ReviewSubmissionDto(
             4,
             "Invalid reviewer email",
@@ -178,13 +188,10 @@ public class ReviewIntegrationTests {
             "nonexistent@example.com"
         );
         
-        ResponseEntity<String> response = restTemplate.postForEntity(
-            createURLWithPort(BASE_URL),
-            request,
-            String.class
-        );
-        
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+                mockMvc.perform(post(BASE_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isBadRequest());
     }
 
     // ============================================================
@@ -193,8 +200,9 @@ public class ReviewIntegrationTests {
 
     // 1. Successful update of an existing review
     @Test
-    @Order(5)
-    public void testUpdateReviewSuccess() {
+        @Order(5)
+        @WithMockUser(username="reviewer@example.com", roles={"USER"}) // Need reviewer auth
+        public void testUpdateReviewSuccess() throws Exception { // Add throws
         ReviewSubmissionDto updateRequest = new ReviewSubmissionDto(
             3,
             "Updated opinion",
@@ -202,24 +210,19 @@ public class ReviewIntegrationTests {
             testReviewer.getEmail()
         );
         
-        ResponseEntity<ReviewResponseDto> response = restTemplate.exchange(
-            createURLWithPort(BASE_URL + "/" + testReview.getId()),
-            HttpMethod.PUT,
-            new HttpEntity<>(updateRequest),
-            ReviewResponseDto.class
-        );
-        
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        ReviewResponseDto dto = response.getBody();
-        assertNotNull(dto);
-        assertEquals(3, dto.getRating());
-        assertEquals("Updated opinion", dto.getComment());
+                mockMvc.perform(put(BASE_URL + "/" + testReview.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateRequest)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.rating").value(3))
+                    .andExpect(jsonPath("$.comment").value("Updated opinion"));
     }
 
     // 2. Update non-existent review should return NOT_FOUND
     @Test
-    @Order(6)
-    public void testUpdateNonExistentReview() {
+        @Order(6)
+        @WithMockUser(username="reviewer@example.com", roles={"USER"}) // Need reviewer auth
+        public void testUpdateNonExistentReview() throws Exception { // Add throws
         ReviewSubmissionDto updateRequest = new ReviewSubmissionDto(
             3,
             "Updated opinion",
@@ -227,20 +230,17 @@ public class ReviewIntegrationTests {
             testReviewer.getEmail()
         );
         
-        ResponseEntity<String> response = restTemplate.exchange(
-            createURLWithPort(BASE_URL + "/999"),
-            HttpMethod.PUT,
-            new HttpEntity<>(updateRequest),
-            String.class
-        );
-        
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+                mockMvc.perform(put(BASE_URL + "/999")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateRequest)))
+                    .andExpect(status().isNotFound());
     }
 
     // 3. Update with invalid data (e.g., invalid rating such as 6)
     @Test
-    @Order(7)
-    public void testUpdateReviewWithInvalidRating() {
+        @Order(7)
+        @WithMockUser(username="reviewer@example.com", roles={"USER"}) // Need reviewer auth
+        public void testUpdateReviewWithInvalidRating() throws Exception { // Add throws
         ReviewSubmissionDto updateRequest = new ReviewSubmissionDto(
             6, // invalid rating (assuming valid ratings are 1-5)
             "Rating out of range",
@@ -248,14 +248,10 @@ public class ReviewIntegrationTests {
             testReviewer.getEmail()
         );
         
-        ResponseEntity<String> response = restTemplate.exchange(
-            createURLWithPort(BASE_URL + "/" + testReview.getId()),
-            HttpMethod.PUT,
-            new HttpEntity<>(updateRequest),
-            String.class
-        );
-        
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+                mockMvc.perform(put(BASE_URL + "/" + testReview.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateRequest)))
+                    .andExpect(status().isBadRequest());
     }
 
     // ============================================================
@@ -264,99 +260,66 @@ public class ReviewIntegrationTests {
 
     // 1. Successful deletion of an existing review
     @Test
-    @Order(8)
-    public void testDeleteReviewSuccess() {
-        ResponseEntity<String> response = restTemplate.exchange(
-            createURLWithPort(BASE_URL + "/" + testReview.getId()),
-            HttpMethod.DELETE,
-            null,
-            String.class
-        );
-        
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertFalse(reviewRepository.findById(testReview.getId()).isPresent());
+        @Order(8)
+        @WithMockUser(username="reviewer@example.com", roles={"USER"}) // Need reviewer auth
+        public void testDeleteReviewSuccess() throws Exception { // Add throws
+                mockMvc.perform(delete(BASE_URL + "/" + testReview.getId()))
+                    .andExpect(status().isOk());
+                assertFalse(reviewRepository.findById(testReview.getId()).isPresent());
     }
 
     // 2. Deletion of a non-existent review
     @Test
-    @Order(9)
-    public void testDeleteNonExistentReview() {
-        ResponseEntity<String> response = restTemplate.exchange(
-            createURLWithPort(BASE_URL + "/999"),
-            HttpMethod.DELETE,
-            null,
-            String.class
-        );
-        
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        @Order(9)
+        @WithMockUser(username="reviewer@example.com", roles={"USER"}) // Need reviewer auth
+        public void testDeleteNonExistentReview() throws Exception { // Add throws
+                mockMvc.perform(delete(BASE_URL + "/999"))
+                    .andExpect(status().isNotFound());
     }
 
     // 3. Deletion attempted twice should return error on second attempt
     @Test
-    @Order(10)
-    public void testDeleteReviewTwice() {
+        @Order(10)
+        @WithMockUser(username="reviewer@example.com", roles={"USER"}) // Need reviewer auth
+        public void testDeleteReviewTwice() throws Exception { // Add throws
         // First deletion
-        ResponseEntity<String> response1 = restTemplate.exchange(
-            createURLWithPort(BASE_URL + "/" + testReview.getId()),
-            HttpMethod.DELETE,
-            null,
-            String.class
-        );
-        assertEquals(HttpStatus.OK, response1.getStatusCode());
+                // First deletion
+                mockMvc.perform(delete(BASE_URL + "/" + testReview.getId()))
+                    .andExpect(status().isOk());
         
-        // Second deletion should return NOT_FOUND
-        ResponseEntity<String> response2 = restTemplate.exchange(
-            createURLWithPort(BASE_URL + "/" + testReview.getId()),
-            HttpMethod.DELETE,
-            null,
-            String.class
-        );
-        assertEquals(HttpStatus.NOT_FOUND, response2.getStatusCode());
+                // Second deletion should return NOT_FOUND
+                mockMvc.perform(delete(BASE_URL + "/" + testReview.getId()))
+                    .andExpect(status().isNotFound());
     }
 
     @Test
-    @Order(11)
-    public void testGetReviewByIdSuccess() {
-        ResponseEntity<ReviewResponseDto> response = restTemplate.getForEntity(
-            createURLWithPort(BASE_URL + "/" + testReview.getId()),
-            ReviewResponseDto.class
-        );
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        ReviewResponseDto dto = response.getBody();
-        assertNotNull(dto);
-        assertEquals(testReview.getRating(), dto.getRating());
-        assertEquals(testReview.getComment(), dto.getComment());
+        @Order(11)
+        @WithMockUser // Basic auth
+        public void testGetReviewByIdSuccess() throws Exception { // Add throws
+            mockMvc.perform(get(BASE_URL + "/" + testReview.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rating").value(testReview.getRating()))
+                .andExpect(jsonPath("$.comment").value(testReview.getComment()));
     }
 
     @Test
-    @Order(12)
-    public void testGetReviewsByGameId() {
-        ResponseEntity<List<ReviewResponseDto>> response = restTemplate.exchange(
-            createURLWithPort(BASE_URL + "/games/" + testGame.getId() + "/reviews"),
-            HttpMethod.GET,
-            null,
-            new ParameterizedTypeReference<List<ReviewResponseDto>>() {}
-        );
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        List<ReviewResponseDto> reviews = response.getBody();
-        assertNotNull(reviews);
-        assertFalse(reviews.isEmpty());
-        assertEquals(testReview.getComment(), reviews.get(0).getComment());
+        @Order(12)
+        @WithMockUser // Basic auth
+        public void testGetReviewsByGameId() throws Exception { // Add throws
+            mockMvc.perform(get(BASE_URL + "/games/" + testGame.getId() + "/reviews"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$[0].comment").value(testReview.getComment()));
     }
 
     @Test
-    @Order(13)
-    public void testGetReviewsByNonExistentGameName() {
-        ResponseEntity<List<ReviewResponseDto>> response = restTemplate.exchange(
-            createURLWithPort(BASE_URL + "/game?gameName=NonExistentGame"),
-            HttpMethod.GET,
-            null,
-            new ParameterizedTypeReference<List<ReviewResponseDto>>() {}
-        );
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertTrue(response.getBody().isEmpty());
+        @Order(13)
+        @WithMockUser // Basic auth
+        public void testGetReviewsByNonExistentGameName() throws Exception { // Add throws
+            mockMvc.perform(get(BASE_URL + "/game")
+                    .param("gameName", "NonExistentGame"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$").isEmpty());
     }
 }

@@ -11,14 +11,19 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc; // Add MockMvc auto-config
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
+// TestRestTemplate removed
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
+// HttpEntity, HttpHeaders, HttpMethod removed (will use MockMvc builders)
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType; // Add MediaType
+// ResponseEntity removed (will use MockMvc matchers)
+import org.springframework.test.web.servlet.MockMvc; // Add MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders; // Add MockMvc builders
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers; // Add MockMvc matchers
+import org.springframework.security.test.context.support.WithMockUser; // Add WithMockUser
+import com.fasterxml.jackson.databind.ObjectMapper; // Add ObjectMapper
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -41,16 +46,20 @@ import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
     classes = {GameorganizerApplication.class, TestConfig.class, TestSecurityConfig.class}
 )
 @ActiveProfiles("test")
-// @Import annotation is no longer needed as classes are specified in @SpringBootTest
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@AutoConfigureMockMvc // Enable MockMvc
 public class AccountIntegrationTests {
 
     @LocalServerPort
     private int port;
 
+    // TestRestTemplate removed
     @Autowired
-    private TestRestTemplate restTemplate;
+    private MockMvc mockMvc; // Inject MockMvc
+
+    @Autowired
+    private ObjectMapper objectMapper; // Inject ObjectMapper
     
     @Autowired
     private AccountRepository accountRepository;
@@ -81,71 +90,42 @@ public class AccountIntegrationTests {
         return String.format("http://localhost:%d%s", port, uri);
     }
     
-    private HttpHeaders createAuthHeaders() {
-        HttpHeaders headers = new HttpHeaders();
-        
-        // Attempt to login and get a valid JWT token for the test user
-        AuthenticationDTO loginRequest = new AuthenticationDTO();
-        loginRequest.setEmail(VALID_EMAIL);
-        loginRequest.setPassword(VALID_PASSWORD);
-
-        ResponseEntity<JwtAuthenticationResponse> loginResponse = restTemplate.postForEntity(
-            createURLWithPort("/api/v1/auth/login"),
-            loginRequest,
-            JwtAuthenticationResponse.class
-        );
-
-        // Ensure login was successful and we received a token
-        if (loginResponse.getStatusCode() == HttpStatus.OK && loginResponse.getBody() != null && loginResponse.getBody().getToken() != null) {
-            headers.setBearerAuth(loginResponse.getBody().getToken());
-        } else {
-            // If authentication fails here, something is wrong with the test setup or login endpoint.
-            // Let the test fail clearly rather than proceeding with invalid/mock headers.
-            throw new IllegalStateException("Failed to authenticate test user '" + VALID_EMAIL + "' for integration test. Status: " + loginResponse.getStatusCode());
-        }
-        
-        // The User-Id header is no longer needed with JWT authentication via SecurityContextHolder
-        return headers;
-    }
+    // createAuthHeaders method removed, authentication will be handled by @WithMockUser
 
     
     // ----- CREATE tests -----
     
     @Test
     @Order(1)
-    public void testCreateAccountSuccess() {
+    public void testCreateAccountSuccess() throws Exception { // Add throws Exception
         CreateAccountRequest request = new CreateAccountRequest();
         request.setEmail("new@example.com");
         request.setUsername("newuser");
         request.setPassword("newpass123");
         request.setGameOwner(false);
         
-        ResponseEntity<String> response = restTemplate.postForEntity(
-            createURLWithPort(BASE_URL),
-            request,
-            String.class
-        );
-        
-        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+        // Use MockMvc
+        mockMvc.perform(MockMvcRequestBuilders.post(createURLWithPort(BASE_URL))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(MockMvcResultMatchers.status().isCreated()); // Check status using MockMvc matchers
         assertTrue(accountRepository.findByEmail("new@example.com").isPresent());
     }
     
     @Test
     @Order(2)
-    public void testCreateGameOwnerSuccess() {
+    public void testCreateGameOwnerSuccess() throws Exception { // Add throws Exception
         CreateAccountRequest request = new CreateAccountRequest();
         request.setEmail("owner@example.com");
         request.setUsername("gameowner");
         request.setPassword("ownerpass123");
         request.setGameOwner(true);
         
-        ResponseEntity<String> response = restTemplate.postForEntity(
-            createURLWithPort(BASE_URL),
-            request,
-            String.class
-        );
-        
-        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+        // Use MockMvc
+        mockMvc.perform(MockMvcRequestBuilders.post(createURLWithPort(BASE_URL))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(MockMvcResultMatchers.status().isCreated()); // Check status using MockMvc matchers
         
         Account created = accountRepository.findByEmail("owner@example.com").orElse(null);
         assertNotNull(created);
@@ -154,45 +134,42 @@ public class AccountIntegrationTests {
     
     @Test
     @Order(3)
-    public void testCreateAccountWithDuplicateEmail() {
+    public void testCreateAccountWithDuplicateEmail() throws Exception { // Add throws Exception
         CreateAccountRequest request = new CreateAccountRequest();
         request.setEmail(VALID_EMAIL);  // Same as the existing testAccount
         request.setUsername("different");
         request.setPassword("different123");
         request.setGameOwner(false);
         
-        ResponseEntity<String> response = restTemplate.postForEntity(
-            createURLWithPort(BASE_URL),
-            request,
-            String.class
-        );
-        
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        // Use MockMvc
+        mockMvc.perform(MockMvcRequestBuilders.post(createURLWithPort(BASE_URL))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(MockMvcResultMatchers.status().isBadRequest()); // Check status using MockMvc matchers
     }
     
     @Test
     @Order(4)
-    public void testCreateAccountWithInvalidData() {
+    public void testCreateAccountWithInvalidData() throws Exception { // Add throws Exception
         // Missing email
         CreateAccountRequest request = new CreateAccountRequest();
         request.setUsername("newuser");
         request.setPassword("newpass123");
         request.setGameOwner(false);
         
-        ResponseEntity<String> response = restTemplate.postForEntity(
-            createURLWithPort(BASE_URL),
-            request,
-            String.class
-        );
-        
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        // Use MockMvc
+        mockMvc.perform(MockMvcRequestBuilders.post(createURLWithPort(BASE_URL))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(MockMvcResultMatchers.status().isBadRequest()); // Check status using MockMvc matchers
     }
     
     // ----- UPDATE tests -----
     
     @Test
 @Order(5)
-public void testUpdateAccountSuccess() {
+@WithMockUser(username = VALID_EMAIL) // Add mock user for authentication
+public void testUpdateAccountSuccess() throws Exception { // Add throws Exception
     UpdateAccountRequest request = new UpdateAccountRequest();
     request.setEmail(VALID_EMAIL);
     request.setUsername("updateduser");
@@ -202,15 +179,11 @@ public void testUpdateAccountSuccess() {
     // or send the encoded one if that's what your service expects. Here we'll send plain text.
     request.setNewPassword("newpassword123");
     
-    HttpEntity<UpdateAccountRequest> requestEntity = new HttpEntity<>(request, createAuthHeaders());
-    ResponseEntity<String> response = restTemplate.exchange(
-        createURLWithPort(BASE_URL),
-        HttpMethod.PUT,
-        requestEntity,
-        String.class
-    );
-    
-    assertEquals(HttpStatus.OK, response.getStatusCode());
+    // Use MockMvc
+    mockMvc.perform(MockMvcRequestBuilders.put(createURLWithPort(BASE_URL))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(objectMapper.writeValueAsString(request)))
+            .andExpect(MockMvcResultMatchers.status().isOk()); // Check status
     Account updated = accountRepository.findByEmail(VALID_EMAIL).orElse(null);
     assertNotNull(updated);
     assertEquals("updateduser", updated.getName());
@@ -218,71 +191,55 @@ public void testUpdateAccountSuccess() {
     
     @Test
     @Order(6)
-    public void testUpdateAccountWithWrongPassword() {
+    @WithMockUser(username = VALID_EMAIL) // Add mock user
+    public void testUpdateAccountWithWrongPassword() throws Exception { // Add throws Exception
         UpdateAccountRequest request = new UpdateAccountRequest();
         request.setEmail(VALID_EMAIL);
         request.setUsername("updateduser");
         request.setPassword("wrongpassword");
         request.setNewPassword("newpassword123");
         
-        HttpEntity<UpdateAccountRequest> requestEntity = new HttpEntity<>(request, createAuthHeaders());
-        ResponseEntity<String> response = restTemplate.exchange(
-            createURLWithPort(BASE_URL),
-            HttpMethod.PUT,
-            requestEntity,
-            String.class
-        );
-        
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        // Use MockMvc
+        mockMvc.perform(MockMvcRequestBuilders.put(createURLWithPort(BASE_URL))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(MockMvcResultMatchers.status().isBadRequest()); // Check status
     }
     
     @Test
     @Order(7)
-    public void testUpdateNonExistentAccount() {
+    @WithMockUser(username = VALID_EMAIL) // Add mock user (needed to authenticate the PUT request itself)
+    public void testUpdateNonExistentAccount() throws Exception { // Add throws Exception
         UpdateAccountRequest request = new UpdateAccountRequest();
         request.setEmail("nonexistent@example.com");
         request.setUsername("updateduser");
         request.setPassword(VALID_PASSWORD);
         request.setNewPassword("newpassword123");
         
-        HttpEntity<UpdateAccountRequest> requestEntity = new HttpEntity<>(request, createAuthHeaders());
-        ResponseEntity<String> response = restTemplate.exchange(
-            createURLWithPort(BASE_URL),
-            HttpMethod.PUT,
-            requestEntity,
-            String.class
-        );
-        
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        // Use MockMvc
+        mockMvc.perform(MockMvcRequestBuilders.put(createURLWithPort(BASE_URL))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(MockMvcResultMatchers.status().isBadRequest()); // Check status
     }
     
     // ----- DELETE tests -----
     
     @Test
     @Order(8)
-    public void testDeleteAccountSuccess() {
-        HttpEntity<?> requestEntity = new HttpEntity<>(createAuthHeaders());
-        ResponseEntity<String> response = restTemplate.exchange(
-            createURLWithPort(BASE_URL + "/" + VALID_EMAIL),
-            HttpMethod.DELETE,
-            requestEntity,
-            String.class
-        );
-        
-        assertEquals(HttpStatus.OK, response.getStatusCode());
+    @WithMockUser(username = VALID_EMAIL) // Add mock user
+    public void testDeleteAccountSuccess() throws Exception { // Add throws Exception
+        // Use MockMvc
+        mockMvc.perform(MockMvcRequestBuilders.delete(createURLWithPort(BASE_URL + "/" + VALID_EMAIL)))
+                .andExpect(MockMvcResultMatchers.status().isOk()); // Check status
     }
     
     @Test
     @Order(9)
-    public void testDeleteNonExistentAccount() {
-        HttpEntity<?> requestEntity = new HttpEntity<>(createAuthHeaders());
-        ResponseEntity<String> response = restTemplate.exchange(
-            createURLWithPort(BASE_URL + "/nonexistent@example.com"),
-            HttpMethod.DELETE,
-            requestEntity,
-            String.class
-        );
-        
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    @WithMockUser(username = VALID_EMAIL) // Add mock user (needed to authenticate the DELETE request itself)
+    public void testDeleteNonExistentAccount() throws Exception { // Add throws Exception
+        // Use MockMvc
+        mockMvc.perform(MockMvcRequestBuilders.delete(createURLWithPort(BASE_URL + "/nonexistent@example.com")))
+                .andExpect(MockMvcResultMatchers.status().isBadRequest()); // Check status
     }
 }

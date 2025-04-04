@@ -2,6 +2,8 @@ package ca.mcgill.ecse321.gameorganizer.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.context.annotation.Profile;
+
 import org.springframework.context.annotation.Configuration;
 // Environment import is no longer needed
 import org.springframework.http.HttpMethod;
@@ -20,6 +22,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
 
 import ca.mcgill.ecse321.gameorganizer.security.JwtAuthenticationFilter;
+
+@Profile("!test") // Do not load this config when 'test' profile is active
 
 @Configuration
 public class SecurityConfig {

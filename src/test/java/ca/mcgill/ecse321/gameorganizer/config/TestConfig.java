@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired; // Import
 import org.springframework.boot.test.context.TestConfiguration; // Import
 import org.springframework.boot.test.web.client.TestRestTemplate; // Import
 import org.springframework.boot.web.client.RestTemplateBuilder; // Import
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean; // Import this
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory; // Import
@@ -31,6 +32,7 @@ public class TestConfig implements WebMvcConfigurer {
     
 
     @Bean
+    @ConditionalOnMissingBean(PasswordEncoder.class) // Only create if no other PasswordEncoder exists
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }

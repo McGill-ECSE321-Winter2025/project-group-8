@@ -40,7 +40,7 @@ public class AuthenticationController {
     @Autowired
     private AuthenticationService authenticationService; 
 
-    @Autowired // Inject AuthenticationManager
+    @Autowired(required = false) // Make optional for test profile context
     private AuthenticationManager authenticationManager;
 
     @Autowired // Inject AccountRepository to get ID after successful auth
@@ -57,6 +57,7 @@ public class AuthenticationController {
      */
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody AuthenticationDTO authenticationDTO) {
+        System.out.println("[AUTH_CTRL] Attempting login for: " + authenticationDTO.getEmail());
         try {
             // Validate input fields
             if (authenticationDTO.getEmail() == null || authenticationDTO.getEmail().isEmpty()) {
@@ -67,9 +68,11 @@ public class AuthenticationController {
             }
 
             // Create authentication token and authenticate the user
+            System.out.println("[AUTH_CTRL] Calling authenticationManager.authenticate...");
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(authenticationDTO.getEmail(), authenticationDTO.getPassword()));
 
+            System.out.println("[AUTH_CTRL] Authentication successful via manager.");
             // Set the successful authentication in the SecurityContext
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
@@ -83,14 +86,17 @@ public class AuthenticationController {
             // Return the token and user info
             return ResponseEntity.ok(new JwtAuthenticationResponse(jwt, user.getId(), user.getEmail()));
         } catch (BadCredentialsException e) {
+            System.out.println("[AUTH_CTRL] Caught BadCredentialsException for: " + authenticationDTO.getEmail());
             // Return 401 UNAUTHORIZED when credentials are invalid
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         } catch (AuthenticationException e) {
             // Other authentication issues (e.g., user disabled, locked - depends on UserDetails implementation)
+            System.out.println("[AUTH_CTRL] Caught AuthenticationException: " + e.getMessage());
             System.err.println("Authentication failed: " + e.getMessage()); // Log other auth errors
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         } catch (Exception e) {
             // Catch unexpected errors during login
+            System.out.println("[AUTH_CTRL] Caught unexpected Exception: " + e.getMessage());
             System.err.println("Unexpected error during login: " + e.getMessage());
             e.printStackTrace(); // Log stack trace for debugging
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();

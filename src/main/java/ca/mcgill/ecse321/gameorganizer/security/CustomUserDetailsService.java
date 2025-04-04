@@ -1,6 +1,7 @@
 package ca.mcgill.ecse321.gameorganizer.security;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Collections;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
@@ -14,6 +15,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import ca.mcgill.ecse321.gameorganizer.models.Account;
+import ca.mcgill.ecse321.gameorganizer.models.GameOwner; // Import GameOwner
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 
 @Service
@@ -31,9 +33,17 @@ public class CustomUserDetailsService implements UserDetailsService {
         Account account = accountRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
         
-        // TODO: Implement proper role mapping based on Account subclass or role field
-        // For now, grant a default USER role to all authenticated users.
-        return new User(account.getEmail(), account.getPassword(), 
-                Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")));
+        // Assign roles based on the actual account type
+        List<SimpleGrantedAuthority> authorities;
+        if (account instanceof GameOwner) {
+            authorities = List.of(
+                new SimpleGrantedAuthority("ROLE_USER"),
+                new SimpleGrantedAuthority("ROLE_GAME_OWNER")
+            );
+        } else {
+            authorities = Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"));
+        }
+
+        return new User(account.getEmail(), account.getPassword(), authorities);
     }
 }

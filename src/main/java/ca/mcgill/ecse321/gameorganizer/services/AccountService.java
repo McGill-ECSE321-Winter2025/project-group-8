@@ -3,6 +3,7 @@ package ca.mcgill.ecse321.gameorganizer.services;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -37,6 +38,7 @@ import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
 @Service
 public class AccountService {
 
+    private final PasswordEncoder passwordEncoder;
     private final AccountRepository accountRepository;
     private final RegistrationRepository registrationRepository;
     private final ReviewRepository reviewRepository;
@@ -49,11 +51,13 @@ public class AccountService {
             AccountRepository accountRepository,
             RegistrationRepository registrationRepository,
             ReviewRepository reviewRepository,
-            BorrowRequestRepository borrowRequestRepository) {
+            BorrowRequestRepository borrowRequestRepository,
+            PasswordEncoder passwordEncoder) {
         this.accountRepository = accountRepository;
         this.registrationRepository = registrationRepository;
         this.reviewRepository = reviewRepository;
         this.borrowRequestRepository = borrowRequestRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     /**
@@ -216,7 +220,8 @@ public class AccountService {
             }
 
             // Password check (target account already fetched)
-            if (!account.getPassword().equals(password)) {
+            // Password check using PasswordEncoder
+            if (!passwordEncoder.matches(password, account.getPassword())) {
                 throw new IllegalArgumentException("Passwords do not match");
             }
         } catch (IllegalArgumentException e){
@@ -225,7 +230,7 @@ public class AccountService {
         // Update using setName() since the domain model uses "name" for the username.
         account.setName(newUsername);
         if (newPassword != null && !newPassword.isEmpty()) {
-            account.setPassword(newPassword);
+            account.setPassword(passwordEncoder.encode(newPassword)); // Encode new password
         }
         accountRepository.save(account);
         return ResponseEntity.ok("Account updated successfully");

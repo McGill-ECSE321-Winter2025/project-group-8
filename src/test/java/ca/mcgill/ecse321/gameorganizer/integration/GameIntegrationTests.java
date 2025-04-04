@@ -14,6 +14,7 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc; // Add this
 import org.junit.jupiter.api.MethodOrderer; 
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -40,12 +41,19 @@ import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
+import ca.mcgill.ecse321.gameorganizer.GameorganizerApplication; // Add main app import
 import ca.mcgill.ecse321.gameorganizer.config.TestConfig;
-import ca.mcgill.ecse321.gameorganizer.config.SecurityConfig;
+// Remove SecurityConfig import
+import ca.mcgill.ecse321.gameorganizer.config.TestSecurityConfig; // Add TestSecurityConfig import
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+// Apply standard configuration
+@SpringBootTest(
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+    classes = {GameorganizerApplication.class, TestConfig.class, TestSecurityConfig.class}
+)
 @ActiveProfiles("test")
-@Import({TestConfig.class, SecurityConfig.class})
+@AutoConfigureMockMvc // Add this
+// Remove @Import
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class GameIntegrationTests {
