@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import UserProfileCard from './UserProfileCard';
-import { Skeleton } from "../../../src/components/ui/skeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from 'framer-motion';
 
 // Staggered animation variants

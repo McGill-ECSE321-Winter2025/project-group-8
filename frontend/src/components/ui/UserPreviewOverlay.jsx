@@ -14,7 +14,7 @@ import Tag from '../common/Tag.jsx';
 import GameOwnerTag from '../common/GameOwnerTag.jsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Users, GamepadIcon, Mail } from 'lucide-react';
-import { formatJoinDate, formatRelativeTime } from '../../lib/dateUtils';
+import { formatJoinDate, formatRelativeTime } from '../lib/dateUtils.js';
 
 const UserPreviewOverlay = ({ user, isOpen, onClose }) => {
   const navigate = useNavigate();
