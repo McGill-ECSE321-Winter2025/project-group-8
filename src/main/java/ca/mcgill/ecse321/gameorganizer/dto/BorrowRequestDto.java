@@ -1,5 +1,7 @@
 package ca.mcgill.ecse321.gameorganizer.dto;
 
+import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
+
 import java.util.Date;
 
 /**
@@ -36,6 +38,15 @@ public class BorrowRequestDto {
         this.endDate = endDate;
         this.status = status;
         this.requestDate = requestDate;
+    }
+
+    public BorrowRequestDto(BorrowRequest request) {
+        this.id = request.getId();
+        this.requesterId = request.getRequester().getId();
+        this.requestedGameId = request.getRequestedGame().getId();
+        this.startDate = request.getStartDate();
+        this.endDate = request.getEndDate();
+        this.requestDate = request.getRequestDate();
     }
 
     /** @return The unique ID of the borrow request. */

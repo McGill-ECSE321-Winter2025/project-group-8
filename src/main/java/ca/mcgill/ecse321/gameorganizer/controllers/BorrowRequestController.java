@@ -145,4 +145,19 @@ public class BorrowRequestController {
         return ResponseEntity.ok(filteredRequests);
     }
 
+    /**
+     * Retrieve all incoming borrow requests for a game owner.
+     *
+     * @param gameOwnerId The ID of the game owner in question
+     * @return A list of all incoming borrow requests for a gamer owner.
+     */
+    @GetMapping("/gameOwner/{gameOwnerId}")
+    public ResponseEntity<List<BorrowRequestDto>> getBorrowRequestsByGameOwner(@PathVariable int gameOwnerId) {
+        try {
+            return ResponseEntity.ok(borrowRequestService.getBorrowRequestsByGameOwner(gameOwnerId));
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        }
+    }
+
 }

@@ -75,4 +75,13 @@ public interface BorrowRequestRepository extends JpaRepository<BorrowRequest, In
      * @return List of borrow requests made by the specified requester
      */
     List<BorrowRequest> findByRequester(Account requester);
+
+    /**
+     * Finds all borrow requests made to a game owner.
+     * Used to view a user's incoming borrow requests.
+     *
+     * @param responder The account that received requests.
+     * @return List of borrow requests that are incoming.
+     */
+    List<BorrowRequest> findByResponder(Account responder);
 }

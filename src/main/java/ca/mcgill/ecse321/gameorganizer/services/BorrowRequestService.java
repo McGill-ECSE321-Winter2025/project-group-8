@@ -1,10 +1,13 @@
 package ca.mcgill.ecse321.gameorganizer.services;
 
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import ca.mcgill.ecse321.gameorganizer.models.*;
+import jakarta.persistence.EntityNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,10 +20,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetails;
-import ca.mcgill.ecse321.gameorganizer.models.Account;
-import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
-import ca.mcgill.ecse321.gameorganizer.models.BorrowRequestStatus;
-import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
@@ -163,6 +162,33 @@ public class BorrowRequestService {
                     );
                 })
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Retrieves all borrow requests for a game owner.
+     * @param gameOwnerId the game owner's id.
+     * @return List of all borrow request DTOs.
+     */
+    @Transactional
+    public List<BorrowRequestDto> getBorrowRequestsByGameOwner(int gameOwnerId) {
+        Account gameOwner = accountRepository.findById(gameOwnerId)
+                .orElseThrow(() -> new EntityNotFoundException("Game owner not found with ID: " + gameOwnerId));
+
+        if (!(gameOwner instanceof GameOwner)) {
+            throw new IllegalArgumentException(
+                    String.format("Account with ID %d is of type %s, expected GameOwner",
+                            gameOwnerId, gameOwner.getClass().getSimpleName())
+            );
+        }
+
+        List<BorrowRequest> requests = borrowRequestRepository.findByResponder(gameOwner);
+        if (requests == null) {
+            return Collections.emptyList();
+        }
+
+        return requests.stream()
+                .map(BorrowRequestDto::new)
+                .toList();
     }
 
     /**
