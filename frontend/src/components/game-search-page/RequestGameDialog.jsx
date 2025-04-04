@@ -26,8 +26,59 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game, selected
       endDate: '',
     }
   });
+  
+  // Get today's date in YYYY-MM-DD format
+  const today = new Date().toISOString().split('T')[0];
+
+  const validateDates = (data) => {
+    // Create error object to store validation errors
+    const errors = {};
+    
+    // Validate start date is provided
+    if (!data.startDate) {
+      errors.startDate = {
+        type: "required",
+        message: "Start date is required"
+      };
+    } 
+    // Validate start date is not in the past
+    else if (new Date(data.startDate) < new Date(today)) {
+      errors.startDate = {
+        type: "min",
+        message: "Start date must be today or in the future"
+      };
+    }
+    
+    // Validate end date is provided
+    if (!data.endDate) {
+      errors.endDate = {
+        type: "required",
+        message: "End date is required"
+      };
+    } 
+    // Validate end date is not before start date
+    else if (data.startDate && new Date(data.endDate) < new Date(data.startDate)) {
+      errors.endDate = {
+        type: "min",
+        message: "End date must be on or after the start date"
+      };
+    }
+    
+    return errors;
+  };
 
   const handleSubmit = (data) => {
+    // Perform manual validation
+    const errors = validateDates(data);
+    
+    // If there are validation errors, set them in the form
+    if (Object.keys(errors).length > 0) {
+      Object.keys(errors).forEach(field => {
+        form.setError(field, errors[field]);
+      });
+      return;
+    }
+    
     // Convert form data to match CreateBorrowRequestDto
     const borrowRequest = {
       game,
@@ -73,6 +124,7 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game, selected
                     <FormControl>
                       <Input
                         type="date"
+                        min={today}
                         required
                         {...field}
                       />
@@ -91,6 +143,7 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game, selected
                     <FormControl>
                       <Input
                         type="date"
+                        min={form.watch("startDate") || today}
                         required
                         {...field}
                       />
