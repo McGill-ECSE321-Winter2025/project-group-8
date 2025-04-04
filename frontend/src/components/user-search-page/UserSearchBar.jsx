@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Filter, Search, X } from 'lucide-react'; // Added Search and X icons
-import { Input } from "../../../src/components/ui/input.jsx";
-import { Button } from "../../../src/components/ui/button.jsx";
+import { Input } from "@/components/ui/input.jsx";
+import { Button } from "@/components/ui/button.jsx";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -9,9 +9,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "../../../src/components/ui/dropdown-menu.jsx";
+} from "@/components/ui/dropdown-menu.jsx";
 import { motion } from "framer-motion"; // Import framer-motion
-import { cn } from "../../../src/lib/utils"; // Import cn utility
+import { cn } from "@/components/lib/utils"; // Import cn utility
 
 // Added filterGameOwnersOnly and setFilterGameOwnersOnly props
 const UserSearchBar = ({ 
