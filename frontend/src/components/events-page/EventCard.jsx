@@ -2,12 +2,17 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import confetti from "canvas-confetti";
 import { registerForEvent, unregisterFromEvent } from "../../service/api";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { 
+  Card,
+  CardContent
+} from "../../ui/card";
 
 export function EventCard({ event, attendeeId }) {
   const [isRegistered, setIsRegistered] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [error, setError] = useState(null);
+  const [showDescription, setShowDescription] = useState(false);
 
   const handleRegisterClick = async (e) => {
     setError(null); // Reset error state
@@ -70,6 +75,10 @@ export function EventCard({ event, attendeeId }) {
     }
   };
 
+  const toggleDescription = () => {
+    setShowDescription(!showDescription);
+  };
+
   return (
     <motion.div 
       className="rounded-lg overflow-hidden bg-white shadow"
@@ -81,7 +90,7 @@ export function EventCard({ event, attendeeId }) {
         {event.featuredGameImage && (
           <img
             src={event.featuredGameImage}
-            alt={event.featuredGame}
+            alt={event.featuredGame?.name || "Featured Game"}
             className="w-full h-full object-cover object-center"
           />
         )}
@@ -104,6 +113,67 @@ export function EventCard({ event, attendeeId }) {
 
       {/* Event Details */}
       <div className="p-4">
+        {/* Host Info */}
+        <div className="flex items-center text-gray-700 mb-2">
+          <svg
+            className="w-5 h-5 mr-2"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+          <span className="font-medium">
+            Hosted by: {event.host?.username || event.host?.name || "Unknown Host"}
+          </span>
+        </div>
+
+        {/* Game Info */}
+        <div className="flex items-center text-gray-700 mb-2">
+          <svg
+            className="w-5 h-5 mr-2"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+            <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+          </svg>
+          <span>
+            Featured Game: {event.featuredGame?.name || "Unknown Game"}
+          </span>
+        </div>
+
+        {/* Location Info */}
+        <div className="flex items-center text-gray-700 mb-2">
+          <svg
+            className="w-5 h-5 mr-2"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+            <circle cx="12" cy="10" r="3"></circle>
+          </svg>
+          <span>
+            Location: {event.location || "Location not specified"}
+          </span>
+        </div>
+
+        {/* Date and Time */}
         <div className="flex items-center text-gray-700 mb-2">
           <svg
             className="w-5 h-5 mr-2"
@@ -135,7 +205,7 @@ export function EventCard({ event, attendeeId }) {
         </div>
 
         {/* Participants */}
-        <div className="flex items-center text-gray-700 mb-4">
+        <div className="flex items-center text-gray-700 mb-2">
           <svg
             className="w-5 h-5 mr-2"
             xmlns="http://www.w3.org/2000/svg"
@@ -152,9 +222,38 @@ export function EventCard({ event, attendeeId }) {
             <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
           </svg>
           <span>
-            {event.participantCount}/{event.maxParticipants} participants
+            {event.participantCount || event.currentNumberParticipants}/{event.maxParticipants} participants
           </span>
         </div>
+
+        {/* Description Toggle Button */}
+        <Button 
+          variant="outline" 
+          className="w-full mb-2 text-gray-700 border-gray-300 hover:bg-gray-100"
+          onClick={toggleDescription}
+        >
+          {showDescription ? "Hide Details" : "Show Details"}
+        </Button>
+
+        {/* Description Expandable Section */}
+        <AnimatePresence>
+          {showDescription && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1, marginBottom: 16 }}
+              exit={{ height: 0, opacity: 0, marginBottom: 0 }}
+              transition={{ duration: 0.3 }}
+              className="overflow-hidden"
+            >
+              <Card className="bg-gray-50">
+                <CardContent className="pt-4">
+                  <h4 className="font-semibold mb-2">Description</h4>
+                  <p className="text-gray-700">{event.description || "No description available."}</p>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Error Message */}
         {error && (
