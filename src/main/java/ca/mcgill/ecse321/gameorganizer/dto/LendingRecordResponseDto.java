@@ -1,5 +1,8 @@
 package ca.mcgill.ecse321.gameorganizer.dto;
 
+import ca.mcgill.ecse321.gameorganizer.models.Game;
+import ca.mcgill.ecse321.gameorganizer.models.GameCategory;
+
 import java.util.Date;
 
 /**
@@ -140,7 +143,7 @@ public class LendingRecordResponseDto {
     public static class GameInfo {
         private int id;
         private String name;
-        private String category;
+        private GameCategory category;
         
         /**
          * Default constructor required for Jackson deserialization
@@ -149,7 +152,7 @@ public class LendingRecordResponseDto {
             // Required for Jackson deserialization
         }
         
-        public GameInfo(int id, String name, String category) {
+        public GameInfo(int id, String name, GameCategory category) {
             this.id = id;
             this.name = name;
             this.category = category;
@@ -157,7 +160,7 @@ public class LendingRecordResponseDto {
         
         public int getId() { return id; }
         public String getName() { return name; }
-        public String getCategory() { return category; }
+        public GameCategory getCategory() { return category; }
     }
     
     /**

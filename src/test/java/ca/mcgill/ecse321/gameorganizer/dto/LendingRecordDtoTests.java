@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.Date;
 
+import ca.mcgill.ecse321.gameorganizer.models.GameCategory;
 import org.junit.jupiter.api.Test;
 
 import ca.mcgill.ecse321.gameorganizer.dto.LendingRecordResponseDto.GameInfo;
@@ -121,7 +122,7 @@ public class LendingRecordDtoTests {
         // Create test data
         Date startDate = new Date();
         Date endDate = new Date(startDate.getTime() + 86400000 * 7); // 7 days later
-        GameInfo game = new GameInfo(1, "Test Game", "Strategy");
+        GameInfo game = new GameInfo(1, "Test Game", GameCategory.STRATEGY);
         UserInfo borrower = new UserInfo(2, "Test Borrower", "borrower@test.com");
         UserInfo owner = new UserInfo(3, "Test Owner", "owner@test.com");
         
@@ -160,7 +161,7 @@ public class LendingRecordDtoTests {
     @Test
     public void testGameInfoInnerClass() {
         // Test the GameInfo inner class of LendingRecordResponseDto
-        GameInfo gameInfo = new GameInfo(1, "Test Game", "Strategy");
+        GameInfo gameInfo = new GameInfo(1, "Test Game", GameCategory.STRATEGY);
         
         assertEquals(1, gameInfo.getId());
         assertEquals("Test Game", gameInfo.getName());
@@ -182,7 +183,7 @@ public class LendingRecordDtoTests {
         // Create test data
         Date startDate = new Date();
         Date endDate = new Date(startDate.getTime() + 86400000 * 7); // 7 days later
-        GameInfo game = new GameInfo(1, "Test Game", "Strategy");
+        GameInfo game = new GameInfo(1, "Test Game", GameCategory.STRATEGY);
         UserInfo borrower = new UserInfo(2, "Test Borrower", "borrower@test.com");
         UserInfo owner = new UserInfo(3, "Test Owner", "owner@test.com");
         

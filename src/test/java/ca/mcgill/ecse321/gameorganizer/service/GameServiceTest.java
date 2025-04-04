@@ -9,6 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import ca.mcgill.ecse321.gameorganizer.models.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import static org.mockito.ArgumentMatchers.any;
@@ -25,10 +27,6 @@ import org.springframework.http.ResponseEntity;
 import ca.mcgill.ecse321.gameorganizer.dto.GameCreationDto;
 import ca.mcgill.ecse321.gameorganizer.dto.GameResponseDto;
 import ca.mcgill.ecse321.gameorganizer.dto.ReviewSubmissionDto;
-import ca.mcgill.ecse321.gameorganizer.models.Account;
-import ca.mcgill.ecse321.gameorganizer.models.Game;
-import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
-import ca.mcgill.ecse321.gameorganizer.models.Review;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
@@ -52,7 +50,7 @@ public class GameServiceTest {
     // Test constants
     private static final String VALID_GAME_NAME = "Test Game";
     private static final String VALID_OWNER_EMAIL = "owner@test.com";
-    private static final String VALID_CATEGORY = "Strategy";
+    private static final String VALID_CATEGORY = "strategy";
     private static final String VALID_IMAGE = "test.jpg";
     private static final int VALID_MIN_PLAYERS = 2;
     private static final int VALID_MAX_PLAYERS = 4;
@@ -276,7 +274,7 @@ public class GameServiceTest {
         // Setup
         List<Game> games = new ArrayList<>();
         games.add(new Game(VALID_GAME_NAME, VALID_MIN_PLAYERS, VALID_MAX_PLAYERS, VALID_IMAGE, new Date()));
-        when(gameRepository.findByCategory(VALID_CATEGORY)).thenReturn(games);
+        when(gameRepository.findByCategory(GameCategory.valueOf(VALID_CATEGORY))).thenReturn(games);
 
         // Test
         List<Game> result = gameService.getGamesByCategory(VALID_CATEGORY);
@@ -284,14 +282,14 @@ public class GameServiceTest {
         // Verify
         assertNotNull(result);
         assertFalse(result.isEmpty());
-        verify(gameRepository).findByCategory(VALID_CATEGORY);
+        verify(gameRepository).findByCategory(GameCategory.fromString(VALID_CATEGORY));
     }
 
     @Test
     public void testGetGamesByCategoryEmptyCategory() {
         // Test & Verify
         assertThrows(IllegalArgumentException.class, () -> gameService.getGamesByCategory(""));
-        verify(gameRepository, never()).findByCategory(anyString());
+        verify(gameRepository, never()).findByCategory(GameCategory.valueOf(anyString()));
     }
 
     @Test

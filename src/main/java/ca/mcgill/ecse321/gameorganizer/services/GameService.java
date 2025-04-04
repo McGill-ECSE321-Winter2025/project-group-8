@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import ca.mcgill.ecse321.gameorganizer.models.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -19,10 +20,6 @@ import ca.mcgill.ecse321.gameorganizer.dto.ReviewResponseDto;
 import ca.mcgill.ecse321.gameorganizer.dto.ReviewSubmissionDto;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;
-import ca.mcgill.ecse321.gameorganizer.models.Account;
-import ca.mcgill.ecse321.gameorganizer.models.Game;
-import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
-import ca.mcgill.ecse321.gameorganizer.models.Review;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
@@ -114,7 +111,6 @@ public class GameService {
         if (aNewGame.getOwnerId() == null) {
             throw new IllegalArgumentException("Game must have an owner");
         }
-
         if (aNewGame.getCategory() == null){
             throw new IllegalArgumentException("Game must have a category");
         }
@@ -130,19 +126,15 @@ public class GameService {
             throw new IllegalArgumentException("Game owner does not exist");
         }
 
-
-
-
         Game createdGame = new Game(aNewGame.getName(),aNewGame.getMinPlayers() ,aNewGame.getMaxPlayers(), aNewGame.getImage(), new Date());
         if (owner.get() instanceof GameOwner) {
             GameOwner gameOwner = (GameOwner) owner.get();
             createdGame.setOwner(gameOwner);
+            createdGame.setCategory(GameCategory.fromString(aNewGame.getCategory()));
             gameRepository.save(createdGame);
-
-        } else{
+        } else {
             throw new IllegalArgumentException("The account is not a GameOwner");
         }
-
 
         return new GameResponseDto(createdGame);
     }
@@ -415,7 +407,10 @@ public class GameService {
         if (category == null || category.trim().isEmpty()) {
             throw new IllegalArgumentException("Category cannot be empty");
         }
-        return gameRepository.findByCategory(category);
+
+        GameCategory categoryEnum = GameCategory.fromString(category);
+
+        return gameRepository.findByCategory(categoryEnum);
     }
 
     //submit game review
@@ -605,7 +600,7 @@ public class GameService {
         
         if (criteria.getCategory() != null && !criteria.getCategory().trim().isEmpty()) {
             games = games.stream()
-                    .filter(game -> game.getCategory().equalsIgnoreCase(criteria.getCategory()))
+                    .filter(game -> game.getCategory().equals(criteria.getCategory()))
                     .collect(Collectors.toList());
         }
         

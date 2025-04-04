@@ -1,5 +1,7 @@
 package ca.mcgill.ecse321.gameorganizer.dto;
 
+import ca.mcgill.ecse321.gameorganizer.models.GameCategory;
+
 /**
  * DTO for game creation and update requests
  */

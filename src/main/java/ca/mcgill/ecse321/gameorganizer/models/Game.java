@@ -47,7 +47,7 @@ public class Game {
     private Date dateAdded;
 
     /** Category or genre of the game */
-    private String category;
+    private GameCategory category;
 
     /** Owner of the game */
     @ManyToOne
@@ -70,7 +70,7 @@ public class Game {
         maxPlayers = aMaxPlayers;
         image = aImage;
         dateAdded = aDateAdded;
-        this.category = "Uncategorized"; // Default category
+        this.category = GameCategory.NONE; // Default category
     }
 
     /**

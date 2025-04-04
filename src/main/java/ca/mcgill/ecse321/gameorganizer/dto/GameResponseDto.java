@@ -2,6 +2,7 @@ package ca.mcgill.ecse321.gameorganizer.dto;
 
 import java.util.Date;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
+import ca.mcgill.ecse321.gameorganizer.models.GameCategory;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 
 /**
@@ -14,7 +15,7 @@ public class GameResponseDto {
     private int maxPlayers;
     private String image;
     private Date dateAdded;
-    private String category;
+    private GameCategory category;
     private AccountDto owner;
 
     // Default constructor
@@ -58,8 +59,8 @@ public class GameResponseDto {
     public Date getDateAdded() { return dateAdded; }
     public void setDateAdded(Date dateAdded) { this.dateAdded = dateAdded; }
 
-    public String getCategory() { return category; }
-    public void setCategory(String category) { this.category = category; }
+    public GameCategory getCategory() { return category; }
+    public void setCategory(GameCategory category) { this.category = category; }
 
     public AccountDto getOwner() { return owner; }
     public void setOwner(AccountDto owner) { this.owner = owner; }
