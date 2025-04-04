@@ -11,6 +11,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import ca.mcgill.ecse321.gameorganizer.dto.CreateEventRequest;
+import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException; // Import UnauthedException
+// UserContext import removed
+import ca.mcgill.ecse321.gameorganizer.models.Account; // Import Account
+import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository; // Added AccountRepository import
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.userdetails.UserDetails;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
 import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
@@ -32,14 +40,22 @@ public class EventService {
     @Autowired
     private GameRepository gameRepository;
 
+    // UserContext field removed
+
+    @Autowired
+    private AccountRepository accountRepository; // Inject AccountRepository
+
     /**
      * Constructs an EventService with the required repository dependency.
      *
      * @param eventRepository The repository for event data access
      */
+    // Updated constructor to inject AccountRepository instead of UserContext
     @Autowired
-    public EventService(EventRepository eventRepository) {
+    public EventService(EventRepository eventRepository, AccountRepository accountRepository, GameRepository gameRepository) {
         this.eventRepository = eventRepository;
+        this.accountRepository = accountRepository;
+        this.gameRepository = gameRepository; // Ensure GameRepository is also initialized if needed elsewhere
     }
 
     // TODO: Associate an event to a host
@@ -142,6 +158,30 @@ public class EventService {
                 () -> new IllegalArgumentException("Event with id " + id + " does not exist")
         );
 
+        // Authorization Check using Spring Security
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
+            throw new UnauthedException("User must be authenticated to update an event.");
+        }
+
+        String currentUsername;
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof UserDetails) {
+            currentUsername = ((UserDetails) principal).getUsername();
+        } else if (principal instanceof String) {
+            currentUsername = (String) principal;
+        } else {
+            throw new UnauthedException("Unexpected principal type in SecurityContext.");
+        }
+
+        Account currentUser = accountRepository.findByEmail(currentUsername).orElseThrow(
+                () -> new UnauthedException("Authenticated user '" + currentUsername + "' not found in database.")
+        );
+
+        if (event.getHost() == null || event.getHost().getId() != currentUser.getId()) {
+            throw new UnauthedException("Access denied: You are not the host of this event.");
+        }
+
         if (title != null && !title.trim().isEmpty()) {
             event.setTitle(title);
         }
@@ -180,6 +220,31 @@ public class EventService {
         Event eventToDelete = eventRepository.findEventById(id).orElseThrow(
                 () -> new IllegalArgumentException("Event with id " + id + " does not exist")
         );
+
+        // Authorization Check using Spring Security
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
+            throw new UnauthedException("User must be authenticated to delete an event.");
+        }
+
+        String currentUsername;
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof UserDetails) {
+            currentUsername = ((UserDetails) principal).getUsername();
+        } else if (principal instanceof String) {
+            currentUsername = (String) principal;
+        } else {
+            throw new UnauthedException("Unexpected principal type in SecurityContext.");
+        }
+
+         Account currentUser = accountRepository.findByEmail(currentUsername).orElseThrow(
+                () -> new UnauthedException("Authenticated user '" + currentUsername + "' not found in database.")
+        );
+
+        if (eventToDelete.getHost() == null || eventToDelete.getHost().getId() != currentUser.getId()) {
+            throw new UnauthedException("Access denied: You are not the host of this event.");
+        }
+
         eventRepository.delete(eventToDelete);
         return ResponseEntity.ok("Event with id " + id + " has been deleted");
     }
