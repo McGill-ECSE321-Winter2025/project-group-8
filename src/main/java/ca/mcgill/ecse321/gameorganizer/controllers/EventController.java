@@ -30,7 +30,7 @@ import ca.mcgill.ecse321.gameorganizer.services.EventService;
  * @author @Yessine-glitch
  */
 @RestController
-@RequestMapping("/api/v1/events")
+@RequestMapping("/events")
 public class EventController {
     
     private final EventService eventService;

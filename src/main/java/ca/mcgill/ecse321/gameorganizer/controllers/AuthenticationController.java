@@ -33,7 +33,7 @@ import jakarta.servlet.http.HttpSession;
  * @author Shine111111
  */
 @RestController
-@RequestMapping("/api/v1/auth")
+@RequestMapping("/auth")
 public class AuthenticationController {
 
     // Keep AuthenticationService for logout/reset password for now, but not for login
