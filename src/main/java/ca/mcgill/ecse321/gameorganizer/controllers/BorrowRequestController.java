@@ -27,7 +27,7 @@ import ca.mcgill.ecse321.gameorganizer.services.BorrowRequestService;
  * @author Rayan Baida
  */
 @RestController
-@RequestMapping("/api/v1/borrowrequests")
+@RequestMapping("/borrowrequests")
 public class BorrowRequestController {
 
     private final BorrowRequestService borrowRequestService;
