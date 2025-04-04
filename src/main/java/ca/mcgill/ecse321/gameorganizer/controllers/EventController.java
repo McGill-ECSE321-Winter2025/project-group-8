@@ -239,4 +239,23 @@ public ResponseEntity<EventResponse> updateEvent(
             return ResponseEntity.badRequest().build();
         }
     }
+
+    /**
+     * Finds events by title, with partial matching supported.
+     * 
+     * @param title The title text to search for
+     * @return List of events with titles matching the search text
+     */
+    @GetMapping("/by-title")
+    public ResponseEntity<List<EventResponse>> getEventsByTitle(@RequestParam String title) {
+        try {
+            List<Event> events = eventService.findEventByTitle(title);
+            List<EventResponse> eventResponses = events.stream()
+                .map(EventResponse::new)
+                .collect(Collectors.toList());
+            return ResponseEntity.ok(eventResponses);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
 }
