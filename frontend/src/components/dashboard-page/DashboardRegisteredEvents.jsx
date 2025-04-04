@@ -1,8 +1,7 @@
 import {TabsContent} from "@/components/ui/tabs.jsx";
-import {Button} from "@/components/ui/button.jsx";
 import Event from "./Event.jsx";
 
-export default function DashboardEvents() {
+export default function DashboardRegisteredEvents() {
 
   const dummyEvents = [
     {
@@ -33,8 +32,7 @@ export default function DashboardEvents() {
 
   return <TabsContent value="events" className="space-y-6">
     <div className="flex justify-between items-center">
-      <h2 className="text-2xl font-bold">My Events</h2>
-      <Button>Create Event</Button>
+      <h2 className="text-2xl font-bold">My Upcoming Events</h2>
     </div>
     <div className="space-y-4">
       { dummyEvents.map(event => <Event key={event.id} {...event} />)}

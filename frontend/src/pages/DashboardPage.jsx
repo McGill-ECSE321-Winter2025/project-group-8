@@ -2,11 +2,12 @@ import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "@/compo
 import {Avatar, AvatarFallback, AvatarImage} from "@/components/ui/avatar.jsx";
 import {Tabs, TabsList, TabsTrigger} from "@/components/ui/tabs.jsx";
 import DashboardBorrowRequests from "@/components/dashboard-page/DashboardBorrowRequests.jsx";
-import DashboardEvents from "@/components/dashboard-page/DashboardEvents.jsx";
+import DashboardRegisteredEvents from "@/components/dashboard-page/DashboardRegisteredEvents.jsx";
 import DashboardGameLibrary from "@/components/dashboard-page/DashboardGameLibrary.jsx";
 import DashboardLendingRecord from "@/components/dashboard-page/DashboardLendingRecord.jsx";
 import SideMenuBar from "@/components/dashboard-page/SideMenuBar.jsx";
 import {Route, Routes} from "react-router-dom";
+import DashboardMyEvents from "@/components/dashboard-page/DashboardMyEvents.jsx";
 
 export default function DashboardPage() {
   const userType = "owner";
@@ -40,12 +41,14 @@ export default function DashboardPage() {
           <Tabs className="bg-background">
             <TabsList className="w-full h-10 mb-2">
               <TabsTrigger value="games">Game Library</TabsTrigger>
-              <TabsTrigger value="events">Events</TabsTrigger>
+              <TabsTrigger value="myevents">My Events</TabsTrigger>
+              <TabsTrigger value="events">Upcoming Events</TabsTrigger>
               <TabsTrigger value="requests">Borrow Requests</TabsTrigger>
               <TabsTrigger value="borrowing">Lending History</TabsTrigger>
             </TabsList>
-            <DashboardGameLibrary/>
-            <DashboardEvents/>
+            <DashboardGameLibrary userType={userType}/>
+            <DashboardRegisteredEvents/>
+            <DashboardMyEvents/>
             <DashboardBorrowRequests/>
             <DashboardLendingRecord/>
           </Tabs>
