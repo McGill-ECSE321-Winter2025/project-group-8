@@ -5,19 +5,22 @@ import { useEffect, useState } from "react";
 export default function MenuBar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
+  // Use isLoggedIn state based on token presence
+  const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem("token"));
 
+  // Update login status whenever the URL path changes
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-  }, []);
+    // Directly check the token presence when the location changes
+    setIsLoggedIn(!!localStorage.getItem("token"));
+  }, [location.pathname]); // Add location.pathname as a dependency
+
 
   const handleLogout = () => {
-    localStorage.removeItem("user");
-    setUser(null);
-    navigate("/");
+    // Remove token and userId on logout
+    localStorage.removeItem("token");
+    localStorage.removeItem("userId");
+    setIsLoggedIn(false); // Update state immediately
+    navigate("/"); // Redirect to landing page
   };
 
   const isLandingPage = location.pathname === "/";
@@ -31,19 +34,23 @@ export default function MenuBar() {
 
         <div className="flex items-center gap-3">
           {/* Navigation Buttons (only for logged in users) */}
-          {user && (
+          {isLoggedIn && ( // Check isLoggedIn state
             <div className="flex items-center gap-2">
-              <Link to="/games">
-                <Button variant="ghost" className="text-sm font-semibold">Games</Button>
+              {/* Link to Dashboard instead of Games? */}
+              <Link to="/dashboard">
+                <Button variant="ghost" className="text-sm font-semibold">Dashboard</Button>
               </Link>
               <Link to="/events">
                 <Button variant="ghost" className="text-sm font-semibold">Events</Button>
               </Link>
+               <Link to="/games">
+                 <Button variant="ghost" className="text-sm font-semibold">Game Search</Button>
+               </Link>
             </div>
           )}
 
-          {/* Login / Sign Up (only if not logged in and on landing page) */}
-          {!user && isLandingPage && (
+          {/* Login / Sign Up (only if not logged in) */}
+          {!isLoggedIn && ( // Check isLoggedIn state
             <>
               <Link to="/login">
                 <Button variant="outline" className="text-sm px-4">Login</Button>
@@ -54,10 +61,11 @@ export default function MenuBar() {
             </>
           )}
 
-          {/* Greeting + Logout (only if logged in) */}
-          {user && (
+          {/* Logout Button (only if logged in) */}
+          {isLoggedIn && ( // Check isLoggedIn state
             <div className="flex items-center gap-2 pl-3 border-l border-gray-200">
-              <span className="text-sm text-gray-700 font-medium">Hi, {user.name}</span>
+              {/* Removed user name display for simplicity for now */}
+              {/* <span className="text-sm text-gray-700 font-medium">Hi, {user.name}</span> */}
               <Button
                 onClick={handleLogout}
                 variant="outline"

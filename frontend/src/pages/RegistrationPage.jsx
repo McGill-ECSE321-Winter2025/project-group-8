@@ -57,8 +57,10 @@ export default function RegistrationPage() {
           const loginData = await loginResponse.json()
           console.log("Login successful:", loginData)
 
-          // Store user ID in localStorage
-          localStorage.setItem("userId", loginData.id)
+          // Store user ID, token, and email in localStorage
+          localStorage.setItem("userId", loginData.userId); // Use field name from JwtAuthenticationResponse
+          localStorage.setItem("token", loginData.token);
+          localStorage.setItem("userEmail", loginData.email); // Store email
 
           // Redirect to dashboard
           navigate("/dashboard")

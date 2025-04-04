@@ -3,28 +3,28 @@ package ca.mcgill.ecse321.gameorganizer.services;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.ResponseEntity; // Import Logger
+import org.springframework.security.authentication.AnonymousAuthenticationToken; // Import LoggerFactory
+import org.springframework.security.core.Authentication; // Import User
+import org.springframework.security.core.GrantedAuthority; // Import UserDetails
+import org.springframework.security.core.authority.SimpleGrantedAuthority; // Import UserDetailsService
+import org.springframework.security.core.context.SecurityContextHolder; // Import UsernameNotFoundException
+import org.springframework.security.core.userdetails.User; // Import PasswordEncoder
+import org.springframework.security.core.userdetails.UserDetails; // Import GrantedAuthority
+import org.springframework.security.core.userdetails.UserDetailsService; // Import SimpleGrantedAuthority
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.slf4j.Logger; // Import Logger
-import org.slf4j.LoggerFactory; // Import LoggerFactory
-import org.springframework.security.core.userdetails.User; // Import User
-import org.springframework.security.core.userdetails.UserDetails; // Import UserDetails
-import org.springframework.security.core.userdetails.UserDetailsService; // Import UserDetailsService
-import org.springframework.security.core.userdetails.UsernameNotFoundException; // Import UsernameNotFoundException
-import org.springframework.security.core.GrantedAuthority; // Import GrantedAuthority
-import org.springframework.security.core.authority.SimpleGrantedAuthority; // Import SimpleGrantedAuthority
 import org.springframework.transaction.annotation.Transactional;
 
 import ca.mcgill.ecse321.gameorganizer.dto.AccountResponse;
-import ca.mcgill.ecse321.gameorganizer.dto.CreateAccountRequest;
+import ca.mcgill.ecse321.gameorganizer.dto.CreateAccountRequest; // Import UnauthedException
 import ca.mcgill.ecse321.gameorganizer.dto.EventResponse;
 import ca.mcgill.ecse321.gameorganizer.dto.UpdateAccountRequest;
-import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException; // Import UnauthedException
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.authentication.AnonymousAuthenticationToken;
-import org.springframework.security.core.userdetails.UserDetails;
+import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
@@ -51,6 +51,7 @@ public class AccountService implements UserDetailsService { // Implement UserDet
     private final RegistrationRepository registrationRepository;
     private final ReviewRepository reviewRepository;
     private final BorrowRequestRepository borrowRequestRepository;
+    private final PasswordEncoder passwordEncoder; // Added PasswordEncoder
 
     // UserContext removed
 
@@ -59,11 +60,13 @@ public class AccountService implements UserDetailsService { // Implement UserDet
             AccountRepository accountRepository,
             RegistrationRepository registrationRepository,
             ReviewRepository reviewRepository,
-            BorrowRequestRepository borrowRequestRepository) {
+            BorrowRequestRepository borrowRequestRepository,
+            PasswordEncoder passwordEncoder) { // Inject PasswordEncoder
         this.accountRepository = accountRepository;
         this.registrationRepository = registrationRepository;
         this.reviewRepository = reviewRepository;
         this.borrowRequestRepository = borrowRequestRepository;
+        this.passwordEncoder = passwordEncoder; // Assign injected encoder
     }
 
     /**
@@ -126,13 +129,16 @@ public class AccountService implements UserDetailsService { // Implement UserDet
                 return ResponseEntity.badRequest().body("Username already in use");
             }
 
-            // Create and save account
+            // Hash the password
+            String hashedPassword = passwordEncoder.encode(request.getPassword());
+
+            // Create and save account using the hashed password
             Account account = request.isGameOwner()
-                ? new GameOwner(request.getUsername(), request.getEmail(), request.getPassword())
-                : new Account(request.getUsername(), request.getEmail(), request.getPassword());
+                ? new GameOwner(request.getUsername(), request.getEmail(), hashedPassword)
+                : new Account(request.getUsername(), request.getEmail(), hashedPassword);
 
             // Log the account creation details for debugging
-            System.out.println("Creating account: " + request.getUsername() + ", " + request.getEmail() + ", isGameOwner: " + request.isGameOwner());
+            log.info("Creating account: {}, {}, isGameOwner: {}", request.getUsername(), request.getEmail(), request.isGameOwner()); // Use logger
 
             Account savedAccount = accountRepository.save(account);
 

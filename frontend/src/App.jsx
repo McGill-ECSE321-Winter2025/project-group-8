@@ -10,20 +10,24 @@ import UserProfilePage from "./pages/UserProfilePage.jsx";
 import UserSearchPage from "./pages/UserSearchPage.jsx";
 import DashboardPage from "./pages/DashboardPage.jsx";
 import MenuBar from "./components/menubar/MenuBar.jsx";
+import ProtectedRoute from "./components/common/ProtectedRoute.jsx"; // Import ProtectedRoute
 
 function App() {
   return (
     <div className="flex flex-col min-h-screen mx-auto">
         <MenuBar />
         <Routes>
+          {/* Public Routes */}
           <Route path="/"               element={<LandingPage />} />
-          <Route path="/events"         element={<EventsPage />} />
-          <Route path="/games"          element={<GameSearchPage />}/>
           <Route path="/login"          element={<LoginPage />}/>
           <Route path="/register"       element={<RegistrationPage />}/>
-          <Route path="/profile"        element={<UserProfilePage />}/>
-          <Route path="/user-search"    element={<UserSearchPage />}/>
-          <Route path="/dashboard/*"      element={<DashboardPage />}/>
+
+          {/* Protected Routes */}
+          <Route path="/events"         element={<ProtectedRoute><EventsPage /></ProtectedRoute>} />
+          <Route path="/games"          element={<ProtectedRoute><GameSearchPage /></ProtectedRoute>}/>
+          <Route path="/profile"        element={<ProtectedRoute><UserProfilePage /></ProtectedRoute>}/>
+          <Route path="/user-search"    element={<ProtectedRoute><UserSearchPage /></ProtectedRoute>}/> {/* Protected user search too */}
+          <Route path="/dashboard/*"    element={<ProtectedRoute><DashboardPage /></ProtectedRoute>}/>
         </Routes>
     </div>
   )

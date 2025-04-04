@@ -33,8 +33,10 @@ export default function LoginPage() {
         const data = await response.json()
         console.log("Login successful:", data)
 
-        // Store user ID in localStorage
-        localStorage.setItem("userId", data.id)
+        // Store user ID, token, and email in localStorage
+        localStorage.setItem("userId", data.userId); // Use field name from JwtAuthenticationResponse
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("userEmail", data.email); // Store email
 
         // Redirect to dashboard
         navigate("/dashboard")

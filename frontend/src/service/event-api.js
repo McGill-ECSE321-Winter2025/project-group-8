@@ -90,6 +90,35 @@ export const searchEvents = async (query, options = {}) => {
 
 // === EVENT API FUNCTIONS ===
 
+// Get all events (real API implementation)
+export const getAllEvents = async () => {
+  const token = localStorage.getItem("token");
+  const headers = {
+    "Content-Type": "application/json",
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  try {
+    const response = await fetch("http://localhost:8080/api/v1/events", {
+      method: "GET",
+      headers: headers,
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      console.error("Backend error fetching events:", errorBody);
+      throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to fetch events:", error);
+    throw error;
+  }
+};
+
+
 // Register for an event (mock implementation)
 export async function registerForEvent(attendeeId, eventId) {
   return new Promise((resolve, reject) => {
@@ -114,18 +143,34 @@ export async function registerForEvent(attendeeId, eventId) {
 
 // Create an event
 export const createEvent = async (eventData) => {
-  const formattedData = {
-    ...eventData,
-    dateTime: new Date(eventData.dateTime).toISOString(),
+  // Expects eventData to contain featuredGameId now
+  if (!eventData.featuredGameId) {
+      throw new Error("Featured Game ID is missing in event data for createEvent");
+  }
+
+  // Construct the payload according to backend DTO expectations
+  const payload = {
+    title: eventData.title,
+    dateTime: new Date(eventData.dateTime).toISOString(), // Format date
+    location: eventData.location,
+    description: eventData.description,
     maxParticipants: parseInt(eventData.maxParticipants, 10),
+    featuredGame: { id: parseInt(eventData.featuredGameId, 10) } // Send game ID nested
+    // Host is determined by the backend via token, not sent from frontend
   };
+
+  const token = localStorage.getItem("token"); // Get token
+  const headers = {
+    "Content-Type": "application/json",
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`; // Add token if exists
+  }
 
   const response = await fetch("http://localhost:8080/api/v1/events", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(formattedData),
+    headers: headers, // Use headers object
+    body: JSON.stringify(payload), // Send the structured payload
   });
 
   if (!response.ok) {
@@ -157,11 +202,17 @@ export const getAccountInfo = async (email) => {
 
 // Search events by title (actual API implementation)
 export const searchEventsByTitle = async (title) => {
+  const token = localStorage.getItem("token"); // Get token
+  const headers = {
+    "Content-Type": "application/json",
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`; // Add token if exists
+  }
+
   const response = await fetch(`http://localhost:8080/api/v1/events/by-title?title=${encodeURIComponent(title)}`, {
     method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: headers, // Use headers object
   });
 
   if (!response.ok) {
@@ -173,11 +224,18 @@ export const searchEventsByTitle = async (title) => {
 
 // Unregister from an event
 export async function unregisterFromEvent(registrationId) {
-  const response = await fetch(`/api/v1/registrations/${registrationId}`, {
+  const token = localStorage.getItem("token"); // Get token
+  const headers = {
+    "Content-Type": "application/json",
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`; // Add token if exists
+  }
+
+  // TODO: Verify the actual endpoint URL structure for unregistering
+  const response = await fetch(`http://localhost:8080/api/v1/registrations/${registrationId}`, { // Assuming full URL needed
     method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: headers, // Use headers object
   });
 
   if (!response.ok) {
