@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import confetti from "canvas-confetti";
-import { registerForEvent, unregisterFromEvent } from "../../service/api";
+import { registerForEvent, unregisterFromEvent } from "../../service/event-api.js";
 import { motion } from "framer-motion";
 
 export function EventCard({ event, attendeeId }) {
