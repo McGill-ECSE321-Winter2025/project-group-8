@@ -35,9 +35,11 @@ export default function RegistrationPage() {
           username: `${firstName} ${lastName}`,
           email,
           password,
-          isGameOwner: accountType === "owner",
+          gameOwner: accountType === "owner",
         }),
       })
+
+      console.log('Registration response status:', registrationResponse.status);
 
       if (registrationResponse.ok) {
         console.log("Registration successful")

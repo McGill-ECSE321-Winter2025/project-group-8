@@ -80,9 +80,12 @@ public class AccountService {
             }
 
             // Create and save account
-            Account account = request.isGameOwner() 
+            Account account = request.isGameOwner()
                 ? new GameOwner(request.getUsername(), request.getEmail(), request.getPassword())
                 : new Account(request.getUsername(), request.getEmail(), request.getPassword());
+
+            // Log the account creation details for debugging
+            System.out.println("Creating account: " + request.getUsername() + ", " + request.getEmail() + ", isGameOwner: " + request.isGameOwner());
 
             Account savedAccount = accountRepository.save(account);
 
