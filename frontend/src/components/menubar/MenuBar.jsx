@@ -30,17 +30,19 @@ export default function MenuBar() {
         </Link>
 
         <div className="flex items-center gap-3">
-          {/* Navigation Buttons */}
-          <div className="flex items-center gap-2">
-            <Link to="/games">
-              <Button variant="ghost" className="text-sm font-semibold">Games</Button>
-            </Link>
-            <Link to="/events">
-              <Button variant="ghost" className="text-sm font-semibold">Events</Button>
-            </Link>
-          </div>
+          {/* Navigation Buttons (only for logged in users) */}
+          {user && (
+            <div className="flex items-center gap-2">
+              <Link to="/games">
+                <Button variant="ghost" className="text-sm font-semibold">Games</Button>
+              </Link>
+              <Link to="/events">
+                <Button variant="ghost" className="text-sm font-semibold">Events</Button>
+              </Link>
+            </div>
+          )}
 
-          {/* Conditional Auth Buttons */}
+          {/* Login / Sign Up (only if not logged in and on landing page) */}
           {!user && isLandingPage && (
             <>
               <Link to="/login">
@@ -52,7 +54,7 @@ export default function MenuBar() {
             </>
           )}
 
-          {/* User Greeting & Logout */}
+          {/* Greeting + Logout (only if logged in) */}
           {user && (
             <div className="flex items-center gap-2 pl-3 border-l border-gray-200">
               <span className="text-sm text-gray-700 font-medium">Hi, {user.name}</span>
