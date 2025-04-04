@@ -7,8 +7,8 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from '/src/components/ui/dialog.jsx';
-import { Button } from '/src/components/ui/button.jsx';
+} from '@/components/ui/dialog.jsx';
+import { Button } from '@/components/ui/button.jsx';
 import { Avatar, AvatarFallback, AvatarImage } from './avatar.jsx';
 import Tag from '../common/Tag.jsx';
 import GameOwnerTag from '../common/GameOwnerTag.jsx';

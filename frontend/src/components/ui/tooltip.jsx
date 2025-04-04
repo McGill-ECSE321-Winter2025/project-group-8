@@ -1,5 +1,5 @@
 import * as React from "react";
-import { cn } from "../../../src/lib/utils";
+import { cn } from "../lib/utils";
 
 // Simple tooltip component
 const TooltipContext = React.createContext(null);

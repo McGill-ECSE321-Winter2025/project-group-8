@@ -5,12 +5,12 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/src/components/ui/card.jsx';
+} from '@/components/ui/card.jsx';
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
-} from '@/src/components/ui/avatar.jsx';
+} from '@/components/ui/avatar.jsx';
 import Tag from '../common/Tag.jsx';
 import GameOwnerTag from '../common/GameOwnerTag.jsx';
 import { motion } from 'framer-motion'; // Add framer-motion for animations

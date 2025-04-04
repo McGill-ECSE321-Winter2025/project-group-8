@@ -1,5 +1,5 @@
 import React from 'react';
-import { cn } from '../../../src/lib/utils'; // Assuming you have the cn utility from shadcn/ui
+import { cn } from '../lib/utils'; // Assuming you have the cn utility from shadcn/ui
 import { useNavigate } from 'react-router-dom';
 
 /**

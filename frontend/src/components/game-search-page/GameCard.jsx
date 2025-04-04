@@ -7,7 +7,7 @@ import {
   CardTitle,
 } from '../ui/card';
 import { motion } from 'framer-motion';
-import { cn } from '../../lib/utils';
+import { cn } from '@/components/lib/utils';
 import { Users, Clock, Gauge } from 'lucide-react';
 import Tag from '../common/Tag.jsx';
 
