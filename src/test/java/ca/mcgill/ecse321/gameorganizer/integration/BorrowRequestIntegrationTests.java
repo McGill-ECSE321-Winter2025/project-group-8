@@ -42,9 +42,6 @@ import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
-import ca.mcgill.ecse321.gameorganizer.repositories.LendingRecordRepository;
-import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
-import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 
 
 @SpringBootTest
@@ -104,11 +101,7 @@ public class BorrowRequestIntegrationTests {
 
     @AfterEach
     public void cleanup() {
-        // Ensure correct deletion order based on dependencies
-        reviewRepository.deleteAll();
-        lendingRecordRepository.deleteAll();
         borrowRequestRepository.deleteAll();
-        eventRepository.deleteAll();
         gameRepository.deleteAll();
         accountRepository.deleteAll();
     }

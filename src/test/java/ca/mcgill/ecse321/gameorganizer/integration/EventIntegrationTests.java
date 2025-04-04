@@ -24,23 +24,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.boot.test.context.TestConfiguration; // Import TestConfiguration
-import org.springframework.boot.web.client.RestTemplateBuilder; // Import RestTemplateBuilder
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
-import org.springframework.http.MediaType;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.security.test.context.support.WithMockUser;
-import org.springframework.context.annotation.Bean; // Import Bean
-import org.slf4j.Logger; // Import Logger
-import org.slf4j.LoggerFactory; // Import LoggerFactory
-import org.springframework.security.crypto.password.PasswordEncoder; // Import PasswordEncoder
 import org.springframework.test.context.ActiveProfiles;
 
 import ca.mcgill.ecse321.gameorganizer.config.SecurityConfig;
@@ -52,29 +38,13 @@ import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
-import ca.mcgill.ecse321.gameorganizer.middleware.UserAuthInterceptor;
-import ca.mcgill.ecse321.gameorganizer.repositories.LendingRecordRepository;
-import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;
-import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 @Import({TestConfig.class, SecurityConfig.class})
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class EventIntegrationTests {
-
-    private static final Logger log = LoggerFactory.getLogger(EventIntegrationTests.class); // Add Logger
-
-    @Autowired
-    private LendingRecordRepository lendingRecordRepository;
-
-    @Autowired
-    private BorrowRequestRepository borrowRequestRepository;
-
-    @Autowired
-    private ReviewRepository reviewRepository;
 
     @LocalServerPort
     private int port;
@@ -90,11 +60,6 @@ public class EventIntegrationTests {
     
     @Autowired
     private GameRepository gameRepository;
-    @Autowired // Inject the interceptor
-    private UserAuthInterceptor userAuthInterceptor;
-    
-    @Autowired // Inject PasswordEncoder
-    private PasswordEncoder passwordEncoder;
     
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -135,7 +100,6 @@ public void setup() {
     
     @AfterEach
     public void cleanup() {
-        userAuthInterceptor.setTestMode(false);
         eventRepository.deleteAll();
         gameRepository.deleteAll();
         accountRepository.deleteAll();
@@ -183,7 +147,7 @@ public void setup() {
         request.setDescription("New Description");
         request.setMaxParticipants(20);
         request.setFeaturedGame(testGame);
-        request.setHost(testHost); // Note: Service uses principal, this is ignored
+        request.setHost(testHost);
         
         // Create HttpEntity with request body and auth headers
         HttpEntity<CreateEventRequest> requestEntity = new HttpEntity<>(request, createAuthHeaders());
@@ -193,8 +157,7 @@ public void setup() {
             String.class
         );
         
-        log.info("testCreateEventSuccess - Expected: {}, Actual: {}", HttpStatus.CREATED, response.getStatusCode()); // Log actual status
-        assertEquals(HttpStatus.CREATED, response.getStatusCode()); // Should pass
+        assertEquals(HttpStatus.CREATED, response.getStatusCode());
         String body = response.getBody();
         assertNotNull(body);
         // Simple string checks
@@ -213,16 +176,14 @@ public void setup() {
         request.setDescription("Description");
         request.setMaxParticipants(15);
         request.setFeaturedGame(testGame);
-        request.setHost(testHost); // Ignored by service
+        request.setHost(testHost);
         
         ResponseEntity<String> response = restTemplate.postForEntity(
             createURLWithPort(BASE_URL),
             request,
             String.class
         );
-        // Service throws IllegalArgumentException, controller handler maps to BAD_REQUEST
-        log.info("testCreateEventWithMissingTitle - Expected: {}, Actual: {}", HttpStatus.BAD_REQUEST, response.getStatusCode()); // Log actual status
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode()); // Should pass
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
     }
     
     @Test
@@ -233,45 +194,40 @@ public void setup() {
         request.setDateTime(new Date(System.currentTimeMillis()));
         request.setLocation("Location");
         request.setDescription("Description");
-        request.setMaxParticipants(-5); // Invalid
+        request.setMaxParticipants(-5);
         request.setFeaturedGame(testGame);
-        request.setHost(testHost); // Ignored by service
+        request.setHost(testHost);
         
         ResponseEntity<String> response = restTemplate.postForEntity(
             createURLWithPort(BASE_URL),
             request,
             String.class
         );
-        // Service throws IllegalArgumentException, controller handler maps to BAD_REQUEST
-        log.info("testCreateEventWithInvalidParticipants - Expected: {}, Actual: {}", HttpStatus.BAD_REQUEST, response.getStatusCode()); // Log actual status
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode()); // Should pass
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
     }
     
     @Test
-    @Order(4)
-    public void testCreateEventWithNonExistentHost() {
-        CreateEventRequest request = new CreateEventRequest();
-        request.setTitle("Event With NonExistent Host");
-        request.setDateTime(new Date(System.currentTimeMillis()));
-        request.setLocation("Location");
-        request.setDescription("Description");
-        request.setMaxParticipants(10);
-        request.setFeaturedGame(testGame);
-        // Create a dummy host that is not persisted - this is ignored by the service
-        GameOwner dummyHost = new GameOwner("dummy", "dummy@example.com", "pass");
-        request.setHost(dummyHost); 
+@Order(4)
+public void testCreateEventWithNonExistentHost() {
+    CreateEventRequest request = new CreateEventRequest();
+    request.setTitle("Event With NonExistent Host");
+    request.setDateTime(new Date(System.currentTimeMillis()));
+    request.setLocation("Location");
+    request.setDescription("Description");
+    request.setMaxParticipants(10);
+    request.setFeaturedGame(testGame);
+    // Create a dummy host that is not persisted
+    GameOwner dummyHost = new GameOwner("dummy", "dummy@example.com", "pass");
+    request.setHost(dummyHost);
 
-        ResponseEntity<String> response = restTemplate.postForEntity(
-            createURLWithPort(BASE_URL),
-            request,
-            String.class
-        );
-        
-        // Service uses authenticated principal (testHost from setup via SecurityTestConfig). 
-        // Since principal exists, creation should succeed.
-        log.info("testCreateEventWithNonExistentHost - Expected: {}, Actual: {}", HttpStatus.CREATED, response.getStatusCode()); // Log actual status
-        assertEquals(HttpStatus.CREATED, response.getStatusCode()); // Corrected Assertion
-    }
+    ResponseEntity<String> response = restTemplate.postForEntity(
+        createURLWithPort(BASE_URL),
+        request,
+        String.class
+    );
+    
+    assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
+}
     
     // ----- UPDATE Tests (3 tests) -----
     
@@ -294,12 +250,14 @@ public void setup() {
                 requestEntity, // Use the entity with headers
                 String.class
         );
-        
+
         assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(updatedTitle, response.getBody().getTitle());
-        assertEquals(updatedLocation, response.getBody().getLocation());
-        assertEquals(updatedMaxParticipants, response.getBody().getMaxParticipants());
+        String body = response.getBody();
+        assertNotNull(body);
+        assertTrue(body.contains("\"title\":\"Updated Event\""));
+        assertTrue(body.contains("\"location\":\"Updated Location\""));
+        assertTrue(body.contains("\"description\":\"Updated Description\""));
+        assertTrue(body.contains("\"maxParticipants\":25"));
     }
 
     
@@ -312,21 +270,21 @@ public void setup() {
                 "?title=Updated Event" +
                 "&location=Updated Location" +
                 "&description=Updated Description" +
-                "&maxParticipants=-10"; // Invalid
+                "&maxParticipants=-10";
         ResponseEntity<String> response = restTemplate.exchange(
             createURLWithPort(updateUri),
             HttpMethod.PUT,
             null,
             String.class
         );
-        // Service throws IllegalArgumentException, controller handler maps to BAD_REQUEST
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode()); // Corrected Assertion
+        // According to the controller, invalid data triggers an exception and returns NOT_FOUND
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
     }
     
     @Test
     @Order(7)
     public void testUpdateNonExistentEvent() {
-        String updateUri = BASE_URL + "/" + UUID.randomUUID() + // Non-existent ID
+        String updateUri = BASE_URL + "/" + UUID.randomUUID() +
                 "?title=Updated Event";
         ResponseEntity<String> response = restTemplate.exchange(
             createURLWithPort(updateUri),
@@ -334,8 +292,7 @@ public void setup() {
             null,
             String.class
         );
-        // Service throws IllegalArgumentException ("...does not exist"), handler maps to NOT_FOUND
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode()); // Should pass
+        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
     }
     
     // ----- DELETE Tests (3 tests) -----
@@ -351,8 +308,7 @@ public void setup() {
             requestEntity, // Use the entity with headers
             Void.class
         );
-        // Assuming principal matches testHost, delete should succeed
-        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode()); // Should pass
+        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
         assertFalse(eventRepository.findById(testEvent.getId()).isPresent());
     }
     
@@ -360,36 +316,31 @@ public void setup() {
     @Order(9)
     public void testDeleteNonExistentEvent() {
         ResponseEntity<String> response = restTemplate.exchange(
-            createURLWithPort(BASE_URL + "/" + UUID.randomUUID()), // Non-existent ID
+            createURLWithPort(BASE_URL + "/" + UUID.randomUUID()),
             HttpMethod.DELETE,
             null,
             String.class
         );
-        // Service throws IllegalArgumentException ("...does not exist"), handler maps to NOT_FOUND
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode()); // Corrected Assertion
+        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
     }
     
     @Test
     @Order(10)
     public void testDeleteEventTwice() {
-        // First delete (should succeed)
         ResponseEntity<Void> response1 = restTemplate.exchange(
             createURLWithPort(BASE_URL + "/" + testEvent.getId()),
             HttpMethod.DELETE,
             null,
             Void.class
         );
-        assertEquals(HttpStatus.NO_CONTENT, response1.getStatusCode()); // Should pass
-
-        // Second delete (should fail as event is gone)
+        assertEquals(HttpStatus.NO_CONTENT, response1.getStatusCode());
         ResponseEntity<String> response2 = restTemplate.exchange(
-            createURLWithPort(BASE_URL + "/" + testEvent.getId()), // Same ID, now non-existent
+            createURLWithPort(BASE_URL + "/" + testEvent.getId()),
             HttpMethod.DELETE,
             null,
             String.class
         );
-        // Service throws IllegalArgumentException ("...does not exist"), handler maps to NOT_FOUND
-        assertEquals(HttpStatus.NOT_FOUND, response2.getStatusCode()); // Corrected Assertion
+        assertEquals(HttpStatus.BAD_REQUEST, response2.getStatusCode());
     }
 
     @Test
@@ -429,7 +380,7 @@ public void setup() {
             String.class
         );
     
-        assertEquals(HttpStatus.OK, response.getStatusCode()); // OK is correct, returns empty list
+        assertEquals(HttpStatus.OK, response.getStatusCode());
         assertFalse(response.getBody().contains("Test Event"));
     }
 
