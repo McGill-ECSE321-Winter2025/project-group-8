@@ -68,30 +68,63 @@ export async function getOutgoingBorrowRequests(accountId) {
   )
 }
 
-export async function acceptBorrowRequest() {
-
+export async function actOnBorrowRequest(requestId, request) {
+  return fetch(`${BASE_URL}/borrowrequests/${requestId}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(request)
+    })
 }
 
-export async function declineBorrowRequest() {
-
+export async function getLendingHistory(accountId, isOwner) {
+  return fetch(`${BASE_URL}/lending-records/${isOwner ? "owner" : "borrower"}/${accountId}`,
+    {
+      method: "GET",
+    })
 }
 
-export async function getLendingHistory() {
-
+export async function markAsReturned(lendingId, information) {
+  return fetch(`${BASE_URL}/lending-records/${lendingId}/mark-returned`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(
+        information
+      )
+    })
 }
 
-export async function markAsReturned() {
-
+export async function updateUsernamePassword(request) {
+  return fetch(`${BASE_URL}/account`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(request)
+  })
 }
 
-export async function updateUsernamePassword() {
-
+export async function upgradeAccountToGameOwner(email) {
+  return fetch(`${BASE_URL}/account/${email}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json"
+      },
+    })
 }
 
-export async function upgradeAccountToGameOwner() {
-
-}
-
-export async function getHostedEvents() {
-  
+export async function getHostedEvents(hostId) {
+  return fetch(`${BASE_URL}/events/by-host-id/${hostId}`,
+    {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json"
+      },
+    })
 }
