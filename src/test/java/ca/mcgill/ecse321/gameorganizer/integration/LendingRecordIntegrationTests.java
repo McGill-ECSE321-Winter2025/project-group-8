@@ -82,7 +82,7 @@ public class LendingRecordIntegrationTests {
     private LendingRecord testRecord;
     
     // Base URL for lending record endpoints
-    private static final String BASE_URL = "/api/v1/lending-records";
+    private static final String BASE_URL = "/lending-records";
     
     
     private String createURLWithPort(String uri) {

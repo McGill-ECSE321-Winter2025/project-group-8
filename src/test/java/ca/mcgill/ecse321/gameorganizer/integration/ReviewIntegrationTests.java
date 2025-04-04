@@ -62,7 +62,7 @@ public class ReviewIntegrationTests {
     private Account testReviewer;
     private Game testGame;
     private Review testReview;
-    private static final String BASE_URL = "/api/v1/reviews";
+    private static final String BASE_URL = "/reviews";
 
     private String createURLWithPort(String uri) {
         return "http://localhost:" + port + uri;

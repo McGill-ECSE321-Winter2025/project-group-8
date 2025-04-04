@@ -74,7 +74,7 @@ public class BorrowRequestIntegrationTests {
     private Account testRequester; // This user will have ROLE_USER
     private Game testGame;
     private BorrowRequest testRequest;
-    private static final String BASE_URL = "/api/v1/borrowrequests";
+    private static final String BASE_URL = "/borrowrequests";
 
     @BeforeEach
     public void setup() {

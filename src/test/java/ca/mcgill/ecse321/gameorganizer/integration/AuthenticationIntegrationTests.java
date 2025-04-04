@@ -50,7 +50,7 @@ public class AuthenticationIntegrationTests {
     private PasswordEncoder passwordEncoder;
     
     private Account testAccount;
-    private static final String BASE_URL = "/api/v1/auth";
+    private static final String BASE_URL = "/auth";
     private static final String VALID_EMAIL = "test@example.com";
     private static final String VALID_USERNAME = "testuser";
     private static final String VALID_PASSWORD = "password123";
