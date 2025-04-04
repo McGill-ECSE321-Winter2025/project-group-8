@@ -17,6 +17,7 @@ public class EventResponse {
         this.dateTime = (Date) event.getDateTime();
         this.location = event.getLocation();
         this.description = event.getDescription();
+        this.currentNumberParticipants = event.getCurrentNumberParticipants();
         this.maxParticipants = event.getMaxParticipants();
         this.featuredGame = event.getFeaturedGame();
         this.host = event.getHost();
@@ -27,6 +28,7 @@ public class EventResponse {
     private Date dateTime;
     private String location;
     private String description;
+    private int currentNumberParticipants;
     private int maxParticipants;
     private Game featuredGame;
     private Account host;

@@ -74,6 +74,11 @@ public class AccountService {
                 return ResponseEntity.badRequest().body("Email address already in use");
             }
 
+            // Check for existing username
+            if (accountRepository.findByName(request.getUsername()).isPresent()) {
+                return ResponseEntity.badRequest().body("Username already in use");
+            }
+
             // Create and save account
             Account account = request.isGameOwner() 
                 ? new GameOwner(request.getUsername(), request.getEmail(), request.getPassword())

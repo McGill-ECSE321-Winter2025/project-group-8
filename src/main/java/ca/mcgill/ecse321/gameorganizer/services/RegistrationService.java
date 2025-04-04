@@ -1,8 +1,11 @@
 package ca.mcgill.ecse321.gameorganizer.services;
 
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Optional;
 
+import ca.mcgill.ecse321.gameorganizer.dto.RegistrationResponseDto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -33,7 +36,14 @@ public class RegistrationService {
      */
     public Registration createRegistration(Date registrationDate, Account attendee, Event eventRegisteredFor) {
         Registration registration = new Registration(registrationDate);
+        if (registrationRepository.existsByAttendeeAndEventRegisteredFor(attendee, eventRegisteredFor)) {
+            throw new IllegalArgumentException("Registration already exists for this account and event.");
+        }
+        if (eventRegisteredFor.getCurrentNumberParticipants() >= eventRegisteredFor.getMaxParticipants()) {
+            throw new IllegalArgumentException("Event is already at full capacity.");
+        }
         registration.setAttendee(attendee);
+        eventRegisteredFor.setCurrentNumberParticipants(eventRegisteredFor.getCurrentNumberParticipants() + 1);
         registration.setEventRegisteredFor(eventRegisteredFor);
         return registrationRepository.save(registration);
     }
@@ -56,7 +66,20 @@ public class RegistrationService {
     public Iterable<Registration> getAllRegistrations() {
         return registrationRepository.findAll();
     }
-
+    /**
+     * Retrieves all registrations in the system for a selected user.
+     * @param email the user's email
+     *
+     * @return List of all RegistrationResponseDTO objects
+     */
+    public List<RegistrationResponseDto> getAllRegistrationsByUserEmail(String email) {
+        List<Registration> registrations = registrationRepository.findRegistrationByAttendeeEmail(email);
+        List<RegistrationResponseDto> response = new ArrayList<>();
+        for (Registration registration : registrations) {
+            response.add(new RegistrationResponseDto(registration));
+        }
+        return response;
+    }
     /**
      * Updates an existing registration.
      *
@@ -81,11 +104,24 @@ public class RegistrationService {
     }
 
     /**
-     * Deletes a registration by its ID.
+     * Deletes a registration by its ID and updates the event's participant count.
      *
      * @param id The ID of the registration to delete
+     * @param event The event associated with the registration
+     * @throws IllegalArgumentException if the registration or event is not valid
      */
-    public void deleteRegistration(int id) {
+    public void deleteRegistration(int id, Event event) {
+        if (!registrationRepository.existsById(id)) {
+            throw new IllegalArgumentException("Registration with the given ID does not exist.");
+        }
+        if (event == null) {
+            throw new IllegalArgumentException("Event cannot be null.");
+        }
+        if (event.getCurrentNumberParticipants() <= 0) {
+            throw new IllegalArgumentException("Event participant count is already zero.");
+        }
+        event.setCurrentNumberParticipants(event.getCurrentNumberParticipants() - 1);
         registrationRepository.deleteById(id);
     }
+ 
 }
