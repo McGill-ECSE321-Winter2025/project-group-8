@@ -41,6 +41,12 @@ dependencies {
 
     // Mockito
     testImplementation 'org.mockito:mockito-core:5.10.0'
+
+    // Apache HttpClient for TestRestTemplate cookie management
+    testImplementation 'org.apache.httpcomponents.client5:httpclient5:5.2.1' 
+
+    // Spring Security Test for @WithMockUser etc.
+    testImplementation 'org.springframework.security:spring-security-test'
 }
 
 // Ensure unit tests run with JUnit
@@ -48,6 +54,12 @@ tasks.named('test') {
     useJUnitPlatform()
     // JaCoCo report runs after tests
     finalizedBy tasks.jacocoTestReport
+
+    // Add this block to show standard output/error streams
+    testLogging {
+        showStandardStreams = true
+        events "passed", "skipped", "failed" // Keep showing test results
+    }
 }
 
 // Configure JaCoCo for test coverage

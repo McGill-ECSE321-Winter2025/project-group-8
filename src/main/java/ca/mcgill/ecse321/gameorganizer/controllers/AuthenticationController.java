@@ -7,6 +7,8 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -17,7 +19,6 @@ import ca.mcgill.ecse321.gameorganizer.dto.AuthenticationDTO;
 import ca.mcgill.ecse321.gameorganizer.dto.JwtAuthenticationResponse;
 import ca.mcgill.ecse321.gameorganizer.dto.LoginResponse;
 import ca.mcgill.ecse321.gameorganizer.exceptions.EmailNotFoundException;
-import ca.mcgill.ecse321.gameorganizer.exceptions.InvalidCredentialsException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.InvalidPasswordException;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
@@ -35,17 +36,18 @@ import jakarta.servlet.http.HttpSession;
 @RequestMapping("/api/v1/auth")
 public class AuthenticationController {
 
+    // Keep AuthenticationService for logout/reset password for now, but not for login
     @Autowired
-    private AuthenticationService authenticationService;
+    private AuthenticationService authenticationService; 
 
-    @Autowired
+    @Autowired // Inject AuthenticationManager
     private AuthenticationManager authenticationManager;
+
+    @Autowired // Inject AccountRepository to get ID after successful auth
+    private AccountRepository accountRepository;
 
     @Autowired
     private JwtUtil jwtUtil;
-
-    @Autowired
-    private AccountRepository accountRepository;
 
     /**
      * Endpoint for user login.
@@ -56,13 +58,24 @@ public class AuthenticationController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody AuthenticationDTO authenticationDTO) {
         try {
-            // Authenticate the user
+            // Validate input fields
+            if (authenticationDTO.getEmail() == null || authenticationDTO.getEmail().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null); // Email is missing
+            }
+            if (authenticationDTO.getPassword() == null || authenticationDTO.getPassword().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null); // Password is missing
+            }
+
+            // Create authentication token and authenticate the user
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(authenticationDTO.getEmail(), authenticationDTO.getPassword()));
 
+            // Set the successful authentication in the SecurityContext
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+
             // Find the user account
             Account user = accountRepository.findByEmail(authenticationDTO.getEmail())
-                    .orElseThrow(() -> new InvalidCredentialsException());
+                    .orElseThrow(() -> new RuntimeException("Authenticated user not found in repository: " + authenticationDTO.getEmail()));
 
             // Generate JWT token
             String jwt = jwtUtil.generateToken(user.getEmail());
@@ -72,6 +85,15 @@ public class AuthenticationController {
         } catch (BadCredentialsException e) {
             // Return 401 UNAUTHORIZED when credentials are invalid
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (AuthenticationException e) {
+            // Other authentication issues (e.g., user disabled, locked - depends on UserDetails implementation)
+            System.err.println("Authentication failed: " + e.getMessage()); // Log other auth errors
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        } catch (Exception e) {
+            // Catch unexpected errors during login
+            System.err.println("Unexpected error during login: " + e.getMessage());
+            e.printStackTrace(); // Log stack trace for debugging
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 

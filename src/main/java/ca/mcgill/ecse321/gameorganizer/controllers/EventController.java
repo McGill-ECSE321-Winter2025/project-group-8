@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import ca.mcgill.ecse321.gameorganizer.dto.CreateEventRequest;
 import ca.mcgill.ecse321.gameorganizer.dto.EventResponse;
+import ca.mcgill.ecse321.gameorganizer.middleware.RequireUser;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
 import ca.mcgill.ecse321.gameorganizer.services.EventService;
 
@@ -89,6 +90,7 @@ public class EventController {
      * @param maxParticipants The new maximum number of participants (optional)
      * @return The updated event
      */
+    @RequireUser
     @PutMapping("/{eventId}")
 public ResponseEntity<EventResponse> updateEvent(
         @PathVariable UUID eventId,

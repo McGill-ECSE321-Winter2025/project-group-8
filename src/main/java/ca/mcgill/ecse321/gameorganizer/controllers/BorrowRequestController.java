@@ -18,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import ca.mcgill.ecse321.gameorganizer.dto.BorrowRequestDto;
 import ca.mcgill.ecse321.gameorganizer.dto.CreateBorrowRequestDto;
+import ca.mcgill.ecse321.gameorganizer.middleware.RequireUser;
 import ca.mcgill.ecse321.gameorganizer.services.BorrowRequestService;
 
 /**
@@ -48,6 +49,7 @@ public class BorrowRequestController {
      * @param dto Data transfer object containing request details.
      * @return The created borrow request.
      */
+    @RequireUser
     @PostMapping
     public ResponseEntity<BorrowRequestDto> createBorrowRequest(@RequestBody CreateBorrowRequestDto dto) {
         System.out.println("Received Borrow Request: " + dto);

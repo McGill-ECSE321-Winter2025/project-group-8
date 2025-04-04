@@ -3,6 +3,7 @@ package ca.mcgill.ecse321.gameorganizer.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -45,7 +46,16 @@ public class SecurityConfig {
             // For non-test profiles, apply security constraints
             http.authorizeHttpRequests(authz -> authz
                     // Allow unauthenticated access for account creation and auth endpoints
-                    .requestMatchers("/api/v1/account/**", "/api/v1/auth/**").permitAll()
+                    .requestMatchers("/api/v1/auth/**", "/api/v1/account/**", "/api/v1/account").permitAll()
+                    // Borrow Requests:
+                    // - Allow any authenticated user (USER or GAME_OWNER) to create (POST)
+                    .requestMatchers(HttpMethod.POST, "/api/v1/borrowrequests").hasRole("USER") 
+                    // - Allow only GAME_OWNER to update (PUT) or delete (DELETE) specific requests
+                    .requestMatchers(HttpMethod.PUT, "/api/v1/borrowrequests/**").hasRole("GAME_OWNER")
+                    .requestMatchers(HttpMethod.DELETE, "/api/v1/borrowrequests/**").hasRole("GAME_OWNER")
+                    // - Allow any authenticated user to GET requests (adjust if needed)
+                    .requestMatchers(HttpMethod.GET, "/api/v1/borrowrequests/**").hasRole("USER") 
+                    // Require authentication for all other endpoints
                     .anyRequest().authenticated()
                 )
                 // Disable CSRF for REST APIs (or configure accordingly)

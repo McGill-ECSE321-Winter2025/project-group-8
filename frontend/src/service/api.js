@@ -136,6 +136,25 @@ export const createEvent = async (eventData) => {
   return response.json();
 };
 
+export const getAccountInfo = async (email) => {
+  // TODO: Add authentication headers if required by the backend @RequireUser annotation
+  const response = await fetch(`http://localhost:8080/api/v1/account/${encodeURIComponent(email)}`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      // Add Authorization header if needed, e.g.:
+      // "Authorization": `Bearer ${localStorage.getItem('authToken')}`
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text(); // Get error text for better debugging
+    throw new Error(`Failed to fetch account info: ${response.status} ${response.statusText} - ${errorText}`);
+  }
+
+  return response.json();
+};
+
 // Search events by title (actual API implementation)
 export const searchEventsByTitle = async (title) => {
   const response = await fetch(`http://localhost:8080/api/v1/events/by-title?title=${encodeURIComponent(title)}`, {

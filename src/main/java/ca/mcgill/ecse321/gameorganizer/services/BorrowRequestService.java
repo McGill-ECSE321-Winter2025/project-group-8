@@ -11,6 +11,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import ca.mcgill.ecse321.gameorganizer.dto.BorrowRequestDto;
 import ca.mcgill.ecse321.gameorganizer.dto.CreateBorrowRequestDto;
+import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException; // Import UnauthedException
+import ca.mcgill.ecse321.gameorganizer.middleware.UserContext; // Import UserContext
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequestStatus;
@@ -32,6 +34,9 @@ public class BorrowRequestService {
     private final GameRepository gameRepository;
     private final AccountRepository accountRepository;
 
+    @Autowired
+    private UserContext userContext; // Inject UserContext
+
     /**
      * Constructs a BorrowRequestService with required repositories.
      * 
@@ -40,10 +45,11 @@ public class BorrowRequestService {
      * @param accountRepository Repository for user accounts.
      */
     @Autowired
-    public BorrowRequestService(BorrowRequestRepository borrowRequestRepository, GameRepository gameRepository, AccountRepository accountRepository) {
+    public BorrowRequestService(BorrowRequestRepository borrowRequestRepository, GameRepository gameRepository, AccountRepository accountRepository, UserContext userContext) { // Add UserContext
         this.borrowRequestRepository = borrowRequestRepository;
         this.gameRepository = gameRepository;
         this.accountRepository = accountRepository;
+        this.userContext = userContext; // Initialize UserContext
     }
 
     /**
@@ -169,6 +175,13 @@ public BorrowRequestDto updateBorrowRequestStatus(int id, String newStatus) {
     BorrowRequest request = borrowRequestRepository.findBorrowRequestById(id)
             .orElseThrow(() -> new IllegalArgumentException("No borrow request found with ID " + id));
 
+    // Authorization Check: Only the game owner can approve/decline
+    Account currentUser = userContext.getCurrentUser();
+    if (currentUser == null || request.getRequestedGame() == null || request.getRequestedGame().getOwner() == null ||
+        request.getRequestedGame().getOwner().getId() != currentUser.getId()) {
+        throw new UnauthedException("Access denied: Only the game owner can approve or decline requests.");
+    }
+
     if (!newStatus.equals("APPROVED") && !newStatus.equals("DECLINED")) {
         throw new IllegalArgumentException("Invalid status.");
     }
@@ -201,6 +214,13 @@ public BorrowRequestDto updateBorrowRequestStatus(int id, String newStatus) {
     public void deleteBorrowRequest(int id) {
         BorrowRequest request = borrowRequestRepository.findBorrowRequestById(id)
                 .orElseThrow(() -> new IllegalArgumentException("No borrow request found with ID " + id));
+
+        // Authorization Check: Only the requester can delete their own request
+        Account currentUser = userContext.getCurrentUser();
+        if (currentUser == null || request.getRequester() == null || request.getRequester().getId() != currentUser.getId()) {
+            throw new UnauthedException("Access denied: You can only delete your own borrow requests.");
+        }
+
         borrowRequestRepository.delete(request);
     }
 }

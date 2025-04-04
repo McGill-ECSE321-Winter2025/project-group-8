@@ -1,31 +1,36 @@
 package ca.mcgill.ecse321.gameorganizer.integration;
 
 import java.sql.Date;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 import org.junit.jupiter.api.AfterEach;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.MethodOrderer; 
+import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import ca.mcgill.ecse321.gameorganizer.config.SecurityTestConfig;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import ca.mcgill.ecse321.gameorganizer.config.SecurityConfig;
 import ca.mcgill.ecse321.gameorganizer.config.TestConfig;
 import ca.mcgill.ecse321.gameorganizer.dto.BorrowRequestDto;
 import ca.mcgill.ecse321.gameorganizer.dto.CreateBorrowRequestDto;
@@ -38,18 +43,17 @@ import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+
+@SpringBootTest
 @ActiveProfiles("test")
-@Import({TestConfig.class, SecurityTestConfig.class})
+@Import({TestConfig.class, SecurityConfig.class})
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@AutoConfigureMockMvc
 public class BorrowRequestIntegrationTests {
 
-    @LocalServerPort
-    private int port;
-
     @Autowired
-    private TestRestTemplate restTemplate;
+    private MockMvc mockMvc;
 
     @Autowired
     private BorrowRequestRepository borrowRequestRepository;
@@ -60,37 +64,38 @@ public class BorrowRequestIntegrationTests {
     @Autowired
     private GameRepository gameRepository;
 
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
     private GameOwner testOwner;
-    private Account testRequester;
+    private Account testRequester; // This user will have ROLE_USER
     private Game testGame;
     private BorrowRequest testRequest;
     private static final String BASE_URL = "/api/v1/borrowrequests";
 
     @BeforeEach
     public void setup() {
-        // Clean repositories first
         borrowRequestRepository.deleteAll();
         gameRepository.deleteAll();
         accountRepository.deleteAll();
 
-        // Create test game owner as a GameOwner
-        testOwner = new GameOwner("owner", "owner@example.com", "password123");
-        testOwner = (GameOwner) accountRepository.save(testOwner);
+        testOwner = new GameOwner("owner", "owner@example.com", passwordEncoder.encode("password123"));
+        testOwner = accountRepository.save(testOwner);
 
-        // Create test requester
-        testRequester = new Account("requester", "requester@example.com", "password123");
+        testRequester = new Account("requester", "requester@example.com", passwordEncoder.encode("password123"));
         testRequester = accountRepository.save(testRequester);
 
-        // Create test game
-        testGame = new Game("Test Game", 2, 4, "test.jpg", new java.util.Date());
+        testGame = new Game("Test Game", 2, 4, "test.jpg", java.util.Date.from(Instant.now()));
         testGame.setOwner(testOwner);
         testGame = gameRepository.save(testGame);
 
-        // Create test borrow request
-        Date startDate = new Date(System.currentTimeMillis() + 86400000); // Tomorrow
-        Date endDate = new Date(System.currentTimeMillis() + 172800000);   // Day after tomorrow
-        testRequest = new BorrowRequest(startDate, endDate, BorrowRequestStatus.PENDING, new java.util.Date(), testGame);
-        testRequest.setRequester(testRequester);
+        Date startDate = new Date(Instant.now().plus(1, ChronoUnit.DAYS).toEpochMilli());
+        Date endDate = new Date(Instant.now().plus(2, ChronoUnit.DAYS).toEpochMilli());
+        testRequest = new BorrowRequest(startDate, endDate, BorrowRequestStatus.PENDING, java.util.Date.from(Instant.now()), testGame);
+        testRequest.setRequester(testRequester); // Link request to the regular user
         testRequest = borrowRequestRepository.save(testRequest);
     }
 
@@ -101,45 +106,41 @@ public class BorrowRequestIntegrationTests {
         accountRepository.deleteAll();
     }
 
-    // Build URL using BASE_URL (which already contains /api/v1/borrowrequests)
-    private String createURLWithPort(String uri) {
-        return "http://localhost:" + port + uri;
-    }
-
-    // ----- CREATE Tests (4 tests) -----
+    // ----- CREATE Tests -----
 
     @Test
     @Order(1)
-    public void testCreateBorrowRequestSuccess() {
-        Date startDate = new Date(System.currentTimeMillis() + 86400000);
-        Date endDate = new Date(System.currentTimeMillis() + 172800000);
+    @WithMockUser(username = "requester@example.com", authorities = "ROLE_USER") // Run as regular user
+    public void testCreateBorrowRequestSuccessAsUser() throws Exception {
+        Date startDate = new Date(Instant.now().plus(3, ChronoUnit.DAYS).toEpochMilli());
+        Date endDate = new Date(Instant.now().plus(4, ChronoUnit.DAYS).toEpochMilli());
+        // Use the ID of the user created in setup
         CreateBorrowRequestDto request = new CreateBorrowRequestDto(
-            testRequester.getId(),
+            testRequester.getId(), 
             testGame.getId(),
             startDate,
             endDate
         );
 
-        ResponseEntity<BorrowRequestDto> response = restTemplate.postForEntity(
-            createURLWithPort(BASE_URL),
-            request,
-            BorrowRequestDto.class
-        );
-
-        // Expect 200 OK on success
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        BorrowRequestDto dto = response.getBody();
-        assertNotNull(dto);
-        assertEquals(testRequester.getId(), dto.getRequesterId());
-        assertEquals(testGame.getId(), dto.getRequestedGameId());
-        assertEquals("PENDING", dto.getStatus());
+        mockMvc.perform(post(BASE_URL)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk()) // Regular user can create
+                .andExpect(jsonPath("$.requesterId").value(testRequester.getId()))
+                .andExpect(jsonPath("$.requestedGameId").value(testGame.getId()))
+                .andExpect(jsonPath("$.status").value("PENDING"));
     }
+    
+    // Removed testCreateBorrowRequestSuccessAsOwner as it tests an invalid scenario
+    // where the owner tries to borrow their own game, which is disallowed by the service.
+
 
     @Test
-    @Order(2)
-    public void testCreateBorrowRequestWithInvalidGame() {
-        Date startDate = new Date(System.currentTimeMillis() + 86400000);
-        Date endDate = new Date(System.currentTimeMillis() + 172800000);
+    @Order(2) // Re-numbering order after removal
+    @WithMockUser(username = "requester@example.com", authorities = "ROLE_USER") // Need auth even for bad requests
+    public void testCreateBorrowRequestWithInvalidGame() throws Exception {
+        Date startDate = new Date(Instant.now().plus(3, ChronoUnit.DAYS).toEpochMilli());
+        Date endDate = new Date(Instant.now().plus(4, ChronoUnit.DAYS).toEpochMilli());
         CreateBorrowRequestDto request = new CreateBorrowRequestDto(
             testRequester.getId(),
             999,  // invalid game id
@@ -147,19 +148,18 @@ public class BorrowRequestIntegrationTests {
             endDate
         );
 
-        ResponseEntity<String> response = restTemplate.postForEntity(
-            createURLWithPort(BASE_URL),
-            request,
-            String.class
-        );
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        mockMvc.perform(post(BASE_URL)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest()); 
     }
 
     @Test
-    @Order(3)
-    public void testCreateBorrowRequestWithInvalidRequester() {
-        Date startDate = new Date(System.currentTimeMillis() + 86400000);
-        Date endDate = new Date(System.currentTimeMillis() + 172800000);
+    @Order(3) // Re-numbering order after removal
+    @WithMockUser(username = "requester@example.com", authorities = "ROLE_USER") // Need auth even for bad requests
+    public void testCreateBorrowRequestWithInvalidRequester() throws Exception {
+        Date startDate = new Date(Instant.now().plus(3, ChronoUnit.DAYS).toEpochMilli());
+        Date endDate = new Date(Instant.now().plus(4, ChronoUnit.DAYS).toEpochMilli());
         CreateBorrowRequestDto request = new CreateBorrowRequestDto(
             999,  // invalid requester id
             testGame.getId(),
@@ -167,20 +167,18 @@ public class BorrowRequestIntegrationTests {
             endDate
         );
 
-        ResponseEntity<String> response = restTemplate.postForEntity(
-            createURLWithPort(BASE_URL),
-            request,
-            String.class
-        );
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        mockMvc.perform(post(BASE_URL)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest()); 
     }
 
     @Test
-    @Order(4)
-    public void testCreateBorrowRequestWithInvalidDates() {
-        // Start date is after end date should result in BAD_REQUEST
-        Date startDate = new Date(System.currentTimeMillis() + 172800000);
-        Date endDate = new Date(System.currentTimeMillis() + 86400000);
+    @Order(4) // Re-numbering order after removal
+    @WithMockUser(username = "requester@example.com", authorities = "ROLE_USER") // Need auth even for bad requests
+    public void testCreateBorrowRequestWithInvalidDates() throws Exception {
+        Date startDate = new Date(Instant.now().plus(4, ChronoUnit.DAYS).toEpochMilli()); // Start after end
+        Date endDate = new Date(Instant.now().plus(3, ChronoUnit.DAYS).toEpochMilli());
         CreateBorrowRequestDto request = new CreateBorrowRequestDto(
             testRequester.getId(),
             testGame.getId(),
@@ -188,22 +186,82 @@ public class BorrowRequestIntegrationTests {
             endDate
         );
 
-        ResponseEntity<String> response = restTemplate.postForEntity(
-            createURLWithPort(BASE_URL),
-            request,
-            String.class
-        );
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        mockMvc.perform(post(BASE_URL)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest()); 
     }
-
-    // ----- UPDATE Tests (3 tests) -----
+    
+    // ----- UPDATE Tests -----
 
     @Test
-    @Order(5)
-    public void testUpdateBorrowRequestStatusSuccess() {
-        // Use the parameterized constructor to create an updated DTO.
+    @Order(5) // Re-numbering order after removal
+    @WithMockUser(username = "owner@example.com", authorities = "ROLE_GAME_OWNER") // Only Owner can update
+    public void testUpdateBorrowRequestStatusSuccess() throws Exception {
         BorrowRequestDto updateDto = new BorrowRequestDto(
             testRequest.getId(),
+            testRequester.getId(),
+            testGame.getId(),
+            testRequest.getStartDate(),
+            testRequest.getEndDate(),
+            "APPROVED", // Update status
+            testRequest.getRequestDate()
+        );
+
+        mockMvc.perform(put(BASE_URL + "/" + testRequest.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(updateDto)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPROVED"));
+    }
+    
+    @Test
+    @Order(6) // Re-numbering order after removal
+    @WithMockUser(username = "requester@example.com", authorities = "ROLE_USER") // User cannot update
+    public void testUpdateBorrowRequestStatusForbidden() throws Exception {
+        BorrowRequestDto updateDto = new BorrowRequestDto(
+            testRequest.getId(),
+            testRequester.getId(),
+            testGame.getId(),
+            testRequest.getStartDate(),
+            testRequest.getEndDate(),
+            "APPROVED", 
+            testRequest.getRequestDate()
+        );
+
+        mockMvc.perform(put(BASE_URL + "/" + testRequest.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(updateDto)))
+                .andExpect(status().isForbidden()); // Expect 403 Forbidden
+    }
+
+
+    @Test
+    @Order(7) // Re-numbering order after removal
+    @WithMockUser(username = "owner@example.com", authorities = "ROLE_GAME_OWNER") // Owner can update
+    public void testUpdateBorrowRequestWithInvalidStatus() throws Exception {
+        BorrowRequestDto updateDto = new BorrowRequestDto(
+            testRequest.getId(),
+            testRequester.getId(),
+            testGame.getId(),
+            testRequest.getStartDate(),
+            testRequest.getEndDate(),
+            "INVALID_STATUS", // Invalid status
+            testRequest.getRequestDate()
+        );
+
+        mockMvc.perform(put(BASE_URL + "/" + testRequest.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(updateDto)))
+                .andExpect(status().isNotFound()); // Assuming service/controller returns 404 for invalid status enum conversion
+    }
+
+    @Test
+    @Order(8) // Re-numbering order after removal
+    @WithMockUser(username = "owner@example.com", authorities = "ROLE_GAME_OWNER") // Owner can update
+    public void testUpdateNonExistentBorrowRequest() throws Exception {
+         BorrowRequestDto updateDto = new BorrowRequestDto(
+            999, // Non-existent ID
             testRequester.getId(),
             testGame.getId(),
             testRequest.getStartDate(),
@@ -212,211 +270,124 @@ public class BorrowRequestIntegrationTests {
             testRequest.getRequestDate()
         );
 
-        ResponseEntity<BorrowRequestDto> response = restTemplate.exchange(
-            createURLWithPort(BASE_URL + "/" + testRequest.getId()),
-            HttpMethod.PUT,
-            new HttpEntity<>(updateDto),
-            BorrowRequestDto.class
-        );
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        BorrowRequestDto updatedDto = response.getBody();
-        assertNotNull(updatedDto);
-        assertEquals("APPROVED", updatedDto.getStatus());
+         mockMvc.perform(put(BASE_URL + "/999")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(updateDto)))
+                .andExpect(status().isNotFound());
     }
 
-    @Test
-    @Order(6)
-    public void testUpdateBorrowRequestWithInvalidStatus() {
-        // Use an invalid status value.
-        BorrowRequestDto updateDto = new BorrowRequestDto(
-            testRequest.getId(),
-            testRequester.getId(),
-            testGame.getId(),
-            testRequest.getStartDate(),
-            testRequest.getEndDate(),
-            "INVALID_STATUS",
-            testRequest.getRequestDate()
-        );
-
-        ResponseEntity<String> response = restTemplate.exchange(
-            createURLWithPort(BASE_URL + "/" + testRequest.getId()),
-            HttpMethod.PUT,
-            new HttpEntity<>(updateDto),
-            String.class
-        );
-        // Controller catches exception and returns NOT_FOUND
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-    }
+    // ----- DELETE Tests -----
 
     @Test
-    @Order(7)
-    public void testUpdateNonExistentBorrowRequest() {
-        BorrowRequestDto updateDto = new BorrowRequestDto(
-            999,
-            testRequester.getId(),
-            testGame.getId(),
-            testRequest.getStartDate(),
-            testRequest.getEndDate(),
-            "APPROVED",
-            testRequest.getRequestDate()
-        );
+    @Order(9) // Re-numbering order after removal
+    @WithMockUser(username = "owner@example.com", authorities = "ROLE_GAME_OWNER") // Only Owner can delete
+    public void testDeleteBorrowRequestSuccess() throws Exception {
+        mockMvc.perform(delete(BASE_URL + "/" + testRequest.getId()))
+                .andExpect(status().isOk());
 
-        ResponseEntity<String> response = restTemplate.exchange(
-            createURLWithPort(BASE_URL + "/999"),
-            HttpMethod.PUT,
-            new HttpEntity<>(updateDto),
-            String.class
-        );
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-    }
-
-    // ----- DELETE Tests (3 tests) -----
-
-    @Test
-    @Order(8)
-    public void testDeleteBorrowRequestSuccess() {
-        ResponseEntity<Void> response = restTemplate.exchange(
-            createURLWithPort(BASE_URL + "/" + testRequest.getId()),
-            HttpMethod.DELETE,
-            null,
-            Void.class
-        );
-        assertEquals(HttpStatus.OK, response.getStatusCode());
         assertFalse(borrowRequestRepository.findById(testRequest.getId()).isPresent());
     }
+    
+    @Test
+    @Order(10) // Re-numbering order after removal
+    @WithMockUser(username = "requester@example.com", authorities = "ROLE_USER") // User cannot delete
+    public void testDeleteBorrowRequestForbidden() throws Exception {
+        mockMvc.perform(delete(BASE_URL + "/" + testRequest.getId()))
+                .andExpect(status().isForbidden()); // Expect 403 Forbidden
+    }
+
 
     @Test
-    @Order(9)
-    public void testDeleteNonExistentBorrowRequest() {
-        ResponseEntity<String> response = restTemplate.exchange(
-            createURLWithPort(BASE_URL + "/999"),
-            HttpMethod.DELETE,
-            null,
-            String.class
-        );
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+    @Order(11) // Re-numbering order after removal
+    @WithMockUser(username = "owner@example.com", authorities = "ROLE_GAME_OWNER") // Owner can delete
+    public void testDeleteNonExistentBorrowRequest() throws Exception {
+        mockMvc.perform(delete(BASE_URL + "/999"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
-    @Order(10)
-    public void testDeleteBorrowRequestTwice() {
-        ResponseEntity<Void> response1 = restTemplate.exchange(
-            createURLWithPort(BASE_URL + "/" + testRequest.getId()),
-            HttpMethod.DELETE,
-            null,
-            Void.class
-        );
-        assertEquals(HttpStatus.OK, response1.getStatusCode());
-        ResponseEntity<String> response2 = restTemplate.exchange(
-            createURLWithPort(BASE_URL + "/" + testRequest.getId()),
-            HttpMethod.DELETE,
-            null,
-            String.class
-        );
-        assertEquals(HttpStatus.NOT_FOUND, response2.getStatusCode());
+    @Order(12) // Re-numbering order after removal
+    @WithMockUser(username = "owner@example.com", authorities = "ROLE_GAME_OWNER") // Owner can delete
+    public void testDeleteBorrowRequestTwice() throws Exception {
+        // First delete
+        mockMvc.perform(delete(BASE_URL + "/" + testRequest.getId()))
+                .andExpect(status().isOk());
+
+        // Second delete
+        mockMvc.perform(delete(BASE_URL + "/" + testRequest.getId()))
+                .andExpect(status().isNotFound());
+    }
+
+    // ----- GET Tests -----
+
+    @Test
+    @Order(13) // Re-numbering order after removal
+    @WithMockUser(username = "requester@example.com", authorities = "ROLE_USER") // User can GET
+    public void testGetBorrowRequestByIdSuccess() throws Exception {
+        mockMvc.perform(get(BASE_URL + "/" + testRequest.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(testRequest.getId()))
+                .andExpect(jsonPath("$.requesterId").value(testRequester.getId()))
+                .andExpect(jsonPath("$.requestedGameId").value(testGame.getId()));
     }
 
     @Test
-    @Order(11)
-    public void testGetBorrowRequestByIdSuccess() {
-        ResponseEntity<BorrowRequestDto> response = restTemplate.getForEntity(
-            createURLWithPort(BASE_URL + "/" + testRequest.getId()),
-            BorrowRequestDto.class
-        );
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        BorrowRequestDto dto = response.getBody();
-        assertNotNull(dto);
-        assertEquals(testRequest.getId(), dto.getId());
-        assertEquals(testRequester.getId(), dto.getRequesterId());
-        assertEquals(testGame.getId(), dto.getRequestedGameId());
+    @Order(14) // Re-numbering order after removal
+    @WithMockUser(username = "requester@example.com", authorities = "ROLE_USER") // User can GET
+    public void testGetNonExistentBorrowRequestById() throws Exception {
+         mockMvc.perform(get(BASE_URL + "/999"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
-    @Order(12)
-    public void testGetNonExistentBorrowRequestById() {
-        ResponseEntity<String> response = restTemplate.getForEntity(
-            createURLWithPort(BASE_URL + "/999"),
-            String.class
-        );
-
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+    @Order(15) // Re-numbering order after removal
+    @WithMockUser(username = "requester@example.com", authorities = "ROLE_USER") // User can GET
+    public void testGetAllBorrowRequests() throws Exception {
+        // Note: This gets ALL requests. Depending on requirements, might need filtering.
+        mockMvc.perform(get(BASE_URL))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray()) 
+                .andExpect(jsonPath("$[0].id").value(testRequest.getId())); 
     }
 
     @Test
-    @Order(13)
-    public void testGetAllBorrowRequests() {
-        ResponseEntity<BorrowRequestDto[]> response = restTemplate.getForEntity(
-            createURLWithPort(BASE_URL),
-            BorrowRequestDto[].class
-        );
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertTrue(response.getBody().length > 0);
+    @Order(16) // Re-numbering order after removal
+    @WithMockUser(username = "requester@example.com", authorities = "ROLE_USER") // User can GET
+    public void testGetBorrowRequestsByStatusSuccess() throws Exception {
+         mockMvc.perform(get(BASE_URL + "/status/PENDING"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$[0].status").value("PENDING"));
     }
 
     @Test
-    @Order(14)
-    public void testGetBorrowRequestsByStatusSuccess() {
-        ResponseEntity<BorrowRequestDto[]> response = restTemplate.getForEntity(
-            createURLWithPort(BASE_URL + "/status/PENDING"),
-            BorrowRequestDto[].class
-        );
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        BorrowRequestDto[] requests = response.getBody();
-        assertNotNull(requests);
-        assertTrue(requests.length > 0);
-        for (BorrowRequestDto request : requests) {
-            assertEquals("PENDING", request.getStatus());
-        }
+    @Order(17) // Re-numbering order after removal
+    @WithMockUser(username = "requester@example.com", authorities = "ROLE_USER") // User can GET
+    public void testGetBorrowRequestsByStatusNoResults() throws Exception {
+        mockMvc.perform(get(BASE_URL + "/status/APPROVED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$.length()").value(0)); 
     }
 
     @Test
-    @Order(15)
-    public void testGetBorrowRequestsByStatusNoResults() {
-        ResponseEntity<BorrowRequestDto[]> response = restTemplate.getForEntity(
-            createURLWithPort(BASE_URL + "/status/APPROVED"),
-            BorrowRequestDto[].class
-        );
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        BorrowRequestDto[] requests = response.getBody();
-        assertNotNull(requests);
-        assertEquals(0, requests.length); // Should be empty since we only created "PENDING" requests
+    @Order(18) // Re-numbering order after removal
+    @WithMockUser(username = "requester@example.com", authorities = "ROLE_USER") // User can GET
+    public void testGetBorrowRequestsByRequesterSuccess() throws Exception {
+        // Note: This gets requests for a specific requester ID.
+        mockMvc.perform(get(BASE_URL + "/requester/" + testRequester.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$[0].requesterId").value(testRequester.getId()));
     }
 
     @Test
-    @Order(16)
-    public void testGetBorrowRequestsByRequesterSuccess() {
-        ResponseEntity<BorrowRequestDto[]> response = restTemplate.getForEntity(
-            createURLWithPort(BASE_URL + "/requester/" + testRequester.getId()),
-            BorrowRequestDto[].class
-        );
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        BorrowRequestDto[] requests = response.getBody();
-        assertNotNull(requests);
-        assertTrue(requests.length > 0);
-        for (BorrowRequestDto request : requests) {
-            assertEquals(testRequester.getId(), request.getRequesterId());
-        }
+    @Order(19) // Re-numbering order after removal
+    @WithMockUser(username = "requester@example.com", authorities = "ROLE_USER") // User can GET
+    public void testGetBorrowRequestsByRequesterNoResults() throws Exception {
+        mockMvc.perform(get(BASE_URL + "/requester/999")) // Non-existent user ID
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$.length()").value(0)); 
     }
-
-    @Test
-    @Order(17)
-    public void testGetBorrowRequestsByRequesterNoResults() {
-        ResponseEntity<BorrowRequestDto[]> response = restTemplate.getForEntity(
-            createURLWithPort(BASE_URL + "/requester/999"), // Non-existent user ID
-            BorrowRequestDto[].class
-        );
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        BorrowRequestDto[] requests = response.getBody();
-        assertNotNull(requests);
-        assertEquals(0, requests.length); // Should be empty since user ID 999 has no requests
-    }
-
 }

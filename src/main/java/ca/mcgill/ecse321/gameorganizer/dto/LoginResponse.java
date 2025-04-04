@@ -1,13 +1,13 @@
 package ca.mcgill.ecse321.gameorganizer.dto;
 
-
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
 @AllArgsConstructor
+@NoArgsConstructor // Add a no-args constructor for Jackson
 public class LoginResponse {
-    private final Integer userId; //didn't use uuid because it has to match what is in ./models/Account
-
-    private final String email;
+    private Integer userId; // Remove 'final' to allow Jackson to set the field
+    private String email;   // Remove 'final' to allow Jackson to set the field
 }
