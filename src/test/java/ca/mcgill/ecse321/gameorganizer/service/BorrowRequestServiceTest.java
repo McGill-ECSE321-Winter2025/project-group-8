@@ -17,7 +17,10 @@ import org.mockito.Mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+// Removed duplicate mock import, already covered by MockitoExtension implicitly? Let's keep it explicit for clarity if needed.
+// import static org.mockito.Mockito.mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.ResponseEntity; // Import ResponseEntity
 
 import ca.mcgill.ecse321.gameorganizer.dto.BorrowRequestDto;
 import ca.mcgill.ecse321.gameorganizer.dto.CreateBorrowRequestDto;
@@ -29,6 +32,7 @@ import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
+import ca.mcgill.ecse321.gameorganizer.services.LendingRecordService; // Import LendingRecordService
 import ca.mcgill.ecse321.gameorganizer.services.BorrowRequestService;
 
 @ExtendWith(MockitoExtension.class)
@@ -42,6 +46,9 @@ public class BorrowRequestServiceTest {
 
     @Mock
     private AccountRepository accountRepository;
+
+    @Mock // Add mock for LendingRecordService
+    private LendingRecordService lendingRecordService;
 
     @InjectMocks
     private BorrowRequestService borrowRequestService;
@@ -79,7 +86,7 @@ public class BorrowRequestServiceTest {
         savedRequest.setStartDate(startDate);
         savedRequest.setEndDate(endDate);
         savedRequest.setStatus(BorrowRequestStatus.PENDING);
-        savedRequest.setRequestDate(new Date());
+        savedRequest.setRequestDate(new Date()); // Corrected: Pass the date object
 
         when(gameRepository.findById(VALID_GAME_ID)).thenReturn(Optional.of(game));
         when(accountRepository.findById(VALID_REQUESTER_ID)).thenReturn(Optional.of(requester));
@@ -131,6 +138,9 @@ public class BorrowRequestServiceTest {
         );
 
         Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
+        // Need to set owner for the game object used here as well if service logic requires it
+        GameOwner owner = new GameOwner("Owner", "owner@test.com", "password");
+        game.setOwner(owner);
         when(gameRepository.findById(VALID_GAME_ID)).thenReturn(Optional.of(game));
         when(accountRepository.findById(VALID_REQUESTER_ID)).thenReturn(Optional.empty());
 
@@ -152,6 +162,9 @@ public class BorrowRequestServiceTest {
         );
 
         Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
+        // Need to set owner for the game object used here as well if service logic requires it
+        GameOwner owner = new GameOwner("Owner", "owner@test.com", "password");
+        game.setOwner(owner);
         Account requester = new Account("Requester", "requester@test.com", "password");
 
         when(gameRepository.findById(VALID_GAME_ID)).thenReturn(Optional.of(game));
@@ -167,9 +180,17 @@ public class BorrowRequestServiceTest {
         // Setup
         BorrowRequest request = new BorrowRequest();
         request.setId(VALID_REQUEST_ID);
-        request.setRequestedGame(new Game("Test Game", 2, 4, "test.jpg", new Date()));
-        request.setRequester(new Account("Requester", "requester@test.com", "password"));
+        // Need to set game and requester properly here too for consistency
+        GameOwner owner = new GameOwner("Owner", "owner@test.com", "password");
+        Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
+        game.setOwner(owner);
+        Account requester = new Account("Requester", "requester@test.com", "password");
+        request.setRequestedGame(game);
+        request.setRequester(requester);
         request.setStatus(BorrowRequestStatus.PENDING);
+        request.setStartDate(new Date()); // Add dates
+        request.setEndDate(new Date(System.currentTimeMillis() + 86400000));
+        request.setRequestDate(new Date()); // Add request date
 
         when(borrowRequestRepository.findBorrowRequestById(VALID_REQUEST_ID)).thenReturn(Optional.of(request));
 
@@ -199,9 +220,17 @@ public class BorrowRequestServiceTest {
         List<BorrowRequest> requests = new ArrayList<>();
         BorrowRequest request = new BorrowRequest();
         request.setId(VALID_REQUEST_ID);
-        request.setRequestedGame(new Game("Test Game", 2, 4, "test.jpg", new Date()));
-        request.setRequester(new Account("Requester", "requester@test.com", "password"));
+        // Need to set game and requester properly here too for consistency
+        GameOwner owner = new GameOwner("Owner", "owner@test.com", "password");
+        Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
+        game.setOwner(owner);
+        Account requester = new Account("Requester", "requester@test.com", "password");
+        request.setRequestedGame(game);
+        request.setRequester(requester);
         request.setStatus(BorrowRequestStatus.PENDING);
+        request.setStartDate(new Date()); // Add dates
+        request.setEndDate(new Date(System.currentTimeMillis() + 86400000));
+        request.setRequestDate(new Date()); // Add request date
         requests.add(request);
 
         when(borrowRequestRepository.findAll()).thenReturn(requests);
@@ -223,17 +252,37 @@ public class BorrowRequestServiceTest {
         request.setId(VALID_REQUEST_ID);
         request.setStatus(BorrowRequestStatus.PENDING);
 
+        // Create necessary related objects
+        GameOwner owner = new GameOwner("Owner", "owner@test.com", "password");
+        owner.setId(99); // Assign an ID to the owner
+        Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
+        game.setId(VALID_GAME_ID);
+        game.setOwner(owner); // Set owner on game
+        Account requester = new Account("Requester", "requester@test.com", "password");
+        requester.setId(VALID_REQUESTER_ID);
+
+        // Set related objects on the request
+        request.setRequestedGame(game);
+        request.setRequester(requester);
+        request.setStartDate(new Date());
+        request.setEndDate(new Date(System.currentTimeMillis() + 86400000)); // Set valid dates
+        request.setRequestDate(new Date()); // Set request date
+
         when(borrowRequestRepository.findBorrowRequestById(VALID_REQUEST_ID)).thenReturn(Optional.of(request));
         when(borrowRequestRepository.save(any(BorrowRequest.class))).thenReturn(request);
+        // Mock the lendingRecordService call
+        when(lendingRecordService.createLendingRecord(any(Date.class), any(Date.class), any(BorrowRequest.class), any(GameOwner.class)))
+            .thenReturn(ResponseEntity.ok("Lending record created successfully"));
 
         // Test
-        BorrowRequestDto result = borrowRequestService.updateBorrowRequestStatus(VALID_REQUEST_ID, "APPROVED");
+        BorrowRequestDto result = borrowRequestService.updateBorrowRequestStatus(VALID_REQUEST_ID, BorrowRequestStatus.APPROVED);
 
         // Verify
         assertNotNull(result);
         assertEquals("APPROVED", result.getStatus());
         verify(borrowRequestRepository).findBorrowRequestById(VALID_REQUEST_ID);
         verify(borrowRequestRepository).save(any(BorrowRequest.class));
+        verify(lendingRecordService).createLendingRecord(any(Date.class), any(Date.class), any(BorrowRequest.class), any(GameOwner.class)); // Verify service call
     }
 
     @Test
@@ -242,14 +291,29 @@ public class BorrowRequestServiceTest {
         BorrowRequest request = new BorrowRequest();
         request.setId(VALID_REQUEST_ID);
         request.setStatus(BorrowRequestStatus.PENDING);
+        // Need game/requester/dates if service logic checks them before status validation
+        GameOwner owner = new GameOwner("Owner", "owner@test.com", "password");
+        Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
+        game.setOwner(owner);
+        Account requester = new Account("Requester", "requester@test.com", "password");
+        request.setRequestedGame(game);
+        request.setRequester(requester);
+        request.setStartDate(new Date());
+        request.setEndDate(new Date(System.currentTimeMillis() + 86400000));
+        request.setRequestDate(new Date());
 
         when(borrowRequestRepository.findBorrowRequestById(VALID_REQUEST_ID)).thenReturn(Optional.of(request));
 
         // Test & Verify
-        assertThrows(IllegalArgumentException.class, 
-            () -> borrowRequestService.updateBorrowRequestStatus(VALID_REQUEST_ID, "INVALID_STATUS"));
+        // Using DECLINED as the invalid target status based on service logic (must be APPROVED or DECLINED)
+        // If the intention is to test that PENDING cannot be set again, the service logic might need adjustment or the test case is different.
+        // Assuming the service logic is correct (lines 181-183 in BorrowRequestService), PENDING is not a valid *target* status.
+        // Let's test trying to set it to PENDING again, which should fail based on the service logic.
+        assertThrows(IllegalArgumentException.class,
+            () -> borrowRequestService.updateBorrowRequestStatus(VALID_REQUEST_ID, BorrowRequestStatus.PENDING));
         verify(borrowRequestRepository).findBorrowRequestById(VALID_REQUEST_ID);
         verify(borrowRequestRepository, never()).save(any(BorrowRequest.class));
+        verify(lendingRecordService, never()).createLendingRecord(any(), any(), any(), any()); // Ensure lending service not called
     }
 
     @Test
@@ -257,6 +321,14 @@ public class BorrowRequestServiceTest {
         // Setup
         BorrowRequest request = new BorrowRequest();
         request.setId(VALID_REQUEST_ID);
+        // Add minimal required fields if deletion logic depends on them (usually not)
+        GameOwner owner = new GameOwner("Owner", "owner@test.com", "password");
+        Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
+        game.setOwner(owner);
+        Account requester = new Account("Requester", "requester@test.com", "password");
+        request.setRequestedGame(game);
+        request.setRequester(requester);
+
 
         when(borrowRequestRepository.findBorrowRequestById(VALID_REQUEST_ID)).thenReturn(Optional.of(request));
 

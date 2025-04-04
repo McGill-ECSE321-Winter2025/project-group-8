@@ -1,14 +1,15 @@
 package ca.mcgill.ecse321.gameorganizer.services;
 
-import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import ca.mcgill.ecse321.gameorganizer.models.*;
-import jakarta.persistence.EntityNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,10 +21,14 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetails;
+import ca.mcgill.ecse321.gameorganizer.models.Account;
+import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
+import ca.mcgill.ecse321.gameorganizer.models.BorrowRequestStatus;
+import ca.mcgill.ecse321.gameorganizer.models.Game;
+import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
-
 /**
  * Service for managing borrow requests in the game organizer system.
  * Handles request creation, retrieval, updates, and deletion.
@@ -33,9 +38,12 @@ import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
 @Service
 public class BorrowRequestService {
 
+    private static final Logger logger = LoggerFactory.getLogger(BorrowRequestService.class);
+
     private final BorrowRequestRepository borrowRequestRepository;
     private final GameRepository gameRepository;
     private final AccountRepository accountRepository;
+    private final LendingRecordService lendingRecordService; // Added dependency
 
     // UserContext field removed
 
@@ -48,10 +56,11 @@ public class BorrowRequestService {
      */
     // Updated constructor to remove UserContext
     @Autowired
-    public BorrowRequestService(BorrowRequestRepository borrowRequestRepository, GameRepository gameRepository, AccountRepository accountRepository) {
+    public BorrowRequestService(BorrowRequestRepository borrowRequestRepository, GameRepository gameRepository, AccountRepository accountRepository, LendingRecordService lendingRecordService) { // Added LendingRecordService
         this.borrowRequestRepository = borrowRequestRepository;
         this.gameRepository = gameRepository;
         this.accountRepository = accountRepository;
+        this.lendingRecordService = lendingRecordService; // Initialize LendingRecordService
     }
 
     /**
@@ -165,33 +174,6 @@ public class BorrowRequestService {
     }
 
     /**
-     * Retrieves all borrow requests for a game owner.
-     * @param gameOwnerId the game owner's id.
-     * @return List of all borrow request DTOs.
-     */
-    @Transactional
-    public List<BorrowRequestDto> getBorrowRequestsByGameOwner(int gameOwnerId) {
-        Account gameOwner = accountRepository.findById(gameOwnerId)
-                .orElseThrow(() -> new EntityNotFoundException("Game owner not found with ID: " + gameOwnerId));
-
-        if (!(gameOwner instanceof GameOwner)) {
-            throw new IllegalArgumentException(
-                    String.format("Account with ID %d is of type %s, expected GameOwner",
-                            gameOwnerId, gameOwner.getClass().getSimpleName())
-            );
-        }
-
-        List<BorrowRequest> requests = borrowRequestRepository.findByResponder(gameOwner);
-        if (requests == null) {
-            return Collections.emptyList();
-        }
-
-        return requests.stream()
-                .map(BorrowRequestDto::new)
-                .toList();
-    }
-
-    /**
      * Updates the status of a borrow request.
      * 
      * @param id The borrow request ID.
@@ -200,7 +182,7 @@ public class BorrowRequestService {
      * @throws IllegalArgumentException if the request is not found or status is invalid.
      */
     @Transactional
-public BorrowRequestDto updateBorrowRequestStatus(int id, String newStatus) {
+public BorrowRequestDto updateBorrowRequestStatus(int id, BorrowRequestStatus newStatus) { // Changed parameter type to Enum
     BorrowRequest request = borrowRequestRepository.findBorrowRequestById(id)
             .orElseThrow(() -> new IllegalArgumentException("No borrow request found with ID " + id));
 
@@ -233,12 +215,54 @@ public BorrowRequestDto updateBorrowRequestStatus(int id, String newStatus) {
         throw new IllegalArgumentException("Invalid status.");
     }
 
-    request.setStatus(BorrowRequestStatus.valueOf(newStatus));
+    // If the status is being set to APPROVED, create a LendingRecord
+    if (newStatus == BorrowRequestStatus.APPROVED) {
+        Game requestedGame = request.getRequestedGame();
+        if (requestedGame == null) {
+            throw new IllegalStateException("Cannot approve request: Game details are missing.");
+        }
+        GameOwner owner = requestedGame.getOwner();
+        if (owner == null) {
+            // This case might indicate an orphaned game or configuration issue.
+            throw new IllegalStateException("Cannot approve request: Game owner is not set.");
+        }
+
+        try {
+            // Call LendingRecordService to create the record
+            ResponseEntity<String> response = lendingRecordService.createLendingRecord(
+                    request.getStartDate(),
+                    request.getEndDate(),
+                    request,
+                    owner
+            );
+
+            // Check if the lending record creation was successful
+            if (response.getStatusCode() != HttpStatus.OK) {
+                // Log the error and throw an exception to indicate failure during the transaction
+                String errorMessage = String.format("Failed to create lending record for approved borrow request %d. Status: %s, Body: %s",
+                                                    request.getId(), response.getStatusCode(), response.getBody());
+                logger.error(errorMessage);
+                throw new RuntimeException(errorMessage);
+            }
+             logger.info("Successfully created lending record for approved borrow request {}", request.getId());
+
+        } catch (Exception e) {
+            // Catch potential exceptions from createLendingRecord (e.g., validation errors)
+             String errorMessage = String.format("Error creating lending record for approved borrow request %d: %s",
+                                                 request.getId(), e.getMessage());
+             logger.error(errorMessage, e);
+            // Re-throw as a runtime exception to ensure transaction rollback if needed
+            throw new RuntimeException(errorMessage, e);
+        }
+    }
+
+    // Update the status of the BorrowRequest
+    request.setStatus(newStatus);
     BorrowRequest updatedRequest = borrowRequestRepository.save(request);
 
-    // If requester or game is missing, substitute a default value (e.g., 0) instead of null.
-    Integer requesterId = (updatedRequest.getRequester() != null) ? updatedRequest.getRequester().getId() : 0;
-    Integer gameId = (updatedRequest.getRequestedGame() != null) ? updatedRequest.getRequestedGame().getId() : 0;
+    // Prepare and return the DTO
+    Integer requesterId = (updatedRequest.getRequester() != null) ? updatedRequest.getRequester().getId() : null; // Keep null if missing
+    Integer gameId = (updatedRequest.getRequestedGame() != null) ? updatedRequest.getRequestedGame().getId() : null; // Keep null if missing
 
     return new BorrowRequestDto(
             updatedRequest.getId(),

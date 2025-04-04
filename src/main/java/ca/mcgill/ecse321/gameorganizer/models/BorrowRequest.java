@@ -40,7 +40,7 @@ public class BorrowRequest {
     @ManyToOne
     private Account requester;
 
-    @ManyToOne
+    @ManyToOne(optional = true) // Allow responder to be null initially
     private GameOwner responder;
 
     // Methods

@@ -66,7 +66,7 @@ public class EventIntegrationTests {
     private GameOwner testHost;
     private Game testGame;
     private Event testEvent;
-    private static final String BASE_URL = "/api/v1/events";
+    private static final String BASE_URL = "/events";
     
     @BeforeEach
 public void setup() {
