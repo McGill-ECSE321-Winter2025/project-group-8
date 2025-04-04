@@ -5,17 +5,17 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '../../../src/components/ui/card.jsx';
+} from '@/src/components/ui/card.jsx';
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
-} from '../../../src/components/ui/avatar.jsx';
+} from '@/src/components/ui/avatar.jsx';
 import Tag from '../common/Tag.jsx';
 import GameOwnerTag from '../common/GameOwnerTag.jsx';
 import { motion } from 'framer-motion'; // Add framer-motion for animations
-import { cn } from '../../../src/lib/utils';
-import { formatJoinDate } from '../../../src/lib/dateUtils';
+import { cn } from '@/components/lib/utils';
+import { formatJoinDate } from '../lib/dateUtils.js';
 import { Calendar } from 'lucide-react';
 
 const UserProfileCard = ({ user, onClick }) => {

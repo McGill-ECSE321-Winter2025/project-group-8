@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import UserSearchBar from '../components/user-search-page/UserSearchBar.jsx';
 import UserList from '../components/user-search-page/UserList.jsx';
-import { searchUsers, fetchUserRecommendations, getUserById } from '../service/api.js';
+import { searchUsers, fetchUserRecommendations, getUserById } from '@/service/event-api.js';
 import UserPreviewOverlay from '../components/ui/UserPreviewOverlay.jsx';
 
 function UserSearchPage() {
