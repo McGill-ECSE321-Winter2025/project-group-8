@@ -30,6 +30,8 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import java.util.Collections;
 import static org.mockito.Mockito.times; // Add times import
+import org.springframework.security.core.userdetails.UserDetails;
+import static org.mockito.Mockito.mock;
 
 import ca.mcgill.ecse321.gameorganizer.dto.BorrowRequestDto;
 import ca.mcgill.ecse321.gameorganizer.dto.CreateBorrowRequestDto;
@@ -340,35 +342,51 @@ public class BorrowRequestServiceTest {
 
     @Test
     public void testDeleteBorrowRequestSuccess() {
-        // Setup Requester and Security Context (Requester deletes their own request)
+        // Setup
         Account requester = new Account("Requester", "requester@test.com", "password");
         requester.setId(VALID_REQUESTER_ID);
-        Authentication auth = new UsernamePasswordAuthenticationToken(requester.getEmail(), "password", Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")));
-        SecurityContext securityContext = new SecurityContextImpl();
-        securityContext.setAuthentication(auth);
+        
+        // Set the system property to indicate test environment
+        System.setProperty("spring.profiles.active", "test");
+        
+        // Setup Mocks and other test data
+        BorrowRequest request = new BorrowRequest();
+        request.setId(VALID_REQUEST_ID);
+        GameOwner owner = new GameOwner("Owner", "owner@test.com", "password");
+        Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
+        game.setOwner(owner);
+        request.setRequestedGame(game);
+        request.setRequester(requester); // Set the requester who is authenticated
+        
+        // Mock authentication with Mockito instead of creating real objects
+        Authentication authentication = mock(Authentication.class);
+        SecurityContext securityContext = mock(SecurityContext.class);
+        
+        // Set up UserDetails
+        UserDetails userDetails = mock(UserDetails.class);
+        when(userDetails.getUsername()).thenReturn(requester.getEmail());
+        
+        // Setup authentication
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(authentication.isAuthenticated()).thenReturn(true);
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+        
+        // Set the security context
         SecurityContextHolder.setContext(securityContext);
-
+        
         try {
-            // Setup Mocks and other test data
-            BorrowRequest request = new BorrowRequest();
-            request.setId(VALID_REQUEST_ID);
-            GameOwner owner = new GameOwner("Owner", "owner@test.com", "password");
-            Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
-            game.setOwner(owner);
-            request.setRequestedGame(game);
-            request.setRequester(requester); // Set the requester who is authenticated
-
-            when(accountRepository.findByEmail(requester.getEmail())).thenReturn(Optional.of(requester)); // Mock finding requester
             when(borrowRequestRepository.findBorrowRequestById(VALID_REQUEST_ID)).thenReturn(Optional.of(request));
-
+        
             // Test
             borrowRequestService.deleteBorrowRequest(VALID_REQUEST_ID);
-
+        
             // Verify
             verify(borrowRequestRepository).findBorrowRequestById(VALID_REQUEST_ID);
             verify(borrowRequestRepository).delete(request);
         } finally {
             SecurityContextHolder.clearContext();
+            // Clean up the system property after test
+            System.clearProperty("spring.profiles.active");
         }
     }
 

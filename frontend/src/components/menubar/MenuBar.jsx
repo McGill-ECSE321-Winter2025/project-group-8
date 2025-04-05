@@ -5,19 +5,19 @@ import { useEffect, useState } from "react";
 export default function MenuBar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-  }, []);
+    const token = localStorage.getItem("authToken");
+    setIsLoggedIn(!!token); // Set loggedIn state based on token presence
+    // We no longer store the full user object, rely on token for auth status
+  }, [location]); // Re-check on location change if needed, or just once on mount
 
   const handleLogout = () => {
-    localStorage.removeItem("user");
-    setUser(null);
-    navigate("/");
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("userId"); // Also remove userId if stored
+    setIsLoggedIn(false);
+    navigate("/"); // Redirect to landing page after logout
   };
 
   const isLandingPage = location.pathname === "/";
@@ -31,7 +31,7 @@ export default function MenuBar() {
 
         <div className="flex items-center gap-3">
           {/* Navigation Buttons (only for logged in users) */}
-          {user && (
+          {isLoggedIn && (
             <div className="flex items-center gap-2">
               <Link to="/games">
                 <Button variant="ghost" className="text-sm font-semibold">Games</Button>
@@ -43,7 +43,7 @@ export default function MenuBar() {
           )}
 
           {/* Login / Sign Up (only if not logged in and on landing page) */}
-          {!user && isLandingPage && (
+          {!isLoggedIn && isLandingPage && (
             <>
               <Link to="/login">
                 <Button variant="outline" className="text-sm px-4">Login</Button>
@@ -55,9 +55,10 @@ export default function MenuBar() {
           )}
 
           {/* Greeting + Logout (only if logged in) */}
-          {user && (
+          {isLoggedIn && (
             <div className="flex items-center gap-2 pl-3 border-l border-gray-200">
-              <span className="text-sm text-gray-700 font-medium">Hi, {user.name}</span>
+              {/* Removed personalized greeting as user object isn't stored */}
+              {/* Consider adding a Profile link here if needed */}
               <Button
                 onClick={handleLogout}
                 variant="outline"

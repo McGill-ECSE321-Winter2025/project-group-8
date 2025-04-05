@@ -8,6 +8,44 @@
 // Import mock API services
 import mockApi from './mock-api';
 
+// Helper function to add Authorization header
+const fetchWithAuth = async (url, options = {}) => {
+  const token = localStorage.getItem("authToken");
+  const headers = { ...(options.headers || {}) }; // Clone headers, ensure headers object exists
+
+  // Define public paths that don't need the token
+  const publicPaths = [
+    "/auth/login", // Login endpoint
+    "/account",   // Registration endpoint (POST)
+  ];
+
+  // Check if the request is for a public path
+  // Assumes full URLs are passed, checks if URL string *includes* the path
+  const isPublicPath = publicPaths.some(path =>
+    url.includes(path) && (path !== "/account" || (options.method || "GET").toUpperCase() === "POST")
+  );
+
+  if (token && !isPublicPath) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  // Ensure Content-Type is set if not already present for methods that might have a body
+  // Only add if body exists and Content-Type is not already set
+  if (options.body && !headers["Content-Type"] && (options.method === "POST" || options.method === "PUT" || options.method === "PATCH")) {
+     headers["Content-Type"] = "application/json";
+  }
+
+
+  const fetchOptions = {
+    ...options,
+    headers,
+  };
+
+  // Make the actual fetch call
+  return fetch(url, fetchOptions);
+};
+
+
 // === USER API FUNCTIONS ===
 
 // Search users
@@ -120,11 +158,9 @@ export const createEvent = async (eventData) => {
     maxParticipants: parseInt(eventData.maxParticipants, 10),
   };
 
-  const response = await fetch("http://localhost:8080/events", {
+  const response = await fetchWithAuth("http://localhost:8080/events", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    // Content-Type is handled by fetchWithAuth if body exists
     body: JSON.stringify(formattedData),
   });
 
@@ -137,14 +173,10 @@ export const createEvent = async (eventData) => {
 };
 
 export const getAccountInfo = async (email) => {
-  // TODO: Add authentication headers if required by the backend @RequireUser annotation
-  const response = await fetch(`http://localhost:8080/account/${encodeURIComponent(email)}`, {
+  // fetchWithAuth will automatically add the Authorization header if a token exists
+  const response = await fetchWithAuth(`http://localhost:8080/account/${encodeURIComponent(email)}`, {
     method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      // Add Authorization header if needed, e.g.:
-      // "Authorization": `Bearer ${localStorage.getItem('authToken')}`
-    },
+    // Headers are handled by fetchWithAuth
   });
 
   if (!response.ok) {
@@ -157,11 +189,9 @@ export const getAccountInfo = async (email) => {
 
 // Search events by title (actual API implementation)
 export const searchEventsByTitle = async (title) => {
-  const response = await fetch(`http://localhost:8080/events/by-title?title=${encodeURIComponent(title)}`, {
+  const response = await fetchWithAuth(`http://localhost:8080/events/by-title?title=${encodeURIComponent(title)}`, {
     method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    // Headers are handled by fetchWithAuth
   });
 
   if (!response.ok) {
@@ -173,11 +203,9 @@ export const searchEventsByTitle = async (title) => {
 
 // Unregister from an event
 export async function unregisterFromEvent(registrationId) {
-  const response = await fetch(`/registrations/${registrationId}`, {
+  const response = await fetchWithAuth(`/registrations/${registrationId}`, {
     method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    // Headers are handled by fetchWithAuth
   });
 
   if (!response.ok) {

@@ -2,9 +2,9 @@ package ca.mcgill.ecse321.gameorganizer.security;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
-import org.springframework.context.annotation.Primary;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -14,10 +14,10 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import ca.mcgill.ecse321.gameorganizer.models.Account;
+import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 
 @Service
-@Primary
 public class CustomUserDetailsService implements UserDetailsService {
 
     private final AccountRepository accountRepository;
@@ -31,9 +31,17 @@ public class CustomUserDetailsService implements UserDetailsService {
         Account account = accountRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
         
-        // TODO: Implement proper role mapping based on Account subclass or role field
-        // For now, grant a default USER role to all authenticated users.
-        return new User(account.getEmail(), account.getPassword(), 
-                Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")));
+        // Create a list to hold the authorities
+        List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+        
+        // All authenticated users get ROLE_USER
+        authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
+        
+        // If the account is a GameOwner, also add ROLE_GAME_OWNER
+        if (account instanceof GameOwner) {
+            authorities.add(new SimpleGrantedAuthority("ROLE_GAME_OWNER"));
+        }
+        
+        return new User(account.getEmail(), account.getPassword(), authorities);
     }
 }

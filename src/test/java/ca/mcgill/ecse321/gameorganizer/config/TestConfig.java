@@ -1,14 +1,14 @@
 package ca.mcgill.ecse321.gameorganizer.config;
 
-import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
-import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.springframework.beans.factory.annotation.Autowired; // Import
 import org.springframework.boot.test.context.TestConfiguration; // Import
-import org.springframework.boot.test.web.client.TestRestTemplate; // Import
-import org.springframework.boot.web.client.RestTemplateBuilder; // Import
 import org.springframework.context.annotation.Bean;
+import org.springframework.boot.web.client.RestTemplateCustomizer;
+import org.springframework.web.client.RestTemplate; // Import RestTemplate
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.client.HttpComponentsClientHttpRequestFactory; // Import
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
@@ -20,6 +20,8 @@ import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 @Configuration
 @TestConfiguration
 public class TestConfig implements WebMvcConfigurer {
+    public static String currentTestToken = null; // Static field to hold token
+
     
     @Autowired
     private AccountRepository accountRepository;
@@ -35,21 +37,46 @@ public class TestConfig implements WebMvcConfigurer {
         return new BCryptPasswordEncoder();
     }
 
-    // Configure TestRestTemplate to manage cookies using Apache HttpClient
-    @Bean
-    public TestRestTemplate testRestTemplate(RestTemplateBuilder builder) {
-        HttpClientBuilder httpClientBuilder = HttpClients.custom();
-        // Using default cookie store management provided by HttpClient
-        
-        // Build the request factory
-        HttpComponentsClientHttpRequestFactory requestFactory = 
-            new HttpComponentsClientHttpRequestFactory(httpClientBuilder.build());
 
-        // Configure RestTemplateBuilder to use the custom request factory
-        RestTemplateBuilder configuredBuilder = builder.requestFactory(() -> requestFactory);
-        
-        // Create TestRestTemplate with the configured builder
-        // Use rootUri to ensure relative paths work correctly
-        return new TestRestTemplate(configuredBuilder.rootUri("http://localhost")); 
+    @Bean
+    public RestTemplateCustomizer restTemplateCustomizer() {
+        return (RestTemplate restTemplate) -> { // Customize the RestTemplate
+            restTemplate.getInterceptors().clear(); // Clear existing interceptors
+            restTemplate.getInterceptors().add((ClientHttpRequestInterceptor) (request, body, execution) -> {
+                // Add more detailed logging for debugging
+                System.out.println("\n==== HTTP Request Details ====");
+                System.out.println("URL: " + request.getURI());
+                System.out.println("Method: " + request.getMethod());
+                
+                // Add the Authorization header to all non-auth requests when token is available
+                if (currentTestToken != null && !request.getURI().getPath().contains("/auth/")) {
+                    request.getHeaders().setBearerAuth(currentTestToken);
+                    // Enhanced debugging
+                    System.out.println("Authentication: ADDED Bearer token");
+                    System.out.println("Token prefix: " + currentTestToken.substring(0, Math.min(20, currentTestToken.length())) + "...");
+                    System.out.println("Authorization header: " + request.getHeaders().getFirst("Authorization"));
+                } else {
+                    System.out.println("Authentication: NONE" + 
+                                      (currentTestToken == null ? " (token is null)" : 
+                                       " (auth endpoint, no token needed)"));
+                }
+                
+                // Always ensure Content-Type is set for requests with a body
+                if (body != null && body.length > 0 && request.getHeaders().getContentType() == null) {
+                    request.getHeaders().setContentType(MediaType.APPLICATION_JSON);
+                    System.out.println("Content-Type: Set to APPLICATION_JSON");
+                } else if (request.getHeaders().getContentType() != null) {
+                    System.out.println("Content-Type: " + request.getHeaders().getContentType());
+                } else {
+                    System.out.println("Content-Type: NONE (no body or already set)");
+                }
+                
+                System.out.println("All Headers: " + request.getHeaders());
+                System.out.println("==== End Request Details ====\n");
+                
+                return execution.execute(request, body);
+            });
+        };
     }
+
 }

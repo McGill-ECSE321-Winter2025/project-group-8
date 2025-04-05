@@ -59,6 +59,7 @@ export default function RegistrationPage() {
 
           // Store user ID in localStorage
           localStorage.setItem("userId", loginData.id)
+          localStorage.setItem("authToken", loginData.token);
 
           // Redirect to dashboard
           navigate("/dashboard")

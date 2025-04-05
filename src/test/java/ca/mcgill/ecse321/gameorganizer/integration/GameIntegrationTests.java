@@ -1,9 +1,7 @@
 package ca.mcgill.ecse321.gameorganizer.integration;
 
+import org.springframework.http.MediaType;
 import static org.junit.jupiter.api.Assertions.*;
-
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import ca.mcgill.ecse321.gameorganizer.dto.AuthenticationDTO;
 import ca.mcgill.ecse321.gameorganizer.dto.JwtAuthenticationResponse;
@@ -14,15 +12,19 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.MethodOrderer; 
+import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.springframework.test.web.servlet.MockMvc; // Import MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders; // Import builders
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*; // Import matchers
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.*; // Import security post processors
+import com.fasterxml.jackson.databind.ObjectMapper; // Import ObjectMapper
 import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc; // Import AutoConfigureMockMvc
 import org.springframework.context.annotation.Import;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
@@ -39,19 +41,26 @@ import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
+import ca.mcgill.ecse321.gameorganizer.models.Review;
+
 import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.LendingRecordRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
-import ca.mcgill.ecse321.gameorganizer.config.TestConfig;
-import ca.mcgill.ecse321.gameorganizer.config.SecurityConfig;
+// Removed TestConfig and SecurityConfig imports as they are auto-detected with @SpringBootTest
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK) // Use MOCK environment
 @ActiveProfiles("test")
-@Import({TestConfig.class, SecurityConfig.class})
+@AutoConfigureMockMvc // Add this annotation
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class GameIntegrationTests {
+
+    @Autowired
+    private MockMvc mockMvc; // Inject MockMvc
+
+    @Autowired
+    private ObjectMapper objectMapper; // Inject ObjectMapper
 
     @Autowired
     private LendingRecordRepository lendingRecordRepository;
@@ -62,545 +71,435 @@ public class GameIntegrationTests {
     @Autowired
     private EventRepository eventRepository;
 
-    @LocalServerPort
-    private int port;
+    // @LocalServerPort // Not needed with MockMvc
+    // private int port;
+
+    // @Autowired // Not needed with MockMvc
+    // private TestRestTemplate restTemplate;
 
     @Autowired
-    private TestRestTemplate restTemplate;
-    
-    @Autowired
     private GameRepository gameRepository;
-    
+
     @Autowired
     private AccountRepository accountRepository;
-    
+
     @Autowired
     private ReviewRepository reviewRepository;
-    
+
     @Autowired
     private PasswordEncoder passwordEncoder;
+
     private GameOwner testOwner;
     private Game testGame;
-    private static final String BASE_URL_ALL = "/games"; // for getAllGames
-    private static final String BASE_URL = "/games"; // for other endpoints
-    
+    private static final String BASE_URL = "/games"; // Base URL for game endpoints
     private static final String VALID_EMAIL = "owner@example.com";
     private static final String VALID_USERNAME = "gameowner";
     private static final String VALID_PASSWORD = "password123";
-    
+
     @BeforeEach
     public void setup() {
         // Clean repositories first
         reviewRepository.deleteAll();
-        gameRepository.deleteAll();
-        accountRepository.deleteAll();
-        
-        // Create test game owner as a GameOwner
-        testOwner = new GameOwner(VALID_USERNAME, VALID_EMAIL, passwordEncoder.encode(VALID_PASSWORD));
-        testOwner = (GameOwner) accountRepository.save(testOwner);
-        
-        // Create test game
-        testGame = new Game("Test Game", 2, 4, "test.jpg", new Date(System.currentTimeMillis()));
-        testGame.setOwner(testOwner);
-        testGame = gameRepository.save(testGame);
-    }
-    
-    @AfterEach
-    public void cleanup() {
-        reviewRepository.deleteAll();
-        // Add missing repositories and ensure correct order
         lendingRecordRepository.deleteAll();
         borrowRequestRepository.deleteAll();
         eventRepository.deleteAll();
         gameRepository.deleteAll();
         accountRepository.deleteAll();
-    }
-    
-    // Helper to build URL
-    private String createURLWithPort(String uri) {
-        return "http://localhost:" + port + uri;
-    }
-    private HttpHeaders createAuthHeaders() {
-        HttpHeaders headers = new HttpHeaders();
-        
-        // Attempt to login and get a valid JWT token for the test owner
-        AuthenticationDTO loginRequest = new AuthenticationDTO();
-        loginRequest.setEmail(VALID_EMAIL); // Use testOwner's email
-        loginRequest.setPassword(VALID_PASSWORD); // Use the plain text password
 
-        ResponseEntity<JwtAuthenticationResponse> loginResponse = restTemplate.postForEntity(
-            createURLWithPort("/auth/login"), // Use the correct login endpoint
-            loginRequest,
-            JwtAuthenticationResponse.class
-        );
+        // Create test game owner as a GameOwner
+        testOwner = new GameOwner(VALID_USERNAME, VALID_EMAIL, passwordEncoder.encode(VALID_PASSWORD));
+        testOwner = (GameOwner) accountRepository.save(testOwner);
 
-        // Ensure login was successful and we received a token
-        if (loginResponse.getStatusCode() == HttpStatus.OK && loginResponse.getBody() != null && loginResponse.getBody().getToken() != null) {
-            headers.setBearerAuth(loginResponse.getBody().getToken());
-        } else {
-            // If authentication fails here, something is wrong with the test setup or login endpoint.
-            throw new IllegalStateException("Failed to authenticate test owner '" + VALID_EMAIL + "' for integration test. Status: " + loginResponse.getStatusCode());
-        }
-        
-        return headers;
+        // Create test game
+        testGame = new Game("Test Game", 2, 4, "test.jpg", new Date(System.currentTimeMillis()));
+        testGame.setCategory("Board Game");
+        testGame.setOwner(testOwner);
+        testGame = gameRepository.save(testGame);
+
+        // No need to login and store token with MockMvc
     }
 
-    
+    @AfterEach
+    public void cleanupAndClearToken() {
+        reviewRepository.deleteAll();
+        lendingRecordRepository.deleteAll();
+        borrowRequestRepository.deleteAll();
+        eventRepository.deleteAll();
+        gameRepository.deleteAll();
+        accountRepository.deleteAll();
+        // No token to clear
+    }
+
+    // Removed createURLWithPort and createAuthHeaders methods
+
     // ----- CREATE Tests (4 tests) -----
-    
+
     @Test
     @Order(1)
-    public void testCreateGameSuccess() {
-        // Create game request
+    public void testCreateGameSuccess() throws Exception {
         GameCreationDto request = new GameCreationDto();
         request.setName("New Game");
         request.setMinPlayers(2);
         request.setMaxPlayers(6);
         request.setImage("newgame.jpg");
-        request.setOwnerId(VALID_EMAIL);
-        // Set a valid category (this is required by your service)
-        request.setCategory("Board Game");
+        request.setOwnerId(VALID_EMAIL); // Owner ID is required by DTO
+        request.setCategory("Strategy"); // Category is required
 
-        // Create HttpEntity with request body and auth headers
-        HttpEntity<GameCreationDto> requestEntity = new HttpEntity<>(request, createAuthHeaders());
-        ResponseEntity<GameResponseDto> response = restTemplate.postForEntity(
-            createURLWithPort(BASE_URL),
-            requestEntity, // Use the entity with headers
-            GameResponseDto.class
-        );
-
-        assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals("New Game", response.getBody().getName());
-        assertEquals(2, response.getBody().getMinPlayers());
-        assertEquals(6, response.getBody().getMaxPlayers());
-        assertEquals(VALID_EMAIL, response.getBody().getOwner().getEmail());
+        mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL)
+                .with(user(VALID_EMAIL).password(VALID_PASSWORD).roles("USER", "GAME_OWNER")) // Authenticate as owner
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.name").value("New Game"))
+            .andExpect(jsonPath("$.minPlayers").value(2))
+            .andExpect(jsonPath("$.maxPlayers").value(6))
+            .andExpect(jsonPath("$.owner.email").value(VALID_EMAIL));
     }
 
-    
     @Test
     @Order(2)
-    public void testCreateGameWithInvalidOwner() {
-        // Non-existent owner should trigger a BAD_REQUEST
+    public void testCreateGameWithInvalidOwner() throws Exception {
         GameCreationDto request = new GameCreationDto();
         request.setName("New Game");
         request.setMinPlayers(2);
         request.setMaxPlayers(6);
         request.setImage("newgame.jpg");
-        request.setOwnerId("nonexistent@example.com");
-        
-        ResponseEntity<String> response = restTemplate.postForEntity(
-            createURLWithPort(BASE_URL),
-            request,
-            String.class
-        );
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        request.setOwnerId("nonexistent@example.com"); // Invalid owner ID
+        request.setCategory("Strategy");
+
+        mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL)
+                .with(user(VALID_EMAIL).password(VALID_PASSWORD).roles("USER", "GAME_OWNER")) // Authenticate as a valid owner
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isBadRequest()); // Expect 400 because service throws IllegalArgumentException
     }
-    
+
     @Test
     @Order(3)
-    public void testCreateGameWithMissingName() {
-        // Missing game name should result in BAD_REQUEST
+    public void testCreateGameWithMissingName() throws Exception {
         GameCreationDto request = new GameCreationDto();
         // Name is missing
         request.setMinPlayers(2);
         request.setMaxPlayers(6);
         request.setImage("newgame.jpg");
         request.setOwnerId(VALID_EMAIL);
-        
-        ResponseEntity<String> response = restTemplate.postForEntity(
-            createURLWithPort(BASE_URL),
-            request,
-            String.class
-        );
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        request.setCategory("Strategy");
+
+        mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL)
+                .with(user(VALID_EMAIL).password(VALID_PASSWORD).roles("USER", "GAME_OWNER"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isBadRequest());
     }
-    
+
     @Test
     @Order(4)
-    public void testCreateGameWithInvalidPlayerCount() {
-        // Invalid player count: minPlayers greater than maxPlayers
+    public void testCreateGameWithInvalidPlayerCount() throws Exception {
         GameCreationDto request = new GameCreationDto();
         request.setName("New Game");
         request.setMinPlayers(7); // invalid
         request.setMaxPlayers(6);
         request.setImage("newgame.jpg");
         request.setOwnerId(VALID_EMAIL);
-        
-        ResponseEntity<String> response = restTemplate.postForEntity(
-            createURLWithPort(BASE_URL),
-            request,
-            String.class
-        );
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        request.setCategory("Strategy");
+
+        mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL)
+                .with(user(VALID_EMAIL).password(VALID_PASSWORD).roles("USER", "GAME_OWNER"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isBadRequest());
     }
-    
+
     // ----- UPDATE Tests (3 tests) -----
-    
+
     @Test
     @Order(5)
-    public void testUpdateGameSuccess() {
-        // Prepare update data: update name, player counts, and image
+    public void testUpdateGameSuccess() throws Exception {
         GameCreationDto request = new GameCreationDto();
         request.setName("Updated Game");
         request.setMinPlayers(3);
         request.setMaxPlayers(8);
         request.setImage("updated.jpg");
-        request.setOwnerId(VALID_EMAIL);
-        
-        // Create HttpEntity with request body and auth headers
-        HttpEntity<GameCreationDto> requestEntity = new HttpEntity<>(request, createAuthHeaders());
-        ResponseEntity<GameResponseDto> response = restTemplate.exchange(
-            createURLWithPort(BASE_URL + "/" + testGame.getId()),
-            HttpMethod.PUT,
-            requestEntity, // Use the entity with headers
-            GameResponseDto.class
-        );
-        
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals("Updated Game", response.getBody().getName());
-        assertEquals(3, response.getBody().getMinPlayers());
-        assertEquals(8, response.getBody().getMaxPlayers());
+        request.setOwnerId(VALID_EMAIL); // DTO might require owner, though service uses auth
+        request.setCategory("Updated Category"); // Include category if needed
+
+        mockMvc.perform(MockMvcRequestBuilders.put(BASE_URL + "/" + testGame.getId())
+                .with(user(VALID_EMAIL).password(VALID_PASSWORD).roles("USER", "GAME_OWNER")) // Authenticate as owner
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.name").value("Updated Game"))
+            .andExpect(jsonPath("$.minPlayers").value(3))
+            .andExpect(jsonPath("$.maxPlayers").value(8));
     }
-    
+
     @Test
     @Order(6)
-    public void testUpdateGameWithInvalidData() {
-        // Provide invalid data: empty name and minPlayers greater than maxPlayers.
+    public void testUpdateGameWithInvalidData() throws Exception {
         GameCreationDto request = new GameCreationDto();
         request.setName("");  // invalid empty name
         request.setMinPlayers(3);
         request.setMaxPlayers(2);  // invalid range
         request.setImage("updated.jpg");
         request.setOwnerId(VALID_EMAIL);
-        
-        ResponseEntity<String> response = restTemplate.exchange(
-            createURLWithPort(BASE_URL + "/" + testGame.getId()),
-            HttpMethod.PUT,
-            new HttpEntity<>(request),
-            String.class
-        );
-        
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        request.setCategory("Invalid Data");
+
+        mockMvc.perform(MockMvcRequestBuilders.put(BASE_URL + "/" + testGame.getId())
+                .with(user(VALID_EMAIL).password(VALID_PASSWORD).roles("USER", "GAME_OWNER"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isBadRequest());
     }
-    
+
     @Test
     @Order(7)
-    public void testUpdateNonExistentGame() {
+    public void testUpdateNonExistentGame() throws Exception {
         GameCreationDto request = new GameCreationDto();
         request.setName("Updated Game");
         request.setMinPlayers(3);
         request.setMaxPlayers(8);
         request.setImage("updated.jpg");
         request.setOwnerId(VALID_EMAIL);
-        
-        ResponseEntity<String> response = restTemplate.exchange(
-            createURLWithPort(BASE_URL + "/999"),
-            HttpMethod.PUT,
-            new HttpEntity<>(request),
-            String.class
-        );
-        
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        request.setCategory("Non-existent");
+
+        mockMvc.perform(MockMvcRequestBuilders.put(BASE_URL + "/999") // Non-existent ID
+                .with(user(VALID_EMAIL).password(VALID_PASSWORD).roles("USER", "GAME_OWNER"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isBadRequest()); // Service throws IllegalArgumentException -> 400
     }
-    
+
     // ----- DELETE Tests (3 tests) -----
-    
+
     @Test
     @Order(8)
-    public void testDeleteGameSuccess() {
-        // Create HttpEntity with auth headers
-        HttpEntity<?> requestEntity = new HttpEntity<>(createAuthHeaders());
-        ResponseEntity<String> response = restTemplate.exchange(
-            createURLWithPort(BASE_URL + "/" + testGame.getId()),
-            HttpMethod.DELETE,
-            requestEntity, // Use the entity with headers
-            String.class
-        );
-        
-        assertEquals(HttpStatus.OK, response.getStatusCode());
+    public void testDeleteGameSuccess() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.delete(BASE_URL + "/" + testGame.getId())
+                .with(user(VALID_EMAIL).password(VALID_PASSWORD).roles("USER", "GAME_OWNER"))) // Authenticate as owner
+            .andExpect(status().isOk()); // Expect 200 OK
+
         assertFalse(gameRepository.findById(testGame.getId()).isPresent());
     }
-    
+
     @Test
     @Order(9)
-    public void testDeleteNonExistentGame() {
-        ResponseEntity<String> response = restTemplate.exchange(
-            createURLWithPort(BASE_URL + "/999"),
-            HttpMethod.DELETE,
-            null,
-            String.class
-        );
-        
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    public void testDeleteNonExistentGame() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.delete(BASE_URL + "/999") // Non-existent ID
+                .with(user(VALID_EMAIL).password(VALID_PASSWORD).roles("USER", "GAME_OWNER")))
+            .andExpect(status().isBadRequest()); // Service throws IllegalArgumentException -> 400
     }
-    
+
     @Test
     @Order(10)
-    public void testDeleteGameTwice() {
-        ResponseEntity<String> response1 = restTemplate.exchange(
-            createURLWithPort(BASE_URL + "/" + testGame.getId()),
-            HttpMethod.DELETE,
-            null,
-            String.class
-        );
-        assertEquals(HttpStatus.OK, response1.getStatusCode());
-        
-        ResponseEntity<String> response2 = restTemplate.exchange(
-            createURLWithPort(BASE_URL + "/" + testGame.getId()),
-            HttpMethod.DELETE,
-            null,
-            String.class
-        );
-        assertEquals(HttpStatus.BAD_REQUEST, response2.getStatusCode());
+    public void testDeleteGameTwice() throws Exception {
+        // First delete
+        mockMvc.perform(MockMvcRequestBuilders.delete(BASE_URL + "/" + testGame.getId())
+                .with(user(VALID_EMAIL).password(VALID_PASSWORD).roles("USER", "GAME_OWNER")))
+            .andExpect(status().isOk()); // Expect 200 OK
+
+        // Second delete should fail (not found) -> 400 BAD_REQUEST
+        mockMvc.perform(MockMvcRequestBuilders.delete(BASE_URL + "/" + testGame.getId())
+                .with(user(VALID_EMAIL).password(VALID_PASSWORD).roles("USER", "GAME_OWNER")))
+            .andExpect(status().isBadRequest());
     }
-    
+
     // ----- Additional Search Tests -----
-    
+
     @Test
-    public void testGetGameByIdSuccess() {
-        ResponseEntity<GameResponseDto> response = restTemplate.getForEntity(
-            createURLWithPort("/games/" + testGame.getId()),
-            GameResponseDto.class
-        );
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertEquals(testGame.getName(), response.getBody().getName());
+    @Order(11) // Renumbered
+    public void testGetGameByIdSuccess() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get(BASE_URL + "/" + testGame.getId())
+                .with(anonymous())) // Assuming GET by ID is public
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.name").value(testGame.getName()));
     }
-    
+
     @Test
-    public void testGetGameByIdNotFound() {
-        ResponseEntity<String> response = restTemplate.getForEntity(
-            createURLWithPort("/games/999"),
-            String.class
-        );
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    @Order(12) // Renumbered
+    public void testGetGameByIdNotFound() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get(BASE_URL + "/999")
+                .with(anonymous()))
+            .andExpect(status().isBadRequest()); // Service throws IllegalArgumentException -> 400
     }
-    
+
     @Test
-    public void testGetAllGames() {
-        // Use the /api/v1/games endpoint to get all games
-        ResponseEntity<List<GameResponseDto>> response = restTemplate.exchange(
-            createURLWithPort(BASE_URL_ALL),
-            HttpMethod.GET,
-            null,
-            new ParameterizedTypeReference<List<GameResponseDto>>() {}
-        );
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        List<GameResponseDto> games = response.getBody();
-        assertNotNull(games);
-        // We already have one test game in setup
-        assertEquals(1, games.size());
+    @Order(13) // Renumbered
+    public void testGetAllGames() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get(BASE_URL)
+                .with(anonymous())) // Assuming GET all is public
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isArray())
+            .andExpect(jsonPath("$.length()").value(1)); // Only the test game exists
     }
-    
+
     @Test
-    public void testGetGamesByOwner() {
-        // Filter games by owner using ownerId query parameter on /api/v1/games endpoint
-        ResponseEntity<List<GameResponseDto>> response = restTemplate.exchange(
-            createURLWithPort(BASE_URL_ALL + "?ownerId=" + VALID_EMAIL),
-            HttpMethod.GET,
-            null,
-            new ParameterizedTypeReference<List<GameResponseDto>>() {}
-        );
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        List<GameResponseDto> games = response.getBody();
-        assertNotNull(games);
-        assertEquals(1, games.size());
-        assertEquals(VALID_EMAIL, games.get(0).getOwner().getEmail());
+    @Order(14) // Renumbered
+    public void testGetGamesByOwner() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get(BASE_URL)
+                .param("ownerId", VALID_EMAIL)
+                .with(anonymous())) // Assuming public access with filter
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isArray())
+            .andExpect(jsonPath("$.length()").value(1))
+            .andExpect(jsonPath("$[0].owner.email").value(VALID_EMAIL));
     }
-    
+
     @Test
-    public void testGetGamesByPlayerCount() {
-        ResponseEntity<List<GameResponseDto>> response = restTemplate.exchange(
-            createURLWithPort("/games/players?players=3"),
-            HttpMethod.GET,
-            null,
-            new ParameterizedTypeReference<List<GameResponseDto>>() {}
-        );
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        List<GameResponseDto> games = response.getBody();
-        assertNotNull(games);
-        // All games returned should have minPlayers <= 3 and maxPlayers >= 3.
-        assertTrue(games.stream().allMatch(game -> game.getMinPlayers() <= 3 && game.getMaxPlayers() >= 3));
+    @Order(15) // Renumbered
+    public void testGetGamesByPlayerCount() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get("/games/players") // Specific endpoint
+                .param("players", "3")
+                .with(anonymous()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isArray())
+            .andExpect(jsonPath("$.length()").value(1)); // Test game fits 2-4 players
     }
-    
+
     @Test
-    public void testGetGamesByNameContaining() {
-        ResponseEntity<List<GameResponseDto>> response = restTemplate.exchange(
-            createURLWithPort(BASE_URL_ALL + "?namePart=Test"),
-            HttpMethod.GET,
-            null,
-            new ParameterizedTypeReference<List<GameResponseDto>>() {}
-        );
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        List<GameResponseDto> games = response.getBody();
-        assertNotNull(games);
-        assertFalse(games.isEmpty());
-        assertTrue(games.get(0).getName().contains("Test"));
+    @Order(16) // Renumbered
+    public void testGetGamesByNameContaining() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get(BASE_URL)
+                .param("namePart", "Test")
+                .with(anonymous()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isArray())
+            .andExpect(jsonPath("$.length()").value(1))
+            .andExpect(jsonPath("$[0].name").value("Test Game"));
     }
-    
+
     // ----- Advanced Search Tests -----
-    
+
     @Test
-    @Order(11)
-    public void testSearchGamesWithName() {
-        ResponseEntity<List<GameResponseDto>> response = restTemplate.exchange(
-            createURLWithPort("/games/search?name=Test"),
-            HttpMethod.GET,
-            null,
-            new ParameterizedTypeReference<List<GameResponseDto>>() {}
-        );
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        List<GameResponseDto> games = response.getBody();
-        assertNotNull(games);
-        assertFalse(games.isEmpty());
-        assertTrue(games.get(0).getName().contains("Test"));
+    @Order(17) // Renumbered
+    public void testSearchGamesWithName() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get("/games/search")
+                .param("name", "Test")
+                .with(anonymous()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isArray())
+            .andExpect(jsonPath("$.length()").value(1));
     }
-    
+
     @Test
-    @Order(12)
-    public void testSearchGamesWithPlayerRange() {
-        ResponseEntity<List<GameResponseDto>> response = restTemplate.exchange(
-            createURLWithPort("/games/search?minPlayers=2&maxPlayers=4"),
-            HttpMethod.GET,
-            null,
-            new ParameterizedTypeReference<List<GameResponseDto>>() {}
-        );
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        List<GameResponseDto> games = response.getBody();
-        assertNotNull(games);
-        assertTrue(games.stream().allMatch(game -> 
-            game.getMinPlayers() >= 2 && game.getMaxPlayers() <= 4));
+    @Order(18) // Renumbered
+    public void testSearchGamesWithPlayerRange() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get("/games/search")
+                .param("minPlayers", "2")
+                .param("maxPlayers", "4")
+                .with(anonymous()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isArray())
+            .andExpect(jsonPath("$.length()").value(1));
     }
-    
+
     @Test
-    @Order(13)
-    public void testSearchGamesWithCategory() {
-        ResponseEntity<List<GameResponseDto>> response = restTemplate.exchange(
-            createURLWithPort("/games/search?category=Board Game"),
-            HttpMethod.GET,
-            null,
-            new ParameterizedTypeReference<List<GameResponseDto>>() {}
-        );
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        List<GameResponseDto> games = response.getBody();
-        assertNotNull(games);
-        assertTrue(games.stream().allMatch(game -> 
-            game.getCategory().equals("Board Game")));
+    @Order(19) // Renumbered
+    public void testSearchGamesWithCategory() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get("/games/search")
+                .param("category", "Board Game")
+                .with(anonymous()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isArray())
+            .andExpect(jsonPath("$.length()").value(1));
     }
-    
+
     @Test
-    @Order(14)
-    public void testSearchGamesWithSorting() {
-        ResponseEntity<List<GameResponseDto>> response = restTemplate.exchange(
-            createURLWithPort("/games/search?sort=name&order=asc"),
-            HttpMethod.GET,
-            null,
-            new ParameterizedTypeReference<List<GameResponseDto>>() {}
-        );
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        List<GameResponseDto> games = response.getBody();
-        assertNotNull(games);
-        assertFalse(games.isEmpty());
-        
-        // Only verify sorting if we have multiple games
-        if (games.size() > 1) {
-            for (int i = 1; i < games.size(); i++) {
-                assertTrue(games.get(i-1).getName().compareTo(games.get(i).getName()) <= 0);
-            }
-        }
+    @Order(20) // Renumbered
+    public void testSearchGamesWithSorting() throws Exception {
+        // Add another game for sorting test
+        Game game2 = new Game("Another Game", 1, 2, "ag.jpg", new java.util.Date());
+        game2.setOwner(testOwner);
+        game2.setCategory("Card Game");
+        gameRepository.save(game2);
+
+        mockMvc.perform(MockMvcRequestBuilders.get("/games/search")
+                .param("sort", "name")
+                .param("order", "asc")
+                .with(anonymous()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isArray())
+            .andExpect(jsonPath("$.length()").value(2))
+            .andExpect(jsonPath("$[0].name").value("Another Game")) // Sorted alphabetically
+            .andExpect(jsonPath("$[1].name").value("Test Game"));
     }
-    
+
     // ----- Get Games By Owner Tests -----
-    
+
     @Test
-    @Order(15)
-    public void testGetGamesByOwnerSuccess() {
-        ResponseEntity<List<GameResponseDto>> response = restTemplate.exchange(
-            createURLWithPort("/users/" + VALID_EMAIL + "/games"),
-            HttpMethod.GET,
-            null,
-            new ParameterizedTypeReference<List<GameResponseDto>>() {}
-        );
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        List<GameResponseDto> games = response.getBody();
-        assertNotNull(games);
-        assertFalse(games.isEmpty());
-        assertEquals(VALID_EMAIL, games.get(0).getOwner().getEmail());
+    @Order(21) // Renumbered
+    public void testGetGamesByOwnerSuccess() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get("/users/" + VALID_EMAIL + "/games")
+                .with(anonymous())) // Assuming public access
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isArray())
+            .andExpect(jsonPath("$.length()").value(1))
+            .andExpect(jsonPath("$[0].owner.email").value(VALID_EMAIL));
     }
-    
+
     @Test
-    @Order(16)
-    public void testGetGamesByNonExistentOwner() {
-        ResponseEntity<String> response = restTemplate.exchange(
-            createURLWithPort("/users/nonexistent@example.com/games"),
-            HttpMethod.GET,
-            null,
-            String.class
-        );
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    @Order(22) // Renumbered
+    public void testGetGamesByNonExistentOwner() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get("/users/nonexistent@example.com/games")
+                .with(anonymous()))
+            .andExpect(status().isBadRequest()); // Service throws IllegalArgumentException -> 400
     }
-    
+
     // ----- Game Reviews Tests -----
-    
+
     @Test
-    @Order(17)
-    public void testGetGameReviews() {
-        ResponseEntity<List<ReviewResponseDto>> response = restTemplate.exchange(
-            createURLWithPort("/games/" + testGame.getId() + "/reviews"),
-            HttpMethod.GET,
-            null,
-            new ParameterizedTypeReference<List<ReviewResponseDto>>() {}
-        );
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        List<ReviewResponseDto> reviews = response.getBody();
-        assertNotNull(reviews);
+    @Order(23) // Renumbered
+    public void testGetGameReviews() throws Exception {
+        // Add a review first
+        Review review = new Review(5, "Great!", new java.util.Date());
+        review.setGameReviewed(testGame);
+        review.setReviewer(testOwner); // Owner reviewing own game for simplicity here
+        reviewRepository.save(review);
+
+        mockMvc.perform(MockMvcRequestBuilders.get(BASE_URL + "/" + testGame.getId() + "/reviews")
+                .with(anonymous())) // Assuming public access
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isArray())
+            .andExpect(jsonPath("$.length()").value(1))
+            .andExpect(jsonPath("$[0].comment").value("Great!"));
     }
-    
+
     @Test
-    @Order(18)
-    public void testSubmitGameReview() {
+    @Order(24) // Renumbered
+    public void testSubmitGameReview() throws Exception {
         ReviewSubmissionDto reviewDto = new ReviewSubmissionDto();
         reviewDto.setRating(5);
         reviewDto.setComment("Great game!");
-        reviewDto.setReviewerId(VALID_EMAIL);
-        
-        // Create HttpEntity with request body and auth headers
-        HttpEntity<ReviewSubmissionDto> requestEntity = new HttpEntity<>(reviewDto, createAuthHeaders());
-        ResponseEntity<ReviewResponseDto> response = restTemplate.postForEntity(
-            createURLWithPort("/games/" + testGame.getId() + "/reviews"),
-            requestEntity, // Use the entity with headers
-            ReviewResponseDto.class
-        );
-        
-        assertEquals(HttpStatus.CREATED, response.getStatusCode());
-        ReviewResponseDto review = response.getBody();
-        assertNotNull(review);
-        assertEquals(5, review.getRating());
-        assertEquals("Great game!", review.getComment());
+        reviewDto.setReviewerId(VALID_EMAIL); // Reviewer is the owner in this test
+
+        mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL + "/" + testGame.getId() + "/reviews")
+                .with(user(VALID_EMAIL).password(VALID_PASSWORD).roles("USER", "GAME_OWNER")) // Authenticate as reviewer
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(reviewDto)))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.rating").value(5))
+            .andExpect(jsonPath("$.comment").value("Great game!"));
     }
-    
+
     @Test
-    @Order(19)
-    public void testGetGameRating() {
-        ResponseEntity<Double> response = restTemplate.getForEntity(
-            createURLWithPort("/games/" + testGame.getId() + "/rating"),
-            Double.class
-        );
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        Double rating = response.getBody();
-        assertNotNull(rating);
-        assertTrue(rating >= 0 && rating <= 5);
+    @Order(25) // Renumbered
+    public void testGetGameRating() throws Exception {
+         // Add a review first
+        Review review = new Review(4, "Good", new java.util.Date());
+        review.setGameReviewed(testGame);
+        review.setReviewer(testOwner);
+        reviewRepository.save(review);
+
+        mockMvc.perform(MockMvcRequestBuilders.get(BASE_URL + "/" + testGame.getId() + "/rating")
+                .with(anonymous())) // Assuming public access
+            .andExpect(status().isOk())
+            .andExpect(content().string("4.0")); // Expecting the average rating
     }
-    
+
     @Test
-    @Order(20)
-    public void testGetRatingForNonExistentGame() {
-        ResponseEntity<String> response = restTemplate.getForEntity(
-            createURLWithPort("/games/999/rating"),
-            String.class
-        );
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+    @Order(26) // Renumbered
+    public void testGetRatingForNonExistentGame() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get(BASE_URL + "/999/rating")
+                .with(anonymous()))
+            .andExpect(status().isBadRequest()); // Service throws IllegalArgumentException -> 400
     }
 }

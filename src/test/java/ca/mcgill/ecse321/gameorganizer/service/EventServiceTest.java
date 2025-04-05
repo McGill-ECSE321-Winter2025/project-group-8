@@ -6,6 +6,13 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.junit.jupiter.api.AfterEach;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import static org.mockito.Mockito.mock;
+import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException; // Import the custom exception
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -20,6 +27,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.userdetails.UserDetails;
 
 import ca.mcgill.ecse321.gameorganizer.dto.CreateEventRequest;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
@@ -55,6 +63,8 @@ public class EventServiceTest {
     private static final int VALID_MAX_PARTICIPANTS = 10;
     private static final String VALID_HOST_EMAIL = "host@test.com"; // Added constant
     private static final int VALID_HOST_ID = 100; // Added constant
+    private static final String ACTUAL_HOST_EMAIL = "actualhost@test.com"; // For "NotHost" tests
+    private static final String NON_HOST_EMAIL = "wronguser@test.com"; // For "NotHost" tests
 
     @Test
     public void testCreateEventSuccess() {
@@ -89,7 +99,7 @@ public class EventServiceTest {
         // Mock repository lookups
         when(accountRepository.findByEmail(VALID_HOST_EMAIL)).thenReturn(Optional.of(host));
         // Mock game lookup using the ID from the game object in the request
-        when(gameRepository.findById(request.getFeaturedGame().getId())).thenReturn(Optional.of(game));
+        // Removed unnecessary stub: when(gameRepository.findById(request.getFeaturedGame().getId())).thenReturn(Optional.of(game));
  
         when(eventRepository.save(any(Event.class))).thenReturn(savedEvent);
 
@@ -162,7 +172,7 @@ public class EventServiceTest {
 
         // Mock GameRepository lookup (needed even if host lookup fails first, to avoid NPE before that)
         // Mock game lookup using the ID from the game object in the request
-        when(gameRepository.findById(request.getFeaturedGame().getId())).thenReturn(Optional.of(game));
+        // Removed unnecessary stub: when(gameRepository.findById(request.getFeaturedGame().getId())).thenReturn(Optional.of(game));
         // Mock host lookup to return empty
         when(accountRepository.findByEmail(VALID_HOST_EMAIL)).thenReturn(Optional.empty());
 
@@ -260,7 +270,17 @@ public class EventServiceTest {
         // It's often easier to just return the argument passed to save if the service modifies in place
         when(eventRepository.save(any(Event.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
+        // Mock account lookup by email
+        when(accountRepository.findByEmail(VALID_HOST_EMAIL)).thenReturn(Optional.of(host));
 
+        // Setup Security Context for the host
+        Authentication authentication = mock(Authentication.class);
+        
+        // Mock the UserDetails principal
+        UserDetails userDetails = mock(UserDetails.class);
+        
+        SecurityContext securityContext = mock(SecurityContext.class);
+        SecurityContextHolder.setContext(securityContext);
         // Test
         Event result = eventService.updateEvent(VALID_EVENT_ID, newTitle, newDate, newLocation,
             newDescription, newMaxParticipants, VALID_HOST_EMAIL); // Use the host's email for auth check
@@ -292,21 +312,28 @@ public class EventServiceTest {
      @Test
     public void testUpdateEventNotHost() {
         // Setup
-        Account actualHost = new Account("ActualHost", "actualhost@test.com", "pwd");
+        // Use constants for clarity
+        Account actualHost = new Account("ActualHost", ACTUAL_HOST_EMAIL, "pwd");
         actualHost.setId(VALID_HOST_ID);
         Event existingEvent = new Event(VALID_TITLE, new Date(System.currentTimeMillis()), VALID_LOCATION,
             VALID_DESCRIPTION, VALID_MAX_PARTICIPANTS, new Game(), actualHost);
         existingEvent.setId(VALID_EVENT_ID);
 
-        String wrongUserEmail = "wronguser@test.com"; // Different email
+        // String wrongUserEmail = "wronguser@test.com"; // Use constant NON_HOST_EMAIL
 
         when(eventRepository.findEventById(VALID_EVENT_ID)).thenReturn(Optional.of(existingEvent));
 
+        // Setup Security Context for the wrong user
+        Authentication authentication = mock(Authentication.class);
+        // Removed unnecessary stub as per instruction (line 322)
+        SecurityContext securityContext = mock(SecurityContext.class);
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+        SecurityContextHolder.setContext(securityContext);
         // Test & Verify
-        // Expecting ResponseStatusException (Forbidden)
-        assertThrows(org.springframework.web.server.ResponseStatusException.class, () ->
+        // Expecting UnauthedException
+        assertThrows(UnauthedException.class, () ->
             eventService.updateEvent(VALID_EVENT_ID, "New Title", new Date(System.currentTimeMillis()),
-                "New Location", "New Description", 15, wrongUserEmail)); // Use wrong email
+                "New Location", "New Description", 15, NON_HOST_EMAIL)); // Use constant
 
         verify(eventRepository).findEventById(VALID_EVENT_ID);
         verify(eventRepository, never()).save(any(Event.class)); // Save should not be called
@@ -326,6 +353,17 @@ public class EventServiceTest {
 
         when(eventRepository.findEventById(VALID_EVENT_ID)).thenReturn(Optional.of(event));
 
+        // Mock account lookup by email
+        when(accountRepository.findByEmail(VALID_HOST_EMAIL)).thenReturn(Optional.of(host));
+
+        // Setup Security Context for the host
+        Authentication authentication = mock(Authentication.class);
+        
+        // Mock the UserDetails principal
+        UserDetails userDetails = mock(UserDetails.class);
+        
+        SecurityContext securityContext = mock(SecurityContext.class);
+        SecurityContextHolder.setContext(securityContext);
         // Test
         ResponseEntity<String> response = eventService.deleteEvent(VALID_EVENT_ID, VALID_HOST_EMAIL); // Use the host's email for auth check
 
@@ -349,20 +387,27 @@ public class EventServiceTest {
      @Test
     public void testDeleteEventNotHost() {
         // Setup
-        Account actualHost = new Account("ActualHost", "actualhost@test.com", "pwd");
+        // Use constants for clarity
+        Account actualHost = new Account("ActualHost", ACTUAL_HOST_EMAIL, "pwd");
         actualHost.setId(VALID_HOST_ID);
         Event eventToDelete = new Event(VALID_TITLE, new Date(System.currentTimeMillis()), VALID_LOCATION,
             VALID_DESCRIPTION, VALID_MAX_PARTICIPANTS, new Game(), actualHost);
         eventToDelete.setId(VALID_EVENT_ID);
 
-        String wrongUserEmail = "wronguser@test.com"; // Different email
+        // String wrongUserEmail = "wronguser@test.com"; // Use constant NON_HOST_EMAIL
 
         when(eventRepository.findEventById(VALID_EVENT_ID)).thenReturn(Optional.of(eventToDelete));
 
+        // Setup Security Context for the wrong user
+        Authentication authentication = mock(Authentication.class);
+        // Removed unnecessary stub as per instruction (line 392)
+        SecurityContext securityContext = mock(SecurityContext.class);
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+        SecurityContextHolder.setContext(securityContext);
         // Test & Verify
-        // Expecting ResponseStatusException (Forbidden)
-        assertThrows(org.springframework.web.server.ResponseStatusException.class, () ->
-            eventService.deleteEvent(VALID_EVENT_ID, wrongUserEmail)); // Use wrong email
+        // Expecting UnauthedException
+        assertThrows(UnauthedException.class, () ->
+            eventService.deleteEvent(VALID_EVENT_ID, NON_HOST_EMAIL)); // Use constant
 
         verify(eventRepository).findEventById(VALID_EVENT_ID);
         verify(eventRepository, never()).delete(any(Event.class)); // Delete should not be called
@@ -453,5 +498,11 @@ public class EventServiceTest {
         // Test & Verify
         assertThrows(IllegalArgumentException.class, () -> eventService.findEventsByGameMinPlayers(0));
         verify(eventRepository, never()).findByFeaturedGameMinPlayersGreaterThanEqual(0);
+    }
+
+    @AfterEach
+    public void tearDown() {
+        // Clear the security context after each test to avoid side effects
+        SecurityContextHolder.clearContext();
     }
 }

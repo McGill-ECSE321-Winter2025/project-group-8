@@ -35,6 +35,7 @@ export default function LoginPage() {
 
         // Store user ID in localStorage
         localStorage.setItem("userId", data.id)
+        localStorage.setItem("authToken", data.token);
 
         // Redirect to dashboard
         navigate("/dashboard")
