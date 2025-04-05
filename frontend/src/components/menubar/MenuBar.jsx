@@ -30,6 +30,11 @@ export default function MenuBar() {
     <header className="bg-white border-b shadow-sm">
       <div className="flex items-center justify-between py-4 px-6 md:px-10 max-w-screen-xl mx-auto">
         <Link to="/" className="flex items-center gap-2">
+          <img
+            src="https://www.svgrepo.com/show/83116/board-games-set.svg"
+            alt="Board Games Icon"
+            className="w-10 h-10"
+          />
           <span className="text-xl font-bold">BoardGameConnect</span>
         </Link>
 
