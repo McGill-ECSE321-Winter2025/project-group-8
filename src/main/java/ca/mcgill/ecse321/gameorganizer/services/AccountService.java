@@ -103,10 +103,15 @@ public class AccountService {
                 return ResponseEntity.badRequest().body("Username already in use");
             }
 
-            // Create and save account
-            Account account = request.isGameOwner()
-                ? new GameOwner(request.getUsername(), request.getEmail(), request.getPassword())
-                : new Account(request.getUsername(), request.getEmail(), request.getPassword());
+            // Create and save account with ENCODED password
+            Account account;
+            String encodedPassword = passwordEncoder.encode(request.getPassword());
+            
+            if (request.isGameOwner()) {
+                account = new GameOwner(request.getUsername(), request.getEmail(), encodedPassword);
+            } else {
+                account = new Account(request.getUsername(), request.getEmail(), encodedPassword);
+            }
 
             // Log the account creation details for debugging
             System.out.println("Creating account: " + request.getUsername() + ", " + request.getEmail() + ", isGameOwner: " + request.isGameOwner());
