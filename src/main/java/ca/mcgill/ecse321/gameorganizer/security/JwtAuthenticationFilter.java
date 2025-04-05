@@ -14,7 +14,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 
-import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

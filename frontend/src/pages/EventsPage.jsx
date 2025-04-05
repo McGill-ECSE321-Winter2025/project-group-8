@@ -5,58 +5,10 @@ import { EventCard } from "../components/events-page/EventCard";
 import { DateFilterComponent } from "../components/events-page/DateFilterComponent";
 import CreateEventDialog from "../components/events-page/CreateEventDialog";
 import { AnimatePresence, motion } from "framer-motion";
+import { getAllEvents } from "../service/event-api"; // Import API function
+import { Loader2 } from "lucide-react"; // Import Loader icon
 
-// Mock data is used here while waiting to really implement API calls
-const upcomingEvents = [
-  {
-    id: 4,
-    title: "Sahria Chkoba",
-    dateTime: "2025-04-05T18:00:00",
-    location: "Yessine's House, 789 Pine St",
-    featuredGame: {name: "Chkoba"},
-    host: {name: "Yessine"},
-    featuredGameImage: "https://play-lh.googleusercontent.com/JQt2sr9XF-5JPXZVJ8fV3vGsOZTm-R6RrsNpwZL1x0f-W9Kis9U2FegyT-yVl0PCfA",
-    maxParticipants: 16,
-    participantCount: 8,
-    description: "Join us for a fun night of Chkoba! Food provided!"
-  },
-  {
-    id: 1,
-    title: "Friday Night Strategy Games",
-    dateTime: "2025-03-15T19:00:00",
-    location: "Board Game Cafe, 123 Main St",
-    host: {name: "Rayan"},
-    featuredGame: {name: "Settlers of Catan"},
-    featuredGameImage: "https://www.asdesjeux.com/cdn/shop/files/qzfkij6xaovkewqw1kht.png?v=1725899582",
-    maxParticipants: 6,
-    participantCount: 4,
-    description: "Join us for a night of strategy games! Bring your favorite snacks."
-  },
-  {
-    id: 2,
-    title: "Weekend Board Game Marathon",
-    dateTime: "2025-03-22T13:00:00",
-    location: "Community Center, 456 Oak Ave",
-    host: {name: "David"},
-    featuredGame: {name: "Monopoly: The Mega Edition"},
-    featuredGameImage: "https://i5.walmartimages.com/seo/Monopoly-The-Mega-Edition-Board-Game_71fb2957-622e-45ac-9f2e-9871836991c7.13d6146918d3670bb3661408d2ab6d89.jpeg",
-    maxParticipants: 20,
-    participantCount: 12,
-    description: "A full day of board games! Bring your favorite game and a dish to share."
-  },
-  {
-    id: 3,
-    title: "Werewolf Game Night",
-    dateTime: "2025-04-05T18:00:00",
-    location: "Game Store, 789 Pine St",
-    featuredGame: "Werewolf",
-    featuredGameImage: "https://www.zygomatic-games.com/wp-content/uploads/2020/04/lmelg01en_face_20200616-802x1024.jpg",
-    maxParticipants: 16,
-    participantCount: 8
-  }
-];
-
-// Create card stagger animation variants
+// Create card stagger animation variants (remains the same)
 const container = {
   hidden: { opacity: 0 },
   show: {
@@ -77,21 +29,21 @@ const container = {
 
 const item = {
   hidden: { opacity: 0, scale: 0.8, y: 20 },
-  show: { 
-    opacity: 1, 
-    scale: 1, 
+  show: {
+    opacity: 1,
+    scale: 1,
     y: 0,
-    transition: { 
+    transition: {
       type: "spring",
       stiffness: 300,
       damping: 24
     }
   },
-  exit: { 
-    opacity: 0, 
-    scale: 0.8, 
+  exit: {
+    opacity: 0,
+    scale: 0.8,
     y: -20,
-    transition: { 
+    transition: {
       duration: 0.3,
       ease: "easeInOut"
     }
@@ -100,29 +52,58 @@ const item = {
 
 export default function EventsPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [filteredEvents, setFilteredEvents] = useState(upcomingEvents);
-  const [isSearchActive, setIsSearchActive] = useState(false);
-  const [displayedEvents, setDisplayedEvents] = useState(upcomingEvents);
-  const [isSearchTransitioning, setIsSearchTransitioning] = useState(false);
+  const [allEvents, setAllEvents] = useState([]); // Store all fetched events
+  const [filteredEvents, setFilteredEvents] = useState([]); // Store currently filtered events
+  const [isLoading, setIsLoading] = useState(true); // Loading state
+  const [error, setError] = useState(null); // Error state
+  const [isSearchActive, setIsSearchActive] = useState(false); // Search state remains
+  const [displayedEvents, setDisplayedEvents] = useState([]); // Events to actually display (for animation)
+  const [isSearchTransitioning, setIsSearchTransitioning] = useState(false); // Animation state remains
 
-  // Update displayed events with animation delay
+  // Function to fetch events
+  const fetchEvents = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await getAllEvents();
+      setAllEvents(data);
+      setFilteredEvents(data); // Reset filters to show all initially after fetch
+      setDisplayedEvents(data); // Update display
+    } catch (err) {
+      console.error("Failed to fetch events:", err);
+      setError(err.message || "Could not load events.");
+      setAllEvents([]); // Clear on error
+      setFilteredEvents([]);
+      setDisplayedEvents([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch all events on component mount
+  useEffect(() => {
+    fetchEvents();
+  }, []); // Empty dependency array means run once on mount
+
+  // Update displayed events with animation delay (remains similar)
   useEffect(() => {
     if (!isSearchActive) {
       setDisplayedEvents(filteredEvents);
     }
   }, [filteredEvents, isSearchActive]);
 
-  // Filter events by date range
+  // Filter events by date range (now filters 'allEvents')
   const handleDateFilter = (filterValue) => {
     if (filterValue === "all") {
-      setFilteredEvents(upcomingEvents);
+      setFilteredEvents(allEvents); // Reset to all fetched events
       return;
     }
-    
+
     const now = new Date();
-    const filtered = upcomingEvents.filter(event => {
-      const eventDate = new Date(event.dateTime);
-      
+    const filtered = allEvents.filter(event => {
+      const eventDate = event.dateTime ? new Date(event.dateTime) : null;
+      if (!eventDate) return false;
+
       if (filterValue === "this-week") {
         const weekFromNow = new Date();
         weekFromNow.setDate(now.getDate() + 7);
@@ -135,23 +116,20 @@ export default function EventsPage() {
         const endOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 2, 0);
         return eventDate >= startOfNextMonth && eventDate <= endOfNextMonth;
       }
-      return true;
+      return false;
     });
-    
+
     setFilteredEvents(filtered);
   };
 
   // Handle search activity state with transition
   const handleSearchStateChange = (isActive) => {
     if (isActive && !isSearchActive) {
-      // Start transition when search becomes active
       setIsSearchTransitioning(true);
-      
-      // Delay setting isSearchActive to true to allow exit animations to complete
       setTimeout(() => {
         setIsSearchActive(true);
         setIsSearchTransitioning(false);
-      }, 400); // This should match the total duration of the exit animations
+      }, 400);
     } else if (!isActive) {
       setIsSearchActive(false);
     }
@@ -183,34 +161,64 @@ export default function EventsPage() {
         </div>
       </div>
 
-      {/* Event Card Grid with AnimatePresence for smooth transitions */}
-      <AnimatePresence mode="wait">
-        {!isSearchActive && !isSearchTransitioning ? (
-          <motion.div
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-            key="grid"
-            variants={container}
-            initial="hidden"
-            animate="show"
-            exit="exit"
-          >
-            {displayedEvents.map((event, index) => (
-              <motion.div
-                key={event.id}
-                variants={item}
-                custom={index}
-                layout
-              >
-                <EventCard event={event} />
-              </motion.div>
-            ))}
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
+      {/* Event Card Grid - Conditional Rendering based on loading/error/data */}
+      {isLoading ? (
+        <div className="flex justify-center items-center py-10">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : error ? (
+        <div className="text-center py-10 text-destructive">
+          <p>Error loading events: {error}</p>
+        </div>
+      ) : (
+        <AnimatePresence mode="wait">
+          {!isSearchActive && !isSearchTransitioning && displayedEvents.length > 0 ? (
+            <motion.div
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+              key="grid"
+              variants={container}
+              initial="hidden"
+              animate="show"
+              exit="exit"
+            >
+              {displayedEvents.map((event, index) => {
+                // Adapt event data for EventCard component
+                const adaptedEvent = {
+                  id: event.eventId,
+                  title: event.title,
+                  dateTime: event.dateTime, // Pass Date object or formatted string
+                  location: event.location,
+                  host: event.host ? { name: event.host.name } : { name: 'Unknown Host' }, // Handle potential null host
+                  featuredGame: event.featuredGame ? { name: event.featuredGame.name } : { name: 'N/A' }, // Handle potential null game
+                  featuredGameImage: event.featuredGame?.image || "https://placehold.co/400x300/e9e9e9/1d1d1d?text=No+Image", // Use game image or placeholder
+                  maxParticipants: event.maxParticipants,
+                  participantCount: event.currentNumberParticipants,
+                  description: event.description,
+                };
+                return (
+                  <motion.div
+                    key={adaptedEvent.id} // Use unique eventId from backend
+                    variants={item}
+                    custom={index}
+                    layout
+                  >
+                    <EventCard event={adaptedEvent} />
+                  </motion.div>
+                );
+              })}
+            </motion.div>
+          ) : !isSearchActive && !isSearchTransitioning && displayedEvents.length === 0 ? (
+             <motion.div key="no-events" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center py-10 text-muted-foreground">
+               No events found matching your criteria.
+             </motion.div>
+          ) : null}
+        </AnimatePresence>
+      )}
 
       <CreateEventDialog
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
+        onEventAdded={fetchEvents} // Pass the fetch function as a prop
       />
     </div>
   );

@@ -1,38 +1,27 @@
 package ca.mcgill.ecse321.gameorganizer.services;
 
-import java.util.ArrayList;
 import java.util.Date;
-import java.util.EventObject;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
-import org.springframework.transaction.annotation.Transactional;
-
-import ca.mcgill.ecse321.gameorganizer.dto.CreateEventRequest;
-import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException; // Import UnauthedException
-// UserContext import removed
-import ca.mcgill.ecse321.gameorganizer.models.Account; // Import Account
-import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository; // Added AccountRepository import
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetails;
-import ca.mcgill.ecse321.gameorganizer.models.Event;
-import ca.mcgill.ecse321.gameorganizer.models.Game;
-import ca.mcgill.ecse321.gameorganizer.models.LendingRecord;
-import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
-// import ca.mcgill.ecse321.gameorganizer.models.LendingRecord.LendingStatus; // No longer needed directly here due to FQN access
-import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
+import ca.mcgill.ecse321.gameorganizer.dto.CreateEventRequest;
+import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;
+import ca.mcgill.ecse321.gameorganizer.models.Account; // Import UnauthedException
+import ca.mcgill.ecse321.gameorganizer.models.Event; // Import Account
+import ca.mcgill.ecse321.gameorganizer.models.Game; // Added missing Game import
+import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository; // Added AccountRepository import
 import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
-import ca.mcgill.ecse321.gameorganizer.repositories.LendingRecordRepository;
 
 
 
@@ -103,48 +92,27 @@ public class EventService {
         if (newEvent.getMaxParticipants() <= 0) {
             throw new IllegalArgumentException("Maximum participants must be greater than 0");
         }
-        if (newEvent.getFeaturedGame() == null) {
-            throw new IllegalArgumentException("Featured game cannot be null");
+        // Validate featuredGame structure (at least ID must be present)
+        if (newEvent.getFeaturedGame() == null || newEvent.getFeaturedGame().getId() == 0) {
+             throw new IllegalArgumentException("Featured game ID must be provided");
         }
-        
         // Fetch the host account using the provided email
         System.out.println("DEBUG SERVICE: Looking up host by email: " + hostEmail);
         Account host = accountRepository.findByEmail(hostEmail)
-                .orElseThrow(() -> {
-                    System.out.println("DEBUG SERVICE: Host not found with email: " + hostEmail);
-                    return new IllegalArgumentException("Host account with email " + hostEmail + " not found.");
-                });
-        
-        System.out.println("DEBUG SERVICE: Found host: id=" + host.getId() + ", email=" + host.getEmail());
-        
-        // Verify the game if needed
-        Game featuredGame = newEvent.getFeaturedGame();
-        if (featuredGame != null && featuredGame.getId() > 0) {
-            System.out.println("DEBUG SERVICE: Verifying game with ID: " + featuredGame.getId());
-            
-            try {
-                // Optional: Look up the game to make sure it exists
-                Game game = gameRepository.findById(featuredGame.getId())
-                        .orElse(null);
-                if (game == null) {
-                    System.out.println("DEBUG SERVICE: Game not found with ID: " + featuredGame.getId());
-                } else {
-                    System.out.println("DEBUG SERVICE: Game verified: " + game.getName());
-                    // Use the verified game object
-                    featuredGame = game;
-                }
-            } catch (Exception e) {
-                System.out.println("DEBUG SERVICE: Error verifying game: " + e.getMessage());
-            }
-        }
- 
+                .orElseThrow(() -> new IllegalArgumentException("Host account with email " + hostEmail + " not found."));
+
+        // Fetch the featured game using the ID from the request
+        int gameId = newEvent.getFeaturedGame().getId();
+        Game featuredGameEntity = gameRepository.findById(gameId)
+                .orElseThrow(() -> new IllegalArgumentException("Featured game with ID " + gameId + " not found."));
+
         Event e = new Event(
                 newEvent.getTitle(),
                 newEvent.getDateTime(),
                 newEvent.getLocation(),
                 newEvent.getDescription(),
                 newEvent.getMaxParticipants(),
-                featuredGame,
+                featuredGameEntity, // Use the fetched Game entity
                 host // Use the fetched host account
         );
 

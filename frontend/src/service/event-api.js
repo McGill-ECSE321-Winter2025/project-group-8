@@ -128,34 +128,95 @@ export const searchEvents = async (query, options = {}) => {
 
 // === EVENT API FUNCTIONS ===
 
-// Register for an event (mock implementation)
-export async function registerForEvent(attendeeId, eventId) {
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      const responses = [
-        { status: 200, ok: true, json: () => Promise.resolve({ message: "Success" }) },
-        { status: 400, ok: false, json: () => Promise.resolve({ message: "Event is at full capacity!" }) },
-        { status: 403, ok: false, json: () => Promise.resolve({ message: "You are already registered for this event!" }) }
-      ];
+// Get all events (real API implementation)
+export const getAllEvents = async () => {
+  const token = localStorage.getItem("token");
+  const headers = {
+    "Content-Type": "application/json",
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
 
-      // Simulate random API response
-      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+  try {
+    const response = await fetch("http://localhost:8080/api/v1/events", {
+      method: "GET",
+      headers: headers,
+    });
 
-      if (randomResponse.ok) {
-        resolve(randomResponse);
-      } else {
-        reject(randomResponse);
-      }
-    }, 500); 
-  });
-}
+    if (!response.ok) {
+      const errorBody = await response.text();
+      console.error("Backend error fetching events:", errorBody);
+      throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to fetch events:", error);
+    throw error;
+  }
+};
+
+
+// Register for an event (real API implementation)
+export const registerForEvent = async (eventId) => {
+  const token = localStorage.getItem("token");
+  const attendeeId = localStorage.getItem("userId"); // Get logged-in user's ID
+
+  if (!token) throw new Error("Authentication token not found.");
+  if (!attendeeId) throw new Error("User ID not found.");
+  if (!eventId) throw new Error("Event ID is required.");
+
+  const headers = {
+    "Content-Type": "application/json",
+    'Authorization': `Bearer ${token}`
+  };
+
+  const payload = {
+    attendeeId: parseInt(attendeeId, 10), // Ensure it's a number
+    eventId: eventId // Should be the UUID string
+    // registrationDate can be omitted, backend likely sets it
+  };
+
+  try {
+    const response = await fetch("http://localhost:8080/api/v1/registrations", {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      let errorMsg = `HTTP error ${response.status}: ${response.statusText}`;
+      try {
+          const errorBody = await response.json();
+          errorMsg = errorBody.message || errorMsg;
+      } catch (e) { /* Ignore parsing error */ }
+      console.error("Backend error registering for event:", errorMsg);
+      throw new Error(errorMsg);
+    }
+    return await response.json(); // Return the created registration object
+  } catch (error) {
+    console.error("Failed to register for event:", error);
+    throw error;
+  }
+};
 
 // Create an event
 export const createEvent = async (eventData) => {
-  const formattedData = {
-    ...eventData,
-    dateTime: new Date(eventData.dateTime).toISOString(),
+  // Expects eventData to contain featuredGameId now
+  if (!eventData.featuredGameId) {
+      throw new Error("Featured Game ID is missing in event data for createEvent");
+  }
+
+  // Construct the payload according to backend DTO expectations
+  const payload = {
+    title: eventData.title,
+    // Extract only the date part (YYYY-MM-DD) from the datetime-local input string
+    dateTime: eventData.dateTime.substring(0, 10),
+    location: eventData.location,
+    description: eventData.description,
     maxParticipants: parseInt(eventData.maxParticipants, 10),
+    featuredGame: { id: parseInt(eventData.featuredGameId, 10) } // Send game ID nested
+    // Host is determined by the backend via token, not sent from frontend
   };
 
   const response = await fetchWithAuth("http://localhost:8080/events", {
@@ -188,6 +249,7 @@ export const getAccountInfo = async (email) => {
 };
 
 // Search events by title (actual API implementation)
+// TODO: Consider renaming or consolidating with a more general event search function
 export const searchEventsByTitle = async (title) => {
   const response = await fetchWithAuth(`http://localhost:8080/events/by-title?title=${encodeURIComponent(title)}`, {
     method: "GET",
@@ -215,6 +277,3 @@ export async function unregisterFromEvent(registrationId) {
 
   return response.json(); // Assuming the backend returns some response data
 }
-
-// Export mock API for direct access when needed
-export { mockApi };

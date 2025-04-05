@@ -1,28 +1,31 @@
 package ca.mcgill.ecse321.gameorganizer.config;
 
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Configuration;
-// Environment import is no longer needed
+import org.springframework.context.annotation.Lazy;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
 
-import ca.mcgill.ecse321.gameorganizer.security.JwtAuthenticationFilter;
+import ca.mcgill.ecse321.gameorganizer.security.JwtAuthenticationFilter; // Added import
 
 @Configuration
 @EnableWebSecurity
@@ -36,11 +39,11 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    // Constructor updated to remove Environment
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
     }
 
+    // Chain for public endpoints (authentication, registration)
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         // Profile check removed - Production security rules always applied here.
@@ -65,26 +68,49 @@ public class SecurityConfig {
                 // Require authentication for all other endpoints
                 .anyRequest().authenticated()
             )
-            // Handle authentication exceptions by returning 401 Unauthorized
-            .exceptionHandling(handling -> handling
-                .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
+            .authorizeHttpRequests(authz -> authz
+                .anyRequest().permitAll() // Permit all requests matching this chain
             )
-            // Disable CSRF for REST APIs (or configure accordingly)
-            .csrf(csrf -> csrf.disable())
-            // Enable CORS
-            .cors(cors -> cors.configure(http)) // Assuming this custom configurer is intended
-            // Use stateless session management
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            // Explicitly set the SecurityContextRepository
-            .securityContext(context -> context
-                .securityContextRepository(new RequestAttributeSecurityContextRepository())
-            )
-            // Add JWT filter before UsernamePasswordAuthenticationFilter
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-        // The 'else {' and closing '}' are removed
+            .csrf(csrf -> csrf.disable()) // Disable CSRF
+            .cors(Customizer.withDefaults()) // Enable CORS
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)); // Stateless
 
         return http.build();
     }
+
+    // Chain for protected API endpoints
+    @Bean
+    @Order(2)
+    public SecurityFilterChain protectedApiFilterChain(HttpSecurity http) throws Exception {
+        http
+            .securityMatcher("/api/v1/**") // Apply this chain to all other /api/v1 paths
+            .authorizeHttpRequests(authz -> authz
+                // Specific rules for borrow requests (example)
+                .requestMatchers(HttpMethod.POST, "/api/v1/borrowrequests").hasRole("USER")
+                .requestMatchers(HttpMethod.PUT, "/api/v1/borrowrequests/**").hasRole("GAME_OWNER")
+                .requestMatchers(HttpMethod.DELETE, "/api/v1/borrowrequests/**").hasRole("GAME_OWNER")
+                .requestMatchers(HttpMethod.GET, "/api/v1/borrowrequests/**").hasRole("USER")
+                // Default rule: require authentication for any other matched request
+                .anyRequest().authenticated()
+            )
+            .exceptionHandling(handling -> handling
+                .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)) // Return 401 on auth failure
+            )
+            .csrf(csrf -> csrf.disable()) // Disable CSRF
+            .cors(Customizer.withDefaults()) // Enable CORS
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // Stateless
+            // Remove explicit SecurityContextRepository - rely on default behavior with SecurityContextHolder
+            // .securityContext(context -> context
+            //     .securityContextRepository(new RequestAttributeSecurityContextRepository())
+            // )
+            // Add JWT filter for this chain
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+
+
+    // --- Authentication Provider Beans (remain the same) ---
 
     @Bean
     public DaoAuthenticationProvider daoAuthenticationProvider(UserDetailsService userDetailsService, @Lazy PasswordEncoder passwordEncoder) {

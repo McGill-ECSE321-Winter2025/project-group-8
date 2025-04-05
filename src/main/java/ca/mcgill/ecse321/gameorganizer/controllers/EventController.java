@@ -1,17 +1,17 @@
 package ca.mcgill.ecse321.gameorganizer.controllers;
 
 import java.sql.Date;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.UUID;
- // Keep UUID
-import org.springframework.security.core.Authentication; // Import Authentication
 import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired; // Import Authentication
+import org.springframework.http.HttpStatus; // Import SecurityContextHolder
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication; // Keep for logging context holder
+import org.springframework.security.core.context.SecurityContextHolder; // Import Principal
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,8 +22,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.server.ResponseStatusException;
 import ca.mcgill.ecse321.gameorganizer.dto.CreateEventRequest;
 import ca.mcgill.ecse321.gameorganizer.dto.EventResponse;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
@@ -90,127 +88,28 @@ public class EventController {
      * @return The created event
      */
     @PostMapping
-    public ResponseEntity<EventResponse> createEvent(
-            @RequestBody CreateEventRequest request, 
-            HttpServletRequest httpRequest) {
-        
-        log.info("Attempting to create event with request: {}", request);
-        
-        // SPECIAL TEST BYPASS:
-        // In a test environment, if the request comes with explicit host information,
-        // and the host has a valid email, we'll use that directly for test purposes.
-        if (request != null && request.getHost() != null && request.getHost().getEmail() != null) {
-            String hostEmail = request.getHost().getEmail();
-            log.info("TEST MODE: Using host email directly from request: {}", hostEmail);
-            log.info("TEST MODE: Host in request: id={}, name={}, email={}", 
-                    request.getHost().getId(), request.getHost().getName(), request.getHost().getEmail());
-            
-            // Add more debug information about the request
-            if (request.getFeaturedGame() != null) {
-                log.info("TEST MODE: Featured game: id={}, name={}", 
-                        request.getFeaturedGame().getId(), request.getFeaturedGame().getName());
-            }
-            
-            try {
-                // For testing, explicitly look up the host
-                try {
-                    if (request.getHost() != null && request.getHost().getId() > 0) {
-                        log.info("TEST MODE: Looking up host by ID {}", request.getHost().getId());
-                    }
-                } catch (Exception e) {
-                    log.warn("TEST MODE: Error checking host ID: {}", e.getMessage());
-                }
-                
-                log.info("TEST MODE: Creating event directly with email {}", hostEmail);
-                Event event = eventService.createEvent(request, hostEmail);
-                log.info("TEST MODE: Event created successfully with ID: {}", event.getId());
-                return ResponseEntity.status(HttpStatus.CREATED).body(new EventResponse(event));
-            } catch (Exception e) {
-                log.error("TEST MODE: Error creating event: {}", e.getMessage(), e);
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-            }
-        } else {
-            log.info("Not entering TEST MODE: request={}, host={}, email={}", 
-                    request != null ? "not null" : "null",
-                    request != null && request.getHost() != null ? "not null" : "null",
-                    request != null && request.getHost() != null && request.getHost().getEmail() != null ? 
-                            request.getHost().getEmail() : "null");
+    public ResponseEntity<EventResponse> createEvent(@RequestBody CreateEventRequest request) { // Removed Principal parameter
+        // Get Authentication directly from SecurityContextHolder
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        log.info("SecurityContextHolder Authentication at start of createEvent: {}", authentication);
+
+        // Check if Authentication object is valid
+        if (authentication == null || !authentication.isAuthenticated() || authentication.getName() == null) {
+             log.error("Create Event: Could not retrieve valid Authentication from SecurityContextHolder. User not authenticated.");
+             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        
-        // Normal non-test flow continues below
-        // Get authentication from multiple sources for reliability
-        Authentication authentication = null;
-        
-        // First try from request attribute (set by JwtAuthenticationFilter)
-        authentication = (Authentication) httpRequest.getAttribute(
-            JwtAuthenticationFilter.AUTH_ATTRIBUTE);
-        
-        // If not found, try from SecurityContextHolder
-        if (authentication == null) {
-            authentication = SecurityContextHolder.getContext().getAuthentication();
-            log.info("Using authentication from SecurityContextHolder: {}", authentication);
-        }
-        
-        // If still not found and we have authorization header, try to extract token and authenticate
-        if (authentication == null || authentication instanceof AnonymousAuthenticationToken) {
-            String authHeader = httpRequest.getHeader(HttpHeaders.AUTHORIZATION);
-            log.info("Falling back to manual header check. Authorization header: {}", 
-                    authHeader != null ? authHeader.substring(0, Math.min(20, authHeader.length())) + "..." : "null");
-            
-            if (authHeader != null && authHeader.startsWith("Bearer ")) {
-                // This is a test that provides the token directly - use it
-                // In a real situation, you'd validate the token properly
-                log.info("Authorization header found, using email from request");
-                // For testing purposes, we'll use the host email from the request
-                if (request.getHost() != null && request.getHost().getEmail() != null) {
-                    final String email = request.getHost().getEmail();
-                    log.info("Using email from request host: {}", email);
-                    
-                    // Create a simple authentication object for testing purposes
-                    authentication = new Authentication() {
-                        @Override public String getName() { return email; }
-                        @Override public Collection<? extends GrantedAuthority> getAuthorities() { 
-                            return Arrays.asList(new SimpleGrantedAuthority("ROLE_USER")); 
-                        }
-                        @Override public Object getCredentials() { return null; }
-                        @Override public Object getDetails() { return null; }
-                        @Override public Object getPrincipal() { return email; }
-                        @Override public boolean isAuthenticated() { return true; }
-                        @Override public void setAuthenticated(boolean b) { }
-                    };
-                }
-            }
-        }
-        
-        log.info("Final authentication object: {}", authentication);
-        
-        // Check authentication
-        if (authentication == null) {
-            log.error("Create Event: Authentication attribute is null in request");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-        
-        if (!authentication.isAuthenticated()) {
-            log.error("Create Event: User not authenticated (isAuthenticated=false)");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-        
-        log.info("Create Event: Authentication is valid. User: {}, Authorities: {}", 
-                authentication.getName(), authentication.getAuthorities());
-            
-        try {
-            String email = authentication.getName(); // Get email from Authentication
-            log.info("Creating event for email: {}", email);
-            Event event = eventService.createEvent(request, email);
-            log.info("Event created successfully with ID: {}", event.getId());
-            return ResponseEntity.status(HttpStatus.CREATED).body(new EventResponse(event));
-        } catch (IllegalArgumentException e) {
-            log.error("Invalid request creating event: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
-        } catch (Exception e) {
-            log.error("Error creating event: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
+
+        String email = authentication.getName(); // Get email from the retrieved Authentication object
+        log.info("Attempting to create event for user: {}", email);
+
+         // Check if email is null or empty (redundant if getName() worked, but safe)
+         if (email.trim().isEmpty()) {
+             log.error("Create Event: Email extracted from Authentication is empty.");
+             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build(); // Indicate an unexpected state
+         }
+
+        Event event = eventService.createEvent(request, email);
+        return ResponseEntity.status(HttpStatus.CREATED).body(new EventResponse(event));
     }
 
     /**
@@ -556,43 +455,5 @@ public class EventController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().build();
         }
-    }
-
-    /**
-     * A simple test endpoint that returns the current authentication.
-     * 
-     * @param httpRequest The HTTP servlet request
-     * @return The authentication details
-     */
-    @GetMapping("/auth-test")
-    public ResponseEntity<String> testAuth(HttpServletRequest httpRequest) {
-        // Get authentication directly from the SecurityContextHolder
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        
-        log.info("Auth test: Authentication from SecurityContextHolder: {}", authentication);
-        
-        // If authentication is null or anonymous, try to get it from request attributes
-        if (authentication == null || authentication instanceof AnonymousAuthenticationToken) {
-            log.info("Using backup authentication from request attributes");
-            authentication = (Authentication) httpRequest.getAttribute(
-                JwtAuthenticationFilter.AUTH_ATTRIBUTE);
-            log.info("Backup authentication from request: {}", authentication);
-        }
-        
-        if (authentication == null) {
-            log.error("Auth test: Authentication object is null in both SecurityContextHolder and request");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Authentication is null");
-        }
-        
-        if (!authentication.isAuthenticated()) {
-            log.error("Auth test: User not authenticated (isAuthenticated=false)");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Not authenticated");
-        }
-        
-        String details = "Authenticated as: " + authentication.getName() + 
-                         " with authorities: " + authentication.getAuthorities();
-        log.info(details);
-        
-        return ResponseEntity.ok(details);
     }
 }
