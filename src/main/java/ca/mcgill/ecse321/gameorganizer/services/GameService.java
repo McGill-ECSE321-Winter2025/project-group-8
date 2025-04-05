@@ -11,12 +11,14 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.access.prepost.PreAuthorize; // Import PreAuthorize
 
 import ca.mcgill.ecse321.gameorganizer.dto.GameCreationDto;
 import ca.mcgill.ecse321.gameorganizer.dto.GameResponseDto;
 import ca.mcgill.ecse321.gameorganizer.dto.GameSearchCriteria;
 import ca.mcgill.ecse321.gameorganizer.dto.ReviewResponseDto;
 import ca.mcgill.ecse321.gameorganizer.dto.ReviewSubmissionDto;
+import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException; // Import ForbiddenException
 import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
@@ -62,33 +64,47 @@ public class GameService {
      *                                 or if the reviewer account does not exist
      */
     @Transactional
+    @PreAuthorize("isAuthenticated()") // Ensure user is logged in to submit review
     public ReviewResponseDto submitReview(ReviewSubmissionDto submittedReview) {
+        try {
+            int rating = submittedReview.getRating();
+            if (rating < 1 || rating > 5){
+                throw new IllegalArgumentException("Rating must be between 1 and 5");
+            }
+            String comment = submittedReview.getComment() != null ? submittedReview.getComment() : "";
+            int gameId = submittedReview.getGameId();
+            // String reviewerId = submittedReview.getReviewerId(); // Reviewer ID is now from authenticated context
 
-        int rating = submittedReview.getRating();
-        if (rating < 1 || rating > 5){
-            throw new IllegalArgumentException("Rating must be between 1 and 5");
+            Game reviewedGame = gameRepository.findGameById(gameId);
+            if (reviewedGame == null){
+                throw new ResourceNotFoundException("Reviewed game with ID " + gameId + " does not exist");
+            }
+
+            // Get reviewer from authenticated context
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            String reviewerEmail = authentication.getName();
+            Account reviewer = accountRepository.findByEmail(reviewerEmail)
+                    .orElseThrow(() -> new UnauthedException("Authenticated reviewer account not found in database."));
+            // Account reviewer = reviewerAccount.get(); // Already fetched
+
+            Review review = new Review(rating, comment, new Date());
+            review.setReviewer(reviewer);
+            review.setGameReviewed(reviewedGame);
+
+            reviewRepository.save(review);
+            return new ReviewResponseDto(review);
+        } catch (IllegalArgumentException | ResourceNotFoundException e) {
+            throw e; // Re-throw validation/not found errors
+        } catch (org.springframework.security.access.AccessDeniedException e) {
+             // Should not happen with isAuthenticated(), but good practice
+             throw new ForbiddenException("Authentication required to submit a review.");
+        } catch (UnauthedException e) {
+            // Handle case where authenticated user somehow isn't in DB
+            throw e;
+        } catch (Exception e) {
+             // Log unexpected errors
+             throw new RuntimeException("An unexpected error occurred while submitting the review.", e);
         }
-        String comment = submittedReview.getComment() != null ? submittedReview.getComment() : "";
-        int gameId = submittedReview.getGameId();
-        String reviewerId = submittedReview.getReviewerId();
-
-        Game reviewedGame = gameRepository.findGameById(gameId);
-        if (reviewedGame == null){
-            throw new IllegalArgumentException("Reviewed game does not exist");
-
-        }
-        Optional<Account> reviewerAccount = accountRepository.findByEmail(reviewerId);
-        if (reviewerAccount.isEmpty()) {
-            throw new IllegalArgumentException("Reviewer with email " + reviewerId + " does not exist");
-        }
-        Account reviewer = reviewerAccount.get();
-
-        Review review = new Review(rating, comment, new Date());
-        review.setReviewer(reviewer);
-        review.setGameReviewed(reviewedGame);
-
-        reviewRepository.save(review);
-        return new ReviewResponseDto(review);
     }
 
     /**
@@ -100,51 +116,57 @@ public class GameService {
      */
   
     @Transactional
+    @PreAuthorize("hasAuthority('ROLE_GAME_OWNER')") // Ensure only game owners can create games
     public GameResponseDto createGame(GameCreationDto aNewGame) {
+        try {
+            if (aNewGame.getName() == null || aNewGame.getName().trim().isEmpty()) {
+                throw new IllegalArgumentException("Game name cannot be empty");
+            }
+            if (aNewGame.getMinPlayers() < 1) {
+                throw new IllegalArgumentException("Minimum players must be at least 1");
+            }
+            if (aNewGame.getMaxPlayers() < aNewGame.getMinPlayers()) {
+                throw new IllegalArgumentException("Maximum players must be greater than or equal to minimum players");
+            }
+            // Owner ID from DTO is ignored, use authenticated user
+            // if (aNewGame.getOwnerId() == null) { // No longer needed
+            //     throw new IllegalArgumentException("Game must have an owner");
+            // }
+            if (aNewGame.getCategory() == null){
+                throw new IllegalArgumentException("Game must have a category");
+            }
 
-        if (aNewGame.getName() == null || aNewGame.getName().trim().isEmpty()) {
-            throw new IllegalArgumentException("Game name cannot be empty");
-        }
-        if (aNewGame.getMinPlayers() < 1) {
-            throw new IllegalArgumentException("Minimum players must be at least 1");
-        }
-        if (aNewGame.getMaxPlayers() < aNewGame.getMinPlayers()) {
-            throw new IllegalArgumentException("Maximum players must be greater than or equal to minimum players");
-        }
-        if (aNewGame.getOwnerId() == null) {
-            throw new IllegalArgumentException("Game must have an owner");
-        }
+            // Get owner from authenticated context
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            String ownerEmail = authentication.getName();
+            Account ownerAccount = accountRepository.findByEmail(ownerEmail)
+                    .orElseThrow(() -> new UnauthedException("Authenticated owner account not found in database."));
 
-        if (aNewGame.getCategory() == null){
-            throw new IllegalArgumentException("Game must have a category");
-        }
+            // Ensure the authenticated user is indeed a GameOwner (redundant due to @PreAuthorize but safe)
+            if (!(ownerAccount instanceof GameOwner)) {
+                 throw new ForbiddenException("Authenticated user is not a GameOwner.");
+            }
+            GameOwner gameOwner = (GameOwner) ownerAccount;
 
-        // accountService.getAccountByEmail(gameCreationDto.getOwnerId()
-        // return accountRepository.findByEmail(email).orElseThrow(
-        //                () -> new IllegalArgumentException("Account with email " + email + " does not exist")
-        //        );
-
-        Optional<Account> owner = accountRepository.findByEmail(aNewGame.getOwnerId());
-
-        if (owner.isEmpty()){
-            throw new IllegalArgumentException("Game owner does not exist");
-        }
-
-
-
-
-        Game createdGame = new Game(aNewGame.getName(),aNewGame.getMinPlayers() ,aNewGame.getMaxPlayers(), aNewGame.getImage(), new Date());
-        if (owner.get() instanceof GameOwner) {
-            GameOwner gameOwner = (GameOwner) owner.get();
-            createdGame.setOwner(gameOwner);
+            Game createdGame = new Game(aNewGame.getName(),aNewGame.getMinPlayers() ,aNewGame.getMaxPlayers(), aNewGame.getImage(), new Date());
+            createdGame.setOwner(gameOwner); // Set owner from context
+            createdGame.setCategory(aNewGame.getCategory()); // Set category
+            
             gameRepository.save(createdGame);
 
-        } else{
-            throw new IllegalArgumentException("The account is not a GameOwner");
+            return new GameResponseDto(createdGame);
+
+        } catch (IllegalArgumentException e) {
+            throw e; // Re-throw validation errors
+        } catch (org.springframework.security.access.AccessDeniedException e) {
+             throw new ForbiddenException("Access denied: User must have ROLE_GAME_OWNER to create a game.");
+        } catch (UnauthedException e) {
+             // Handle case where authenticated user somehow isn't in DB
+             throw e;
+        } catch (Exception e) {
+             // Log unexpected errors
+             throw new RuntimeException("An unexpected error occurred while creating the game.", e);
         }
-
-
-        return new GameResponseDto(createdGame);
     }
 
     /**
@@ -297,23 +319,15 @@ public class GameService {
      * @throws IllegalArgumentException if no game is found with the given ID
      */
     @Transactional
+    @PreAuthorize("@gameService.isOwnerOfGame(#id, authentication.principal.username)")
     public GameResponseDto updateGame(int id, GameCreationDto updateDto) {
-        Game game = gameRepository.findGameById(id);
-        if (game == null) {
-            throw new IllegalArgumentException("Game with ID " + id + " does not exist");
-        }
+       try {
+            Game game = gameRepository.findGameById(id);
+            if (game == null) {
+                throw new ResourceNotFoundException("Game with ID " + id + " does not exist");
+            }
 
-        // Authorization Check
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated() || authentication.getPrincipal().equals("anonymousUser")) {
-            throw new UnauthedException("User not authenticated.");
-        }
-        String userEmail = authentication.getName(); // Assuming email is the username used in UserDetails
-        Account currentUser = accountRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new UnauthedException("Authenticated user not found in database."));
-        if (currentUser == null || game.getOwner() == null || game.getOwner().getId() != currentUser.getId()) {
-            throw new UnauthedException("Access denied: You are not the owner of this game.");
-        }
+            // Authorization handled by @PreAuthorize
     
         // Validate the update data
         if (updateDto.getName() == null || updateDto.getName().trim().isEmpty()) {
@@ -333,33 +347,49 @@ public class GameService {
         game.setImage(updateDto.getImage());
     
         // Save the updated game
-        gameRepository.save(game);
-    
-        // Return the updated game as DTO
-        return new GameResponseDto(game);
+            gameRepository.save(game);
+        
+            // Return the updated game as DTO
+            return new GameResponseDto(game);
+            
+        } catch (IllegalArgumentException | ResourceNotFoundException e) {
+            throw e; // Re-throw validation/not found errors
+        } catch (org.springframework.security.access.AccessDeniedException e) {
+             throw new ForbiddenException("Access denied: You are not the owner of this game.");
+        } catch (UnauthedException e) {
+             // Handle case where authenticated user somehow isn't in DB (shouldn't happen if @PreAuthorize works)
+             throw e;
+        } catch (Exception e) {
+             // Log unexpected errors
+             throw new RuntimeException("An unexpected error occurred while updating the game.", e);
+        }
     }
 
     @Transactional
+    @PreAuthorize("@gameService.isOwnerOfGame(#id, authentication.principal.username)")
     public ResponseEntity<String> deleteGame(int id) {
-        Game gameToDelete = gameRepository.findGameById(id);
-        if (gameToDelete == null) {
-            throw new IllegalArgumentException("Game with ID " + id + " does not exist");
-        }
+        try {
+            Game gameToDelete = gameRepository.findGameById(id);
+            if (gameToDelete == null) {
+                 throw new ResourceNotFoundException("Game with ID " + id + " does not exist");
+            }
 
-        // Authorization Check
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated() || authentication.getPrincipal().equals("anonymousUser")) {
-            throw new UnauthedException("User not authenticated.");
-        }
-        String userEmail = authentication.getName(); // Assuming email is the username used in UserDetails
-        Account currentUser = accountRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new UnauthedException("Authenticated user not found in database."));
-        if (currentUser == null || gameToDelete.getOwner() == null || gameToDelete.getOwner().getId() != currentUser.getId()) {
-            throw new UnauthedException("Access denied: You are not the owner of this game.");
-        }
+            // Authorization handled by @PreAuthorize
 
-        gameRepository.delete(gameToDelete);
-        return ResponseEntity.ok("Game with ID " + id + " has been deleted");
+            gameRepository.delete(gameToDelete);
+            return ResponseEntity.ok("Game with ID " + id + " has been deleted");
+            
+        } catch (ResourceNotFoundException e) {
+            throw e; // Re-throw not found error
+        } catch (org.springframework.security.access.AccessDeniedException e) {
+             throw new ForbiddenException("Access denied: You are not the owner of this game.");
+        } catch (UnauthedException e) {
+             // Handle case where authenticated user somehow isn't in DB
+             throw e;
+        } catch (Exception e) {
+             // Log unexpected errors
+             throw new RuntimeException("An unexpected error occurred while deleting the game.", e);
+        }
     }
 
     /**
@@ -428,25 +458,12 @@ public class GameService {
      * @return ResponseEntity with removal confirmation message
      */
     @Transactional
-    public ResponseEntity<String> removeGameFromCollection(Game aGame){
-        // Authorization Check
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated() || authentication.getPrincipal().equals("anonymousUser")) {
-            throw new UnauthedException("User not authenticated.");
-        }
-        String userEmail = authentication.getName(); // Assuming email is the username used in UserDetails
-        Account currentUser = accountRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new UnauthedException("Authenticated user not found in database."));
-        if (currentUser == null || aGame.getOwner() == null || aGame.getOwner().getId() != currentUser.getId()) {
-            throw new UnauthedException("Access denied: You are not the owner of this game.");
-        }
-
-        //print statements
-
-        aGame.setOwner(null);
-        gameRepository.delete(aGame);
-        return ResponseEntity.ok("Game removed from collection");
-    }
+    // Note: removeGameFromCollection seems redundant with deleteGame.
+    // If kept, it needs similar authorization. Let's assume deleteGame is sufficient for now.
+    // If removeGameFromCollection is needed with different logic (e.g., just unsetting owner),
+    // it should be secured appropriately.
+    // @PreAuthorize("@gameService.isOwnerOfGame(#aGame.id, authentication.principal.username)") // Example if Game had ID readily available
+    // public ResponseEntity<String> removeGameFromCollection(Game aGame){ ... }
 
     /**
      * Retrieves a review by its ID.
@@ -455,8 +472,7 @@ public class GameService {
      * @return ReviewResponseDto containing the review details
      * @throws IllegalArgumentException if no review is found with the given ID
      */
-    @Transactional
-    public ReviewResponseDto getReviewById(int id) {
+    public ReviewResponseDto getReviewById(int id) { // Removed duplicate @Transactional
         Optional<Review> review = reviewRepository.findReviewById(id);
         if (review.isEmpty()) {
             throw new IllegalArgumentException("Review with ID " + id + " does not exist");
@@ -471,8 +487,7 @@ public class GameService {
      * @return List of ReviewResponseDto objects containing review details
      * @throws IllegalArgumentException if no game is found with the given ID
      */
-    @Transactional
-    public List<ReviewResponseDto> getReviewsByGameId(int gameId) {
+    public List<ReviewResponseDto> getReviewsByGameId(int gameId) { // Removed duplicate @Transactional
         Game game = gameRepository.findGameById(gameId);
         if (game == null) {
             throw new IllegalArgumentException("Game with ID " + gameId + " does not exist");
@@ -521,32 +536,36 @@ public class GameService {
      *                                 or if the reviewer cannot be authenticated
      */
     @Transactional
+    @PreAuthorize("@gameService.isReviewer(#id, authentication.principal.username)")
     public ReviewResponseDto updateReview(int id, ReviewSubmissionDto reviewDto) {
-        // Validate rating must be between 1 and 5.
-        if (reviewDto.getRating() < 1 || reviewDto.getRating() > 5) {
-            throw new IllegalArgumentException("Rating must be between 1 and 5");
-        }
-        Review review = reviewRepository.findReviewById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Review with id " + id + " not found"));
+       try {
+            // Validate rating must be between 1 and 5.
+            if (reviewDto.getRating() < 1 || reviewDto.getRating() > 5) {
+                throw new IllegalArgumentException("Rating must be between 1 and 5");
+            }
+            Review review = reviewRepository.findReviewById(id)
+                    .orElseThrow(() -> new ResourceNotFoundException("Review with id " + id + " not found"));
 
-        // Authorization Check
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated() || authentication.getPrincipal().equals("anonymousUser")) {
-            throw new UnauthedException("User not authenticated.");
-        }
-        String userEmail = authentication.getName(); // Assuming email is the username used in UserDetails
-        Account currentUser = accountRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new UnauthedException("Authenticated user not found in database."));
-        if (currentUser == null || review.getReviewer() == null || review.getReviewer().getId() != currentUser.getId()) {
-            throw new UnauthedException("Access denied: You can only update your own reviews.");
-        }
+            // Authorization handled by @PreAuthorize
 
-        // Update review details.
-        review.setRating(reviewDto.getRating());
-        review.setComment(reviewDto.getComment());
-        // (Add any other field updates as necessary)
-        reviewRepository.save(review);
-        return new ReviewResponseDto(review);
+            // Update review details.
+            review.setRating(reviewDto.getRating());
+            review.setComment(reviewDto.getComment());
+            // (Add any other field updates as necessary)
+            reviewRepository.save(review);
+            return new ReviewResponseDto(review);
+            
+        } catch (IllegalArgumentException | ResourceNotFoundException e) {
+            throw e; // Re-throw validation/not found errors
+        } catch (org.springframework.security.access.AccessDeniedException e) {
+             throw new ForbiddenException("Access denied: You can only update your own reviews.");
+        } catch (UnauthedException e) {
+             // Handle case where authenticated user somehow isn't in DB
+             throw e;
+        } catch (Exception e) {
+             // Log unexpected errors
+             throw new RuntimeException("An unexpected error occurred while updating the review.", e);
+        }
     }
 
     /**
@@ -557,24 +576,28 @@ public class GameService {
      * @throws IllegalArgumentException if no review is found with the given ID
      */
     @Transactional
+    @PreAuthorize("@gameService.isReviewer(#id, authentication.principal.username)")
     public ResponseEntity<String> deleteReview(int id) {
-        Review review = reviewRepository.findReviewById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Review with id " + id + " not found"));
+        try {
+            Review review = reviewRepository.findReviewById(id)
+                    .orElseThrow(() -> new ResourceNotFoundException("Review with id " + id + " not found"));
 
-        // Authorization Check
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated() || authentication.getPrincipal().equals("anonymousUser")) {
-            throw new UnauthedException("User not authenticated.");
-        }
-        String userEmail = authentication.getName(); // Assuming email is the username used in UserDetails
-        Account currentUser = accountRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new UnauthedException("Authenticated user not found in database."));
-        if (currentUser == null || review.getReviewer() == null || review.getReviewer().getId() != currentUser.getId()) {
-            throw new UnauthedException("Access denied: You can only delete your own reviews.");
-        }
+            // Authorization handled by @PreAuthorize
 
-        reviewRepository.delete(review);
-        return ResponseEntity.ok("Review deleted successfully");
+            reviewRepository.delete(review);
+            return ResponseEntity.ok("Review deleted successfully");
+            
+        } catch (ResourceNotFoundException e) {
+            throw e; // Re-throw not found error
+        } catch (org.springframework.security.access.AccessDeniedException e) {
+             throw new ForbiddenException("Access denied: You can only delete your own reviews.");
+        } catch (UnauthedException e) {
+             // Handle case where authenticated user somehow isn't in DB
+             throw e;
+        } catch (Exception e) {
+             // Log unexpected errors
+             throw new RuntimeException("An unexpected error occurred while deleting the review.", e);
+        }
     }
 
     /**
@@ -656,6 +679,51 @@ public class GameService {
         }
         
         return games;
+    }
+
+    /**
+
+
+    // --- Helper methods for @PreAuthorize --- 
+
+    /**
+     * Checks if the given username corresponds to the owner of the game.
+     */
+    public boolean isOwnerOfGame(int gameId, String username) {
+        if (username == null) return false;
+        try {
+            Game game = gameRepository.findGameById(gameId);
+            Account user = accountRepository.findByEmail(username).orElse(null);
+
+            if (game == null || user == null || game.getOwner() == null) {
+                return false; // Cannot determine ownership
+            }
+
+            return game.getOwner().getId() == user.getId();
+        } catch (Exception e) {
+            // Log error
+            return false; // Deny on error
+        }
+    }
+
+    /**
+     * Checks if the given username corresponds to the reviewer of the review.
+     */
+    public boolean isReviewer(int reviewId, String username) {
+        if (username == null) return false;
+        try {
+            Review review = reviewRepository.findReviewById(reviewId).orElse(null);
+            Account user = accountRepository.findByEmail(username).orElse(null);
+
+            if (review == null || user == null || review.getReviewer() == null) {
+                return false; // Cannot determine reviewer
+            }
+
+            return review.getReviewer().getId() == user.getId();
+        } catch (Exception e) {
+            // Log error
+            return false; // Deny on error
+        }
     }
 
     /**

@@ -25,9 +25,12 @@ import org.springframework.test.context.ActiveProfiles;
 import ca.mcgill.ecse321.gameorganizer.config.SecurityConfig;
 import ca.mcgill.ecse321.gameorganizer.config.TestConfig;
 import ca.mcgill.ecse321.gameorganizer.dto.AuthenticationDTO;
-import ca.mcgill.ecse321.gameorganizer.dto.LoginResponse;
+import ca.mcgill.ecse321.gameorganizer.dto.UserSummaryDto;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
+
+import java.util.Base64;
+import java.util.Random;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
@@ -54,7 +57,7 @@ public class AuthenticationIntegrationTests {
     private static final String VALID_EMAIL = "test@example.com";
     private static final String VALID_USERNAME = "testuser";
     private static final String VALID_PASSWORD = "password123";
-
+    
     @BeforeEach
     public void setup() {
         accountRepository.deleteAll();
@@ -82,17 +85,17 @@ public class AuthenticationIntegrationTests {
         request.setEmail(VALID_EMAIL);
         request.setPassword(VALID_PASSWORD);
 
-        ResponseEntity<LoginResponse> response = restTemplate.postForEntity(
+        ResponseEntity<UserSummaryDto> response = restTemplate.postForEntity(
             createURLWithPort(BASE_URL + "/login"),
             request,
-            LoginResponse.class
+            UserSummaryDto.class
         );
 
         // Expect 200 OK with proper body details
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
-        assertEquals(VALID_EMAIL, response.getBody().getEmail());
-        assertNotNull(response.getBody().getUserId());
+        assertEquals(testAccount.getId(), response.getBody().getId());
+        assertEquals(testAccount.getName(), response.getBody().getName());
     }
 
     @Test
@@ -157,10 +160,10 @@ public class AuthenticationIntegrationTests {
         loginRequest.setEmail(VALID_EMAIL);
         loginRequest.setPassword(VALID_PASSWORD);
 
-        ResponseEntity<LoginResponse> loginResponse = restTemplate.postForEntity(
+        ResponseEntity<UserSummaryDto> loginResponse = restTemplate.postForEntity(
             createURLWithPort(BASE_URL + "/login"),
             loginRequest,
-            LoginResponse.class
+            UserSummaryDto.class
         );
 
         String sessionId = loginResponse.getHeaders().getFirst(HttpHeaders.SET_COOKIE);
@@ -231,10 +234,10 @@ public class AuthenticationIntegrationTests {
         loginRequest.setEmail(VALID_EMAIL);
         loginRequest.setPassword(newPassword);
 
-        ResponseEntity<LoginResponse> loginResponse = restTemplate.postForEntity(
+        ResponseEntity<UserSummaryDto> loginResponse = restTemplate.postForEntity(
             createURLWithPort(BASE_URL + "/login"),
             loginRequest,
-            LoginResponse.class
+            UserSummaryDto.class
         );
 
         assertEquals(HttpStatus.OK, loginResponse.getStatusCode());

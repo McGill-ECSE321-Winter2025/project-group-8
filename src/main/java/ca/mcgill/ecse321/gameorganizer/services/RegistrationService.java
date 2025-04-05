@@ -10,8 +10,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException; // Import UnauthedException
+import org.springframework.security.access.prepost.PreAuthorize; // Import PreAuthorize
+
+import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException; // Import ForbiddenException
+import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException; // Import ResourceNotFoundException
+import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
 import ca.mcgill.ecse321.gameorganizer.models.Registration;
@@ -44,18 +49,38 @@ public class RegistrationService {
      * @param eventRegisteredFor The event being registered for
      * @return The created Registration object
      */
-    public Registration createRegistration(Date registrationDate, Account attendee, Event eventRegisteredFor) {
-        Registration registration = new Registration(registrationDate);
-        if (registrationRepository.existsByAttendeeAndEventRegisteredFor(attendee, eventRegisteredFor)) {
-            throw new IllegalArgumentException("Registration already exists for this account and event.");
+    @Transactional
+    @PreAuthorize("isAuthenticated()") // Ensure user is logged in
+    public Registration createRegistration(Date registrationDate, Event eventRegisteredFor) { // Removed attendee parameter
+        try {
+            // Get attendee from authenticated context
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            String attendeeEmail = authentication.getName();
+            Account attendee = accountRepository.findByEmail(attendeeEmail)
+                    .orElseThrow(() -> new UnauthedException("Authenticated attendee account not found in database."));
+
+            Registration registration = new Registration(registrationDate);
+            if (registrationRepository.existsByAttendeeAndEventRegisteredFor(attendee, eventRegisteredFor)) {
+                throw new IllegalArgumentException("Registration already exists for this account and event.");
+            }
+            if (eventRegisteredFor.getCurrentNumberParticipants() >= eventRegisteredFor.getMaxParticipants()) {
+                throw new IllegalArgumentException("Event is already at full capacity.");
+            }
+            registration.setAttendee(attendee); // Set attendee from context
+            eventRegisteredFor.setCurrentNumberParticipants(eventRegisteredFor.getCurrentNumberParticipants() + 1);
+            registration.setEventRegisteredFor(eventRegisteredFor);
+            return registrationRepository.save(registration);
+            
+        } catch (IllegalArgumentException e) {
+            throw e; // Re-throw validation errors
+        } catch (org.springframework.security.access.AccessDeniedException e) {
+             throw new ForbiddenException("Authentication required to register for an event.");
+        } catch (UnauthedException e) {
+             throw e; // Handle case where authenticated user somehow isn't in DB
+        } catch (Exception e) {
+             // Log unexpected errors
+             throw new RuntimeException("An unexpected error occurred while creating the registration.", e);
         }
-        if (eventRegisteredFor.getCurrentNumberParticipants() >= eventRegisteredFor.getMaxParticipants()) {
-            throw new IllegalArgumentException("Event is already at full capacity.");
-        }
-        registration.setAttendee(attendee);
-        eventRegisteredFor.setCurrentNumberParticipants(eventRegisteredFor.getCurrentNumberParticipants() + 1);
-        registration.setEventRegisteredFor(eventRegisteredFor);
-        return registrationRepository.save(registration);
     }
 
     /**
@@ -100,33 +125,41 @@ public class RegistrationService {
      * @return The updated Registration object
      * @throws IllegalArgumentException if the registration is not found
      */
-    public Registration updateRegistration(int id, Date registrationDate, Account attendee, Event eventRegisteredFor) {
-        Optional<Registration> optionalRegistration = registrationRepository.findRegistrationById(id);
-        if (optionalRegistration.isPresent()) {
-            Registration registration = optionalRegistration.get();
+    @Transactional
+    @PreAuthorize("@registrationService.isAttendee(#id, authentication.principal.username)")
+    public Registration updateRegistration(int id, Date registrationDate) { // Removed attendee and event parameters
+        try {
+            Registration registration = registrationRepository.findRegistrationById(id)
+                 .orElseThrow(() -> new ResourceNotFoundException("Registration with id " + id + " not found"));
 
-            // Authorization Check: Only the attendee can update their registration
-            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-            if (authentication == null || !authentication.isAuthenticated() || authentication.getPrincipal().equals("anonymousUser")) {
-                throw new UnauthedException("User not authenticated.");
-            }
-            String userEmail = authentication.getName(); // Assuming email is the username used in UserDetails
-            Account currentUser = accountRepository.findByEmail(userEmail)
-                    .orElseThrow(() -> new UnauthedException("Authenticated user not found in database."));
-            if (currentUser == null || registration.getAttendee() == null || registration.getAttendee().getId() != currentUser.getId()) {
-                throw new UnauthedException("Access denied: You can only update your own registration.");
-            }
-            // Consider if all fields should be updatable. Maybe only cancellation (delete) is allowed?
-            // For now, allowing update as per original method signature, but restricted to the attendee.
+            // Authorization handled by @PreAuthorize
 
-            registration.setRegistrationDate(registrationDate);
-            registration.setAttendee(attendee); // Should this be allowed? Could allow changing registration to someone else.
-            registration.setEventRegisteredFor(eventRegisteredFor); // Should this be allowed? Could allow changing the event.
+            // Update only allowed fields (e.g., registrationDate)
+            // Preventing updates to attendee or eventRegisteredFor as it doesn't make logical sense
+            // and was previously insecure.
+            if (registrationDate != null) {
+                 registration.setRegistrationDate(registrationDate);
+            } else {
+                 throw new IllegalArgumentException("Registration date cannot be null for update.");
+            }
+            
+            // If other fields were meant to be updatable, add logic here, but changing attendee/event is disallowed.
+
             return registrationRepository.save(registration);
-        } else {
-            throw new IllegalArgumentException("Registration not found");
-        }
-    }
+            
+        } catch (ResourceNotFoundException | IllegalArgumentException e) {
+            throw e; // Re-throw validation/not found errors
+        } catch (org.springframework.security.access.AccessDeniedException e) {
+             throw new ForbiddenException("Access denied: You can only update your own registration.");
+        } catch (UnauthedException e) {
+             // Handle case where authenticated user somehow isn't in DB (shouldn't happen)
+             throw e;
+        } catch (Exception e) {
+             // Log unexpected errors
+             throw new RuntimeException("An unexpected error occurred while updating the registration.", e);
+        } // End catch (Exception e)
+    } // End try block
+// Removed extra brace
 
     /**
      * Deletes a registration by its ID and updates the event's participant count.
@@ -135,27 +168,60 @@ public class RegistrationService {
      * @param event The event associated with the registration
      * @throws IllegalArgumentException if the registration or event is not valid
      */
+    @Transactional
+    @PreAuthorize("@registrationService.isAttendee(#id, authentication.principal.username)")
     public void deleteRegistration(int id) {
-        Optional<Registration> optionalRegistration = registrationRepository.findRegistrationById(id);
-        if (optionalRegistration.isPresent()) {
-            Registration registration = optionalRegistration.get();
+        try {
+            Registration registration = registrationRepository.findRegistrationById(id)
+                 .orElseThrow(() -> new ResourceNotFoundException("Registration with id " + id + " not found"));
 
-            // Authorization Check: Only the attendee can delete their registration
-            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-            if (authentication == null || !authentication.isAuthenticated() || authentication.getPrincipal().equals("anonymousUser")) {
-                throw new UnauthedException("User not authenticated.");
-            }
-            String userEmail = authentication.getName(); // Assuming email is the username used in UserDetails
-            Account currentUser = accountRepository.findByEmail(userEmail)
-                    .orElseThrow(() -> new UnauthedException("Authenticated user not found in database."));
-            if (currentUser == null || registration.getAttendee() == null || registration.getAttendee().getId() != currentUser.getId()) {
-                throw new UnauthedException("Access denied: You can only delete your own registration.");
+            // Authorization handled by @PreAuthorize
+            
+            // Decrement participant count before deleting
+            Event event = registration.getEventRegisteredFor();
+            if (event != null) {
+                 event.setCurrentNumberParticipants(Math.max(0, event.getCurrentNumberParticipants() - 1));
+                 // Note: Event needs to be saved if Event entity manages the relationship's lifecycle,
+                 // or if cascading isn't set up properly. Assuming EventService handles saving events if needed.
             }
 
             registrationRepository.deleteById(id);
-        } else {
-             throw new IllegalArgumentException("Registration not found"); // Keep consistency with update method
+            
+        } catch (ResourceNotFoundException e) {
+            throw e; // Re-throw not found error
+        } catch (org.springframework.security.access.AccessDeniedException e) {
+             throw new ForbiddenException("Access denied: You can only delete your own registration.");
+        } catch (UnauthedException e) {
+             // Handle case where authenticated user somehow isn't in DB
+             throw e;
+        } catch (Exception e) {
+             // Log unexpected errors
+             throw new RuntimeException("An unexpected error occurred while deleting the registration.", e);
         }
     }
  
+
+
+
+    // --- Helper methods for @PreAuthorize --- 
+
+    /**
+     * Checks if the given username corresponds to the attendee of the registration.
+     */
+    public boolean isAttendee(int registrationId, String username) {
+        if (username == null) return false;
+        try {
+            Registration registration = registrationRepository.findRegistrationById(registrationId).orElse(null);
+            Account user = accountRepository.findByEmail(username).orElse(null);
+
+            if (registration == null || user == null || registration.getAttendee() == null) {
+                return false; // Cannot determine attendee
+            }
+
+            return registration.getAttendee().getId() == user.getId();
+        } catch (Exception e) {
+            // Log error
+            return false; // Deny on error
+        }
+    }
 }

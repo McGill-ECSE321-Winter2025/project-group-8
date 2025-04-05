@@ -32,6 +32,8 @@ import org.springframework.test.context.ActiveProfiles;
 
 import ca.mcgill.ecse321.gameorganizer.dto.CreateEventRequest;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
+import ca.mcgill.ecse321.gameorganizer.models.Account;
+
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
@@ -374,4 +376,50 @@ public class EventIntegrationTests {
             .andExpect(jsonPath("$").isArray())
             .andExpect(jsonPath("$[0].host.email").value(testHost.getEmail()));
     }
+
+
+    // ----- Security: 401 Unauthorized Tests -----
+
+    @Test
+    @Order(19) // Renumbered
+    public void testUpdateEventUnauthenticated() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.put(BASE_URL + "/" + testEvent.getId())
+                .with(anonymous()) // Attempt unauthenticated
+                .param("title", "Updated Unauth"))
+            .andExpect(status().isUnauthorized()); // Expect 401
+    }
+
+    @Test
+    @Order(20) // Renumbered
+    public void testDeleteEventUnauthenticated() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.delete(BASE_URL + "/" + testEvent.getId())
+                .with(anonymous())) // Attempt unauthenticated
+            .andExpect(status().isUnauthorized()); // Expect 401
+    }
+
+    // ----- Security: 403 Forbidden Tests -----
+
+    @Test
+    @Order(21) // Renumbered
+    public void testUpdateEventForbidden() throws Exception {
+        // Create another user who is not the host
+        Account otherUser = accountRepository.save(new Account("otheruser", "other@example.com", passwordEncoder.encode("otherpass")));
+
+        mockMvc.perform(MockMvcRequestBuilders.put(BASE_URL + "/" + testEvent.getId())
+                .with(user(otherUser.getEmail()).password("otherpass").roles("USER")) // Authenticate as other user
+                .param("title", "Updated Forbidden"))
+            .andExpect(status().isForbidden()); // Expect 403 (assuming @PreAuthorize check on host)
+    }
+
+    @Test
+    @Order(22) // Renumbered
+    public void testDeleteEventForbidden() throws Exception {
+        // Create another user who is not the host
+        Account otherUser = accountRepository.save(new Account("otheruser", "other@example.com", passwordEncoder.encode("otherpass")));
+
+        mockMvc.perform(MockMvcRequestBuilders.delete(BASE_URL + "/" + testEvent.getId())
+                .with(user(otherUser.getEmail()).password("otherpass").roles("USER"))) // Authenticate as other user
+            .andExpect(status().isForbidden()); // Expect 403 (assuming @PreAuthorize check on host)
+    }
+
 }

@@ -13,6 +13,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.security.access.prepost.PreAuthorize; // Import PreAuthorize
+import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException; // Import ForbiddenException
 
 import ca.mcgill.ecse321.gameorganizer.dto.CreateEventRequest;
 import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;
@@ -66,9 +68,10 @@ public class EventService {
      * @return The created Event object.
      * @throws IllegalArgumentException if required fields are missing or invalid
      */
+    @PreAuthorize("isAuthenticated()")
     @Transactional
-    public Event createEvent(CreateEventRequest newEvent, String hostEmail) {
-        System.out.println("DEBUG SERVICE: createEvent called with hostEmail=" + hostEmail);
+    public Event createEvent(CreateEventRequest newEvent) { // Removed hostEmail parameter
+        // Removed debug line referencing hostEmail
         System.out.println("DEBUG SERVICE: newEvent.getTitle()=" + newEvent.getTitle());
         System.out.println("DEBUG SERVICE: newEvent.getDateTime()=" + newEvent.getDateTime());
         System.out.println("DEBUG SERVICE: newEvent.getMaxParticipants()=" + newEvent.getMaxParticipants());
@@ -96,12 +99,12 @@ public class EventService {
         if (newEvent.getFeaturedGame() == null || newEvent.getFeaturedGame().getId() == 0) {
              throw new IllegalArgumentException("Featured game ID must be provided");
         }
-        // Fetch the host account using the provided email
-        System.out.println("DEBUG SERVICE: Looking up host by email: " + hostEmail);
-        Account host = accountRepository.findByEmail(hostEmail)
-                .orElseThrow(() -> new IllegalArgumentException("Host account with email " + hostEmail + " not found."));
-
         // Fetch the featured game using the ID from the request
+        // Fetch the host account from the authenticated principal
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        Account host = accountRepository.findByEmail(username)
+                .orElseThrow(() -> new IllegalArgumentException("Authenticated user account not found."));
+
         int gameId = newEvent.getFeaturedGame().getId();
         Game featuredGameEntity = gameRepository.findById(gameId)
                 .orElseThrow(() -> new IllegalArgumentException("Featured game with ID " + gameId + " not found."));
@@ -119,7 +122,33 @@ public class EventService {
         System.out.println("DEBUG SERVICE: Created event object, saving to repository");
         Event savedEvent = eventRepository.save(e);
         System.out.println("DEBUG SERVICE: Saved event with ID: " + savedEvent.getId());
-        return savedEvent;
+    return savedEvent;
+    } // End of createEvent method
+
+    /**
+     * Helper method for @PreAuthorize to check if the authenticated user is the host of the event.
+     *
+     * @param eventId The ID of the event.
+     * @param username The username (email) of the authenticated user.
+     * @return true if the user is the host, false otherwise.
+     */
+    public boolean isHost(UUID eventId, String username) {
+        if (username == null) return false;
+        try {
+            Event event = eventRepository.findEventById(eventId).orElse(null);
+            Account user = accountRepository.findByEmail(username).orElse(null);
+
+            if (event == null || user == null || event.getHost() == null) {
+                return false; // Cannot determine host or user
+            }
+
+            // Compare IDs for accurate check
+            return event.getHost().getId() == user.getId();
+        } catch (Exception e) {
+            // Log error maybe
+            System.err.println("Error during isHost check: " + e.getMessage());
+            return false; // Deny access on error
+        }
     }
 
     /**
@@ -183,79 +212,50 @@ public class EventService {
      * @throws ResponseStatusException if the user attempting the update is not the host (HttpStatus.FORBIDDEN).
      */
     @Transactional
+    @PreAuthorize("@eventService.isHost(#id, authentication.principal.username)")
     public Event updateEvent(UUID id, String title, Date dateTime,
-                            String location, String description, int maxParticipants, String userEmail) {
-        Event event = eventRepository.findEventById(id).orElseThrow(
-                () -> new IllegalArgumentException("Event with id " + id + " does not exist")
-        );
-
-        // First, try to find the account by email (for direct service calls in tests)
-        Account userAccount = null;
-        if (userEmail != null) {
-            System.out.println("DEBUG SERVICE: updateEvent direct call with userEmail=" + userEmail);
-            userAccount = accountRepository.findByEmail(userEmail).orElse(null);
-            
-            if (userAccount != null) {
-                System.out.println("DEBUG SERVICE: Found user account: " + userAccount.getEmail());
-                // Check if this user is the host
-                if (event.getHost() != null && event.getHost().getId() == userAccount.getId()) {
-                    System.out.println("DEBUG SERVICE: User is the host, proceeding with update");
-                    // Skip the security context check since this is a direct service call
-                } else {
-                    System.out.println("DEBUG SERVICE: User is NOT the host, proceeding with security check");
-                    userAccount = null; // Reset to trigger security check
-                }
-            }
-        }
-
-        // Only perform security check if we don't have a valid user already from email
-        if (userAccount == null) {
-            // Authorization Check using Spring Security
-            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-            if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
-                throw new UnauthedException("User must be authenticated to update an event.");
-            }
-
-            String currentUsername;
-            Object principal = authentication.getPrincipal();
-            if (principal instanceof UserDetails) {
-                currentUsername = ((UserDetails) principal).getUsername();
-            } else if (principal instanceof String) {
-                currentUsername = (String) principal;
-            } else {
-                throw new UnauthedException("Unexpected principal type in SecurityContext.");
-            }
-
-            userAccount = accountRepository.findByEmail(currentUsername).orElseThrow(
-                    () -> new UnauthedException("Authenticated user '" + currentUsername + "' not found in database.")
+                            String location, String description, int maxParticipants) { // Removed userEmail parameter
+        try {
+            Event event = eventRepository.findEventById(id).orElseThrow(
+                    () -> new IllegalArgumentException("Event with id " + id + " does not exist")
             );
 
-            if (event.getHost() == null || event.getHost().getId() != userAccount.getId()) {
-                throw new UnauthedException("Access denied: You are not the host of this event.");
+            // Authorization is handled by @PreAuthorize
+
+            if (title != null && !title.trim().isEmpty()) {
+                event.setTitle(title);
             }
-        }
+            if (dateTime != null) {
+                event.setDateTime(dateTime);
+            }
+            if (location != null) {
+                event.setLocation(location);
+            }
+            if (description != null) {
+                event.setDescription(description);
+            }
+            // Use default value logic from controller or ensure maxParticipants > 0
+            if (maxParticipants > 0) { // Check if a valid value was provided
+                 event.setMaxParticipants(maxParticipants);
+            } else if (maxParticipants == 0) {
+                 // If defaultValue was used in controller (0), don't update unless explicitly needed.
+                 // Or, decide if 0 should reset/clear it, or be ignored. Let's ignore 0 for now.
+                 System.out.println("DEBUG SERVICE: Ignoring maxParticipants=0 update.");
+            } else {
+                 // If negative value somehow passed, throw error.
+                 throw new IllegalArgumentException("Maximum participants must be positive.");
+            }
 
-        if (title != null && !title.trim().isEmpty()) {
-            event.setTitle(title);
-        }
-        if (dateTime != null) {
-            event.setDateTime(dateTime);
-        }
-        if (location != null) {
-            event.setLocation(location);
-        }
-        if (description != null) {
-            event.setDescription(description);
-        }
-        // Throw an exception if maxParticipants is not valid
-        if (maxParticipants <= 0) {
-            throw new IllegalArgumentException("Invalid maxParticipants value");
-        } else {
-            event.setMaxParticipants(maxParticipants);
-        }
 
-        System.out.println("DEBUG SERVICE: Saving updated event with ID: " + event.getId());
-        return eventRepository.save(event);
+            System.out.println("DEBUG SERVICE: Saving updated event with ID: " + event.getId());
+            return eventRepository.save(event);
+        } catch (IllegalArgumentException e) {
+             // Re-throw specific exceptions if needed, or let GlobalExceptionHandler handle them
+             throw e;
+        } catch (org.springframework.security.access.AccessDeniedException e) {
+            // Catch potential AccessDeniedException from @PreAuthorize and convert to ForbiddenException
+            throw new ForbiddenException("Access denied: You are not the host of this event.");
+       }
     }
 
 
@@ -274,60 +274,25 @@ public class EventService {
      */
 
     @Transactional
-    public ResponseEntity<String> deleteEvent(UUID id, String userEmail) {
-        Event eventToDelete = eventRepository.findEventById(id).orElseThrow(
-                () -> new IllegalArgumentException("Event with id " + id + " does not exist")
-        );
-
-        // First, try to find the account by email (for direct service calls in tests)
-        Account userAccount = null;
-        if (userEmail != null) {
-            System.out.println("DEBUG SERVICE: deleteEvent direct call with userEmail=" + userEmail);
-            userAccount = accountRepository.findByEmail(userEmail).orElse(null);
-            
-            if (userAccount != null) {
-                System.out.println("DEBUG SERVICE: Found user account: " + userAccount.getEmail());
-                // Check if this user is the host
-                if (eventToDelete.getHost() != null && eventToDelete.getHost().getId() == userAccount.getId()) {
-                    System.out.println("DEBUG SERVICE: User is the host, proceeding with delete");
-                    // Skip the security context check since this is a direct service call
-                } else {
-                    System.out.println("DEBUG SERVICE: User is NOT the host, proceeding with security check");
-                    userAccount = null; // Reset to trigger security check
-                }
-            }
-        }
-
-        // Only perform security check if we don't have a valid user already from email
-        if (userAccount == null) {
-            // Authorization Check using Spring Security
-            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-            if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
-                throw new UnauthedException("User must be authenticated to delete an event.");
-            }
-
-            String currentUsername;
-            Object principal = authentication.getPrincipal();
-            if (principal instanceof UserDetails) {
-                currentUsername = ((UserDetails) principal).getUsername();
-            } else if (principal instanceof String) {
-                currentUsername = (String) principal;
-            } else {
-                throw new UnauthedException("Unexpected principal type in SecurityContext.");
-            }
-
-            userAccount = accountRepository.findByEmail(currentUsername).orElseThrow(
-                    () -> new UnauthedException("Authenticated user '" + currentUsername + "' not found in database.")
+    @PreAuthorize("@eventService.isHost(#id, authentication.principal.username)")
+    public ResponseEntity<String> deleteEvent(UUID id) { // Removed userEmail parameter
+         try {
+            Event eventToDelete = eventRepository.findEventById(id).orElseThrow(
+                    () -> new IllegalArgumentException("Event with id " + id + " does not exist")
             );
 
-            if (eventToDelete.getHost() == null || eventToDelete.getHost().getId() != userAccount.getId()) {
-                throw new UnauthedException("Access denied: You are not the host of this event.");
-            }
-        }
+            // Authorization is handled by @PreAuthorize
 
-        System.out.println("DEBUG SERVICE: Deleting event with ID: " + id);
-        eventRepository.delete(eventToDelete);
-        return ResponseEntity.ok("Event with id " + id + " has been deleted");
+            System.out.println("DEBUG SERVICE: Deleting event with ID: " + id);
+            eventRepository.delete(eventToDelete);
+            return ResponseEntity.ok("Event with id " + id + " has been deleted");
+        } catch (IllegalArgumentException e) {
+             // Re-throw specific exceptions if needed, or let GlobalExceptionHandler handle them
+             throw e;
+        } catch (org.springframework.security.access.AccessDeniedException e) {
+            // Catch potential AccessDeniedException from @PreAuthorize and convert to ForbiddenException
+            throw new ForbiddenException("Access denied: You are not the host of this event.");
+       }
     }
 
     /**

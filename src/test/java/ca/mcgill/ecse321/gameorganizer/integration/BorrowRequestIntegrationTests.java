@@ -62,6 +62,12 @@ public class BorrowRequestIntegrationTests {
     @BeforeAll
     public static void setTestEnvironment() {
         System.setProperty("spring.profiles.active", "test");
+        
+        // Ensure JWT_SECRET is set for tests if not already set
+        if (System.getProperty("JWT_SECRET") == null && System.getenv("JWT_SECRET") == null) {
+            System.setProperty("JWT_SECRET", "tG8qcqi6M2XZ1s73QTdIHHGhBEzZARBOlDvcxkp4iAoCPU5f8OeYXFmNOkjr9XgJ");
+            System.out.println("Setting JWT_SECRET for BorrowRequestIntegrationTests");
+        }
     }
 
     @Autowired
@@ -430,4 +436,78 @@ public class BorrowRequestIntegrationTests {
             .andExpect(jsonPath("$").isArray())
             .andExpect(jsonPath("$.length()").value(0)); // Expect empty array
     }
+
+
+    // ----- Security: 401 Unauthorized Tests -----
+
+    @Test
+    @Order(20)
+    public void testCreateBorrowRequestUnauthenticated() throws Exception {
+        Date startDate = new Date(Instant.now().plus(3, ChronoUnit.DAYS).toEpochMilli());
+        Date endDate = new Date(Instant.now().plus(4, ChronoUnit.DAYS).toEpochMilli());
+        CreateBorrowRequestDto requestDto = new CreateBorrowRequestDto(
+            testRequester.getId(), testGame.getId(), startDate, endDate
+        );
+
+        mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL)
+                .with(anonymous()) // Attempt unauthenticated
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(requestDto)))
+            .andExpect(status().isUnauthorized()); // Expect 401
+    }
+
+    @Test
+    @Order(21)
+    public void testUpdateBorrowRequestUnauthenticated() throws Exception {
+        BorrowRequestDto updateDto = new BorrowRequestDto(
+            testRequest.getId(), testRequester.getId(), testGame.getId(),
+            testRequest.getStartDate(), testRequest.getEndDate(),
+            BorrowRequestStatus.APPROVED.name(), testRequest.getRequestDate()
+        );
+
+        mockMvc.perform(MockMvcRequestBuilders.put(BASE_URL + "/" + testRequest.getId())
+                .with(anonymous()) // Attempt unauthenticated
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(updateDto)))
+            .andExpect(status().isUnauthorized()); // Expect 401
+    }
+
+    @Test
+    @Order(22)
+    public void testDeleteBorrowRequestUnauthenticated() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.delete(BASE_URL + "/" + testRequest.getId())
+                .with(anonymous())) // Attempt unauthenticated
+            .andExpect(status().isUnauthorized()); // Expect 401
+    }
+
+    @Test
+    @Order(23)
+    public void testGetBorrowRequestByIdUnauthenticated() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get(BASE_URL + "/" + testRequest.getId())
+                .with(anonymous())) // Attempt unauthenticated
+            .andExpect(status().isUnauthorized()); // Expect 401
+    }
+
+    @Test
+    @Order(24)
+    public void testGetAllBorrowRequestsUnauthenticated() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get(BASE_URL)
+                .with(anonymous())) // Attempt unauthenticated
+            .andExpect(status().isUnauthorized()); // Expect 401
+    }
+
+    // ----- Security: 403 Forbidden Tests (Additional) -----
+
+    @Test
+    @Order(25)
+    public void testGetBorrowRequestByIdForbidden() throws Exception {
+        // Create another user who is neither owner nor requester
+        Account otherUser = accountRepository.save(new Account("other", "other@example.com", passwordEncoder.encode("password123")));
+
+        // Authenticate as the other user trying to get the request
+        mockMvc.perform(MockMvcRequestBuilders.get(BASE_URL + "/" + testRequest.getId())
+                .with(user(otherUser.getEmail()).password("password123").roles("USER"))) 
+            .andExpect(status().isForbidden()); // Expect 403 FORBIDDEN (assuming service-level check)
+    }
+
 }

@@ -29,7 +29,9 @@ import org.springframework.security.core.context.SecurityContextImpl;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import java.util.Collections;
+import org.springframework.test.context.ContextConfiguration;
 
+import ca.mcgill.ecse321.gameorganizer.TestJwtConfig;
 import ca.mcgill.ecse321.gameorganizer.dto.AccountResponse;
 import ca.mcgill.ecse321.gameorganizer.dto.CreateAccountRequest;
 import ca.mcgill.ecse321.gameorganizer.dto.UpdateAccountRequest;
@@ -45,6 +47,7 @@ import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
 import ca.mcgill.ecse321.gameorganizer.services.AccountService;
 
 @ExtendWith(MockitoExtension.class)
+@ContextConfiguration(initializers = TestJwtConfig.Initializer.class)
 public class AccountServiceTest {
 
     @Mock
@@ -318,9 +321,8 @@ public class AccountServiceTest {
 
         try {
             // Setup Mocks
-            // Make the request target a non-existent email, but the authenticated user exists
+            // Make the request target a non-existent email
             updateAccountRequest.setEmail("nonexistent@example.com");
-            when(accountRepository.findByEmail(VALID_EMAIL)).thenReturn(Optional.of(testAccount)); // Mock finding the authenticated user
             when(accountRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty()); // Mock finding the target user (fails)
 
             // Test
@@ -388,7 +390,9 @@ public class AccountServiceTest {
     public void testDeleteAccountFail() {
         when(accountRepository.findByEmail(VALID_EMAIL)).thenReturn(Optional.empty());
 
-        assertThrows(IllegalArgumentException.class, () -> accountService.deleteAccountByEmail(VALID_EMAIL));
+        ResponseEntity<String> response = accountService.deleteAccountByEmail(VALID_EMAIL);
+        
+        assertEquals("Bad request: Account with email " + VALID_EMAIL + " does not exist", response.getBody());
         verify(accountRepository, never()).delete(any(Account.class));
     }
 
@@ -396,7 +400,9 @@ public class AccountServiceTest {
     public void testDeleteGameOwnerFail() {
         when(accountRepository.findByEmail(VALID_EMAIL)).thenReturn(Optional.empty());
 
-        assertThrows(IllegalArgumentException.class, () -> accountService.deleteAccountByEmail(VALID_EMAIL));
+        ResponseEntity<String> response = accountService.deleteAccountByEmail(VALID_EMAIL);
+        
+        assertEquals("Bad request: Account with email " + VALID_EMAIL + " does not exist", response.getBody());
         verify(accountRepository, never()).delete(any(Account.class));
     }
 

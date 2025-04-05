@@ -1,45 +1,69 @@
-// Define API_BASE_URL or import from a central config
-const API_BASE_URL = "http://localhost:8080/api/v1";
+import apiClient, { UnauthorizedError, ForbiddenError } from './apiClient';
+
+/**
+ * Fetches the profile information of the currently logged-in user.
+ * Relies on the HttpOnly cookie for authentication.
+ * @returns {Promise<object>} A promise that resolves to the user summary object (e.g., UserSummaryDto).
+ * @throws {UnauthorizedError} If the user is not authenticated (no valid cookie).
+ * @throws {ApiError} For other API-related errors.
+ */
+export const getUserProfile = async () => {
+  try {
+    // Assuming the backend has an endpoint like '/api/users/me' or similar
+    // that returns the current user's info based on the session cookie.
+    const userProfile = await apiClient('/api/users/me'); 
+    return userProfile;
+  } catch (error) {
+    // apiClient throws specific errors like UnauthorizedError
+    console.error("Error fetching user profile:", error);
+    // Re-throw the error for the caller (e.g., AuthContext) to handle
+    throw error; 
+  }
+};
 
 /**
  * Fetches account information for a given email.
- * Requires authentication.
+ * Requires authentication (via HttpOnly cookie).
  * @param {string} email - The email of the user.
  * @returns {Promise<object>} A promise that resolves to the account information object.
+ * @throws {UnauthorizedError} If the user is not authenticated.
+ * @throws {ForbiddenError} If the user is not allowed to access this info.
+ * @throws {ApiError} For other API-related errors.
  */
 export const getUserInfoByEmail = async (email) => {
-  const token = localStorage.getItem("token");
-  if (!token) {
-    throw new Error("Authentication token not found. Please log in.");
-  }
   if (!email) {
      throw new Error("Email is required to fetch account info.");
   }
 
-  const headers = {
-    "Content-Type": "application/json",
-    'Authorization': `Bearer ${token}`
-  };
-
-  const url = `${API_BASE_URL}/account/${encodeURIComponent(email)}`;
-
   try {
-    const response = await fetch(url, {
-      method: "GET",
-      headers: headers,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to fetch account info: ${response.status} ${response.statusText} - ${errorText}`);
-    }
-
-    return response.json();
+    const userInfo = await apiClient(`/account/${encodeURIComponent(email)}`);
+    return userInfo;
   } catch (error) {
-      console.error("Error fetching account info:", error);
-      throw error; // Re-throw for the component to handle
+    console.error(`Error fetching user info for ${email}:`, error);
+    // Re-throw the specific error (UnauthorizedError, ForbiddenError, ApiError)
+    throw error;
   }
 };
 
-// TODO: Add other user-related API functions here if needed
+/**
+ * Logs out the current user by calling the backend logout endpoint.
+ * This endpoint is expected to clear the HttpOnly cookie.
+ * @returns {Promise<void>} A promise that resolves when logout is complete.
+ */
+export const logoutUser = async () => {
+    try {
+      // Assuming a POST request to /auth/logout clears the cookie
+      await apiClient('/auth/logout', { method: 'POST' }); 
+      console.log("Logout API call successful");
+    } catch (error) {
+        // Log the error but don't necessarily block frontend logout
+        console.error("Error calling logout API:", error);
+        // Depending on requirements, you might still want to proceed with frontend logout
+        // even if the backend call fails. Or re-throw if it's critical.
+        // throw error; 
+    }
+};
+
+
+// TODO: Add other user-related API functions here if needed, using apiClient
 // e.g., searchUsers, getUserById, updateUser, etc.

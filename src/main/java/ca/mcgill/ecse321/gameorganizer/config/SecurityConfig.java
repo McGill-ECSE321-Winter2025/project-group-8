@@ -18,14 +18,15 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
-import org.springframework.security.web.util.matcher.OrRequestMatcher;
+import java.util.Arrays;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import ca.mcgill.ecse321.gameorganizer.security.JwtAuthenticationFilter; // Added import
+import ca.mcgill.ecse321.gameorganizer.security.JwtAuthenticationFilter;
 
 @Configuration
 @EnableWebSecurity
@@ -43,72 +44,78 @@ public class SecurityConfig {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
     }
 
-    // Chain for public endpoints (authentication, registration)
+    // Main security filter chain
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        // Profile check removed - Production security rules always applied here.
-        // Test security is handled by TestSecurityConfig.
-
-        // Apply security constraints (copied directly from original 'else' block)
-        http.authorizeHttpRequests(authz -> authz
-                // Allow unauthenticated access for auth endpoints and account creation (POST)
-                .requestMatchers("/auth/**").permitAll() // Changed path to /auth/**
-                .requestMatchers(HttpMethod.POST, "/account").permitAll()
-                // Require authentication for account updates (PUT)
-                .requestMatchers(HttpMethod.PUT, "/account").authenticated()
-                // Note: Other /api/v1/account/** endpoints (GET, DELETE) will fall under anyRequest().authenticated() below
-                // Borrow Requests:
-                // - Allow any authenticated user (USER or GAME_OWNER) to create (POST)
-                .requestMatchers(HttpMethod.POST, "/borrowrequests").hasRole("USER")
-                // - Allow only GAME_OWNER to update (PUT) or delete (DELETE) specific requests
-                .requestMatchers(HttpMethod.PUT, "/borrowrequests/**").hasRole("GAME_OWNER")
-                .requestMatchers(HttpMethod.DELETE, "/borrowrequests/**").hasRole("GAME_OWNER")
-                // - Allow any authenticated user to GET requests (adjust if needed)
-                .requestMatchers(HttpMethod.GET, "/borrowrequests/**").hasRole("USER")
-                // Require authentication for all other endpoints
-                .anyRequest().authenticated()
-            )
-            .authorizeHttpRequests(authz -> authz
-                .anyRequest().permitAll() // Permit all requests matching this chain
-            )
-            .csrf(csrf -> csrf.disable()) // Disable CSRF
-            .cors(Customizer.withDefaults()) // Enable CORS
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)); // Stateless
-
-        return http.build();
-    }
-
-    // Chain for protected API endpoints
-    @Bean
-    @Order(2)
-    public SecurityFilterChain protectedApiFilterChain(HttpSecurity http) throws Exception {
         http
-            .securityMatcher("/api/v1/**") // Apply this chain to all other /api/v1 paths
+            .securityMatcher("/**") // Match all requests
             .authorizeHttpRequests(authz -> authz
-                // Specific rules for borrow requests (example)
-                .requestMatchers(HttpMethod.POST, "/api/v1/borrowrequests").hasRole("USER")
-                .requestMatchers(HttpMethod.PUT, "/api/v1/borrowrequests/**").hasRole("GAME_OWNER")
-                .requestMatchers(HttpMethod.DELETE, "/api/v1/borrowrequests/**").hasRole("GAME_OWNER")
-                .requestMatchers(HttpMethod.GET, "/api/v1/borrowrequests/**").hasRole("USER")
-                // Default rule: require authentication for any other matched request
+                // Allow unauthenticated access for auth endpoints and account creation
+                .requestMatchers("/auth/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/account").permitAll()
+                // Require authentication for account GET requests
+                .requestMatchers(HttpMethod.GET, "/account/**").authenticated()
+                // Allow GET operations for browsing content
+                .requestMatchers(HttpMethod.GET, "/games/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/events/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/users/*/games").permitAll()
+                .requestMatchers(HttpMethod.GET, "/lending-records/**").authenticated()
+                .requestMatchers(HttpMethod.GET, "/borrowrequests/**").authenticated()
+                // Account management
+                .requestMatchers(HttpMethod.PUT, "/account/**").authenticated()
+                .requestMatchers(HttpMethod.DELETE, "/account/**").authenticated()
+                // Game operations - Assume only game owners or admins can modify
+                // Note: Adjust "GAME_OWNER", "ADMIN" to actual role names used in UserDetailsServiceImpl
+                .requestMatchers(HttpMethod.POST, "/games/**").hasRole("GAME_OWNER") // Changed from hasAnyRole("GAME_OWNER", "ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/games/**").hasRole("GAME_OWNER") // Changed from hasAnyRole("GAME_OWNER", "ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/games/**").hasRole("GAME_OWNER") // Changed from hasAnyRole("GAME_OWNER", "ADMIN")
+                // Event operations - Assume only authenticated users can create/modify for now, refine if needed
+                .requestMatchers(HttpMethod.POST, "/events/**").authenticated() // Or apply role checks if needed
+                .requestMatchers(HttpMethod.PUT, "/events/**").authenticated()   // Or apply role checks if needed
+                .requestMatchers(HttpMethod.DELETE, "/events/**").authenticated() // Or apply role checks if needed
+                // Borrow Requests - Actions likely performed by authenticated users
+                .requestMatchers(HttpMethod.POST, "/borrowrequests/**").authenticated()
+                .requestMatchers(HttpMethod.PUT, "/borrowrequests/**").authenticated() // e.g., Accept/Reject might need owner role? Check logic.
+                .requestMatchers(HttpMethod.DELETE, "/borrowrequests/**").authenticated() // Who can delete?
+                // Lending Records - Actions likely performed by authenticated users, potentially game owners
+                .requestMatchers(HttpMethod.POST, "/lending-records/**").authenticated() // e.g., Confirm pickup/return
+                .requestMatchers(HttpMethod.PUT, "/lending-records/**").authenticated()
+                .requestMatchers(HttpMethod.DELETE, "/lending-records/**").hasRole("GAME_OWNER") // Changed from hasAnyRole("GAME_OWNER", "ADMIN")
+                // Reviews
+                .requestMatchers("/reviews/**").authenticated()
+                // Registrations
+                .requestMatchers("/registrations/**").authenticated()
+                // Default deny? Or should anyRequest() be authenticated()? Let's assume authenticated for now.
                 .anyRequest().authenticated()
             )
+            .csrf(csrf -> csrf.disable())
+            .cors(Customizer.withDefaults())
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .anonymous(Customizer.withDefaults()) // Explicitly configure anonymous filter
             .exceptionHandling(handling -> handling
-                .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)) // Return 401 on auth failure
+                .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
             )
-            .csrf(csrf -> csrf.disable()) // Disable CSRF
-            .cors(Customizer.withDefaults()) // Enable CORS
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // Stateless
-            // Remove explicit SecurityContextRepository - rely on default behavior with SecurityContextHolder
-            // .securityContext(context -> context
-            //     .securityContextRepository(new RequestAttributeSecurityContextRepository())
-            // )
-            // Add JWT filter for this chain
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
+    // Removed the second filter chain bean
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        // Can't use * with allowCredentials=true, so specify the frontend origin
+        configuration.setAllowedOrigins(Arrays.asList("http://localhost:3000", "http://localhost:5173"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(Arrays.asList("authorization", "content-type", "x-auth-token", "Authorization"));
+        configuration.setExposedHeaders(Arrays.asList("x-auth-token"));
+        configuration.setAllowCredentials(true); // Allow credentials
+        
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
 
     // --- Authentication Provider Beans (remain the same) ---
 

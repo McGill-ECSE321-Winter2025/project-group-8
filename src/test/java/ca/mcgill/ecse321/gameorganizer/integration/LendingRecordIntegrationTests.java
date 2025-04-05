@@ -87,50 +87,77 @@ public class LendingRecordIntegrationTests {
 
     @BeforeEach
     public void setup() {
-        reviewRepository.deleteAll();
-        lendingRecordRepository.deleteAll();
-        borrowRequestRepository.deleteAll();
-        eventRepository.deleteAll();
-        gameRepository.deleteAll();
-        accountRepository.deleteAll();
+        // Clear repositories in the correct order to respect referential integrity
+        try {
+            // Clean up any existing data
+            cleanup();
 
-        // Create test accounts with unique emails per execution
-        String uniqueOwnerEmail = "owner-" + System.currentTimeMillis() + "@example.com";
-        testOwner = new GameOwner("Owner", uniqueOwnerEmail, passwordEncoder.encode(TEST_PASSWORD));
-        testOwner = (GameOwner) accountRepository.save(testOwner);
+            // Create test accounts with unique emails per execution
+            String uniqueOwnerEmail = "owner-" + System.currentTimeMillis() + "@example.com";
+            testOwner = new GameOwner("Owner", uniqueOwnerEmail, passwordEncoder.encode(TEST_PASSWORD));
+            testOwner = (GameOwner) accountRepository.save(testOwner);
 
-        String uniqueBorrowerEmail = "borrower-" + System.currentTimeMillis() + "@example.com";
-        testBorrower = new Account("Borrower", uniqueBorrowerEmail, passwordEncoder.encode(TEST_PASSWORD));
-        testBorrower = accountRepository.save(testBorrower);
+            String uniqueBorrowerEmail = "borrower-" + System.currentTimeMillis() + "@example.com";
+            testBorrower = new Account("Borrower", uniqueBorrowerEmail, passwordEncoder.encode(TEST_PASSWORD));
+            testBorrower = accountRepository.save(testBorrower);
 
-        dummyGame = new Game();
-        dummyGame.setName("Dummy Game");
-        dummyGame.setOwner(testOwner);
-        dummyGame = gameRepository.save(dummyGame);
+            // Create game with unique name
+            String uniqueGameName = "Dummy Game " + System.currentTimeMillis();
+            dummyGame = new Game();
+            dummyGame.setName(uniqueGameName);
+            dummyGame.setMinPlayers(2);
+            dummyGame.setMaxPlayers(4);
+            dummyGame.setImage("dummy.jpg");
+            dummyGame.setDateAdded(new Date(System.currentTimeMillis()));
+            dummyGame.setOwner(testOwner);
+            dummyGame = gameRepository.save(dummyGame);
 
-        dummyRequest = new BorrowRequest();
-        dummyRequest.setRequestedGame(dummyGame);
-        dummyRequest.setRequester(testBorrower);
-        dummyRequest.setStatus(BorrowRequestStatus.APPROVED); // Assume request is approved
-        dummyRequest = borrowRequestRepository.save(dummyRequest);
+            // Important: Make sure the game is fully saved before creating a borrow request
+            dummyRequest = new BorrowRequest();
+            dummyRequest.setRequestedGame(dummyGame); // Use the saved game
+            dummyRequest.setRequester(testBorrower);
+            dummyRequest.setStatus(BorrowRequestStatus.APPROVED); // Assume request is approved
+            dummyRequest = borrowRequestRepository.save(dummyRequest);
 
-        testRecord = new LendingRecord();
-        testRecord.setStartDate(new Date(System.currentTimeMillis() - 86400000L)); // Yesterday
-        testRecord.setEndDate(new Date(System.currentTimeMillis() + 86400000L));   // Tomorrow
-        testRecord.setStatus(LendingStatus.ACTIVE);
-        testRecord.setRecordOwner(testOwner);
-        testRecord.setRequest(dummyRequest);
-        testRecord = lendingRecordRepository.save(testRecord);
+            testRecord = new LendingRecord();
+            testRecord.setStartDate(new Date(System.currentTimeMillis() - 86400000L)); // Yesterday
+            testRecord.setEndDate(new Date(System.currentTimeMillis() + 86400000L));   // Tomorrow
+            testRecord.setStatus(LendingStatus.ACTIVE);
+            testRecord.setRecordOwner(testOwner);
+            testRecord.setRequest(dummyRequest);
+            testRecord = lendingRecordRepository.save(testRecord);
+        } catch (Exception e) {
+            System.err.println("Error during setup: " + e.getMessage());
+            e.printStackTrace();
+            throw e; // Rethrow to fail the test
+        }
     }
 
     @AfterEach
     public void cleanup() {
-        reviewRepository.deleteAll();
-        lendingRecordRepository.deleteAll();
-        borrowRequestRepository.deleteAll();
-        eventRepository.deleteAll();
-        gameRepository.deleteAll();
-        accountRepository.deleteAll();
+        try {
+            // Delete in correct order to respect referential integrity
+            // First remove reviews if they exist
+            reviewRepository.deleteAll();
+            
+            // Then events
+            eventRepository.deleteAll();
+            
+            // Then lending records
+            lendingRecordRepository.deleteAll();
+            
+            // Then borrow requests
+            borrowRequestRepository.deleteAll();
+            
+            // Then games
+            gameRepository.deleteAll();
+            
+            // Finally accounts
+            accountRepository.deleteAll();
+        } catch (Exception e) {
+            System.err.println("Error during cleanup: " + e.getMessage());
+            // Just log cleanup errors, don't fail tests
+        }
     }
 
     // ============================================================
@@ -139,11 +166,12 @@ public class LendingRecordIntegrationTests {
     @Test
     @Order(1)
     public void testCreateLendingRecordSuccess() throws Exception {
+        // Create a new borrow request with the already saved game
         BorrowRequest newRequest = new BorrowRequest();
-        newRequest.setRequestedGame(dummyGame);
+        newRequest.setRequestedGame(dummyGame); // Use the existing saved game
         newRequest.setRequester(testBorrower);
         newRequest.setStatus(BorrowRequestStatus.APPROVED); // Must be approved
-        newRequest = borrowRequestRepository.save(newRequest);
+        newRequest = borrowRequestRepository.save(newRequest); // Save request to get ID
 
         Map<String, Object> requestMap = new HashMap<>();
         requestMap.put("requestId", newRequest.getId());
@@ -390,6 +418,7 @@ public class LendingRecordIntegrationTests {
         Date pastStart = new Date(System.currentTimeMillis() - 14 * 24 * 60 * 60 * 1000); // 14 days ago
         Date pastEnd = new Date(System.currentTimeMillis() - 7 * 24 * 60 * 60 * 1000); // 7 days ago
 
+        // Make sure we use the properly saved game - dummyGame is already saved from setup
         BorrowRequest overdueRequest = new BorrowRequest(pastStart, pastEnd, BorrowRequestStatus.APPROVED, new java.util.Date(), dummyGame);
         overdueRequest.setRequester(testBorrower);
         overdueRequest.setResponder(testOwner);
@@ -411,10 +440,13 @@ public class LendingRecordIntegrationTests {
         // Create an overdue record for the test owner
         Date pastStart = new Date(System.currentTimeMillis() - 14 * 24 * 60 * 60 * 1000);
         Date pastEnd = new Date(System.currentTimeMillis() - 7 * 24 * 60 * 60 * 1000);
+        
+        // Make sure we use the properly saved game - dummyGame is already saved from setup
         BorrowRequest overdueRequest = new BorrowRequest(pastStart, pastEnd, BorrowRequestStatus.APPROVED, new java.util.Date(), dummyGame);
         overdueRequest.setRequester(testBorrower);
         overdueRequest.setResponder(testOwner);
         overdueRequest = borrowRequestRepository.save(overdueRequest);
+        
         LendingRecord overdueRecord = new LendingRecord(pastStart, pastEnd, LendingStatus.ACTIVE, overdueRequest, testOwner);
         overdueRecord = lendingRecordRepository.save(overdueRecord);
 
@@ -559,6 +591,122 @@ public class LendingRecordIntegrationTests {
         mockMvc.perform(MockMvcRequestBuilders.get(BASE_URL + "/owner/" + testOwner.getId() + "/status/INVALID_STATUS")
                 .with(anonymous()))
             .andExpect(status().isBadRequest()); // Controller validation should fail
+    }
+
+
+
+    // ----- Security: 401 Unauthorized Tests -----
+
+    @Test
+    @Order(51) // Renumbered
+    public void testCreateLendingRecordUnauthenticated() throws Exception {
+        Map<String, Object> requestMap = new HashMap<>();
+        requestMap.put("requestId", dummyRequest.getId());
+        requestMap.put("ownerId", testOwner.getId());
+        long now = System.currentTimeMillis();
+        requestMap.put("startDate", now + 10800000L);
+        requestMap.put("endDate", now + 86400000L);
+
+        mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL)
+                .with(anonymous()) // Attempt unauthenticated
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(requestMap)))
+            .andExpect(status().isUnauthorized()); // Expect 401
+    }
+
+    @Test
+    @Order(52) // Renumbered
+    public void testUpdateLendingRecordStatusUnauthenticated() throws Exception {
+        UpdateLendingRecordStatusDto statusDto = new UpdateLendingRecordStatusDto();
+        statusDto.setNewStatus(LendingStatus.OVERDUE.name());
+        statusDto.setUserId(testOwner.getId());
+        statusDto.setReason("Unauth update attempt");
+
+        mockMvc.perform(MockMvcRequestBuilders.put(BASE_URL + "/" + testRecord.getId() + "/status")
+                .with(anonymous()) // Attempt unauthenticated
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(statusDto)))
+            .andExpect(status().isUnauthorized()); // Expect 401
+    }
+
+    @Test
+    @Order(53) // Renumbered
+    public void testDeleteLendingRecordUnauthenticated() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.delete(BASE_URL + "/" + testRecord.getId())
+                .with(anonymous())) // Attempt unauthenticated
+            .andExpect(status().isUnauthorized()); // Expect 401
+    }
+
+    @Test
+    @Order(54) // Renumbered
+    public void testMarkGameAsReturnedUnauthenticated() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL + "/" + testRecord.getId() + "/mark-returned")
+                .with(anonymous()))
+            .andExpect(status().isUnauthorized()); // Expect 401
+    }
+
+    @Test
+    @Order(55) // Renumbered
+    public void testConfirmGameReturnUnauthenticated() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL + "/" + testRecord.getId() + "/confirm-return")
+                .param("isDamaged", "false")
+                .param("reason", "Unauth confirm attempt")
+                .with(anonymous()))
+            .andExpect(status().isUnauthorized()); // Expect 401
+    }
+
+    // ----- Security: 403 Forbidden Tests -----
+
+    @Test
+    @Order(56) // Renumbered
+    public void testUpdateLendingRecordStatusForbidden() throws Exception {
+        // Create an unrelated user
+        Account otherUser = accountRepository.save(new Account("other", "other@example.com", passwordEncoder.encode("otherpass")));
+
+        UpdateLendingRecordStatusDto statusDto = new UpdateLendingRecordStatusDto();
+        statusDto.setNewStatus(LendingStatus.OVERDUE.name());
+        statusDto.setUserId(otherUser.getId()); // Attempting as other user
+        statusDto.setReason("Forbidden update attempt");
+
+        // Authenticate as the unrelated user
+        mockMvc.perform(MockMvcRequestBuilders.put(BASE_URL + "/" + testRecord.getId() + "/status")
+                .with(user(otherUser.getEmail()).password("otherpass").roles("USER")) 
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(statusDto)))
+            .andExpect(status().isForbidden()); // Expect 403 (assuming service check)
+    }
+
+    @Test
+    @Order(57) // Renumbered
+    public void testDeleteLendingRecordForbidden() throws Exception {
+        // Create an unrelated user (even if they are a game owner, they don't own *this* record)
+        GameOwner otherOwner = (GameOwner) accountRepository.save(new GameOwner("otherowner", "otherowner@example.com", passwordEncoder.encode("otherpass")));
+
+        // Authenticate as the other owner
+        mockMvc.perform(MockMvcRequestBuilders.delete(BASE_URL + "/" + testRecord.getId())
+                .with(user(otherOwner.getEmail()).password("otherpass").roles("GAME_OWNER"))) 
+            .andExpect(status().isForbidden()); // Expect 403 (assuming service check on record owner or requires ADMIN)
+             // Note: TestSecurityConfig allows GAME_OWNER, so this relies on service-level check
+    }
+
+    @Test
+    @Order(58) // Renumbered
+    public void testMarkGameAsReturnedForbidden() throws Exception {
+         // Authenticate as the owner (not the borrower)
+        mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL + "/" + testRecord.getId() + "/mark-returned")
+                .with(user(testOwner.getEmail()).password(TEST_PASSWORD).roles("GAME_OWNER")))
+            .andExpect(status().isForbidden()); // Expect 403 (Owner cannot mark as returned)
+    }
+
+    @Test
+    @Order(59) // Renumbered
+    public void testConfirmGameReturnForbidden() throws Exception {
+        // Authenticate as the borrower (not the owner)
+        mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL + "/" + testRecord.getId() + "/confirm-return")
+                .param("isDamaged", "false")
+                .param("reason", "Borrower confirm attempt")
+                .with(user(testBorrower.getEmail()).password(TEST_PASSWORD).roles("USER")))
+            .andExpect(status().isForbidden()); // Expect 403 (Borrower cannot confirm return)
     }
 
 }

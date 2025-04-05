@@ -7,46 +7,31 @@ import DashboardGameLibrary from "@/components/dashboard-page/DashboardGameLibra
 import DashboardLendingRecord from "@/components/dashboard-page/DashboardLendingRecord.jsx";
 import SideMenuBar from "@/components/dashboard-page/SideMenuBar.jsx";
 import { Route, Routes } from "react-router-dom";
-import { useState, useEffect } from "react"; // Import hooks
-import { getAccountInfo } from "../service/event-api.js"; // Import service
+import { useState, useEffect } from "react"; // Keep useState for userType if derived, useEffect might not be needed
+import { useAuth } from "@/context/AuthContext"; // Import useAuth
 import { Loader2 } from "lucide-react"; // Import loader
+// useNavigate might not be needed anymore if redirects are handled by context/protected route
+// import { useNavigate } from "react-router-dom";
 
 export default function DashboardPage() {
-  // State for user info and loading/error
-  const [accountInfo, setAccountInfo] = useState(null);
-  const [userType, setUserType] = useState(null); // 'player' or 'owner'
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
+  // Get user and loading state from AuthContext
+  const { user, loading: authLoading } = useAuth();
+  
+  // Derive userType directly from the user object when available
+  const userType = user ? (user.gameOwner ? "owner" : "player") : null;
 
-  useEffect(() => {
-    const fetchAccountInfo = async () => {
-      setIsLoading(true);
-      setError(null);
-      const email = localStorage.getItem("userEmail");
+  // Error state can be simplified or removed if ProtectedRoute handles redirects
+  const [error, setError] = useState(null); // Keep for potential non-auth errors? Or remove.
 
-      if (!email) {
-        setError("User email not found. Please log in again.");
-        setIsLoading(false);
-        return;
-      }
+  // Removed useState for accountInfo, isLoading, retryCount, navigate
 
-      try {
-        const data = await getAccountInfo(email);
-        setAccountInfo(data);
-        setUserType(data.gameOwner ? "owner" : "player"); // Determine user type
-      } catch (err) {
-        console.error("Failed to fetch account info:", err);
-        setError(err.message || "Could not load user information.");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchAccountInfo();
-  }, []); // Fetch on mount
+  // No need for manual fetch logic, useEffect, storage listeners, or retries.
+  // AuthContext handles fetching user profile on load.
+  // ProtectedRoute handles redirecting if user is not authenticated after loading.
 
   // Loading state
-  if (isLoading) {
+  // Loading state based on AuthContext
+  if (authLoading) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-100px)]"> {/* Adjust height as needed */}
         <Loader2 className="h-16 w-16 animate-spin text-muted-foreground" />
@@ -54,14 +39,19 @@ export default function DashboardPage() {
     );
   }
 
-  // Error state
-  if (error) {
+  // Error state: If loading is finished but user is still null,
+  // ProtectedRoute should have redirected.
+  // We can show a generic message or nothing here as a fallback.
+  if (!authLoading && !user) {
      return (
        <div className="flex justify-center items-center min-h-[calc(100vh-100px)] text-destructive">
-         <p>Error: {error}</p>
+         <p>Error: User not authenticated or failed to load.</p>
+         {/* Or simply return null, relying on ProtectedRoute redirect */}
        </div>
      );
   }
+  
+  // If we reach here, authLoading is false and user exists.
 
   // Render dashboard once data is loaded
   return (
@@ -72,13 +62,13 @@ export default function DashboardPage() {
             <Card className="w-full flex flex-col gap-4">
               <CardHeader className="w-[1/4] flex flex-row items-center gap-4">
                 <Avatar className="h-12 w-12">
-                  {/* TODO: Add actual user avatar if available */}
-                  <AvatarImage src="/placeholder.svg?height=48&width=48" alt={accountInfo?.name || 'User'}/>
-                  {/* Fallback uses initials - could generate from name */}
-                  <AvatarFallback>{accountInfo?.name ? accountInfo.name.substring(0, 2).toUpperCase() : 'U'}</AvatarFallback>
+                  {/* TODO: Add actual user avatar if available (user.avatarUrl?) */}
+                  <AvatarImage src={user?.avatarUrl || "/placeholder.svg?height=48&width=48"} alt={user?.username || 'User'}/>
+                  {/* Fallback uses initials from username */}
+                  <AvatarFallback>{user?.username ? user.username.substring(0, 2).toUpperCase() : 'U'}</AvatarFallback>
                 </Avatar>
                 <div>
-                  <CardTitle>{accountInfo?.name || 'User'}</CardTitle>
+                  <CardTitle>{user?.username || 'User'}</CardTitle> {/* Use username from context */}
                   <CardDescription>{userType === "owner" ? "Game Owner" : "Player"}</CardDescription>
                 </div>
               </CardHeader>

@@ -81,39 +81,56 @@ public class ReviewIntegrationTests {
 
     @BeforeEach
     public void setup() {
-        // Clean repositories first - order might matter depending on constraints
+        // Clean repositories first - order matters due to foreign key constraints
         reviewRepository.deleteAll();
-        gameRepository.deleteAll(); // Delete games before owners due to FK constraint
+        gameRepository.deleteAll(); 
         accountRepository.deleteAll();
 
-        // Create test reviewer
-        testReviewer = new Account("reviewer", TEST_REVIEWER_EMAIL, passwordEncoder.encode(TEST_PASSWORD));
+        // Create test reviewer with unique email
+        String reviewerEmail = TEST_REVIEWER_EMAIL;
+        testReviewer = new Account("reviewer", reviewerEmail, passwordEncoder.encode(TEST_PASSWORD));
         testReviewer = accountRepository.save(testReviewer);
+        System.out.println("Created testReviewer with ID: " + testReviewer.getId() + ", email: " + testReviewer.getEmail());
 
-        // Create a GameOwner for the test game with a unique email per execution
+        // Create a GameOwner for the test game with a unique email
         String uniqueDummyEmail = "dummy-" + System.currentTimeMillis() + "@owner.com";
         GameOwner gameOwner = new GameOwner("dummyOwner", uniqueDummyEmail, passwordEncoder.encode("dummyPwd"));
-        gameOwner = accountRepository.save(gameOwner); // Save the owner
+        gameOwner = (GameOwner) accountRepository.save(gameOwner); // Save the owner
+        System.out.println("Created gameOwner with ID: " + gameOwner.getId() + ", email: " + gameOwner.getEmail());
 
-        // Create test game and assign the GameOwner
-        testGame = new Game("Test Game", 2, 4, "test.jpg", new Date());
+        // Create test game with unique name and assign the GameOwner
+        String uniqueGameName = "Test Game " + System.currentTimeMillis();
+        testGame = new Game(uniqueGameName, 2, 4, "test.jpg", new Date());
         testGame.setOwner(gameOwner); // Assign the saved GameOwner
-        testGame = gameRepository.save(testGame);
+        testGame = gameRepository.save(testGame); // Save the game before creating a review
+        System.out.println("Created testGame with ID: " + testGame.getId() + ", name: " + testGame.getName());
 
-        // Create test review
+        // Create test review with the saved game
         testReview = new Review(4, "Great game!", new Date());
         testReview.setReviewer(testReviewer);
-        testReview.setGameReviewed(testGame);
+        testReview.setGameReviewed(testGame); // Use the saved Game instance
         testReview = reviewRepository.save(testReview);
+        System.out.println("Created testReview with ID: " + testReview.getId());
 
         // No need to login and store token with MockMvc
     }
 
     @AfterEach
     public void cleanupAndClearToken() {
+        // Delete entities in the correct order to respect foreign key constraints
+        System.out.println("Cleaning up test data...");
+        // First delete reviews
         reviewRepository.deleteAll();
+        System.out.println("Deleted all reviews");
+        
+        // Then delete games
         gameRepository.deleteAll();
+        System.out.println("Deleted all games");
+        
+        // Finally delete accounts (including GameOwner)
         accountRepository.deleteAll();
+        System.out.println("Deleted all accounts");
+        
         // No token to clear
     }
 
@@ -296,7 +313,7 @@ public class ReviewIntegrationTests {
     @Order(11)
     public void testGetReviewByIdSuccess() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get(BASE_URL + "/" + testReview.getId())
-                .with(anonymous())) // Assuming GET is public
+                .with(user(TEST_REVIEWER_EMAIL).password(TEST_PASSWORD).roles("USER"))) // Authenticate as reviewer
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.rating").value(testReview.getRating()))
             .andExpect(jsonPath("$.comment").value(testReview.getComment()));
@@ -306,7 +323,7 @@ public class ReviewIntegrationTests {
     @Order(12)
     public void testGetReviewsByGameId() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get("/reviews/games/" + testGame.getId() + "/reviews") // Correct endpoint
-                .with(anonymous())) // Assuming public access
+                .with(user(TEST_REVIEWER_EMAIL).password(TEST_PASSWORD).roles("USER"))) // Authenticate as reviewer
             .andExpect(status().isOk())
             .andExpect(jsonPath("$").isArray())
             .andExpect(jsonPath("$.length()").value(1))
@@ -318,9 +335,89 @@ public class ReviewIntegrationTests {
     public void testGetReviewsByNonExistentGameName() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.get("/reviews/game") // Correct endpoint
                 .param("gameName", "NonExistentGame")
-                .with(anonymous()))
+                .with(user(TEST_REVIEWER_EMAIL).password(TEST_PASSWORD).roles("USER"))) // Authenticate as reviewer
             .andExpect(status().isOk())
             .andExpect(jsonPath("$").isArray())
             .andExpect(jsonPath("$.length()").value(0)); // Expect empty array;
     }
+
+
+    // ----- Security: 401 Unauthorized Tests -----
+
+    @Test
+    @Order(14) // Renumbered
+    public void testSubmitReviewUnauthenticated() throws Exception {
+        ReviewSubmissionDto request = new ReviewSubmissionDto(
+            5, "Unauth Review", testGame.getId(), TEST_REVIEWER_EMAIL
+        );
+
+        mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL)
+                .with(anonymous()) // Attempt unauthenticated
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isUnauthorized()); // Expect 401
+    }
+
+    @Test
+    @Order(15) // Renumbered
+    public void testUpdateReviewUnauthenticated() throws Exception {
+        ReviewSubmissionDto updateRequest = new ReviewSubmissionDto(
+            3, "Unauth Update", testGame.getId(), TEST_REVIEWER_EMAIL
+        );
+
+        mockMvc.perform(MockMvcRequestBuilders.put(BASE_URL + "/" + testReview.getId())
+                .with(anonymous()) // Attempt unauthenticated
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(updateRequest)))
+            .andExpect(status().isUnauthorized()); // Expect 401
+    }
+
+    @Test
+    @Order(16) // Renumbered
+    public void testDeleteReviewUnauthenticated() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.delete(BASE_URL + "/" + testReview.getId())
+                .with(anonymous())) // Attempt unauthenticated
+            .andExpect(status().isUnauthorized()); // Expect 401
+    }
+
+    @Test
+    @Order(17) // Renumbered
+    public void testGetReviewByIdUnauthenticated() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get(BASE_URL + "/" + testReview.getId())
+                .with(anonymous())) // Attempt unauthenticated
+            .andExpect(status().isUnauthorized()); // Expect 401
+    }
+
+    // ----- Security: 403 Forbidden Tests -----
+
+    @Test
+    @Order(18) // Renumbered
+    public void testUpdateAnotherUserReviewForbidden() throws Exception {
+        // Create another user
+        Account otherUser = accountRepository.save(new Account("other", "other@example.com", passwordEncoder.encode("otherpass")));
+
+        ReviewSubmissionDto updateRequest = new ReviewSubmissionDto(
+            2, "Forbidden Update", testGame.getId(), TEST_REVIEWER_EMAIL // DTO still refers to original reviewer
+        );
+
+        // Authenticate as the other user trying to update the original review
+        mockMvc.perform(MockMvcRequestBuilders.put(BASE_URL + "/" + testReview.getId())
+                .with(user(otherUser.getEmail()).password("otherpass").roles("USER")) 
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(updateRequest)))
+            .andExpect(status().isForbidden()); // Expect 403 (assuming service check on reviewer)
+    }
+
+    @Test
+    @Order(19) // Renumbered
+    public void testDeleteAnotherUserReviewForbidden() throws Exception {
+        // Create another user
+        Account otherUser = accountRepository.save(new Account("other", "other@example.com", passwordEncoder.encode("otherpass")));
+
+        // Authenticate as the other user trying to delete the original review
+        mockMvc.perform(MockMvcRequestBuilders.delete(BASE_URL + "/" + testReview.getId())
+                .with(user(otherUser.getEmail()).password("otherpass").roles("USER"))) 
+            .andExpect(status().isForbidden()); // Expect 403 (assuming service check on reviewer)
+    }
+
 }

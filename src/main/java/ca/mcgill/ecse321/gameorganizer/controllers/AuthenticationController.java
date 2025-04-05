@@ -1,7 +1,10 @@
 package ca.mcgill.ecse321.gameorganizer.controllers;
 
+import jakarta.servlet.http.Cookie; // Import Cookie
+import jakarta.servlet.http.HttpServletResponse; // Import HttpServletResponse
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie; // Import ResponseCookie for SameSite etc.
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -9,22 +12,26 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import ca.mcgill.ecse321.gameorganizer.dto.AuthenticationDTO;
-import ca.mcgill.ecse321.gameorganizer.dto.JwtAuthenticationResponse;
-import ca.mcgill.ecse321.gameorganizer.dto.LoginResponse;
+// import ca.mcgill.ecse321.gameorganizer.dto.JwtAuthenticationResponse; // No longer returning JWT in body
+import ca.mcgill.ecse321.gameorganizer.dto.UserSummaryDto; // Import UserSummaryDto
+import ca.mcgill.ecse321.gameorganizer.dto.PasswordResetDto;
+import ca.mcgill.ecse321.gameorganizer.dto.PasswordResetRequestDto;
 import ca.mcgill.ecse321.gameorganizer.exceptions.EmailNotFoundException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.InvalidPasswordException;
+import ca.mcgill.ecse321.gameorganizer.exceptions.InvalidTokenException;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.security.JwtUtil;
 import ca.mcgill.ecse321.gameorganizer.services.AuthenticationService;
-import jakarta.servlet.http.HttpSession;
+import ca.mcgill.ecse321.gameorganizer.dto.LoginResponse;
 
 /**
  * Controller to handle authentication-related endpoints.
@@ -49,6 +56,9 @@ public class AuthenticationController {
     @Autowired
     private JwtUtil jwtUtil;
 
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
     /**
      * Endpoint for user login.
      *
@@ -56,7 +66,7 @@ public class AuthenticationController {
      * @return a ResponseEntity containing the JwtAuthenticationResponse if login is successful, or an error message if login fails
      */
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody AuthenticationDTO authenticationDTO) {
+    public ResponseEntity<?> login(@RequestBody AuthenticationDTO authenticationDTO, HttpServletResponse response) { // Inject HttpServletResponse
         try {
             // Validate input fields
             if (authenticationDTO.getEmail() == null || authenticationDTO.getEmail().isEmpty()) {
@@ -73,15 +83,31 @@ public class AuthenticationController {
             // Set the successful authentication in the SecurityContext
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
-            // Find the user account
+            // Get UserDetails from Authentication object
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+
+            // Find the user account (needed for ID and potentially other info for the token)
             Account user = accountRepository.findByEmail(authenticationDTO.getEmail())
                     .orElseThrow(() -> new RuntimeException("Authenticated user not found in repository: " + authenticationDTO.getEmail()));
 
-            // Generate JWT token
-            String jwt = jwtUtil.generateToken(user.getEmail());
+            // Generate JWT token using UserDetails and the Account object
+            String jwt = jwtUtil.generateToken(userDetails, user);
 
-            // Return the token and user info
-            return ResponseEntity.ok(new JwtAuthenticationResponse(jwt, user.getId(), user.getEmail()));
+            // Create HttpOnly cookie
+            ResponseCookie cookie = ResponseCookie.from("accessToken", jwt)
+                .httpOnly(true)
+                .secure(true) // Set to true if using HTTPS
+                .path("/")
+                .maxAge(3600) // e.g., 1 hour expiration, align with JWT expiration if possible
+                .sameSite("Strict") // Or "Lax" depending on requirements
+                .build();
+
+            // Add cookie to the response header
+            response.addHeader("Set-Cookie", cookie.toString());
+
+            // Return UserSummaryDto to be consistent with test expectations
+            UserSummaryDto userSummary = new UserSummaryDto(user.getId(), user.getName());
+            return ResponseEntity.ok(userSummary);
         } catch (BadCredentialsException e) {
             // Return 401 UNAUTHORIZED when credentials are invalid
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
@@ -109,20 +135,84 @@ public class AuthenticationController {
     }
 
     /**
-     * Endpoint for resetting the user's password.
+     * Endpoint to request a password reset token.
      *
-     * @param email the user's email
-     * @param newPassword the new password to set
-     * @return a ResponseEntity indicating that the password has been updated successfully, or an error message if the email is not found or the new password is invalid
+     * @param requestDto DTO containing the user's email.
+     * @return ResponseEntity indicating success or failure.
+     */
+    @PostMapping("/request-password-reset")
+    public ResponseEntity<?> requestPasswordReset(@RequestBody PasswordResetRequestDto requestDto) {
+        try {
+            authenticationService.requestPasswordReset(requestDto);
+            return ResponseEntity.ok("Password reset token request processed. If the email exists, a reset link will be sent."); // Generic message for security
+        } catch (EmailNotFoundException e) {
+            // Still return OK to prevent email enumeration attacks
+            return ResponseEntity.ok("Password reset token request processed. If the email exists, a reset link will be sent.");
+        } catch (IllegalArgumentException e) {
+             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        } catch (Exception e) {
+            System.err.println("Error requesting password reset: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An internal error occurred.");
+        }
+    }
+
+    /**
+     * Endpoint to perform the password reset using the token.
+     *
+     * @param resetDto DTO containing the token and new password.
+     * @return ResponseEntity indicating success or failure.
+     */
+    @PostMapping("/perform-password-reset")
+    public ResponseEntity<String> performPasswordReset(@RequestBody PasswordResetDto resetDto) {
+        try {
+            String result = authenticationService.performPasswordReset(resetDto);
+            return ResponseEntity.ok(result);
+        } catch (InvalidTokenException | InvalidPasswordException | IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        } catch (Exception e) {
+            System.err.println("Error performing password reset: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An internal error occurred.");
+        }
+    }
+    
+    /**
+     * Simple direct password reset endpoint for testing purposes.
+     * This endpoint allows resetting a password by providing the email and new password directly.
+     * In a production environment, this would be replaced with a more secure flow.
+     *
+     * @param email the email of the account to reset the password for
+     * @param newPassword the new password
+     * @return ResponseEntity indicating success or failure
      */
     @PostMapping("/reset-password")
-    public ResponseEntity<String> resetPassword(@RequestParam String email, @RequestParam String newPassword) {
+    public ResponseEntity<String> resetPassword(String email, String newPassword) {
         try {
-            String result = authenticationService.resetPassword(email, newPassword);
-            return ResponseEntity.ok(result);
-        } catch (EmailNotFoundException | InvalidPasswordException e) {
-            // Return 400 BAD REQUEST when the email is not found or password is invalid
+            if (email == null || email.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Email is required");
+            }
+            if (newPassword == null || newPassword.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("New password is required");
+            }
+            
+            // Find the account
+            Account account = accountRepository.findByEmail(email)
+                    .orElseThrow(() -> new EmailNotFoundException("Email not found: " + email));
+            
+            // Simple validation of the new password
+            if (newPassword.length() < 8) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Password must be at least 8 characters long");
+            }
+            
+            // Update the password
+            account.setPassword(passwordEncoder.encode(newPassword));
+            accountRepository.save(account);
+            
+            return ResponseEntity.ok("Password has been reset successfully");
+        } catch (EmailNotFoundException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        } catch (Exception e) {
+            System.err.println("Error resetting password: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An internal error occurred");
         }
     }
 }

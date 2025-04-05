@@ -39,22 +39,48 @@ public class TestSecurityConfig {
     @Bean
     @Primary
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        // Configure security similar to main config but more permissive for tests
-        log.info("Configuring test security filter chain");
-        
-        http.authorizeHttpRequests(authz -> authz
-                // Allow unauthenticated access for auth endpoints and account creation (POST)
+        // Configure security to mirror main config for accurate testing
+        log.info("Configuring test security filter chain - Mirroring main security rules");
+
+        http
+            // Mirroring main security rules
+            .authorizeHttpRequests(authz -> authz
+                // Allow unauthenticated access for auth endpoints and account creation
                 .requestMatchers("/auth/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/account").permitAll()
-                // For testing, require authentication for protected endpoints
+                // Require authentication for account GET requests
+                .requestMatchers(HttpMethod.GET, "/account/**").authenticated()
+                // Allow GET operations for browsing content
+                .requestMatchers(HttpMethod.GET, "/games/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/events/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/users/*/games").permitAll()
+                .requestMatchers(HttpMethod.GET, "/lending-records/**").authenticated()
+                .requestMatchers(HttpMethod.GET, "/borrowrequests/**").authenticated()
+                // Account management
+                .requestMatchers(HttpMethod.PUT, "/account/**").authenticated()
+                .requestMatchers(HttpMethod.DELETE, "/account/**").authenticated()
+                // Game operations - Assume only game owners or admins can modify
+                .requestMatchers(HttpMethod.POST, "/games/**").hasAnyRole("GAME_OWNER", "ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/games/**").hasAnyRole("GAME_OWNER", "ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/games/**").hasAnyRole("GAME_OWNER", "ADMIN")
+                // Event operations
                 .requestMatchers(HttpMethod.POST, "/events/**").authenticated()
                 .requestMatchers(HttpMethod.PUT, "/events/**").authenticated()
                 .requestMatchers(HttpMethod.DELETE, "/events/**").authenticated()
-                // For testing, ensure we enforce role-based security on these endpoints
-                .requestMatchers(HttpMethod.PUT, "/borrowrequests/**").hasRole("GAME_OWNER")
-                .requestMatchers(HttpMethod.DELETE, "/borrowrequests/**").hasRole("GAME_OWNER")
-                // But be more permissive on other endpoints
-                .anyRequest().permitAll()
+                // Borrow Requests
+                .requestMatchers(HttpMethod.POST, "/borrowrequests/**").authenticated()
+                .requestMatchers(HttpMethod.PUT, "/borrowrequests/**").authenticated()
+                .requestMatchers(HttpMethod.DELETE, "/borrowrequests/**").authenticated()
+                // Lending Records
+                .requestMatchers(HttpMethod.POST, "/lending-records/**").authenticated()
+                .requestMatchers(HttpMethod.PUT, "/lending-records/**").authenticated()
+                .requestMatchers(HttpMethod.DELETE, "/lending-records/**").hasAnyRole("GAME_OWNER", "ADMIN")
+                // Reviews
+                .requestMatchers("/reviews/**").authenticated()
+                // Registrations
+                .requestMatchers("/registrations/**").authenticated()
+                // Default: require authentication
+                .anyRequest().authenticated()
             )
             // Handle authentication exceptions by returning 401 Unauthorized
             .exceptionHandling(handling -> handling

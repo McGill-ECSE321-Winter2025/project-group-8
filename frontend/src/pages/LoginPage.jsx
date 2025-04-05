@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
-import { Link } from "react-router-dom"
-import { useNavigate } from "react-router-dom"
+import { useState, useEffect } from "react" // Keep useEffect for now, might need later or remove if AuthProvider handles all redirects
+import { Link, useNavigate } from "react-router-dom"
+import { useAuth } from "@/context/AuthContext"; // Import useAuth
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -10,44 +10,58 @@ import { Label } from "@/components/ui/label"
 import { GamepadIcon as GameController } from "lucide-react"
 
 export default function LoginPage() {
-  const navigate = useNavigate()
-  const [isLoading, setIsLoading] = useState(false)
+  const navigate = useNavigate();
+  const { login, user } = useAuth(); // Get login function and user state from context
+  const [isLoading, setIsLoading] = useState(false);
+  const [email, setEmail] = useState(""); // Use state for form inputs
+  const [password, setPassword] = useState(""); // Use state for form inputs
+  const [error, setError] = useState(""); // State for login errors
+  
+  // Redirect if already logged in (user state is populated by AuthProvider)
+  useEffect(() => {
+    if (user) {
+
+      navigate("/dashboard");
+    }
+  }, [user, navigate]);
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
-    setIsLoading(true)
-
-    const email = document.getElementById("email").value
-    const password = document.getElementById("password").value
+    e.preventDefault();
+    setIsLoading(true);
+    setError(""); // Clear previous errors
 
     try {
+      // TODO: Replace with environment variable for API URL
       const response = await fetch("http://localhost:8080/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ email, password }),
-      })
+        credentials: 'include', // <<< Send cookies
+      });
 
       if (response.ok) {
-        const data = await response.json()
-        console.log("Login successful:", data)
+        // Backend now sets HttpOnly cookie automatically.
+        // The response body should contain the user summary.
+        const userData = await response.json();
 
-        // Store user ID, token, and email in localStorage
-        localStorage.setItem("userId", data.userId); // Use field name from JwtAuthenticationResponse
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("userEmail", data.email); // Store email
-
-        // Redirect to dashboard
-        navigate("/dashboard")
+        
+        login(userData); // Update global auth state
+        
+        // No need for localStorage/sessionStorage or delays.
+        // The useEffect hook above will handle redirection once `user` state updates.
+        // navigate("/dashboard"); // Can navigate immediately or let useEffect handle it
       } else if (response.status === 401) {
-        alert("Invalid email or password")
+        setError("Invalid email or password");
       } else {
-        alert("An unexpected error occurred")
+        const errorData = await response.text(); // Or response.json() if backend sends structured errors
+        console.error("Login failed:", response.status, errorData);
+        setError(`An unexpected error occurred: ${response.status}`);
       }
     } catch (error) {
-      console.error("Error during login:", error)
-      alert("Failed to connect to the server")
+      console.error("Error during login:", error);
+      setError("Failed to connect to the server. Please try again later.");
     } finally {
       setIsLoading(false)
     }
@@ -70,7 +84,7 @@ export default function LoginPage() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="your.email@example.com" required />
+              <Input id="email" type="email" placeholder="your.email@example.com" required value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -79,10 +93,11 @@ export default function LoginPage() {
                   Forgot password?
                 </Link>
               </div>
-              <Input id="password" type="password" required />
+              <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
             </div>
           </CardContent>
-          <CardFooter className="flex flex-col space-y-6 mt-6">
+          <CardFooter className="flex flex-col space-y-4 mt-6"> {/* Reduced space */}
+            {error && <p className="text-red-500 text-sm text-center">{error}</p>} {/* Display error message */}
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? "Signing in..." : "Sign in"}
             </Button>

@@ -22,11 +22,13 @@ import org.slf4j.Logger; // Import Logger
 import org.slf4j.LoggerFactory; // Import LoggerFactory
 import org.springframework.security.crypto.password.PasswordEncoder; // Import PasswordEncoder
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.access.prepost.PreAuthorize; // Import PreAuthorize
 
 import ca.mcgill.ecse321.gameorganizer.dto.AccountResponse;
-import ca.mcgill.ecse321.gameorganizer.dto.CreateAccountRequest; // Import UnauthedException
+import ca.mcgill.ecse321.gameorganizer.dto.CreateAccountRequest;
 import ca.mcgill.ecse321.gameorganizer.dto.EventResponse;
 import ca.mcgill.ecse321.gameorganizer.dto.UpdateAccountRequest;
+import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException; // Import ForbiddenException
 import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
@@ -155,6 +157,7 @@ public class AccountService {
      * @return ResponseEntity with the information as a body or a Bad Request if no such account exists
      */
     @Transactional
+    @PreAuthorize("#email == authentication.principal.username")
     public ResponseEntity<?> getAccountInfoByEmail(String email) {
         Account account;
         try {
@@ -202,35 +205,15 @@ public class AccountService {
      * @return ResponseEntity with update confirmation message or failure message
      */
     @Transactional
+    @PreAuthorize("#request.email == authentication.principal.username") // Ensure user updates their own account
     public ResponseEntity<String> updateAccount(UpdateAccountRequest request) {
         String email = request.getEmail();
         String newUsername = request.getUsername();
         String password = request.getPassword();
         String newPassword = request.getNewPassword();
 
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
-            // Use exception consistently instead of returning ResponseEntity for auth errors
-            throw new UnauthedException("User must be authenticated to update account.");
-        }
-
-        String currentUsername;
-        Object principal = authentication.getPrincipal();
-        // Assuming the principal is the email used for login, as is common with UserDetails
-        if (principal instanceof UserDetails) {
-            currentUsername = ((UserDetails) principal).getUsername();
-        } else if (principal instanceof String) {
-             currentUsername = (String) principal;
-        }
-        else {
-            // Handle unexpected principal type
-             throw new UnauthedException("Unexpected principal type in SecurityContext.");
-        }
-
-
-        Account currentUser = accountRepository.findByEmail(currentUsername).orElseThrow(
-                () -> new UnauthedException("Authenticated user '" + currentUsername + "' not found in database.") // Should ideally not happen if JWT/session is valid
-        );
+        // Authentication is handled by SecurityConfig and @PreAuthorize.
+        // Authorization is handled by @PreAuthorize.
 
         Account account;
         try {
@@ -238,18 +221,19 @@ public class AccountService {
                 () -> new IllegalArgumentException("Account with email " + email + " does not exist")
             );
 
-            // Authorization Check: Ensure the authenticated user is the one being updated
-            // Use .equals() for safe comparison of IDs (handles both primitives and wrappers)
-            if (currentUser.getId() != account.getId()) {
-                 throw new UnauthedException("Access denied: You can only update your own account.");
-            }
-
-            // Password check using PasswordEncoder
+            // Password check using PasswordEncoder - Still needed to authorize the change itself
             if (!passwordEncoder.matches(password, account.getPassword())) {
+                // Using ForbiddenException might be more appropriate if password mismatch is treated as an auth failure
+                // But IllegalArgumentException is also reasonable as it's invalid input for the operation.
+                // Let's stick to IllegalArgumentException for now as per original logic for this specific check.
                 throw new IllegalArgumentException("Incorrect current password provided.");
             }
         } catch (IllegalArgumentException e){
+            // Consider logging the exception e
             return ResponseEntity.badRequest().body("Bad request: " + e.getMessage());
+        } catch (org.springframework.security.access.AccessDeniedException e) {
+             // Catch potential AccessDeniedException from @PreAuthorize and convert to ForbiddenException
+             throw new ForbiddenException("Access denied: You can only update your own account.");
         }
         // Update using setName() since the domain model uses "name" for the username.
         account.setName(newUsername);
@@ -268,12 +252,21 @@ public class AccountService {
      * @throws IllegalArgumentException if no account is found with the given email
      */
     @Transactional
+    @PreAuthorize("#email == authentication.principal.username") // Ensure user deletes their own account
     public ResponseEntity<String> deleteAccountByEmail(String email) {
-        Account accountToDelete = accountRepository.findByEmail(email).orElseThrow(
-                () -> new IllegalArgumentException("Account with email " + email + " does not exist")
-        );
-        accountRepository.delete(accountToDelete);
-        return ResponseEntity.ok("Account with email " + email + " has been deleted");
+        try {
+            Account accountToDelete = accountRepository.findByEmail(email).orElseThrow(
+                    () -> new IllegalArgumentException("Account with email " + email + " does not exist")
+            );
+            accountRepository.delete(accountToDelete);
+            return ResponseEntity.ok("Account with email " + email + " has been deleted");
+        } catch (IllegalArgumentException e) {
+            // Consider logging the exception e
+            return ResponseEntity.badRequest().body("Bad request: " + e.getMessage());
+        } catch (org.springframework.security.access.AccessDeniedException e) {
+            // Catch potential AccessDeniedException from @PreAuthorize and convert to ForbiddenException
+            throw new ForbiddenException("Access denied: You can only delete your own account.");
+        }
     }
 
     /**
@@ -285,13 +278,17 @@ public class AccountService {
      * @note If there is any issue during runtime, changes are rolled back
      */
     @Transactional
+    @PreAuthorize("#email == authentication.principal.username") // Ensure user upgrades their own account
     public ResponseEntity<String> upgradeUserToGameOwner(String email) {
         Account account;
         try {
             account = getAccountByEmail(email);
-        }
-        catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
+            // Consider logging the exception e
             return ResponseEntity.badRequest().body("Bad request: no such account exists.");
+        } catch (org.springframework.security.access.AccessDeniedException e) {
+             // Catch potential AccessDeniedException from @PreAuthorize and convert to ForbiddenException
+             throw new ForbiddenException("Access denied: You can only upgrade your own account.");
         }
         if (account instanceof GameOwner) {
             return ResponseEntity.badRequest().body("Bad request: account already a game owner.");

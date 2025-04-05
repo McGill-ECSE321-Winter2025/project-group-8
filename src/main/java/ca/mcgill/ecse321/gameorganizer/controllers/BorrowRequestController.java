@@ -21,6 +21,8 @@ import ca.mcgill.ecse321.gameorganizer.dto.BorrowRequestDto;
 import ca.mcgill.ecse321.gameorganizer.dto.CreateBorrowRequestDto;
 import ca.mcgill.ecse321.gameorganizer.services.BorrowRequestService;
 import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;
+import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException; // Import
+import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException; // Import
 
 /**
  * Controller for managing borrow requests.
@@ -121,20 +123,24 @@ public class BorrowRequestController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteBorrowRequest(@PathVariable int id) {
         try {
-            // In test environment, bypass service level security
-            if (System.getProperty("spring.profiles.active", "").contains("test")) {
-                // Get the request directly from the repository
-                borrowRequestRepository.findBorrowRequestById(id)
-                    .ifPresent(request -> borrowRequestRepository.delete(request));
-                return ResponseEntity.ok().build();
-            }
-            
-            // Normal flow for non-test environments
+            // Removed test environment special handling
+            // Normal flow: call service, which now handles auth
             borrowRequestService.deleteBorrowRequest(id);
-            return ResponseEntity.ok().build();
+            return ResponseEntity.noContent().build(); // Return 204 No Content on success
         } catch (IllegalArgumentException e) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Borrow request with ID " + id + " not found.");
+             // Let GlobalExceptionHandler handle this (typically 404 or 400)
+             // Consider logging e.getMessage()
+             throw e;
+        } catch (ForbiddenException e) {
+             // Let GlobalExceptionHandler handle this (typically 403)
+             // Consider logging e.getMessage()
+             throw e;
+        } catch (UnauthedException e) {
+             // Let GlobalExceptionHandler handle this (typically 401)
+             // Consider logging e.getMessage()
+             throw e;
         }
+        // Other potential exceptions will also be caught by GlobalExceptionHandler
     }
 
     /**

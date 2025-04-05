@@ -4,7 +4,6 @@ import org.springframework.http.MediaType;
 import static org.junit.jupiter.api.Assertions.*;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import ca.mcgill.ecse321.gameorganizer.dto.AuthenticationDTO;
-import ca.mcgill.ecse321.gameorganizer.dto.JwtAuthenticationResponse;
 import ca.mcgill.ecse321.gameorganizer.dto.LoginResponse;
 import java.sql.Date;
 import java.util.List;
@@ -38,6 +37,8 @@ import ca.mcgill.ecse321.gameorganizer.dto.GameResponseDto;
 import ca.mcgill.ecse321.gameorganizer.dto.ReviewResponseDto;
 import ca.mcgill.ecse321.gameorganizer.dto.ReviewSubmissionDto;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
+import ca.mcgill.ecse321.gameorganizer.models.Account;
+
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
@@ -98,13 +99,13 @@ public class GameIntegrationTests {
 
     @BeforeEach
     public void setup() {
-        // Clean repositories first
+        // Clean repositories first - must respect foreign key constraints
         reviewRepository.deleteAll();
         lendingRecordRepository.deleteAll();
         borrowRequestRepository.deleteAll();
         eventRepository.deleteAll();
-        gameRepository.deleteAll();
-        accountRepository.deleteAll();
+        gameRepository.deleteAll(); // Delete games before owners
+        accountRepository.deleteAll(); // Now it's safe to delete accounts
 
         // Create test game owner as a GameOwner
         testOwner = new GameOwner(VALID_USERNAME, VALID_EMAIL, passwordEncoder.encode(VALID_PASSWORD));
@@ -121,12 +122,13 @@ public class GameIntegrationTests {
 
     @AfterEach
     public void cleanupAndClearToken() {
+        // Clean repositories in the correct order - must respect foreign key constraints
         reviewRepository.deleteAll();
         lendingRecordRepository.deleteAll();
         borrowRequestRepository.deleteAll();
         eventRepository.deleteAll();
-        gameRepository.deleteAll();
-        accountRepository.deleteAll();
+        gameRepository.deleteAll(); // Delete games before owners
+        accountRepository.deleteAll(); // Now it's safe to delete accounts
         // No token to clear
     }
 
@@ -502,4 +504,116 @@ public class GameIntegrationTests {
                 .with(anonymous()))
             .andExpect(status().isBadRequest()); // Service throws IllegalArgumentException -> 400
     }
+
+
+    // ----- Security: 401 Unauthorized Tests -----
+
+    @Test
+    @Order(27) // Renumbered
+    public void testCreateGameUnauthenticated() throws Exception {
+        GameCreationDto request = new GameCreationDto();
+        request.setName("Unauth Game");
+        request.setMinPlayers(1); request.setMaxPlayers(1); request.setImage("ua.jpg");
+        request.setOwnerId(VALID_EMAIL); // Needs an owner ID even if request fails
+        request.setCategory("Unauth");
+
+        mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL)
+                .with(anonymous()) // Attempt unauthenticated
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isUnauthorized()); // Expect 401
+    }
+
+    @Test
+    @Order(28) // Renumbered
+    public void testUpdateGameUnauthenticated() throws Exception {
+        GameCreationDto request = new GameCreationDto();
+        request.setName("Updated Unauth");
+        request.setMinPlayers(1); request.setMaxPlayers(1); request.setImage("ua_upd.jpg");
+        request.setOwnerId(VALID_EMAIL);
+        request.setCategory("Unauth Update");
+
+        mockMvc.perform(MockMvcRequestBuilders.put(BASE_URL + "/" + testGame.getId())
+                .with(anonymous()) // Attempt unauthenticated
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isUnauthorized()); // Expect 401
+    }
+
+    @Test
+    @Order(29) // Renumbered
+    public void testDeleteGameUnauthenticated() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.delete(BASE_URL + "/" + testGame.getId())
+                .with(anonymous())) // Attempt unauthenticated
+            .andExpect(status().isUnauthorized()); // Expect 401
+    }
+
+    @Test
+    @Order(30) // Renumbered
+    public void testSubmitReviewUnauthenticated() throws Exception {
+        ReviewSubmissionDto reviewDto = new ReviewSubmissionDto();
+        reviewDto.setRating(1); reviewDto.setComment("Unauth Review");
+        reviewDto.setReviewerId(VALID_EMAIL); // Need reviewer ID even if request fails
+
+        mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL + "/" + testGame.getId() + "/reviews")
+                .with(anonymous()) // Attempt unauthenticated
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(reviewDto)))
+            .andExpect(status().isUnauthorized()); // Expect 401
+    }
+
+    // ----- Security: 403 Forbidden Tests -----
+
+    @Test
+    @Order(31) // Renumbered
+    public void testCreateGameForbidden() throws Exception {
+        // Create a user who is NOT a game owner
+        accountRepository.save(new Account("regularuser", "user@example.com", passwordEncoder.encode("userpass")));
+
+        GameCreationDto request = new GameCreationDto();
+        request.setName("Forbidden Game");
+        request.setMinPlayers(1); request.setMaxPlayers(1); request.setImage("fg.jpg");
+        request.setOwnerId("user@example.com"); // Try to assign to self
+        request.setCategory("Forbidden");
+
+        // Authenticate as the regular user (lacking GAME_OWNER role)
+        mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL)
+                .with(user("user@example.com").password("userpass").roles("USER")) 
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isForbidden()); // Expect 403 (due to missing GAME_OWNER role)
+    }
+
+    @Test
+    @Order(32) // Renumbered
+    public void testUpdateGameForbidden() throws Exception {
+        // Create a user who is NOT the game owner
+        accountRepository.save(new Account("regularuser", "user@example.com", passwordEncoder.encode("userpass")));
+
+        GameCreationDto request = new GameCreationDto();
+        request.setName("Updated Forbidden");
+        request.setMinPlayers(1); request.setMaxPlayers(1); request.setImage("uf.jpg");
+        request.setOwnerId(VALID_EMAIL); // Keep original owner ID
+        request.setCategory("Forbidden Update");
+
+        // Authenticate as the regular user (not the owner)
+        mockMvc.perform(MockMvcRequestBuilders.put(BASE_URL + "/" + testGame.getId())
+                .with(user("user@example.com").password("userpass").roles("USER")) 
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isForbidden()); // Expect 403 (due to missing GAME_OWNER role or service check)
+    }
+
+    @Test
+    @Order(33) // Renumbered
+    public void testDeleteGameForbidden() throws Exception {
+        // Create a user who is NOT the game owner
+        accountRepository.save(new Account("regularuser", "user@example.com", passwordEncoder.encode("userpass")));
+
+        // Authenticate as the regular user (not the owner)
+        mockMvc.perform(MockMvcRequestBuilders.delete(BASE_URL + "/" + testGame.getId())
+                .with(user("user@example.com").password("userpass").roles("USER"))) 
+            .andExpect(status().isForbidden()); // Expect 403 (due to missing GAME_OWNER role or service check)
+    }
+
 }

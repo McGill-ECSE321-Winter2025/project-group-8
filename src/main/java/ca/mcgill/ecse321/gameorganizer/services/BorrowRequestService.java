@@ -12,10 +12,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.access.prepost.PreAuthorize; // Import PreAuthorize
 
 import ca.mcgill.ecse321.gameorganizer.dto.BorrowRequestDto;
 import ca.mcgill.ecse321.gameorganizer.dto.CreateBorrowRequestDto;
-import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException; // Import UnauthedException
+import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;
+import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException;
 // UserContext import removed
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -72,15 +74,22 @@ public class BorrowRequestService {
      */
     @Transactional
     public BorrowRequestDto createBorrowRequest(CreateBorrowRequestDto requestDTO) {
-        Optional<Game> gameOpt = gameRepository.findById(requestDTO.getRequestedGameId());
-        Optional<Account> requesterOpt = accountRepository.findById(requestDTO.getRequesterId());
+        // Get authenticated user
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
+            throw new UnauthedException("User must be authenticated to create a borrow request.");
+        }
+        String currentUsername = authentication.getName(); // Assuming username is email
+        Account requester = accountRepository.findByEmail(currentUsername).orElseThrow(
+             () -> new UnauthedException("Authenticated user '" + currentUsername + "' not found in database.")
+        );
 
+        // Fetch game using ID from DTO
+        Optional<Game> gameOpt = gameRepository.findById(requestDTO.getRequestedGameId());
         if (!gameOpt.isPresent()) {
             throw new IllegalArgumentException("Game not found.");
         }
-        if (!requesterOpt.isPresent()) {
-            throw new IllegalArgumentException("Requester not found.");
-        }
+        // Requester is now fetched based on authentication, ignore DTO's requesterId
 
         // Validate the dates early to avoid null pointer issues in subsequent checks
         if (!requestDTO.getEndDate().after(requestDTO.getStartDate())) {
@@ -88,10 +97,10 @@ public class BorrowRequestService {
         }
 
         Game game = gameOpt.get();
-        Account requester = requesterOpt.get();
+        // Account requester is already fetched from authentication context
 
-        // Now check if the requester is the owner, if owner is set
-        if (game.getOwner() != null && game.getOwner().equals(requester)) {
+        // Check if the authenticated requester is the owner
+        if (game.getOwner() != null && game.getOwner().getId() == requester.getId()) {
             throw new IllegalArgumentException("Owners cannot request their own game.");
         }
 
@@ -127,26 +136,35 @@ public class BorrowRequestService {
      * Retrieves a borrow request by its ID.
      * 
      * @param id The borrow request ID.
-     * @return The borrow request DTO.
+     * @return The corresponding borrow request DTO.
      * @throws IllegalArgumentException if no request is found.
      */
     @Transactional
+    @PreAuthorize("@borrowRequestService.isOwnerOrRequesterOfRequest(#id, authentication.principal.username)")
     public BorrowRequestDto getBorrowRequestById(int id) {
-        BorrowRequest request = borrowRequestRepository.findBorrowRequestById(id)
-                .orElseThrow(() -> new IllegalArgumentException("No borrow request found with ID " + id));
+        try {
+            BorrowRequest request = borrowRequestRepository.findBorrowRequestById(id)
+                    .orElseThrow(() -> new IllegalArgumentException("No borrow request found with ID " + id));
 
-        Integer requesterId = (request.getRequester() != null) ? request.getRequester().getId() : null;
-        Integer gameId = (request.getRequestedGame() != null) ? request.getRequestedGame().getId() : null;
-        
-        return new BorrowRequestDto(
-                request.getId(),
-                requesterId,
-                gameId,
-                request.getStartDate(),
-                request.getEndDate(),
-                request.getStatus().name(),
-                request.getRequestDate()
-        );
+            Integer requesterId = (request.getRequester() != null) ? request.getRequester().getId() : null;
+            Integer gameId = (request.getRequestedGame() != null) ? request.getRequestedGame().getId() : null;
+            
+            return new BorrowRequestDto(
+                    request.getId(),
+                    requesterId,
+                    gameId,
+                    request.getStartDate(),
+                    request.getEndDate(),
+                    request.getStatus().name(),
+                    request.getRequestDate()
+            );
+        } catch (IllegalArgumentException e) {
+            // Re-throw specific exceptions
+            throw e;
+        } catch (org.springframework.security.access.AccessDeniedException e) {
+            // Catch potential AccessDeniedException from @PreAuthorize
+            throw new ForbiddenException("Access denied: You can only view your own borrow requests or requests for games you own.");
+        }
     }
 
     /**
@@ -155,22 +173,80 @@ public class BorrowRequestService {
      * @return List of all borrow request DTOs.
      */
     @Transactional
+    @PreAuthorize("hasRole('ADMIN') or authentication.isAuthenticated()")
     public List<BorrowRequestDto> getAllBorrowRequests() {
-        return borrowRequestRepository.findAll().stream()
-                .map(request -> {
-                    Integer requesterId = (request.getRequester() != null) ? request.getRequester().getId() : null;
-                    Integer gameId = (request.getRequestedGame() != null) ? request.getRequestedGame().getId() : null;
-                    return new BorrowRequestDto(
-                            request.getId(),
-                            requesterId,
-                            gameId,
-                            request.getStartDate(),
-                            request.getEndDate(),
-                            request.getStatus().name(),
-                            request.getRequestDate()
-                    );
-                })
-                .collect(Collectors.toList());
+        try {
+            // Get all requests
+            List<BorrowRequest> allRequests = borrowRequestRepository.findAll();
+            
+            // Get current authenticated user
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || !auth.isAuthenticated() || auth.getPrincipal().equals("anonymousUser")) {
+                throw new UnauthedException("Authentication required to view borrow requests.");
+            }
+            
+            String username = auth.getName();
+            Account currentUser = accountRepository.findByEmail(username).orElse(null);
+            
+            if (currentUser == null) {
+                throw new UnauthedException("Invalid user credentials.");
+            }
+            
+            // Check if admin role (can see all)
+            boolean isAdmin = auth.getAuthorities().stream()
+                    .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+            
+            if (isAdmin) {
+                // Admin can see all borrow requests
+                return allRequests.stream()
+                    .map(request -> {
+                        Integer requesterId = (request.getRequester() != null) ? request.getRequester().getId() : null;
+                        Integer gameId = (request.getRequestedGame() != null) ? request.getRequestedGame().getId() : null;
+                        return new BorrowRequestDto(
+                                request.getId(),
+                                requesterId,
+                                gameId,
+                                request.getStartDate(),
+                                request.getEndDate(),
+                                request.getStatus().name(),
+                                request.getRequestDate()
+                        );
+                    })
+                    .collect(Collectors.toList());
+            } else {
+                // Regular users can only see their own requests and requests for games they own
+                return allRequests.stream()
+                    .filter(request -> 
+                        // User is the requester
+                        (request.getRequester() != null && request.getRequester().getId() == currentUser.getId()) ||
+                        // User is the game owner
+                        (request.getRequestedGame() != null && 
+                         request.getRequestedGame().getOwner() != null &&
+                         request.getRequestedGame().getOwner().getId() == currentUser.getId())
+                    )
+                    .map(request -> {
+                        Integer requesterId = (request.getRequester() != null) ? request.getRequester().getId() : null;
+                        Integer gameId = (request.getRequestedGame() != null) ? request.getRequestedGame().getId() : null;
+                        return new BorrowRequestDto(
+                                request.getId(),
+                                requesterId,
+                                gameId,
+                                request.getStartDate(),
+                                request.getEndDate(),
+                                request.getStatus().name(),
+                                request.getRequestDate()
+                        );
+                    })
+                    .collect(Collectors.toList());
+            }
+        } catch (UnauthedException e) {
+            throw e;
+        } catch (org.springframework.security.access.AccessDeniedException e) {
+            throw new ForbiddenException("Access denied: You do not have permission to view these borrow requests.");
+        } catch (Exception e) {
+            logger.error("Error retrieving borrow requests: {}", e.getMessage(), e);
+            throw new RuntimeException("Error retrieving borrow requests", e);
+        }
     }
 
     /**
@@ -182,98 +258,87 @@ public class BorrowRequestService {
      * @throws IllegalArgumentException if the request is not found or status is invalid.
      */
     @Transactional
-public BorrowRequestDto updateBorrowRequestStatus(int id, BorrowRequestStatus newStatus) { // Changed parameter type to Enum
-    BorrowRequest request = borrowRequestRepository.findBorrowRequestById(id)
-            .orElseThrow(() -> new IllegalArgumentException("No borrow request found with ID " + id));
-
-    // Authorization Check: Only the game owner can approve/decline using Spring Security
-    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-    if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
-        throw new UnauthedException("User must be authenticated to update borrow request status.");
-    }
-
-    String currentUsername;
-    Object principal = authentication.getPrincipal();
-    if (principal instanceof UserDetails) {
-        currentUsername = ((UserDetails) principal).getUsername();
-    } else if (principal instanceof String) {
-        currentUsername = (String) principal;
-    } else {
-        throw new UnauthedException("Unexpected principal type in SecurityContext.");
-    }
-
-    Account currentUser = accountRepository.findByEmail(currentUsername).orElseThrow(
-            () -> new UnauthedException("Authenticated user '" + currentUsername + "' not found in database.")
-    );
-
-    if (request.getRequestedGame() == null || request.getRequestedGame().getOwner() == null ||
-        request.getRequestedGame().getOwner().getId() != currentUser.getId()) {
-        throw new UnauthedException("Access denied: Only the game owner can approve or decline requests.");
-    }
-
-    if (newStatus != BorrowRequestStatus.APPROVED && newStatus != BorrowRequestStatus.DECLINED) {
-        throw new IllegalArgumentException("Invalid status.");
-    }
-
-    // If the status is being set to APPROVED, create a LendingRecord
-    if (newStatus == BorrowRequestStatus.APPROVED) {
-        Game requestedGame = request.getRequestedGame();
-        if (requestedGame == null) {
-            throw new IllegalStateException("Cannot approve request: Game details are missing.");
-        }
-        GameOwner owner = requestedGame.getOwner();
-        if (owner == null) {
-            // This case might indicate an orphaned game or configuration issue.
-            throw new IllegalStateException("Cannot approve request: Game owner is not set.");
-        }
-
+    @PreAuthorize("@borrowRequestService.isGameOwnerOfRequest(#id, authentication.principal.username)")
+    public BorrowRequestDto updateBorrowRequestStatus(int id, BorrowRequestStatus newStatus) {
+        BorrowRequest request; // Declare request outside the try block
         try {
-            // Call LendingRecordService to create the record
-            ResponseEntity<String> response = lendingRecordService.createLendingRecord(
-                    request.getStartDate(),
-                    request.getEndDate(),
-                    request,
-                    owner
-            );
+            request = borrowRequestRepository.findBorrowRequestById(id) // Assign inside the try block
+                    .orElseThrow(() -> new IllegalArgumentException("No borrow request found with ID " + id));
 
-            // Check if the lending record creation was successful
-            if (response.getStatusCode() != HttpStatus.OK) {
-                // Log the error and throw an exception to indicate failure during the transaction
-                String errorMessage = String.format("Failed to create lending record for approved borrow request %d. Status: %s, Body: %s",
-                                                    request.getId(), response.getStatusCode(), response.getBody());
-                logger.error(errorMessage);
-                throw new RuntimeException(errorMessage);
-            }
-             logger.info("Successfully created lending record for approved borrow request {}", request.getId());
+            // Authorization is handled by @PreAuthorize
 
-        } catch (Exception e) {
-            // Catch potential exceptions from createLendingRecord (e.g., validation errors)
-             String errorMessage = String.format("Error creating lending record for approved borrow request %d: %s",
-                                                 request.getId(), e.getMessage());
-             logger.error(errorMessage, e);
-            // Re-throw as a runtime exception to ensure transaction rollback if needed
-            throw new RuntimeException(errorMessage, e);
+        if (newStatus != BorrowRequestStatus.APPROVED && newStatus != BorrowRequestStatus.DECLINED) {
+            throw new IllegalArgumentException("Invalid status.");
         }
-    }
 
-    // Update the status of the BorrowRequest
-    request.setStatus(newStatus);
-    BorrowRequest updatedRequest = borrowRequestRepository.save(request);
+        // If the status is being set to APPROVED, create a LendingRecord
+        if (newStatus == BorrowRequestStatus.APPROVED) {
+            Game requestedGame = request.getRequestedGame();
+            if (requestedGame == null) {
+                throw new IllegalStateException("Cannot approve request: Game details are missing.");
+            }
+            GameOwner owner = requestedGame.getOwner();
+            if (owner == null) {
+                // This case might indicate an orphaned game or configuration issue.
+                throw new IllegalStateException("Cannot approve request: Game owner is not set.");
+            }
 
-    // Prepare and return the DTO
-    Integer requesterId = (updatedRequest.getRequester() != null) ? updatedRequest.getRequester().getId() : null; // Keep null if missing
-    Integer gameId = (updatedRequest.getRequestedGame() != null) ? updatedRequest.getRequestedGame().getId() : null; // Keep null if missing
+            // Inner try-catch specifically for lending record creation issues
+            try {
+                // Call LendingRecordService to create the record
+                ResponseEntity<String> response = lendingRecordService.createLendingRecord(
+                        request.getStartDate(),
+                        request.getEndDate(),
+                        request,
+                        owner
+                );
 
-    return new BorrowRequestDto(
-            updatedRequest.getId(),
-            requesterId,
-            gameId,
-            updatedRequest.getStartDate(),
-            updatedRequest.getEndDate(),
-            updatedRequest.getStatus().name(),
-            updatedRequest.getRequestDate()
-    );
+                // Check if the lending record creation was successful
+                if (response.getStatusCode() != HttpStatus.OK) {
+                    // Log the error and throw an exception to indicate failure during the transaction
+                    String errorMessage = String.format("Failed to create lending record for approved borrow request %d. Status: %s, Body: %s",
+                                                        request.getId(), response.getStatusCode(), response.getBody());
+                    logger.error(errorMessage);
+                    throw new RuntimeException(errorMessage); // Will cause rollback
+                }
+                 logger.info("Successfully created lending record for approved borrow request {}", request.getId());
+
+            } catch (Exception e) { // Catch exceptions from lendingRecordService call
+                 String errorMessage = String.format("Error creating lending record for approved borrow request %d: %s",
+                                                      request.getId(), e.getMessage());
+                 logger.error(errorMessage, e);
+                 // Re-throw as a runtime exception to ensure transaction rollback
+                 throw new RuntimeException(errorMessage, e);
+            }
+        } // End of 'if (newStatus == BorrowRequestStatus.APPROVED)' block
+
+        // Update the status of the BorrowRequest
+        request.setStatus(newStatus);
+        BorrowRequest updatedRequest = borrowRequestRepository.save(request);
+
+        // Prepare and return the DTO
+        Integer requesterId = (updatedRequest.getRequester() != null) ? updatedRequest.getRequester().getId() : null;
+        Integer gameId = (updatedRequest.getRequestedGame() != null) ? updatedRequest.getRequestedGame().getId() : null;
+
+        return new BorrowRequestDto(
+                updatedRequest.getId(),
+                requesterId,
+                gameId,
+                updatedRequest.getStartDate(),
+                updatedRequest.getEndDate(),
+                updatedRequest.getStatus().name(),
+                updatedRequest.getRequestDate()
+        );
+
+    } catch (IllegalArgumentException | IllegalStateException e) {
+        // Catch specific business logic exceptions and re-throw
+        throw e;
+    } catch (org.springframework.security.access.AccessDeniedException e) {
+        // Catch potential AccessDeniedException from @PreAuthorize and convert
+        throw new ForbiddenException("Access denied: Only the game owner can approve or decline requests.");
+    } // End of outer try-catch block for the whole method
 }
+
 
     /**
      * Deletes a borrow request by its ID.
@@ -282,65 +347,77 @@ public BorrowRequestDto updateBorrowRequestStatus(int id, BorrowRequestStatus ne
      * @throws IllegalArgumentException if no request is found.
      */
     @Transactional
+    @PreAuthorize("@borrowRequestService.isOwnerOrRequesterOfRequest(#id, authentication.principal.username)")
     public void deleteBorrowRequest(int id) {
-        BorrowRequest request = borrowRequestRepository.findBorrowRequestById(id)
-                .orElseThrow(() -> new IllegalArgumentException("No borrow request found with ID " + id));
+        try {
+            BorrowRequest request = borrowRequestRepository.findBorrowRequestById(id)
+                    .orElseThrow(() -> new IllegalArgumentException("No borrow request found with ID " + id));
 
-        logger.info("Attempting to delete borrow request with ID: {}", id);
+            // Authorization handled by @PreAuthorize
 
-        // Get the current authentication
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
-            logger.error("Authentication failed: User not authenticated");
-            throw new UnauthedException("User must be authenticated to delete a borrow request.");
-        }
-
-        String currentUsername;
-        Object principal = authentication.getPrincipal();
-        if (principal instanceof UserDetails) {
-            currentUsername = ((UserDetails) principal).getUsername();
-        } else if (principal instanceof String) {
-            currentUsername = (String) principal;
-        } else {
-            logger.error("Principal is of unexpected type: {}", (principal != null ? principal.getClass().getName() : "null"));
-            throw new UnauthedException("Unexpected principal type in SecurityContext.");
-        }
-
-        logger.debug("Authenticated username: {}", currentUsername);
-        
-        // In test environment, be permissive for now
-        if (System.getProperty("spring.profiles.active", "").contains("test")) {
-            logger.info("Test environment detected, bypassing strict authentication checks");
+            logger.info("User authorized. Deleting borrow request with ID: {}", id);
             borrowRequestRepository.delete(request);
-            return;
-        }
-        
-        // IMPORTANT: Get the actual account to check permissions
-        Account currentUser = accountRepository.findByEmail(currentUsername)
-                .orElseThrow(() -> new UnauthedException("Authenticated user not found in database: " + currentUsername));
 
-        Game requestedGame = request.getRequestedGame();
-        if (requestedGame == null || requestedGame.getOwner() == null) {
-            logger.error("Request has no game or game owner associated with it");
-            throw new UnauthedException("Cannot determine authorization for this request.");
+        } catch (IllegalArgumentException e) {
+            // Re-throw specific exceptions if needed, or let GlobalExceptionHandler handle them
+            throw e;
+        } catch (org.springframework.security.access.AccessDeniedException e) {
+            // Catch potential AccessDeniedException from @PreAuthorize
+            throw new ForbiddenException("Access denied: You can only delete your own borrow requests or requests for games you own.");
         }
+    }
 
-        // Allow deletion if current user is either:
-        // 1. The owner of the game being requested
-        // 2. The requester who created the request
-        boolean isGameOwner = (currentUser instanceof GameOwner) && 
-                              (currentUser.getId() == requestedGame.getOwner().getId());
-        
-        boolean isRequester = (request.getRequester() != null) &&
-                             (currentUser.getId() == request.getRequester().getId());
-                             
-        if (isGameOwner || isRequester) {
-            logger.info("User is authorized to delete request as {}", 
-                       isGameOwner ? "game owner" : "requester");
-            borrowRequestRepository.delete(request);
-        } else {
-            logger.error("Access denied: User {} is neither the game owner nor the requester", currentUsername);
-            throw new UnauthedException("Access denied: You can only delete your own borrow requests or requests for games you own.");
+
+
+    // --- Helper methods for @PreAuthorize --- 
+
+    /**
+     * Checks if the given username corresponds to the owner of the game associated with the borrow request.
+     */
+    public boolean isGameOwnerOfRequest(int requestId, String username) {
+        if (username == null) return false;
+        try {
+            BorrowRequest request = borrowRequestRepository.findBorrowRequestById(requestId).orElse(null);
+            Account user = accountRepository.findByEmail(username).orElse(null);
+
+            if (request == null || user == null || request.getRequestedGame() == null || request.getRequestedGame().getOwner() == null) {
+                return false; // Cannot determine ownership
+            }
+
+            return request.getRequestedGame().getOwner().getId() == user.getId();
+        } catch (Exception e) {
+            logger.error("Error during isGameOwnerOfRequest check for request {}: {}", requestId, e.getMessage());
+            return false; // Deny on error
+        }
+    }
+
+    /**
+     * Checks if the given username corresponds to either the owner of the game 
+     * or the requester of the borrow request.
+     */
+    public boolean isOwnerOrRequesterOfRequest(int requestId, String username) {
+        if (username == null) return false;
+        try {
+            BorrowRequest request = borrowRequestRepository.findBorrowRequestById(requestId).orElse(null);
+            Account user = accountRepository.findByEmail(username).orElse(null);
+
+            if (request == null || user == null) {
+                return false; // Cannot determine relationship
+            }
+
+            // Check if user is the requester
+            boolean isRequester = request.getRequester() != null && request.getRequester().getId() == user.getId();
+            if (isRequester) return true;
+
+            // Check if user is the game owner
+            boolean isGameOwner = request.getRequestedGame() != null && 
+                                  request.getRequestedGame().getOwner() != null &&
+                                  request.getRequestedGame().getOwner().getId() == user.getId();
+            
+            return isGameOwner;
+        } catch (Exception e) {
+            logger.error("Error during isOwnerOrRequesterOfRequest check for request {}: {}", requestId, e.getMessage());
+            return false; // Deny on error
         }
     }
 }

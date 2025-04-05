@@ -95,7 +95,7 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
     // Remove the temporary search input value from the data to be submitted
     const { gameSearchTermInput, ...formData } = data;
 
-    console.log("Form data (after removing search term):", formData);
+
     setIsLoading(true);
     setSubmitError("");
 
@@ -104,7 +104,7 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
       ...formData,
       featuredGameId: selectedGameId, // Pass the selected ID
     };
-    console.log("Payload to send:", payload);
+
 
     try {
       const result = await createEvent(payload); // createEvent expects featuredGameId

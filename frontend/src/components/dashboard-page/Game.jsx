@@ -18,7 +18,7 @@ export default function Game({ name, date, isAvailable }) {
 
   const handleDelete = () => {
     // Add your delete logic here
-    console.log(`Deleting game: ${name}`)
+    // TODO: Implement actual API call to delete game
     setOpen(false)
   }
 

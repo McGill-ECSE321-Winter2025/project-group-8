@@ -27,7 +27,10 @@ import ca.mcgill.ecse321.gameorganizer.dto.EventResponse;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
 import ca.mcgill.ecse321.gameorganizer.services.EventService;
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.security.core.context.SecurityContextHolder;
+import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException;
+import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;
+
+// Removed duplicate import: import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import ca.mcgill.ecse321.gameorganizer.security.JwtAuthenticationFilter;
 import org.springframework.security.core.GrantedAuthority;
@@ -52,6 +55,16 @@ public class EventController {
     @Autowired
     public EventController(EventService eventService) {
         this.eventService = eventService;
+    }
+
+    /**
+     * Endpoint for simple authentication testing.
+     * Returns a success message if reachable.
+     * @return ResponseEntity indicating success.
+     */
+    @GetMapping("/auth-test")
+    public ResponseEntity<String> authTestEndpoint() {
+        return ResponseEntity.ok("Authentication test successful.");
     }
     
     /**
@@ -84,7 +97,6 @@ public class EventController {
      * Creates a new event.
      * 
      * @param request The event creation request
-     * @param httpRequest The HTTP servlet request
      * @return The created event
      */
     @PostMapping
@@ -108,7 +120,7 @@ public class EventController {
              return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build(); // Indicate an unexpected state
          }
 
-        Event event = eventService.createEvent(request, email);
+        Event event = eventService.createEvent(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(new EventResponse(event));
     }
 
@@ -121,7 +133,6 @@ public class EventController {
      * @param location The new location (optional)
      * @param description The new description (optional)
      * @param maxParticipants The new maximum number of participants (optional)
-     * @param httpRequest The HTTP servlet request
      * @return The updated event
      */
     @PutMapping("/{eventId}")
@@ -131,106 +142,32 @@ public class EventController {
             @RequestParam(required = false) java.sql.Date dateTime,
             @RequestParam(required = false) String location,
             @RequestParam(required = false) String description,
-            @RequestParam(required = false, defaultValue = "0") int maxParticipants,
-            HttpServletRequest httpRequest) {
+            @RequestParam(required = false, defaultValue = "0") int maxParticipants) { // Removed HttpServletRequest
         
-        // SPECIAL TEST BYPASS:
-        // In a test environment, we'll use host email from the event record directly
-        try {
-            Event event = eventService.getEventById(eventId);
-            if (event != null && event.getHost() != null && event.getHost().getEmail() != null) {
-                String hostEmail = event.getHost().getEmail();
-                log.info("TEST MODE: Using host email directly from event: {}", hostEmail);
-                
-                try {
-                    Event updatedEvent = eventService.updateEvent(
-                            eventId, title, dateTime, location, description, maxParticipants, hostEmail);
-                    log.info("TEST MODE: Event updated successfully with ID: {}", updatedEvent.getId());
-                    return ResponseEntity.ok(new EventResponse(updatedEvent));
-                } catch (Exception e) {
-                    log.error("TEST MODE: Error updating event: {}", e.getMessage(), e);
-                    if (e instanceof IllegalArgumentException) {
-                        return ResponseEntity.notFound().build();
-                    }
-                    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-                }
-            }
-        } catch (Exception e) {
-            // If we can't get the event (not found), continue with normal flow
-            log.info("TEST MODE: Couldn't find event or get host email, continuing with normal auth flow");
-        }
+        // Authentication and Authorization are now handled by Spring Security filters and @PreAuthorize in the service layer.
+        // We can directly call the service method.
         
-        // Normal non-test flow continues below
-        
-        // Get authentication from multiple sources for reliability
-        Authentication authentication = null;
-        
-        // First try from SecurityContextHolder
-        authentication = SecurityContextHolder.getContext().getAuthentication();
-        log.info("Using authentication from SecurityContextHolder: {}", authentication);
-        
-        // Then try from request attribute
-        if (authentication == null || authentication instanceof AnonymousAuthenticationToken) {
-            authentication = (Authentication) httpRequest.getAttribute(
-                JwtAuthenticationFilter.AUTH_ATTRIBUTE);
-            log.info("Using authentication from request attribute: {}", authentication);
-        }
-        
-        // If still not found and we have authorization header, try to extract email
-        if (authentication == null || authentication instanceof AnonymousAuthenticationToken) {
-            String authHeader = httpRequest.getHeader(HttpHeaders.AUTHORIZATION);
-            log.info("Falling back to manual header check. Authorization header: {}", 
-                    authHeader != null ? authHeader.substring(0, Math.min(20, authHeader.length())) + "..." : "null");
-            
-            if (authHeader != null && authHeader.startsWith("Bearer ")) {
-                // For tests, try to get the event first to extract the host email
-                try {
-                    final Event event = eventService.getEventById(eventId);
-                    if (event != null && event.getHost() != null && event.getHost().getEmail() != null) {
-                        final String email = event.getHost().getEmail();
-                        log.info("Using email from event host: {}", email);
-                        
-                        // Create a simple authentication object for testing 
-                        authentication = new Authentication() {
-                            @Override public String getName() { return email; }
-                            @Override public Collection<? extends GrantedAuthority> getAuthorities() { 
-                                return Arrays.asList(new SimpleGrantedAuthority("ROLE_USER")); 
-                            }
-                            @Override public Object getCredentials() { return null; }
-                            @Override public Object getDetails() { return null; }
-                            @Override public Object getPrincipal() { return email; }
-                            @Override public boolean isAuthenticated() { return true; }
-                            @Override public void setAuthenticated(boolean b) { }
-                        };
-                    }
-                } catch (Exception e) {
-                    log.error("Error trying to get event for auth fallback: {}", e.getMessage());
-                }
-            }
-        }
-        
-        log.info("Attempting to update event {}. Authentication: {}", eventId, authentication);
-        
-        if (authentication == null) {
-            log.error("Update Event {}: Authentication object is null", eventId);
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-        
-        if (!authentication.isAuthenticated()) {
-            log.error("Update Event {}: User not authenticated (isAuthenticated=false)", eventId);
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
+        // The complex logic for retrieving authentication and the test bypass are removed.
         
         try {
-            String email = authentication.getName(); // Get email from Authentication
+            // Call the updated service method (without userEmail)
             Event updatedEvent = eventService.updateEvent(
-                   eventId, title, dateTime, location, description, maxParticipants, email);
+                   eventId, title, dateTime, location, description, maxParticipants);
             return ResponseEntity.ok(new EventResponse(updatedEvent));
         } catch (IllegalArgumentException e) {
-            // This specific catch block might become redundant with the @ExceptionHandler,
-            // but leaving it for now doesn't hurt. The handler will take precedence.
-            return ResponseEntity.notFound().build(); 
+            // Let GlobalExceptionHandler handle this (typically 404 or 400)
+            log.error("Error updating event {}: {}", eventId, e.getMessage());
+            throw e; // Re-throw for handler
+        } catch (ForbiddenException e) {
+            // Let GlobalExceptionHandler handle this (typically 403)
+            log.error("Authorization error updating event {}: {}", eventId, e.getMessage());
+            throw e; // Re-throw for handler
+        } catch (UnauthedException e) {
+            // Let GlobalExceptionHandler handle this (typically 401)
+            log.error("Authentication error updating event {}: {}", eventId, e.getMessage());
+            throw e; // Re-throw for handler
         }
+        // Other potential exceptions will also be caught by GlobalExceptionHandler
     }
     
     /**
@@ -240,93 +177,30 @@ public class EventController {
      * @return No content response
      */
     @DeleteMapping("/{eventId}")
-    public ResponseEntity<Void> deleteEvent(@PathVariable UUID eventId, HttpServletRequest httpRequest) {
-        // SPECIAL TEST BYPASS:
-        // In a test environment, we'll use host email from the event record directly
+    public ResponseEntity<Void> deleteEvent(@PathVariable UUID eventId) { // Removed HttpServletRequest
+        // Authentication and Authorization are now handled by Spring Security filters and @PreAuthorize in the service layer.
+        // We can directly call the service method.
+        
+        // The complex logic for retrieving authentication and the test bypass are removed.
+        
         try {
-            Event event = eventService.getEventById(eventId);
-            if (event != null && event.getHost() != null && event.getHost().getEmail() != null) {
-                String hostEmail = event.getHost().getEmail();
-                log.info("TEST MODE: Using host email directly from event for delete: {}", hostEmail);
-                
-                try {
-                    eventService.deleteEvent(eventId, hostEmail);
-                    log.info("TEST MODE: Event deleted successfully: {}", eventId);
-                    return ResponseEntity.noContent().build();
-                } catch (Exception e) {
-                    log.error("TEST MODE: Error deleting event: {}", e.getMessage(), e);
-                    return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
-                }
-            }
-        } catch (Exception e) {
-            // If we can't get the event (not found), continue with normal flow
-            log.info("TEST MODE: Couldn't find event or get host email for delete, continuing with normal auth flow");
+            // Call the updated service method (without userEmail)
+            eventService.deleteEvent(eventId);
+            return ResponseEntity.noContent().build(); // Return 204 No Content on success
+        } catch (IllegalArgumentException e) {
+            // Let GlobalExceptionHandler handle this (typically 404 or 400)
+            log.error("Error deleting event {}: {}", eventId, e.getMessage());
+            throw e; // Re-throw for handler
+        } catch (ForbiddenException e) {
+            // Let GlobalExceptionHandler handle this (typically 403)
+            log.error("Authorization error deleting event {}: {}", eventId, e.getMessage());
+            throw e; // Re-throw for handler
+        } catch (UnauthedException e) {
+            // Let GlobalExceptionHandler handle this (typically 401)
+            log.error("Authentication error deleting event {}: {}", eventId, e.getMessage());
+            throw e; // Re-throw for handler
         }
-        
-        // Normal non-test flow continues below
-        
-        // Get authentication from multiple sources for reliability
-        Authentication authentication = null;
-        
-        // First try from SecurityContextHolder
-        authentication = SecurityContextHolder.getContext().getAuthentication();
-        log.info("Using authentication from SecurityContextHolder: {}", authentication);
-        
-        // Then try from request attribute
-        if (authentication == null || authentication instanceof AnonymousAuthenticationToken) {
-            authentication = (Authentication) httpRequest.getAttribute(
-                JwtAuthenticationFilter.AUTH_ATTRIBUTE);
-            log.info("Using authentication from request attribute: {}", authentication);
-        }
-        
-        // If still not found and we have authorization header, try to extract email
-        if (authentication == null || authentication instanceof AnonymousAuthenticationToken) {
-            String authHeader = httpRequest.getHeader(HttpHeaders.AUTHORIZATION);
-            log.info("Falling back to manual header check. Authorization header: {}", 
-                    authHeader != null ? authHeader.substring(0, Math.min(20, authHeader.length())) + "..." : "null");
-            
-            if (authHeader != null && authHeader.startsWith("Bearer ")) {
-                // For tests, try to get the event first to extract the host email
-                try {
-                    final Event event = eventService.getEventById(eventId);
-                    if (event != null && event.getHost() != null && event.getHost().getEmail() != null) {
-                        final String email = event.getHost().getEmail();
-                        log.info("Using email from event host: {}", email);
-                        
-                        // Create a simple authentication object for testing
-                        authentication = new Authentication() {
-                            @Override public String getName() { return email; }
-                            @Override public Collection<? extends GrantedAuthority> getAuthorities() { 
-                                return Arrays.asList(new SimpleGrantedAuthority("ROLE_USER")); 
-                            }
-                            @Override public Object getCredentials() { return null; }
-                            @Override public Object getDetails() { return null; }
-                            @Override public Object getPrincipal() { return email; }
-                            @Override public boolean isAuthenticated() { return true; }
-                            @Override public void setAuthenticated(boolean b) { }
-                        };
-                    }
-                } catch (Exception e) {
-                    log.error("Error trying to get event for auth fallback: {}", e.getMessage());
-                }
-            }
-        }
-        
-        log.info("Attempting to delete event {}. Authentication: {}", eventId, authentication);
-        
-        if (authentication == null) {
-            log.error("Delete Event {}: Authentication object is null", eventId);
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-        
-        if (!authentication.isAuthenticated()) {
-            log.error("Delete Event {}: User not authenticated (isAuthenticated=false)", eventId);
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-            
-        String email = authentication.getName(); // Get email from Authentication
-        eventService.deleteEvent(eventId, email); // Service handles exceptions (NotFound, Forbidden)
-        return ResponseEntity.noContent().build(); // Controller returns 204 on success
+        // Other potential exceptions will also be caught by GlobalExceptionHandler
     }
 
     /**

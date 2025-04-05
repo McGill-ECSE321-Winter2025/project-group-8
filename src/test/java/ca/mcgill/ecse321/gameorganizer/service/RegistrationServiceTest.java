@@ -8,6 +8,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.context.SecurityContextImpl;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times; // Keep one import
 import static org.mockito.Mockito.never;
 
@@ -40,7 +45,12 @@ import ca.mcgill.ecse321.gameorganizer.repositories.RegistrationRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository; // Keep one import
 import ca.mcgill.ecse321.gameorganizer.services.RegistrationService;
 
+// Add ContextConfiguration and import TestJwtConfig
+import org.springframework.test.context.ContextConfiguration;
+import ca.mcgill.ecse321.gameorganizer.TestJwtConfig;
+
 @ExtendWith(MockitoExtension.class)
+@ContextConfiguration(initializers = TestJwtConfig.Initializer.class)
 public class RegistrationServiceTest {
 
     @Mock
@@ -69,15 +79,27 @@ public class RegistrationServiceTest {
         registration.setEventRegisteredFor(event);
 
         when(registrationRepository.save(any(Registration.class))).thenReturn(registration);
+        when(accountRepository.findByEmail(attendee.getEmail())).thenReturn(Optional.of(attendee)); // Mock finding authenticated user
 
-        // Test
-        Registration result = registrationService.createRegistration(registrationDate, attendee, event);
+        // Setup Security Context
+        Authentication auth = mock(Authentication.class);
+        when(auth.getName()).thenReturn(attendee.getEmail());
+        SecurityContext securityContext = new SecurityContextImpl();
+        securityContext.setAuthentication(auth);
+        SecurityContextHolder.setContext(securityContext);
+
+        try {
+            // Test
+            Registration result = registrationService.createRegistration(registrationDate, event); // Ensure signature: (Date, Event)
 
         // Verify
         assertNotNull(result);
         assertEquals(VALID_REGISTRATION_ID, result.getId());
         assertEquals(attendee, result.getAttendee());
         assertEquals(event, result.getEventRegisteredFor());
+        } finally {
+            SecurityContextHolder.clearContext(); // Clear context after test
+        }
         verify(registrationRepository).save(any(Registration.class));
     }
 
@@ -146,12 +168,20 @@ public class RegistrationServiceTest {
             Date newRegistrationDate = new Date();
             Account newAttendee = new Account("New Attendee", "new@test.com", "password");
             newAttendee.setId(100);
-            Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
-            Event newEvent = new Event("New Event", new Date(), "New Location", "New Description", 10, game, new Account());
+            // Define original event
+            Game game = new Game("Original Game", 1, 5, "orig.jpg", new Date());
+            Account host = new Account("Host", "host@test.com", "hostpwd");
+            Event event = new Event("Original Event", new Date(), "Original Location", "Original Desc", 5, game, host);
+            // event.setId(VALID_EVENT_ID); // ID not needed for this test logic
+
+            // Define unused new event data (kept for reference, but not used in update call)
+            Game newGame = new Game("New Game", 2, 4, "new.jpg", new Date());
+            Event newEvent = new Event("New Event", new Date(), "New Location", "New Description", 10, newGame, new Account());
 
             Registration existingRegistration = new Registration(new Date());
             existingRegistration.setId(VALID_REGISTRATION_ID);
             existingRegistration.setAttendee(attendee); // Set the attendee who is authenticated
+            existingRegistration.setEventRegisteredFor(event); // Set the original event
 
             when(accountRepository.findByEmail(attendee.getEmail())).thenReturn(Optional.of(attendee)); // Mock finding authenticated user
             when(registrationRepository.findRegistrationById(VALID_REGISTRATION_ID))
@@ -160,14 +190,15 @@ public class RegistrationServiceTest {
 
             // Test
             Registration result = registrationService.updateRegistration(VALID_REGISTRATION_ID,
-                newRegistrationDate, newAttendee, newEvent);
+                newRegistrationDate); // Ensure signature: (int, Date)
 
             // Verify
             assertNotNull(result);
             assertEquals(VALID_REGISTRATION_ID, result.getId());
             assertEquals(newRegistrationDate, result.getRegistrationDate());
-            assertEquals(newAttendee, result.getAttendee());
-            assertEquals(newEvent, result.getEventRegisteredFor());
+            // Verify that attendee and event were NOT changed
+            assertEquals(attendee, result.getAttendee());
+            assertEquals(event, result.getEventRegisteredFor());
             verify(registrationRepository).save(any(Registration.class));
         } finally {
             SecurityContextHolder.clearContext();
@@ -182,8 +213,7 @@ public class RegistrationServiceTest {
 
         // Test & Verify
         assertThrows(IllegalArgumentException.class, () ->
-            registrationService.updateRegistration(VALID_REGISTRATION_ID, new Date(),
-                new Account(), new Event()));
+            registrationService.updateRegistration(VALID_REGISTRATION_ID, new Date())); // Ensure signature: (int, Date)
     }
 
     @Test

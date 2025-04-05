@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
-import { Link } from "react-router-dom"
-import { useNavigate } from "react-router-dom"
+import { useState, useEffect } from "react" // Add useEffect
+import { Link, useNavigate } from "react-router-dom"
+import { useAuth } from "@/context/AuthContext"; // Import useAuth
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -11,69 +11,84 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { GamepadIcon as GameController } from "lucide-react"
 
 export default function RegistrationPage() {
-  const navigate = useNavigate()
-  const [isLoading, setIsLoading] = useState(false)
-  const [accountType, setAccountType] = useState("player")
+  const navigate = useNavigate();
+  const { login, user } = useAuth(); // Get login function and user state
+  const [isLoading, setIsLoading] = useState(false);
+  const [accountType, setAccountType] = useState("player");
+  const [firstName, setFirstName] = useState(""); // State for form inputs
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState(""); // State for errors
 
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+
+      navigate("/dashboard");
+    }
+  }, [user, navigate]);
   const handleSubmit = async (e) => {
-    e.preventDefault()
-    setIsLoading(true)
-
-    const firstName = document.getElementById("first-name").value
-    const lastName = document.getElementById("last-name").value
-    const email = document.getElementById("email").value
-    const password = document.getElementById("password").value
+    e.preventDefault();
+    setIsLoading(true);
+    setError(""); // Clear previous errors
 
     try {
       // Step 1: Register the user
+      // TODO: Replace with environment variable for API URL
       const registrationResponse = await fetch("http://localhost:8080/account", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          username: `${firstName} ${lastName}`,
+          username: `${firstName} ${lastName}`, // Use state variables
           email,
           password,
           gameOwner: accountType === "owner",
         }),
-      })
+        credentials: 'include', // <<< Send cookies if needed by backend for registration step? Maybe not.
+      });
 
-      console.log('Registration response status:', registrationResponse.status);
+
 
       if (registrationResponse.ok) {
-        console.log("Registration successful")
 
-        // Step 2: Log the user in
+
+        // Step 2: Log the user in - Backend should automatically set HttpOnly cookie
+        // TODO: Replace with environment variable for API URL
         const loginResponse = await fetch("http://localhost:8080/auth/login", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ email, password }),
-        })
+          body: JSON.stringify({ email, password }), // Use state variables
+          credentials: 'include', // <<< Send cookies (important for subsequent requests)
+        });
 
         if (loginResponse.ok) {
-          const loginData = await loginResponse.json()
-          console.log("Login successful:", loginData)
+          // Backend sets cookie, response body contains user summary
+          const userData = await loginResponse.json();
 
-          // Store user ID, token, and email in localStorage
-          localStorage.setItem("userId", loginData.userId); // Use field name from JwtAuthenticationResponse
-          localStorage.setItem("token", loginData.token);
-          localStorage.setItem("userEmail", loginData.email); // Store email
 
-          // Redirect to dashboard
-          navigate("/dashboard")
+          login(userData); // Update global auth state
+
+          // No need for localStorage/sessionStorage or delays.
+          // The useEffect hook above will handle redirection once `user` state updates.
+          // navigate("/dashboard"); // Let useEffect handle redirect
         } else {
-          alert("Login failed after registration. Please try logging in manually.")
+          const loginErrorText = await loginResponse.text();
+          console.error("Login failed after registration:", loginResponse.status, loginErrorText);
+          setError("Registration successful, but automatic login failed. Please try logging in manually.");
         }
       } else {
-        const errorMessage = await registrationResponse.text()
-        alert(`Registration failed: ${errorMessage}`)
+        const errorData = await registrationResponse.text(); // Or response.json() if backend sends structured errors
+        console.error("Registration failed:", registrationResponse.status, errorData);
+        setError(`Registration failed: ${errorData || registrationResponse.status}`);
       }
     } catch (error) {
-      console.error("Error during registration or login:", error)
-      alert("Failed to connect to the server")
+      console.error("Error during registration or login:", error);
+      setError("Failed to connect to the server. Please try again later.");
     } finally {
       setIsLoading(false)
     }
@@ -97,20 +112,20 @@ export default function RegistrationPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="first-name">First name</Label>
-                <Input id="first-name" required />
+                <Input id="first-name" required value={firstName} onChange={(e) => setFirstName(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="last-name">Last name</Label>
-                <Input id="last-name" required />
+                <Input id="last-name" required value={lastName} onChange={(e) => setLastName(e.target.value)} />
               </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="your.email@example.com" required />
+              <Input id="email" type="email" placeholder="your.email@example.com" required value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" required />
+              <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label>Account type</Label>
@@ -136,6 +151,7 @@ export default function RegistrationPage() {
             </div>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4 mt-4">
+            {error && <p className="text-red-500 text-sm text-center">{error}</p>} {/* Display error message */}
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? "Creating account..." : "Create account"}
             </Button>

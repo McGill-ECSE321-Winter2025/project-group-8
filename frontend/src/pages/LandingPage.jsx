@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext"; // Import useAuth
 import game1 from '../assets/games/game1.png';
 import game2 from '../assets/games/game2.png';
 import game3 from '../assets/games/game3.png';
@@ -7,14 +8,16 @@ import game4 from '../assets/games/game4.png';
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const { user } = useAuth(); // Get user state from context
   const gameImages = [game1, game2, game3, game4];
 
   useEffect(() => {
-    const isLoggedIn = localStorage.getItem("user");
-    if (isLoggedIn) {
-      navigate("/dashboard/profile");
+    // If user is already logged in (from AuthContext), redirect to dashboard
+    if (user) {
+      // Redirect to dashboard main page or profile, adjust as needed
+      navigate("/dashboard");
     }
-  }, [navigate]);
+  }, [user, navigate]); // Depend on user state and navigate
 
   return (
     <div className="flex flex-col min-h-screen">

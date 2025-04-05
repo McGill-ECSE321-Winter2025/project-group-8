@@ -1,13 +1,15 @@
-const API_BASE_URL = "http://localhost:8080/api/v1";
+import apiClient from './apiClient'; // Import the centralized API client
 
 /**
  * Searches for games based on the provided criteria.
+ * Authentication may or may not be required depending on backend implementation.
  * @param {object} criteria - The search criteria.
  * @param {string} [criteria.name] - Part of the game name to search for.
  * @param {string} [criteria.category] - The category to filter by.
  * @param {string|number} [criteria.minPlayers] - Minimum number of players.
  * @param {string|number} [criteria.maxPlayers] - Maximum number of players.
  * @returns {Promise<Array>} A promise that resolves to an array of game objects.
+ * @throws {ApiError} For API-related errors.
  */
 export const searchGames = async (criteria) => {
   const queryParams = new URLSearchParams();
@@ -17,44 +19,24 @@ export const searchGames = async (criteria) => {
   if (criteria.category) queryParams.append('category', criteria.category);
   if (criteria.minPlayers) queryParams.append('minPlayers', criteria.minPlayers);
   if (criteria.maxPlayers) queryParams.append('maxPlayers', criteria.maxPlayers);
-  // Add other potential criteria here if needed (e.g., minRating, available, ownerId, sort, order)
+  // Add other potential criteria here if needed
 
-  const url = `${API_BASE_URL}/games/search?${queryParams.toString()}`;
-
-  // Retrieve the token from localStorage
-  const token = localStorage.getItem("token");
-  const headers = {
-    "Content-Type": "application/json",
-  };
-
-  // Add the Authorization header if the token exists
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
+  const endpoint = `/games/search?${queryParams.toString()}`;
 
   try {
-    const response = await fetch(url, {
-      method: "GET",
-      headers: headers, // Use the headers object
-    });
-
-    if (!response.ok) {
-      // Attempt to read error details from the backend response
-      const errorBody = await response.text();
-      console.error("Backend error:", errorBody);
-      throw new Error(`HTTP error ${response.status}: ${response.statusText}`);
-    }
-
-    return await response.json();
+    // Use apiClient - it handles credentials automatically if needed
+    const games = await apiClient(endpoint, { method: "GET" });
+    return games;
   } catch (error) {
     console.error("Failed to fetch games:", error);
-    // Re-throw the error so the calling component can handle it
+    // Re-throw the error (could be ApiError, UnauthorizedError, etc.)
     throw error;
   }
 };
 
 /**
- * Creates a new game.
+ * Creates a new game. Requires authentication (via HttpOnly cookie).
+ * The backend should identify the owner based on the authenticated user session.
  * @param {object} gameData - The game data.
  * @param {string} gameData.name - Game name.
  * @param {number} gameData.minPlayers - Min players.
@@ -62,99 +44,60 @@ export const searchGames = async (criteria) => {
  * @param {string} [gameData.image] - Image URL (optional).
  * @param {string} [gameData.category] - Category (optional).
  * @returns {Promise<object>} A promise that resolves to the created game object.
+ * @throws {UnauthorizedError} If the user is not authenticated.
+ * @throws {ForbiddenError} If the user is not allowed (e.g., not a game owner account type).
+ * @throws {ApiError} For other API-related errors.
  */
 export const createGame = async (gameData) => {
-  const token = localStorage.getItem("token");
-  const ownerEmail = localStorage.getItem("userEmail"); // Get owner's email
-
-  if (!token) {
-    throw new Error("Authentication token not found. Please log in.");
-  }
-  if (!ownerEmail) {
-    // This shouldn't happen if login/registration worked, but good to check
-    throw new Error("User email not found in storage. Please log in again.");
-  }
-
+  // Remove ownerId/ownerEmail from payload - backend identifies owner via cookie/session
   const payload = {
     ...gameData,
     minPlayers: parseInt(gameData.minPlayers, 10), // Ensure numbers are integers
     maxPlayers: parseInt(gameData.maxPlayers, 10),
-    ownerId: ownerEmail, // Set ownerId from stored email
-  };
-
-  const headers = {
-    "Content-Type": "application/json",
-    'Authorization': `Bearer ${token}`
   };
 
   try {
-    const response = await fetch("http://localhost:8080/api/v1/games", {
+    // Use apiClient for the POST request
+    const createdGame = await apiClient("/games", {
       method: "POST",
-      headers: headers,
-      body: JSON.stringify(payload),
+      body: payload,
     });
-
-    if (!response.ok) {
-      // Try to parse error message from backend
-      let errorMsg = `HTTP error ${response.status}: ${response.statusText}`;
-      try {
-          const errorBody = await response.json(); // Or response.text() if not JSON
-          errorMsg = errorBody.message || errorMsg;
-      } catch (e) { /* Ignore parsing error */ }
-      console.error("Backend error creating game:", errorMsg);
-      throw new Error(errorMsg);
-    }
-    return await response.json(); // Return the created game object from backend
+    return createdGame; // Return the created game object from backend
   } catch (error) {
     console.error("Failed to create game:", error);
-    throw error; // Re-throw for the component to handle
+    // Re-throw the specific error from apiClient
+    throw error;
   }
 };
 
 /**
- * Fetches all games owned by a specific user.
- * @param {string} ownerEmail - The email of the owner.
+ * Fetches all games owned by a specific user (identified by email).
+ * Requires authentication (via HttpOnly cookie).
+ * @param {string} ownerEmail - The email of the owner whose games are to be fetched.
  * @returns {Promise<Array>} A promise that resolves to an array of game objects owned by the user.
+ * @throws {UnauthorizedError} If the user is not authenticated.
+ * @throws {ForbiddenError} If the user is not allowed to view these games.
+ * @throws {ApiError} For other API-related errors.
  */
 export const getGamesByOwner = async (ownerEmail) => {
-  const token = localStorage.getItem("token");
-  if (!token) {
-    throw new Error("Authentication token not found. Please log in.");
-  }
   if (!ownerEmail) {
      throw new Error("Owner email is required to fetch games.");
   }
 
-  const headers = {
-    "Content-Type": "application/json",
-    'Authorization': `Bearer ${token}`
-  };
-
   // The backend endpoint uses email as the identifier in the path
-  const url = `${API_BASE_URL}/users/${encodeURIComponent(ownerEmail)}/games`;
+  const endpoint = `/users/${encodeURIComponent(ownerEmail)}/games`;
 
   try {
-    const response = await fetch(url, {
-      method: "GET",
-      headers: headers,
-    });
-
-    if (!response.ok) {
-      let errorMsg = `HTTP error ${response.status}: ${response.statusText}`;
-       try {
-           const errorBody = await response.json();
-           errorMsg = errorBody.message || errorMsg;
-       } catch (e) { /* Ignore parsing error */ }
-      console.error("Backend error fetching owner's games:", errorMsg);
-      throw new Error(errorMsg);
-    }
-    return await response.json();
+    // Use apiClient for the GET request
+    const games = await apiClient(endpoint, { method: "GET" });
+    return games;
   } catch (error) {
-    console.error("Failed to fetch owner's games:", error);
+    console.error(`Failed to fetch games for owner ${ownerEmail}:`, error);
+    // Re-throw the specific error from apiClient
     throw error;
   }
 };
 
 
-// Add other game-related API functions here as needed
+// Add other game-related API functions here as needed, using apiClient
 // e.g., getGameById, updateGame, deleteGame, getGameReviews, submitReview etc.

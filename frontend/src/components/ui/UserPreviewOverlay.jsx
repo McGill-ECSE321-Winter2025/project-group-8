@@ -162,7 +162,7 @@ const UserPreviewOverlay = ({ user, isOpen, onClose }) => {
                 <Button 
                   className="flex-1 gap-2"
                   onClick={() => {
-                    console.log('Friend Request sent to:', user.id);
+                    // TODO: Implement actual friend request logic
                     onClose();
                   }}
                 >

@@ -18,6 +18,10 @@ import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.services.AccountService;
 import ca.mcgill.ecse321.gameorganizer.services.GameService;
+import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException; // Import
+import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException; // Import
+import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException; // Import
+import org.springframework.web.server.ResponseStatusException; // Import
 
 /**
  * Controller that handles API endpoints for game operations.
@@ -97,8 +101,16 @@ public class GameController {
      */
     @PostMapping("/games")
     public ResponseEntity<GameResponseDto> createGame(@RequestBody GameCreationDto gameCreationDto) {
-        GameResponseDto createdGame = service.createGame(gameCreationDto);
-        return new ResponseEntity<>(createdGame, HttpStatus.CREATED);
+        try {
+            // Service now uses authenticated principal for owner
+            GameResponseDto createdGame = service.createGame(gameCreationDto);
+            return new ResponseEntity<>(createdGame, HttpStatus.CREATED);
+        } catch (ForbiddenException | UnauthedException e) {
+             throw new ResponseStatusException(HttpStatus.FORBIDDEN, e.getMessage()); // Or UNAUTHORIZED depending on specific exception
+        } catch (IllegalArgumentException e) {
+             // Handle validation errors
+             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
     }
 
     /**
@@ -110,8 +122,16 @@ public class GameController {
      */
     @PutMapping("/games/{id}")
     public ResponseEntity<GameResponseDto> updateGame(@PathVariable int id, @RequestBody GameCreationDto gameDto) {
-        GameResponseDto updatedGame = service.updateGame(id, gameDto);
-        return ResponseEntity.ok(updatedGame);
+        try {
+            GameResponseDto updatedGame = service.updateGame(id, gameDto);
+            return ResponseEntity.ok(updatedGame);
+        } catch (ForbiddenException | UnauthedException e) {
+             throw new ResponseStatusException(HttpStatus.FORBIDDEN, e.getMessage()); // Or UNAUTHORIZED
+        } catch (ResourceNotFoundException e) {
+             throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        } catch (IllegalArgumentException e) {
+             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
     }
 
     /**
@@ -122,7 +142,13 @@ public class GameController {
      */
     @DeleteMapping("/games/{id}")
     public ResponseEntity<String> deleteGame(@PathVariable int id) {
-        return service.deleteGame(id);
+        try {
+            return service.deleteGame(id);
+        } catch (ForbiddenException | UnauthedException e) {
+             throw new ResponseStatusException(HttpStatus.FORBIDDEN, e.getMessage()); // Or UNAUTHORIZED
+        } catch (ResourceNotFoundException e) {
+             throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        }
     }
 
     /**
@@ -184,9 +210,18 @@ public class GameController {
     public ResponseEntity<ReviewResponseDto> submitGameReview(
             @PathVariable int id,
             @RequestBody ReviewSubmissionDto reviewDto) {
-        reviewDto.setGameId(id);
-        ReviewResponseDto review = service.submitReview(reviewDto);
-        return new ResponseEntity<>(review, HttpStatus.CREATED);
+        try {
+            reviewDto.setGameId(id);
+            // Service now uses authenticated principal for reviewer
+            ReviewResponseDto review = service.submitReview(reviewDto);
+            return new ResponseEntity<>(review, HttpStatus.CREATED);
+        } catch (ForbiddenException | UnauthedException e) {
+             throw new ResponseStatusException(HttpStatus.FORBIDDEN, e.getMessage()); // Or UNAUTHORIZED
+        } catch (ResourceNotFoundException e) {
+             throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        } catch (IllegalArgumentException e) {
+             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
     }
 
     /**

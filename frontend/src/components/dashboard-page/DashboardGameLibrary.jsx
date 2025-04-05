@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react"; // Import useState and useEffect
+import { useState, useEffect, useCallback } from "react"; // Import useState, useEffect, useCallback
+import { useAuth } from "@/context/AuthContext"; // Import useAuth
 import { Button } from "@/components/ui/button.jsx";
 import Game from "./Game.jsx";
 import { TabsContent } from "@/components/ui/tabs.jsx";
@@ -7,22 +8,26 @@ import { Loader2 } from "lucide-react"; // Import Loader icon
 import { getGamesByOwner } from "../../service/game-api.js"; // Import the service function
 
 export default function DashboardGameLibrary({ userType }) {
+  const { user } = useAuth(); // Get user from context
   const [isAddGameDialogOpen, setIsAddGameDialogOpen] = useState(false);
   const [games, setGames] = useState([]); // State for fetched games
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // Keep loading state for fetch operation
   const [error, setError] = useState(null);
 
   // Function to fetch games
-  const fetchGames = async () => {
-    setIsLoading(true);
-    setError(null);
-    const ownerEmail = localStorage.getItem("userEmail");
-    if (!ownerEmail) {
-      setError("User email not found. Please log in again.");
+  // Use useCallback to memoize fetchGames, prevent re-creation if user object reference changes unnecessarily
+  const fetchGames = useCallback(async () => {
+    if (!user?.email) { // Check if user and user.email exist
+      setError("User email not found. Cannot fetch games.");
       setIsLoading(false);
-      setGames([]); // Clear games if email is missing
+      setGames([]);
       return;
     }
+    
+    const ownerEmail = user.email; // Get email from context user object
+    
+    setIsLoading(true);
+    setError(null);
 
     try {
       const fetchedGames = await getGamesByOwner(ownerEmail);
@@ -34,22 +39,24 @@ export default function DashboardGameLibrary({ userType }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user?.email]); // Add closing parenthesis and dependency array for useCallback
 
-  // Fetch games on component mount
+  // Fetch games when the component mounts or when the user object changes (specifically the email)
   useEffect(() => {
-    // Only fetch if the user is an owner (or adjust logic if players should see their borrowed games here)
-    if (userType === "owner") {
+    // Only fetch if the user is identified as an owner and their email is available
+    if (userType === "owner" && user?.email) {
        fetchGames();
-    } else {
-        setIsLoading(false); // Not loading if not an owner
-        setGames([]); // Ensure games is empty for non-owners in this view
+    } else if (userType !== "owner") {
+        // If not an owner, explicitly set loading to false and games to empty
+        setIsLoading(false);
+        setGames([]);
     }
-  }, [userType]); // Re-fetch if userType changes (though unlikely)
+    // Add fetchGames to dependency array as it's now memoized with useCallback
+  }, [userType, user?.email, fetchGames]);
 
   // Function to handle adding a game (refreshes the list)
   const handleGameAdded = (newGame) => {
-    console.log("New game added:", newGame);
+
     // Re-fetch the list to include the new game
     fetchGames();
   };

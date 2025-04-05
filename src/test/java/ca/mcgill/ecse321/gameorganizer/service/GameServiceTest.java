@@ -9,6 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import static org.mockito.ArgumentMatchers.any;
@@ -29,7 +31,9 @@ import org.springframework.security.core.context.SecurityContextImpl;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import java.util.Collections;
+import org.springframework.test.context.ContextConfiguration;
 
+import ca.mcgill.ecse321.gameorganizer.TestJwtConfig;
 import ca.mcgill.ecse321.gameorganizer.dto.GameCreationDto;
 import ca.mcgill.ecse321.gameorganizer.dto.GameResponseDto;
 import ca.mcgill.ecse321.gameorganizer.dto.ReviewSubmissionDto;
@@ -43,6 +47,7 @@ import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
 import ca.mcgill.ecse321.gameorganizer.services.GameService;
 
 @ExtendWith(MockitoExtension.class)
+@ContextConfiguration(initializers = TestJwtConfig.Initializer.class)
 public class GameServiceTest {
 
     @Mock
@@ -68,69 +73,116 @@ public class GameServiceTest {
 
     @Test
     public void testCreateGameSuccess() {
-        // Setup
-        GameCreationDto gameDto = new GameCreationDto();
-        gameDto.setName(VALID_GAME_NAME);
-        gameDto.setOwnerId(VALID_OWNER_EMAIL);
-        gameDto.setCategory(VALID_CATEGORY);
-        gameDto.setImage(VALID_IMAGE);
-        gameDto.setMinPlayers(VALID_MIN_PLAYERS);
-        gameDto.setMaxPlayers(VALID_MAX_PLAYERS);
-
+        // Setup SecurityContext for authenticated user
         GameOwner owner = new GameOwner("Test Owner", VALID_OWNER_EMAIL, "password");
-        Game savedGame = new Game(VALID_GAME_NAME, VALID_MIN_PLAYERS, VALID_MAX_PLAYERS, VALID_IMAGE, new Date());
-        savedGame.setOwner(owner);
+        Authentication auth = new UsernamePasswordAuthenticationToken(VALID_OWNER_EMAIL, "password", 
+            Collections.singletonList(new SimpleGrantedAuthority("ROLE_GAME_OWNER")));
+        SecurityContext securityContext = new SecurityContextImpl();
+        securityContext.setAuthentication(auth);
+        SecurityContextHolder.setContext(securityContext);
+        
+        try {
+            // Setup
+            GameCreationDto gameDto = new GameCreationDto();
+            gameDto.setName(VALID_GAME_NAME);
+            gameDto.setOwnerId(VALID_OWNER_EMAIL);
+            gameDto.setCategory(VALID_CATEGORY);
+            gameDto.setImage(VALID_IMAGE);
+            gameDto.setMinPlayers(VALID_MIN_PLAYERS);
+            gameDto.setMaxPlayers(VALID_MAX_PLAYERS);
 
-        when(accountRepository.findByEmail(VALID_OWNER_EMAIL)).thenReturn(Optional.of(owner));
-        when(gameRepository.save(any(Game.class))).thenReturn(savedGame);
+            Game savedGame = new Game(VALID_GAME_NAME, VALID_MIN_PLAYERS, VALID_MAX_PLAYERS, VALID_IMAGE, new Date());
+            savedGame.setOwner(owner);
 
-        // Test
-        GameResponseDto response = gameService.createGame(gameDto);
+            when(accountRepository.findByEmail(VALID_OWNER_EMAIL)).thenReturn(Optional.of(owner));
+            when(gameRepository.save(any(Game.class))).thenReturn(savedGame);
 
-        // Verify
-        assertNotNull(response);
-        assertEquals(VALID_GAME_NAME, response.getName());
-        assertEquals(VALID_MIN_PLAYERS, response.getMinPlayers());
-        assertEquals(VALID_MAX_PLAYERS, response.getMaxPlayers());
-        verify(accountRepository).findByEmail(VALID_OWNER_EMAIL);
-        verify(gameRepository).save(any(Game.class));
+            // Test
+            GameResponseDto response = gameService.createGame(gameDto);
+
+            // Verify
+            assertNotNull(response);
+            assertEquals(VALID_GAME_NAME, response.getName());
+            assertEquals(VALID_MIN_PLAYERS, response.getMinPlayers());
+            assertEquals(VALID_MAX_PLAYERS, response.getMaxPlayers());
+            verify(accountRepository).findByEmail(VALID_OWNER_EMAIL);
+            verify(gameRepository).save(any(Game.class));
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     @Test
     public void testCreateGameWithInvalidOwner() {
-        // Setup
-        GameCreationDto gameDto = new GameCreationDto();
-        gameDto.setName(VALID_GAME_NAME);
-        gameDto.setOwnerId(VALID_OWNER_EMAIL);
-        gameDto.setCategory(VALID_CATEGORY);
-        gameDto.setMinPlayers(VALID_MIN_PLAYERS);
-        gameDto.setMaxPlayers(VALID_MAX_PLAYERS);
+        // Setup SecurityContext for authenticated user
+        Authentication auth = new UsernamePasswordAuthenticationToken(VALID_OWNER_EMAIL, "password", 
+            Collections.singletonList(new SimpleGrantedAuthority("ROLE_GAME_OWNER")));
+        SecurityContext securityContext = new SecurityContextImpl();
+        securityContext.setAuthentication(auth);
+        SecurityContextHolder.setContext(securityContext);
+        
+        try {
+            // Setup
+            GameCreationDto gameDto = new GameCreationDto();
+            gameDto.setName(VALID_GAME_NAME);
+            gameDto.setOwnerId(VALID_OWNER_EMAIL);
+            gameDto.setCategory(VALID_CATEGORY);
+            gameDto.setMinPlayers(VALID_MIN_PLAYERS);
+            gameDto.setMaxPlayers(VALID_MAX_PLAYERS);
 
-        when(accountRepository.findByEmail(VALID_OWNER_EMAIL)).thenReturn(Optional.empty());
+            when(accountRepository.findByEmail(VALID_OWNER_EMAIL)).thenReturn(Optional.empty());
 
-        // Test & Verify
-        assertThrows(IllegalArgumentException.class, () -> gameService.createGame(gameDto));
-        verify(accountRepository).findByEmail(VALID_OWNER_EMAIL);
-        verify(gameRepository, never()).save(any(Game.class));
+            // Test & Verify
+            assertThrows(ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException.class, 
+                () -> gameService.createGame(gameDto));
+            verify(accountRepository).findByEmail(VALID_OWNER_EMAIL);
+            verify(gameRepository, never()).save(any(Game.class));
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     @Test
     public void testCreateGameWithNonGameOwnerAccount() {
-        // Setup
-        GameCreationDto gameDto = new GameCreationDto();
-        gameDto.setName(VALID_GAME_NAME);
-        gameDto.setOwnerId(VALID_OWNER_EMAIL);
-        gameDto.setCategory(VALID_CATEGORY);
-        gameDto.setMinPlayers(VALID_MIN_PLAYERS);
-        gameDto.setMaxPlayers(VALID_MAX_PLAYERS);
-
+        // Setup SecurityContext for authenticated user
         Account regularAccount = new Account("Test User", VALID_OWNER_EMAIL, "password");
-        when(accountRepository.findByEmail(VALID_OWNER_EMAIL)).thenReturn(Optional.of(regularAccount));
+        Authentication auth = new UsernamePasswordAuthenticationToken(VALID_OWNER_EMAIL, "password", 
+            Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")));
+        SecurityContext securityContext = new SecurityContextImpl();
+        securityContext.setAuthentication(auth);
+        SecurityContextHolder.setContext(securityContext);
+        
+        try {
+            // Setup
+            GameCreationDto gameDto = new GameCreationDto();
+            gameDto.setName(VALID_GAME_NAME);
+            gameDto.setOwnerId(VALID_OWNER_EMAIL);
+            gameDto.setCategory(VALID_CATEGORY);
+            gameDto.setMinPlayers(VALID_MIN_PLAYERS);
+            gameDto.setMaxPlayers(VALID_MAX_PLAYERS);
 
-        // Test & Verify
-        assertThrows(IllegalArgumentException.class, () -> gameService.createGame(gameDto));
-        verify(accountRepository).findByEmail(VALID_OWNER_EMAIL);
-        verify(gameRepository, never()).save(any(Game.class));
+            when(accountRepository.findByEmail(VALID_OWNER_EMAIL)).thenReturn(Optional.of(regularAccount));
+
+            // Test
+            try {
+                gameService.createGame(gameDto);
+                // If we get here, the test has failed
+                fail("Should have thrown an exception because the account is not a GameOwner");
+            } catch (Exception e) {
+                // Verify the exception is either ForbiddenException or a RuntimeException that wraps it
+                boolean isForbiddenException = e instanceof ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException;
+                boolean isWrappedForbiddenException = e instanceof RuntimeException && 
+                    e.getCause() instanceof ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException;
+                
+                assertTrue(isForbiddenException || isWrappedForbiddenException,
+                    "Exception must be ForbiddenException or wrap it");
+            }
+            
+            verify(accountRepository).findByEmail(VALID_OWNER_EMAIL);
+            verify(gameRepository, never()).save(any(Game.class));
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     @Test
@@ -187,7 +239,7 @@ public class GameServiceTest {
         // Setup Owner and Security Context
         GameOwner owner = new GameOwner("Test Owner", VALID_OWNER_EMAIL, "password");
         owner.setId(1); // Assign an ID
-        Authentication auth = new UsernamePasswordAuthenticationToken(owner.getEmail(), "password", Collections.singletonList(new SimpleGrantedAuthority("ROLE_GAME_OWNER")));
+        Authentication auth = new UsernamePasswordAuthenticationToken(VALID_OWNER_EMAIL, "password", Collections.singletonList(new SimpleGrantedAuthority("ROLE_GAME_OWNER")));
         SecurityContext securityContext = new SecurityContextImpl();
         securityContext.setAuthentication(auth);
         SecurityContextHolder.setContext(securityContext);
@@ -202,7 +254,6 @@ public class GameServiceTest {
             updateDto.setMaxPlayers(6);
             updateDto.setImage("updated.jpg");
 
-            when(accountRepository.findByEmail(owner.getEmail())).thenReturn(Optional.of(owner)); // Mock finding owner
             when(gameRepository.findGameById(VALID_GAME_ID)).thenReturn(existingGame);
             when(gameRepository.save(any(Game.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -226,7 +277,7 @@ public class GameServiceTest {
         // Setup Owner and Security Context
         GameOwner owner = new GameOwner("Test Owner", VALID_OWNER_EMAIL, "password");
         owner.setId(1);
-        Authentication auth = new UsernamePasswordAuthenticationToken(owner.getEmail(), "password", Collections.singletonList(new SimpleGrantedAuthority("ROLE_GAME_OWNER")));
+        Authentication auth = new UsernamePasswordAuthenticationToken(VALID_OWNER_EMAIL, "password", Collections.singletonList(new SimpleGrantedAuthority("ROLE_GAME_OWNER")));
         SecurityContext securityContext = new SecurityContextImpl();
         securityContext.setAuthentication(auth);
         SecurityContextHolder.setContext(securityContext);
@@ -235,7 +286,6 @@ public class GameServiceTest {
             // Setup Mocks
             Game game = new Game(VALID_GAME_NAME, VALID_MIN_PLAYERS, VALID_MAX_PLAYERS, VALID_IMAGE, new Date());
             game.setOwner(owner); // Set the owner
-            when(accountRepository.findByEmail(owner.getEmail())).thenReturn(Optional.of(owner)); // Mock finding owner
             when(gameRepository.findGameById(VALID_GAME_ID)).thenReturn(game);
 
             // Test
@@ -256,40 +306,52 @@ public class GameServiceTest {
         when(gameRepository.findGameById(VALID_GAME_ID)).thenReturn(null);
 
         // Test & Verify
-        assertThrows(IllegalArgumentException.class, () -> gameService.deleteGame(VALID_GAME_ID));
+        assertThrows(ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException.class, 
+            () -> gameService.deleteGame(VALID_GAME_ID));
         verify(gameRepository).findGameById(VALID_GAME_ID);
         verify(gameRepository, never()).delete(any());
     }
 
     @Test
     public void testSubmitReviewSuccess() {
-        // Setup
-        ReviewSubmissionDto reviewDto = new ReviewSubmissionDto();
-        reviewDto.setGameId(VALID_GAME_ID);
-        reviewDto.setReviewerId(VALID_OWNER_EMAIL);
-        reviewDto.setRating(5);
-        reviewDto.setComment("Great game!");
-
-        Game game = new Game(VALID_GAME_NAME, VALID_MIN_PLAYERS, VALID_MAX_PLAYERS, VALID_IMAGE, new Date());
+        // Setup security context
         Account reviewer = new Account("Reviewer", VALID_OWNER_EMAIL, "password");
-        Review savedReview = new Review(5, "Great game!", new Date());
-        savedReview.setGameReviewed(game);
-        savedReview.setReviewer(reviewer);
+        Authentication auth = new UsernamePasswordAuthenticationToken(VALID_OWNER_EMAIL, "password", 
+            Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")));
+        SecurityContext securityContext = new SecurityContextImpl();
+        securityContext.setAuthentication(auth);
+        SecurityContextHolder.setContext(securityContext);
+        
+        try {
+            // Setup
+            ReviewSubmissionDto reviewDto = new ReviewSubmissionDto();
+            reviewDto.setGameId(VALID_GAME_ID);
+            reviewDto.setReviewerId(VALID_OWNER_EMAIL);
+            reviewDto.setRating(5);
+            reviewDto.setComment("Great game!");
 
-        when(gameRepository.findGameById(VALID_GAME_ID)).thenReturn(game);
-        when(accountRepository.findByEmail(VALID_OWNER_EMAIL)).thenReturn(Optional.of(reviewer));
-        when(reviewRepository.save(any(Review.class))).thenReturn(savedReview);
+            Game game = new Game(VALID_GAME_NAME, VALID_MIN_PLAYERS, VALID_MAX_PLAYERS, VALID_IMAGE, new Date());
+            Review savedReview = new Review(5, "Great game!", new Date());
+            savedReview.setGameReviewed(game);
+            savedReview.setReviewer(reviewer);
 
-        // Test
-        var result = gameService.submitReview(reviewDto);
+            when(accountRepository.findByEmail(VALID_OWNER_EMAIL)).thenReturn(Optional.of(reviewer));
+            when(gameRepository.findGameById(VALID_GAME_ID)).thenReturn(game);
+            when(reviewRepository.save(any(Review.class))).thenReturn(savedReview);
 
-        // Verify
-        assertNotNull(result);
-        assertEquals(5, result.getRating());
-        assertEquals("Great game!", result.getComment());
-        verify(gameRepository).findGameById(VALID_GAME_ID);
-        verify(accountRepository).findByEmail(VALID_OWNER_EMAIL);
-        verify(reviewRepository).save(any(Review.class));
+            // Test
+            var result = gameService.submitReview(reviewDto);
+
+            // Verify
+            assertNotNull(result);
+            assertEquals(5, result.getRating());
+            assertEquals("Great game!", result.getComment());
+            verify(accountRepository).findByEmail(VALID_OWNER_EMAIL);
+            verify(gameRepository).findGameById(VALID_GAME_ID);
+            verify(reviewRepository).save(any(Review.class));
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     @Test
@@ -463,7 +525,7 @@ public class GameServiceTest {
     }
 
     @Test
-    public void testRemoveGameFromCollectionSuccess() {
+    public void testDeleteGameWithAuthentication() {
          // Setup Owner and Security Context
         GameOwner owner = new GameOwner("Test Owner", VALID_OWNER_EMAIL, "password");
         owner.setId(1);
@@ -476,16 +538,16 @@ public class GameServiceTest {
             // Setup Mocks
             Game game = new Game(VALID_GAME_NAME, VALID_MIN_PLAYERS, VALID_MAX_PLAYERS, VALID_IMAGE, new Date());
             game.setOwner(owner); // Set the owner
-            when(accountRepository.findByEmail(owner.getEmail())).thenReturn(Optional.of(owner)); // Mock finding owner
-            // No need to mock findGameById if removeGameFromCollection directly calls delete
+            game.setId(VALID_GAME_ID); // Assume a valid ID for the test game
+            when(gameRepository.findGameById(VALID_GAME_ID)).thenReturn(game); // Mock finding game by ID
 
             // Test
-            ResponseEntity<String> response = gameService.removeGameFromCollection(game);
+            ResponseEntity<String> response = gameService.deleteGame(VALID_GAME_ID);
 
             // Verify
             assertEquals(200, response.getStatusCodeValue());
-            assertEquals("Game removed from collection", response.getBody());
-            verify(gameRepository).delete(game);
+            assertEquals("Game with ID " + VALID_GAME_ID + " has been deleted", response.getBody());
+            verify(gameRepository).delete(game); // Verify delete was called with the game object
         } finally {
             SecurityContextHolder.clearContext();
         }

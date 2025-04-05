@@ -64,7 +64,7 @@ export default function GameSearchPage() {
   
   const handleSubmitRequest = (requestData) => {
     // In a real app, this would submit the request to an API
-    console.log("Game request submitted:", requestData);
+
   };
 
   // Effect to update search from URL parameters
@@ -102,10 +102,10 @@ export default function GameSearchPage() {
       Object.keys(criteria).forEach(key => (criteria[key] === undefined || criteria[key] === '') && delete criteria[key]);
 
       try {
-        console.log("Fetching games with criteria:", criteria); // Debug log
+
         const fetchedGames = await searchGames(criteria);
         setGames(fetchedGames);
-        console.log("Fetched games:", fetchedGames); // Debug log
+
       } catch (err) {
         console.error("Error fetching games:", err); // Debug log
         setError(err.message || "Failed to fetch games. Please try again later.");

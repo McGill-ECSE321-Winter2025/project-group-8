@@ -29,7 +29,7 @@ export default function SideMenuBar({ userType }) {
       return
     }
 
-    console.log("Updating account with:", { username, password })
+    // TODO: Implement actual API call to update account
 
     setOpen(false)
     setUsername("")

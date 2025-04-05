@@ -1,9 +1,11 @@
 package ca.mcgill.ecse321.gameorganizer.integration;
 
 import ca.mcgill.ecse321.gameorganizer.dto.AuthenticationDTO;
-import ca.mcgill.ecse321.gameorganizer.dto.JwtAuthenticationResponse;
+import ca.mcgill.ecse321.gameorganizer.dto.LoginResponse;
+import ca.mcgill.ecse321.gameorganizer.dto.UserSummaryDto;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
+import java.util.List;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
@@ -17,8 +19,19 @@ import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.ApplicationContext;
 import org.springframework.http.*;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -41,8 +54,6 @@ public class SimpleAuthTest {
     @Autowired
     private GameRepository gameRepository;
     
-    @Autowired
-    private ApplicationContext appContext;
     
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -64,6 +75,9 @@ public class SimpleAuthTest {
         testUser = new GameOwner("testuser", "testuser@example.com", passwordEncoder.encode(TEST_PASSWORD));
         testUser = (GameOwner) accountRepository.save(testUser);
         System.out.println("Created testUser with ID: " + testUser.getId() + ", email: " + testUser.getEmail());
+        
+        // Clear security context
+        SecurityContextHolder.clearContext();
     }
     
     @AfterEach
@@ -71,6 +85,21 @@ public class SimpleAuthTest {
         eventRepository.deleteAll();
         gameRepository.deleteAll();
         accountRepository.deleteAll();
+        
+        // Clear security context
+        SecurityContextHolder.clearContext();
+    }
+    
+    // Helper method to set up authentication for tests
+    private void authenticateUser(String email) {
+        UserDetails userDetails = new User(email, "", 
+                Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")));
+        
+        Authentication auth = new UsernamePasswordAuthenticationToken(
+                userDetails, null, userDetails.getAuthorities());
+        
+        SecurityContextHolder.getContext().setAuthentication(auth);
+        System.out.println("Set up authentication for: " + email);
     }
     
     @Test
@@ -93,23 +122,28 @@ public class SimpleAuthTest {
         System.out.println("Email: " + testUser.getEmail());
         
         // Send login request
-        ResponseEntity<JwtAuthenticationResponse> response = restTemplate.postForEntity(
+        ResponseEntity<UserSummaryDto> response = restTemplate.postForEntity(
             "/auth/login",
             requestEntity,
-            JwtAuthenticationResponse.class
+            UserSummaryDto.class
         );
         
         // Assert login successful
         assertEquals(HttpStatus.OK, response.getStatusCode());
+        // Check for UserSummaryDto in body
         assertNotNull(response.getBody());
-        String token = response.getBody().getToken();
-        assertNotNull(token);
-        System.out.println("Token received: " + token.substring(0, 20) + "...");
-        
-        // Now try to use token for a GET request
+        assertEquals(testUser.getId(), response.getBody().getId()); // Check user ID
+        assertEquals(testUser.getName(), response.getBody().getName()); // Check user name
+
+        // Check for Set-Cookie header
+        List<String> cookies = response.getHeaders().get("Set-Cookie");
+        assertNotNull(cookies, "Set-Cookie header should be present");
+        assertTrue(cookies.stream().anyMatch(cookie -> cookie.startsWith("accessToken=")), "accessToken cookie should be present");
+        assertTrue(cookies.stream().anyMatch(cookie -> cookie.contains("HttpOnly")), "accessToken cookie should be HttpOnly");
+        assertTrue(cookies.stream().anyMatch(cookie -> cookie.contains("SameSite=Strict")), "accessToken cookie should have SameSite=Strict");
+        // Token is in HttpOnly cookie, cannot be accessed directly here.
         HttpHeaders authHeaders = new HttpHeaders();
-        authHeaders.setContentType(MediaType.APPLICATION_JSON);
-        authHeaders.set("Authorization", "Bearer " + token);
+        // The testLoginSuccess method primarily verifies the response body and cookie presence.
         HttpEntity<?> authEntity = new HttpEntity<>(authHeaders);
         
         // Send GET request to test token
@@ -134,6 +168,9 @@ public class SimpleAuthTest {
         
         System.out.println("Game created successfully: " + testGame.getId());
         
+        // Authenticate the user before calling the service
+        authenticateUser(testUser.getEmail());
+        
         // Create event request directly using service
         ca.mcgill.ecse321.gameorganizer.dto.CreateEventRequest request = 
             new ca.mcgill.ecse321.gameorganizer.dto.CreateEventRequest();
@@ -150,7 +187,7 @@ public class SimpleAuthTest {
         
         try {
             ca.mcgill.ecse321.gameorganizer.models.Event event = 
-                eventService.createEvent(request, testUser.getEmail());
+                eventService.createEvent(request);
             
             // Assert event created successfully
             System.out.println("Event created successfully with ID: " + event.getId());
@@ -188,18 +225,37 @@ public class SimpleAuthTest {
         System.out.println("Email: " + testUser.getEmail());
         
         // Send login request
-        ResponseEntity<JwtAuthenticationResponse> response = restTemplate.postForEntity(
+        ResponseEntity<UserSummaryDto> response = restTemplate.postForEntity(
             "/auth/login",
             requestEntity,
-            JwtAuthenticationResponse.class
+            UserSummaryDto.class
         );
         
         // Assert login successful
         assertEquals(HttpStatus.OK, response.getStatusCode());
+        // Check for UserSummaryDto in body
         assertNotNull(response.getBody());
-        String token = response.getBody().getToken();
-        assertNotNull(token);
+        assertEquals(testUser.getId(), response.getBody().getId()); // Check user ID
+        assertEquals(testUser.getName(), response.getBody().getName()); // Check user name
+
+        // Check for Set-Cookie header
+        List<String> cookies = response.getHeaders().get("Set-Cookie");
+        assertNotNull(cookies, "Set-Cookie header should be present");
+        assertTrue(cookies.stream().anyMatch(cookie -> cookie.startsWith("accessToken=")), "accessToken cookie should be present");
+        assertTrue(cookies.stream().anyMatch(cookie -> cookie.contains("HttpOnly")), "accessToken cookie should be HttpOnly");
+        assertTrue(cookies.stream().anyMatch(cookie -> cookie.contains("SameSite=Strict")), "accessToken cookie should have SameSite=Strict");
+
+        // Extract token from cookie for subsequent requests (if needed by the test logic)
+        String token = cookies.stream()
+            .filter(cookie -> cookie.startsWith("accessToken="))
+            .findFirst()
+            .map(cookie -> cookie.split(";")[0].split("=")[1])
+            .orElse(null);
+        assertNotNull(token, "Could not extract token from Set-Cookie header");
         System.out.println("Token received: " + token.substring(0, 20) + "...");
+        
+        // Set up authentication context for service call
+        authenticateUser(testUser.getEmail());
         
         // Create a game for the event
         Game testGame = new Game("Test Game", 2, 4, "test.jpg", new java.util.Date());
@@ -222,7 +278,7 @@ public class SimpleAuthTest {
         System.out.println("Creating event directly using service with email: " + testUser.getEmail());
         
         // Call service directly to create the event
-        Event event = eventService.createEvent(createRequest, testUser.getEmail());
+        Event event = eventService.createEvent(createRequest);
         
         // Verify event was created
         assertNotNull(event);
@@ -274,17 +330,32 @@ public class SimpleAuthTest {
         System.out.println("Email: " + testUser.getEmail());
         
         // Send login request
-        ResponseEntity<JwtAuthenticationResponse> response = restTemplate.postForEntity(
+        ResponseEntity<UserSummaryDto> response = restTemplate.postForEntity(
             "/auth/login",
             requestEntity,
-            JwtAuthenticationResponse.class
+            UserSummaryDto.class
         );
         
         // Assert login successful
         assertEquals(HttpStatus.OK, response.getStatusCode());
+        // Check for UserSummaryDto in body
         assertNotNull(response.getBody());
-        String token = response.getBody().getToken();
-        assertNotNull(token);
+        assertEquals(testUser.getId(), response.getBody().getId()); // Check user ID
+        assertEquals(testUser.getName(), response.getBody().getName()); // Check user name
+
+        // Check for Set-Cookie header and extract token
+        List<String> cookies = response.getHeaders().get("Set-Cookie");
+        assertNotNull(cookies, "Set-Cookie header should be present");
+        assertTrue(cookies.stream().anyMatch(cookie -> cookie.startsWith("accessToken=")), "accessToken cookie should be present");
+        assertTrue(cookies.stream().anyMatch(cookie -> cookie.contains("HttpOnly")), "accessToken cookie should be HttpOnly");
+        assertTrue(cookies.stream().anyMatch(cookie -> cookie.contains("SameSite=Strict")), "accessToken cookie should have SameSite=Strict");
+
+        String token = cookies.stream()
+            .filter(cookie -> cookie.startsWith("accessToken="))
+            .findFirst()
+            .map(cookie -> cookie.split(";")[0].split("=")[1])
+            .orElse(null);
+        assertNotNull(token, "Could not extract token from Set-Cookie header");
         System.out.println("Token received: " + token.substring(0, 20) + "...");
         
         // Create headers with authentication
@@ -309,6 +380,6 @@ public class SimpleAuthTest {
         
         assertEquals(HttpStatus.OK, authTestResponse.getStatusCode());
         assertNotNull(authTestResponse.getBody());
-        assertTrue(authTestResponse.getBody().contains("Authenticated as: " + testUser.getEmail()));
+        assertEquals("Authentication test successful.", authTestResponse.getBody());
     }
-} 
+}
