@@ -21,14 +21,23 @@ export default function Event({
                                 location,
                                 game,
                                 participants: { current, capacity },
-                                onCancelRegistration,
+                                onCancelRegistration, // Keep this if used elsewhere
+                                onRegistrationUpdate, // Add the refresh prop
                               }) {
   const [open, setOpen] = useState(false)
+  // No local state needed for count here, rely on parent refresh
 
   const handleCancelRegistration = () => {
-    // Call the provided callback function
+    // TODO: Implement actual unregistration API call using registration ID
+    console.warn("Unregistering from dashboard event card needs implementation.");
+
+    // Call the provided callback function (if it exists for other purposes)
     if (typeof onCancelRegistration === "function") {
-      onCancelRegistration()
+      onCancelRegistration();
+    }
+    // Call the refresh function passed from the parent dashboard page
+    if (typeof onRegistrationUpdate === "function") {
+      onRegistrationUpdate();
     }
 
     // Close the dialog
@@ -113,4 +122,3 @@ export default function Event({
     </Card>
   )
 }
-

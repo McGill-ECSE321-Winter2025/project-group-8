@@ -5,22 +5,24 @@ import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
-import ca.mcgill.ecse321.gameorganizer.dto.RegistrationResponseDto;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.access.prepost.PreAuthorize;
 
-import org.springframework.security.access.prepost.PreAuthorize; // Import PreAuthorize
-
-import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException; // Import ForbiddenException
-import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException; // Import ResourceNotFoundException
+import ca.mcgill.ecse321.gameorganizer.dto.RegistrationResponseDto;
+import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException;
+import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
 import ca.mcgill.ecse321.gameorganizer.models.Registration;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.RegistrationRepository;
 
 /**
@@ -32,13 +34,16 @@ import ca.mcgill.ecse321.gameorganizer.repositories.RegistrationRepository;
 @Service
 public class RegistrationService {
 
+    private static final Logger log = LoggerFactory.getLogger(RegistrationService.class); // Add logger instance
     private final RegistrationRepository registrationRepository;
-    private final AccountRepository accountRepository; // Inject AccountRepository
+    private final AccountRepository accountRepository;
+    private final EventRepository eventRepository; // Add EventRepository field
 
     @Autowired
-    public RegistrationService(RegistrationRepository registrationRepository, AccountRepository accountRepository) {
+    public RegistrationService(RegistrationRepository registrationRepository, AccountRepository accountRepository, EventRepository eventRepository) { // Inject EventRepository
         this.registrationRepository = registrationRepository;
         this.accountRepository = accountRepository;
+        this.eventRepository = eventRepository; // Assign injected repository
     }
 
     /**
@@ -159,7 +164,6 @@ public class RegistrationService {
              throw new RuntimeException("An unexpected error occurred while updating the registration.", e);
         } // End catch (Exception e)
     } // End try block
-// Removed extra brace
 
     /**
      * Deletes a registration by its ID and updates the event's participant count.
@@ -180,9 +184,16 @@ public class RegistrationService {
             // Decrement participant count before deleting
             Event event = registration.getEventRegisteredFor();
             if (event != null) {
-                 event.setCurrentNumberParticipants(Math.max(0, event.getCurrentNumberParticipants() - 1));
-                 // Note: Event needs to be saved if Event entity manages the relationship's lifecycle,
-                 // or if cascading isn't set up properly. Assuming EventService handles saving events if needed.
+                int currentCount = event.getCurrentNumberParticipants();
+                if (currentCount > 0) { // Prevent going below zero
+                    event.setCurrentNumberParticipants(currentCount - 1);
+                    eventRepository.save(event); // Save the updated event
+                } else {
+                    // Log a warning if count is already zero
+                    log.warn("Attempted to decrement participant count for event {} which was already zero.", event.getId());
+                }
+            } else {
+                log.warn("Registration with ID {} did not have an associated event.", id);
             }
 
             registrationRepository.deleteById(id);
@@ -200,9 +211,6 @@ public class RegistrationService {
         }
     }
  
-
-
-
     // --- Helper methods for @PreAuthorize --- 
 
     /**

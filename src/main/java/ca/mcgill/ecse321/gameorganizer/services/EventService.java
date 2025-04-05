@@ -181,8 +181,17 @@ public class EventService {
     public List<Event> getAllEvents() {
         List<Event> events = eventRepository.findAll();
 
+        // Eagerly initialize lazy-loaded associations needed for DTO conversion
         for (Event event : events) {
-            if (event.getDateTime() instanceof java.util.Date) {
+            // Accessing getters within the transaction forces initialization
+            if (event.getHost() != null) event.getHost().getName(); // Initialize host
+            if (event.getFeaturedGame() != null) event.getFeaturedGame().getName(); // Initialize game
+
+            // Also handle date conversion here as done elsewhere
+            if (event.getDateTime() instanceof java.sql.Timestamp) { // Check specifically for Timestamp if that's the issue
+                java.sql.Timestamp timestamp = (java.sql.Timestamp) event.getDateTime();
+                event.setDateTime(new java.sql.Date(timestamp.getTime()));
+            } else if (event.getDateTime() instanceof java.util.Date) { // Fallback for general util.Date
                 java.util.Date utilDate = (java.util.Date) event.getDateTime();
                 event.setDateTime(new java.sql.Date(utilDate.getTime()));
             }
@@ -387,14 +396,19 @@ public class EventService {
      * @return List of events hosted by the specified user
      */
     @Transactional
-    public List<Event> findEventsByHostName(String hostUsername) {
-        if (hostUsername == null || hostUsername.trim().isEmpty()) {
-            throw new IllegalArgumentException("Host username cannot be empty");
+    public List<Event> findEventsByHostEmail(String hostEmail) { // Renamed method and parameter
+        if (hostEmail == null || hostEmail.trim().isEmpty()) {
+            throw new IllegalArgumentException("Host email cannot be empty");
         }
 
-        List<Event> events = eventRepository.findEventByHostName(hostUsername);
+        List<Event> events = eventRepository.findEventByHostEmail(hostEmail); // Call new repository method
 
+        // Eagerly initialize lazy-loaded associations needed for DTO conversion
         for (Event event : events) {
+             // Accessing getters within the transaction forces initialization
+             if (event.getHost() != null) event.getHost().getName(); // Initialize host
+             if (event.getFeaturedGame() != null) event.getFeaturedGame().getName(); // Initialize game
+
             if (event.getDateTime() instanceof java.sql.Timestamp) {
                 java.sql.Timestamp timestamp = (java.sql.Timestamp) event.getDateTime();
                 event.setDateTime(new java.sql.Date(timestamp.getTime()));

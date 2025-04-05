@@ -5,8 +5,9 @@ import { EventCard } from "../components/events-page/EventCard";
 import { DateFilterComponent } from "../components/events-page/DateFilterComponent";
 import CreateEventDialog from "../components/events-page/CreateEventDialog";
 import { AnimatePresence, motion } from "framer-motion";
-import { getAllEvents } from "../service/event-api"; // Import API function
-import { Loader2 } from "lucide-react"; // Import Loader icon
+import { getAllEvents } from "../service/event-api";
+import { getRegistrationsByEmail } from "../service/registration-api.js"; // Import registration fetcher
+import { Loader2 } from "lucide-react";
 
 // Create card stagger animation variants (remains the same)
 const container = {
@@ -54,24 +55,40 @@ export default function EventsPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [allEvents, setAllEvents] = useState([]); // Store all fetched events
   const [filteredEvents, setFilteredEvents] = useState([]); // Store currently filtered events
-  const [isLoading, setIsLoading] = useState(true); // Loading state
-  const [error, setError] = useState(null); // Error state
-  const [isSearchActive, setIsSearchActive] = useState(false); // Search state remains
-  const [displayedEvents, setDisplayedEvents] = useState([]); // Events to actually display (for animation)
-  const [isSearchTransitioning, setIsSearchTransitioning] = useState(false); // Animation state remains
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [userRegistrations, setUserRegistrations] = useState([]); // Store full registration objects
+  const [isSearchActive, setIsSearchActive] = useState(false);
+  const [displayedEvents, setDisplayedEvents] = useState([]);
+  const [isSearchTransitioning, setIsSearchTransitioning] = useState(false);
 
-  // Function to fetch events
+  // Function to fetch events and registrations
   const fetchEvents = async () => {
     setIsLoading(true);
     setError(null);
+    const userEmail = localStorage.getItem("userEmail");
+
     try {
-      const data = await getAllEvents();
-      setAllEvents(data);
-      setFilteredEvents(data); // Reset filters to show all initially after fetch
-      setDisplayedEvents(data); // Update display
+      // Fetch all events and user's registrations concurrently
+      const [eventData, registrationData] = await Promise.all([
+        getAllEvents(),
+        userEmail ? getRegistrationsByEmail(userEmail) : Promise.resolve([]) // Fetch regs only if email exists
+      ]);
+
+      console.log("Fetched Events Raw Data:", eventData);
+      console.log("Fetched Registrations Raw Data:", registrationData);
+
+      setAllEvents(eventData || []);
+      setFilteredEvents(eventData || []);
+      setDisplayedEvents(eventData || []);
+
+      // Store the full registration data
+      setUserRegistrations(registrationData || []);
+      console.log("User Registrations:", registrationData);
+
     } catch (err) {
-      console.error("Failed to fetch events:", err);
-      setError(err.message || "Could not load events.");
+      console.error("Failed to fetch events or registrations:", err);
+      setError(err.message || "Could not load page data.");
       setAllEvents([]); // Clear on error
       setFilteredEvents([]);
       setDisplayedEvents([]);
@@ -135,6 +152,28 @@ export default function EventsPage() {
     }
   };
 
+   // Helper to adapt backend event DTO to what the child Event component expects
+   const adaptEventData = (event) => {
+    if (!event) return null;
+    // Log the structure of host and featuredGame before accessing name
+    // console.log(`Adapting Event ID: ${event.eventId} - Host Object:`, event.host, "Featured Game Object:", event.featuredGame);
+    return {
+      id: event.eventId,
+      title: event.title,
+      dateTime: event.dateTime, // Pass raw date/time; formatting done in EventCard
+      location: event.location || 'N/A',
+      hostName: event.host?.name || 'Unknown Host', // Use hostName prop
+      game: event.featuredGame?.name || 'Unknown Game', // Use game prop
+      featuredGameImage: event.featuredGame?.image || "https://placehold.co/400x300/e9e9e9/1d1d1d?text=No+Image",
+      participants: {
+        current: event.currentNumberParticipants ?? 0,
+        capacity: event.maxParticipants ?? 0,
+      },
+      description: event.description || '',
+    };
+ };
+
+
   return (
     <div className="bg-background text-foreground p-6">
       <div className="flex items-start justify-between mb-6">
@@ -183,18 +222,15 @@ export default function EventsPage() {
             >
               {displayedEvents.map((event, index) => {
                 // Adapt event data for EventCard component
-                const adaptedEvent = {
-                  id: event.eventId,
-                  title: event.title,
-                  dateTime: event.dateTime, // Pass Date object or formatted string
-                  location: event.location,
-                  host: event.host ? { name: event.host.name } : { name: 'Unknown Host' }, // Handle potential null host
-                  featuredGame: event.featuredGame ? { name: event.featuredGame.name } : { name: 'N/A' }, // Handle potential null game
-                  featuredGameImage: event.featuredGame?.image || "https://placehold.co/400x300/e9e9e9/1d1d1d?text=No+Image", // Use game image or placeholder
-                  maxParticipants: event.maxParticipants,
-                  participantCount: event.currentNumberParticipants,
-                  description: event.description,
-                };
+                const adaptedEvent = adaptEventData(event);
+                if (!adaptedEvent) return null;
+
+                // Find the registration ID for this specific event
+                const registration = userRegistrations.find(reg => reg.eventId === adaptedEvent.id);
+                const registrationId = registration ? registration.id : null;
+                const isRegistered = !!registrationId;
+                // console.log(`Event ID: ${adaptedEvent.id}, Registration ID: ${registrationId}, Is Registered: ${isRegistered}`); // Optional log
+
                 return (
                   <motion.div
                     key={adaptedEvent.id} // Use unique eventId from backend
@@ -202,14 +238,20 @@ export default function EventsPage() {
                     custom={index}
                     layout
                   >
-                    <EventCard event={adaptedEvent} />
+                    {/* Pass adaptedEvent, refresh function, registration status, and registration ID */}
+                    <EventCard
+                       event={adaptedEvent}
+                       onRegistrationUpdate={fetchEvents}
+                       isCurrentUserRegistered={isRegistered} // Pass registration status
+                       registrationId={registrationId} // Pass the specific ID for unregistering
+                    />
                   </motion.div>
                 );
               })}
             </motion.div>
           ) : !isSearchActive && !isSearchTransitioning && displayedEvents.length === 0 ? (
              <motion.div key="no-events" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center py-10 text-muted-foreground">
-               No events found matching your criteria.
+               No events found. {/* Simplified message */}
              </motion.div>
           ) : null}
         </AnimatePresence>

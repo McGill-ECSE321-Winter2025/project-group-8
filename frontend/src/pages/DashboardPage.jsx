@@ -7,11 +7,9 @@ import DashboardGameLibrary from "@/components/dashboard-page/DashboardGameLibra
 import DashboardLendingRecord from "@/components/dashboard-page/DashboardLendingRecord.jsx";
 import SideMenuBar from "@/components/dashboard-page/SideMenuBar.jsx";
 import { Route, Routes } from "react-router-dom";
-import { useState, useEffect } from "react"; // Keep useState for userType if derived, useEffect might not be needed
+import { useState } from "react"; // Keep useState for error state
 import { useAuth } from "@/context/AuthContext"; // Import useAuth
 import { Loader2 } from "lucide-react"; // Import loader
-// useNavigate might not be needed anymore if redirects are handled by context/protected route
-// import { useNavigate } from "react-router-dom";
 
 export default function DashboardPage() {
   // Get user and loading state from AuthContext
@@ -23,14 +21,7 @@ export default function DashboardPage() {
   // Error state can be simplified or removed if ProtectedRoute handles redirects
   const [error, setError] = useState(null); // Keep for potential non-auth errors? Or remove.
 
-  // Removed useState for accountInfo, isLoading, retryCount, navigate
-
-  // No need for manual fetch logic, useEffect, storage listeners, or retries.
-  // AuthContext handles fetching user profile on load.
-  // ProtectedRoute handles redirecting if user is not authenticated after loading.
-
   // Loading state
-  // Loading state based on AuthContext
   if (authLoading) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-100px)]"> {/* Adjust height as needed */}

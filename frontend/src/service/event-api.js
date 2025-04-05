@@ -1,8 +1,14 @@
-import apiClient from './apiClient'; // Import the centralized API client
+/**
+ * API Service
+ *
+ * This file provides API functions for the application.
+ * Includes both mock data and real API endpoints.
+ */
 
-// Note: Mock API functions and duplicated functions (searchUsers, getUserById, searchGames, getAccountInfo etc.) 
-// have been removed as they are out of scope for this refactoring or belong in other API files.
-// The focus here is on refactoring real event-related API calls.
+// Define API_BASE_URL centrally (or import if moved)
+const API_BASE_URL = "http://localhost:8080/api/v1";
+
+import apiClient from './apiClient'; // Import the centralized API client
 
 // === EVENT API FUNCTIONS ===
 
@@ -120,6 +126,30 @@ export const searchEventsByTitle = async (title) => {
 };
 
 /**
+ * Fetches all events hosted by a specific user email.
+ * Requires authentication.
+ * @param {string} hostEmail - The email of the host user.
+ * @returns {Promise<Array>} A promise that resolves to an array of event objects.
+ * @throws {UnauthorizedError} If the user is not authenticated.
+ * @throws {ApiError} For other API-related errors.
+ */
+export const getEventsByHostEmail = async (hostEmail) => {
+  if (!hostEmail) {
+     throw new Error("Host email is required to fetch hosted events.");
+  }
+
+  try {
+    const events = await apiClient(`/events/by-host-email?hostEmail=${encodeURIComponent(hostEmail)}`, {
+      method: "GET",
+    });
+    return events;
+  } catch (error) {
+    console.error(`Failed to fetch events for host ${hostEmail}:`, error);
+    throw error; // Re-throw the specific error from apiClient
+  }
+};
+
+/**
  * Unregisters the current authenticated user from an event using the registration ID.
  * Requires authentication (via HttpOnly cookie).
  * @param {string|number} registrationId - The ID of the registration record to delete.
@@ -128,17 +158,19 @@ export const searchEventsByTitle = async (title) => {
  * @throws {ForbiddenError} If the user is not allowed to delete this registration.
  * @throws {ApiError} For other API-related errors (e.g., 404 Not Found).
  */
-export async function unregisterFromEvent(registrationId) {
-  if (!registrationId) throw new Error("Registration ID is required to unregister.");
-
+export const unregisterFromEvent = async (registrationId) => {
+  if (!registrationId) {
+    throw new Error("Registration ID is required to unregister from an event");
+  }
+  
   try {
-    // apiClient handles 204 No Content responses correctly (returns null)
+    // DELETE request to remove the registration
     const result = await apiClient(`/registrations/${registrationId}`, {
-      method: "DELETE",
+      method: "DELETE"
     });
-    return result; 
+    return result; // Might be empty if server returns 204 No Content
   } catch (error) {
-    console.error(`Failed to unregister registration ID ${registrationId}:`, error);
+    console.error(`Failed to unregister from event (registration ${registrationId}):`, error);
     throw error; // Re-throw the specific error from apiClient
   }
-}
+};
