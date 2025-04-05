@@ -229,10 +229,11 @@ public class EventController {
      * @param hostUsername The username of the host
      * @return List of events hosted by the specified user
      */
-    @GetMapping("/by-host-name")
-    public ResponseEntity<List<EventResponse>> getEventsByHostName(@RequestParam String hostUsername) {
+    // Changed path and parameter name to reflect search by email
+    @GetMapping("/by-host-email")
+    public ResponseEntity<List<EventResponse>> getEventsByHostEmail(@RequestParam String hostEmail) {
         // Let the exception handler manage potential IllegalArgumentException from service
-        List<Event> events = eventService.findEventsByHostName(hostUsername);
+        List<Event> events = eventService.findEventsByHostEmail(hostEmail); // Call updated service method
         List<EventResponse> eventResponses = events.stream()
             .map(EventResponse::new)
             .collect(Collectors.toList());

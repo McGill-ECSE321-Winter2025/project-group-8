@@ -8,7 +8,7 @@ import DashboardLendingRecord from "@/components/dashboard-page/DashboardLending
 import SideMenuBar from "@/components/dashboard-page/SideMenuBar.jsx";
 import { Route, Routes } from "react-router-dom";
 import { useState, useEffect } from "react"; // Import hooks
-import { getAccountInfo } from "../service/event-api.js"; // Import service
+import { getUserInfoByEmail } from "../service/user-api.js"; // Import from user-api.js
 import { Loader2 } from "lucide-react"; // Import loader
 
 export default function DashboardPage() {
@@ -31,7 +31,7 @@ export default function DashboardPage() {
       }
 
       try {
-        const data = await getAccountInfo(email);
+        const data = await getUserInfoByEmail(email); // Use correct function name
         setAccountInfo(data);
         setUserType(data.gameOwner ? "owner" : "player"); // Determine user type
       } catch (err) {
@@ -73,12 +73,13 @@ export default function DashboardPage() {
               <CardHeader className="w-[1/4] flex flex-row items-center gap-4">
                 <Avatar className="h-12 w-12">
                   {/* TODO: Add actual user avatar if available */}
-                  <AvatarImage src="/placeholder.svg?height=48&width=48" alt={accountInfo?.name || 'User'}/>
-                  {/* Fallback uses initials - could generate from name */}
-                  <AvatarFallback>{accountInfo?.name ? accountInfo.name.substring(0, 2).toUpperCase() : 'U'}</AvatarFallback>
+                  <AvatarImage src="/placeholder.svg?height=48&width=48" alt={accountInfo?.username || 'User'}/>
+                  {/* Fallback uses initials from username */}
+                  <AvatarFallback>{accountInfo?.username ? accountInfo.username.substring(0, 2).toUpperCase() : 'U'}</AvatarFallback>
                 </Avatar>
                 <div>
-                  <CardTitle>{accountInfo?.name || 'User'}</CardTitle>
+                  {/* Use username from the fetched accountInfo */}
+                  <CardTitle>{accountInfo?.username || 'User'}</CardTitle>
                   <CardDescription>{userType === "owner" ? "Game Owner" : "Player"}</CardDescription>
                 </div>
               </CardHeader>
