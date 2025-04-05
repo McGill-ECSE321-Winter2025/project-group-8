@@ -79,6 +79,7 @@ export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered
       }
     }
   };
+  
 
   const handleConfirmCancelRegistration = async () => {
      setError(null);

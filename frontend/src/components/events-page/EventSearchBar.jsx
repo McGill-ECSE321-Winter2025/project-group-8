@@ -57,12 +57,37 @@ export function EventSearchBar({ onSearchStateChange }) {
     return () => clearTimeout(delayDebounceFn);
   }, [searchTerm, onSearchStateChange, prevSearchTerm]);
 
+  // Helper to adapt backend event DTO to what the child Event component expects
+  const adaptEventData = (event) => {
+    if (!event) return null;
+    // Log the structure of host and featuredGame before accessing name
+    // console.log(`Adapting Event ID: ${event.eventId} - Host Object:`, event.host, "Featured Game Object:", event.featuredGame);
+    return {
+      id: event.eventId,
+      title: event.title,
+      dateTime: event.dateTime, // Pass raw date/time; formatting done in EventCard
+      location: event.location || 'N/A',
+      hostName: event.host?.name || 'Unknown Host', // Use hostName prop
+      game: event.featuredGame?.name || 'Unknown Game', // Use game prop
+      currentNumberParticipants: event.currentNumberParticipants,
+      maxParticipants: event.maxParticipants,
+      featuredGameImage: event.featuredGame?.image || "https://placehold.co/400x300/e9e9e9/1d1d1d?text=No+Image",
+      participants: {
+        current: event.currentNumberParticipants ?? 0,
+        capacity: event.maxParticipants ?? 0,
+      },
+      description: event.description || '',
+    };
+ };
+
   const handleSearch = async () => {
     setIsLoading(true);
     try {
       const results = await searchEventsByTitle(searchTerm);
-      setSearchResults(results);
+      const adaptedResults = results.map(event => adaptEventData(event));
+      setSearchResults(adaptedResults);
       setHasSearched(true);
+      //console.log(results);
     } catch (error) {
       console.error("Search error:", error);
       setSearchResults([]);
@@ -127,8 +152,8 @@ export function EventSearchBar({ onSearchStateChange }) {
             initial="hidden"
             animate="show"
           >
-            {searchResults.map((event) => (
-              <motion.div key={event.id} variants={resultItem}>
+            {searchResults.map((event, index) => (
+              <motion.div key={event.id || index} variants={resultItem}>
                 <EventCard event={event} />
               </motion.div>
             ))}

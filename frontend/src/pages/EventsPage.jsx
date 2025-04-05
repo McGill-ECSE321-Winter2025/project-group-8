@@ -9,6 +9,7 @@ import { getAllEvents } from "../service/event-api";
 import { getRegistrationsByEmail } from "../service/registration-api.js"; // Import registration fetcher
 import { Loader2 } from "lucide-react";
 
+
 // Create card stagger animation variants (remains the same)
 const container = {
   hidden: { opacity: 0 },
@@ -195,7 +196,10 @@ export default function EventsPage() {
 
       <div className="flex gap-4 mb-8">
         <div className="flex-grow">
-          <EventSearchBar onSearchStateChange={handleSearchStateChange} />
+        <EventSearchBar 
+          onSearchStateChange={handleSearchStateChange} 
+          adaptEventData={adaptEventData} 
+        />
         </div>
         <div className="w-48">
           <DateFilterComponent onFilterChange={handleDateFilter} />
