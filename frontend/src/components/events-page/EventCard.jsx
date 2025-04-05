@@ -185,7 +185,7 @@ export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered
           <Users className="w-4 h-4 mr-2 flex-shrink-0" />
           <span>
 
-            {event.currentNumberParticipants ?? event.participantCount}/{event.maxParticipants} participants
+            {event.currentNumberParticipants}/{event.maxParticipants} participants
           </span>
         </div>
 
@@ -255,7 +255,7 @@ export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered
                   Cancel Registration
                 </DialogTitle>
                 <DialogDescription>
-                  Are you sure you want to cancel your registration for "{event.title || event.name}"? This action cannot be undone.
+                  Are you sure you want to cancel your registration for "{event.title || event.name}"? 
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter>
