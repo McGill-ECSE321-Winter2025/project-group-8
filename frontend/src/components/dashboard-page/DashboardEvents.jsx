@@ -3,8 +3,8 @@ import { TabsContent } from "@/components/ui/tabs.jsx";
 import { Button } from "@/components/ui/button.jsx";
 import Event from "./Event.jsx"; // Assuming this component displays event details
 import CreateEventDialog from "../events-page/CreateEventDialog.jsx"; // Import dialog
-import { getEventsByHostEmail, getEventById } from "../../service/event-api.js"; // Import event fetchers
-import { getRegistrationsByEmail } from "../../service/registration-api.js"; // Import attended events fetcher
+import { getEventsByHostEmail, getEventById } from "@/service/event-api.js"; // Import event fetchers
+import { getRegistrationsByEmail } from "@/service/registration-api.js"; // Import attended events fetcher
 import { Loader2 } from "lucide-react"; // Import loader
 
 export default function DashboardEvents({ userType }) { // Accept userType prop
