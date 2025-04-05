@@ -5,88 +5,9 @@
  * Includes both mock data and real API endpoints.
  */
 
-// Import mock API services
-import mockApi from './mock-api';
-
-// === USER API FUNCTIONS ===
-
-// Search users
-export const searchUsers = async (query, options = {}) => {
-  console.log(`Searching users with query: "${query}"`, options);
-  
-  // Use the mock API service
-  const response = await mockApi.users.searchUsers(query, options);
-  
-  if (response.status === 'error') {
-    console.error('Error searching users:', response.error);
-    throw new Error(response.error.message);
-  }
-  
-  return response.data;
-};
-
-// Fetch user recommendations
-export const fetchUserRecommendations = async (userId) => {
-  console.log("Fetching user recommendations for user:", userId);
-  
-  // If no userId is provided, use a default for development
-  const currentUserId = userId || 'user-1';
-  
-  // Use the mock API service
-  const response = await mockApi.users.getRecommendedUsers(currentUserId);
-  
-  if (response.status === 'error') {
-    console.error('Error fetching recommendations:', response.error);
-    throw new Error(response.error.message);
-  }
-  
-  return response.data;
-};
-
-// Get user by ID
-export const getUserById = async (userId) => {
-  console.log("Fetching user details for:", userId);
-  
-  // Use the mock API service
-  const response = await mockApi.users.getUserById(userId);
-  
-  if (response.status === 'error') {
-    console.error('Error fetching user:', response.error);
-    throw new Error(response.error.message);
-  }
-  
-  return response.data;
-};
-
-// Search games
-export const searchGames = async (query, options = {}) => {
-  console.log(`Searching games with query: "${query}"`, options);
-  
-  // Use the mock API service
-  const response = await mockApi.games.searchGames(query, options);
-  
-  if (response.status === 'error') {
-    console.error('Error searching games:', response.error);
-    throw new Error(response.error.message);
-  }
-  
-  return response.data;
-};
-
-// Search events (mock version)
-export const searchEvents = async (query, options = {}) => {
-  console.log(`Searching events with query: "${query}"`, options);
-  
-  // Use the mock API service
-  const response = await mockApi.events.searchEvents(query, options);
-  
-  if (response.status === 'error') {
-    console.error('Error searching events:', response.error);
-    throw new Error(response.error.message);
-  }
-  
-  return response.data;
-};
+// Removed mock USER API FUNCTIONS
+// Removed mock searchGames function
+// Removed mock searchEvents function
 
 // === EVENT API FUNCTIONS ===
 
@@ -119,27 +40,48 @@ export const getAllEvents = async () => {
 };
 
 
-// Register for an event (mock implementation)
-export async function registerForEvent(attendeeId, eventId) {
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      const responses = [
-        { status: 200, ok: true, json: () => Promise.resolve({ message: "Success" }) },
-        { status: 400, ok: false, json: () => Promise.resolve({ message: "Event is at full capacity!" }) },
-        { status: 403, ok: false, json: () => Promise.resolve({ message: "You are already registered for this event!" }) }
-      ];
+// Register for an event (real API implementation)
+export const registerForEvent = async (eventId) => {
+  const token = localStorage.getItem("token");
+  const attendeeId = localStorage.getItem("userId"); // Get logged-in user's ID
 
-      // Simulate random API response
-      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+  if (!token) throw new Error("Authentication token not found.");
+  if (!attendeeId) throw new Error("User ID not found.");
+  if (!eventId) throw new Error("Event ID is required.");
 
-      if (randomResponse.ok) {
-        resolve(randomResponse);
-      } else {
-        reject(randomResponse);
-      }
-    }, 500); 
-  });
-}
+  const headers = {
+    "Content-Type": "application/json",
+    'Authorization': `Bearer ${token}`
+  };
+
+  const payload = {
+    attendeeId: parseInt(attendeeId, 10), // Ensure it's a number
+    eventId: eventId // Should be the UUID string
+    // registrationDate can be omitted, backend likely sets it
+  };
+
+  try {
+    const response = await fetch("http://localhost:8080/api/v1/registrations", {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      let errorMsg = `HTTP error ${response.status}: ${response.statusText}`;
+      try {
+          const errorBody = await response.json();
+          errorMsg = errorBody.message || errorMsg;
+      } catch (e) { /* Ignore parsing error */ }
+      console.error("Backend error registering for event:", errorMsg);
+      throw new Error(errorMsg);
+    }
+    return await response.json(); // Return the created registration object
+  } catch (error) {
+    console.error("Failed to register for event:", error);
+    throw error;
+  }
+};
 
 // Create an event
 export const createEvent = async (eventData) => {
@@ -151,7 +93,8 @@ export const createEvent = async (eventData) => {
   // Construct the payload according to backend DTO expectations
   const payload = {
     title: eventData.title,
-    dateTime: new Date(eventData.dateTime).toISOString(), // Format date
+    // Extract only the date part (YYYY-MM-DD) from the datetime-local input string
+    dateTime: eventData.dateTime.substring(0, 10),
     location: eventData.location,
     description: eventData.description,
     maxParticipants: parseInt(eventData.maxParticipants, 10),
@@ -182,14 +125,26 @@ export const createEvent = async (eventData) => {
 };
 
 export const getAccountInfo = async (email) => {
-  // TODO: Add authentication headers if required by the backend @RequireUser annotation
-  const response = await fetch(`http://localhost:8080/api/v1/account/${encodeURIComponent(email)}`, {
+  const token = localStorage.getItem("token");
+  if (!token) {
+    // If used on a protected page, this shouldn't happen, but good practice
+    throw new Error("Authentication token not found. Please log in.");
+  }
+  if (!email) {
+     throw new Error("Email is required to fetch account info.");
+  }
+
+  // Define API_BASE_URL locally within this function as a workaround
+  const API_BASE_URL = "http://localhost:8080/api/v1";
+
+  const headers = {
+    "Content-Type": "application/json",
+    'Authorization': `Bearer ${token}` // Add the token
+  };
+
+  const response = await fetch(`${API_BASE_URL}/account/${encodeURIComponent(email)}`, {
     method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      // Add Authorization header if needed, e.g.:
-      // "Authorization": `Bearer ${localStorage.getItem('authToken')}`
-    },
+    headers: headers,
   });
 
   if (!response.ok) {
@@ -201,6 +156,7 @@ export const getAccountInfo = async (email) => {
 };
 
 // Search events by title (actual API implementation)
+// TODO: Consider renaming or consolidating with a more general event search function
 export const searchEventsByTitle = async (title) => {
   const token = localStorage.getItem("token"); // Get token
   const headers = {
@@ -232,8 +188,8 @@ export async function unregisterFromEvent(registrationId) {
     headers['Authorization'] = `Bearer ${token}`; // Add token if exists
   }
 
-  // TODO: Verify the actual endpoint URL structure for unregistering
-  const response = await fetch(`http://localhost:8080/api/v1/registrations/${registrationId}`, { // Assuming full URL needed
+  // TODO: Verify the actual endpoint URL structure for unregistering - Assuming it's correct
+  const response = await fetch(`http://localhost:8080/api/v1/registrations/${registrationId}`, {
     method: "DELETE",
     headers: headers, // Use headers object
   });
@@ -245,6 +201,3 @@ export async function unregisterFromEvent(registrationId) {
 
   return response.json(); // Assuming the backend returns some response data
 }
-
-// Export mock API for direct access when needed
-export { mockApi };

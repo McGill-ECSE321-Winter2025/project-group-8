@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import UserSearchBar from '../components/user-search-page/UserSearchBar.jsx';
 import UserList from '../components/user-search-page/UserList.jsx';
-import { searchUsers, fetchUserRecommendations, getUserById } from '@/service/event-api.js';
+// Commented out import from event-api.js as functions were removed/moved
+// import { searchUsers, fetchUserRecommendations, getUserById } from '@/service/event-api.js';
 import UserPreviewOverlay from '../components/ui/UserPreviewOverlay.jsx';
 
 function UserSearchPage() {
@@ -69,14 +70,17 @@ function UserSearchPage() {
   // Effect to load recommendations on component mount
   useEffect(() => {
     const loadRecommendations = async () => {
+      // TODO: Re-implement recommendations with real API call from user-api.js
       setIsLoadingRecs(true);
       setRecsError(null);
       try {
         // Using 'user-1' as a default user ID for recommendations
-        const recs = await fetchUserRecommendations('user-1');
-        setRecommendations(recs);
+        // const recs = await fetchUserRecommendations('user-1'); // Commented out usage
+        console.warn("fetchUserRecommendations needs to be implemented with real API");
+        setRecommendations([]); // Set empty for now
       } catch (error) {
         setRecsError(error.message || 'Failed to fetch recommendations');
+        setRecommendations([]);
       } finally {
         setIsLoadingRecs(false);
       }
@@ -98,10 +102,14 @@ function UserSearchPage() {
 
   // Function to load user preview
   const loadUserPreview = async (userId) => {
+    // TODO: Re-implement user preview loading with real API call from user-api.js
     try {
-      const user = await getUserById(userId);
-      setSelectedUser(user);
-      setIsPreviewOpen(true);
+      // const user = await getUserById(userId); // Commented out usage
+      console.warn("getUserById needs to be implemented with real API");
+      // For now, just close the preview if the API call is missing
+      handlePreviewClose();
+      // setSelectedUser(user);
+      // setIsPreviewOpen(true);
     } catch (error) {
       console.error("Error loading user preview:", error);
       // User ID in URL not found, clear the param
@@ -115,13 +123,15 @@ function UserSearchPage() {
 
   // Function to handle search
   const handleSearch = async (query) => {
+    // TODO: Re-implement search with real API call from user-api.js
     setIsLoadingSearch(true);
     try {
       // Pass filter options to the search API
-      const results = await searchUsers(query, { 
-        isGameOwner: filterGameOwnersOnly || undefined 
-      });
-      setSearchResults(results);
+      // const results = await searchUsers(query, { // Commented out usage
+      //   isGameOwner: filterGameOwnersOnly || undefined
+      // });
+      console.warn("searchUsers needs to be implemented with real API");
+      setSearchResults([]); // Set empty results for now
     } catch (error) {
       setSearchError(error.message || 'Search failed');
     } finally {

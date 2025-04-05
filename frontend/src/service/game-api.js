@@ -111,6 +111,50 @@ export const createGame = async (gameData) => {
   }
 };
 
+/**
+ * Fetches all games owned by a specific user.
+ * @param {string} ownerEmail - The email of the owner.
+ * @returns {Promise<Array>} A promise that resolves to an array of game objects owned by the user.
+ */
+export const getGamesByOwner = async (ownerEmail) => {
+  const token = localStorage.getItem("token");
+  if (!token) {
+    throw new Error("Authentication token not found. Please log in.");
+  }
+  if (!ownerEmail) {
+     throw new Error("Owner email is required to fetch games.");
+  }
+
+  const headers = {
+    "Content-Type": "application/json",
+    'Authorization': `Bearer ${token}`
+  };
+
+  // The backend endpoint uses email as the identifier in the path
+  const url = `${API_BASE_URL}/users/${encodeURIComponent(ownerEmail)}/games`;
+
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: headers,
+    });
+
+    if (!response.ok) {
+      let errorMsg = `HTTP error ${response.status}: ${response.statusText}`;
+       try {
+           const errorBody = await response.json();
+           errorMsg = errorBody.message || errorMsg;
+       } catch (e) { /* Ignore parsing error */ }
+      console.error("Backend error fetching owner's games:", errorMsg);
+      throw new Error(errorMsg);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to fetch owner's games:", error);
+    throw error;
+  }
+};
+
 
 // Add other game-related API functions here as needed
 // e.g., getGameById, updateGame, deleteGame, getGameReviews, submitReview etc.

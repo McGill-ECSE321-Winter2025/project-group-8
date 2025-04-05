@@ -11,7 +11,8 @@ import { createEvent } from "../../service/event-api.js";
 import { searchGames } from "../../service/game-api.js";
 import { Loader2 } from "lucide-react";
 
-export default function CreateEventDialog({ open, onOpenChange }) {
+// Accept onEventAdded prop
+export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) {
   const [isLoading, setIsLoading] = useState(false);
   const [submitError, setSubmitError] = useState("");
   // State for game search
@@ -108,6 +109,9 @@ export default function CreateEventDialog({ open, onOpenChange }) {
     try {
       const result = await createEvent(payload); // createEvent expects featuredGameId
       toast.success(`Successfully created event: ${result.title}`);
+      if (onEventAdded) { // Call the refresh function passed from parent
+        onEventAdded();
+      }
       handleCancel(); // Use handleCancel to reset everything
     } catch (error) {
       console.error("Create event error:", error);

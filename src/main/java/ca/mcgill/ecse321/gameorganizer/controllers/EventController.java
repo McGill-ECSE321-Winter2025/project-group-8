@@ -1,17 +1,17 @@
 package ca.mcgill.ecse321.gameorganizer.controllers;
 
 import java.sql.Date;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.UUID;
- // Keep UUID
-import org.springframework.security.core.Authentication; // Import Authentication
 import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired; // Import Authentication
+import org.springframework.http.HttpStatus; // Import SecurityContextHolder
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication; // Keep for logging context holder
+import org.springframework.security.core.context.SecurityContextHolder; // Import Principal
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,8 +22,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.server.ResponseStatusException;
 import ca.mcgill.ecse321.gameorganizer.dto.CreateEventRequest;
 import ca.mcgill.ecse321.gameorganizer.dto.EventResponse;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
@@ -81,14 +79,26 @@ public class EventController {
      * @return The created event
      */
     @PostMapping
-    public ResponseEntity<EventResponse> createEvent(@RequestBody CreateEventRequest request, Authentication authentication) {
-        log.info("Attempting to create event. Authentication: {}", authentication);
-        if (authentication == null || !authentication.isAuthenticated()) {
-             log.error("Create Event: User not authenticated.");
-             // Or throw an appropriate exception / return 401/403
+    public ResponseEntity<EventResponse> createEvent(@RequestBody CreateEventRequest request) { // Removed Principal parameter
+        // Get Authentication directly from SecurityContextHolder
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        log.info("SecurityContextHolder Authentication at start of createEvent: {}", authentication);
+
+        // Check if Authentication object is valid
+        if (authentication == null || !authentication.isAuthenticated() || authentication.getName() == null) {
+             log.error("Create Event: Could not retrieve valid Authentication from SecurityContextHolder. User not authenticated.");
              return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        String email = authentication.getName(); // Get email from Authentication
+
+        String email = authentication.getName(); // Get email from the retrieved Authentication object
+        log.info("Attempting to create event for user: {}", email);
+
+         // Check if email is null or empty (redundant if getName() worked, but safe)
+         if (email.trim().isEmpty()) {
+             log.error("Create Event: Email extracted from Authentication is empty.");
+             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build(); // Indicate an unexpected state
+         }
+
         Event event = eventService.createEvent(request, email);
         return ResponseEntity.status(HttpStatus.CREATED).body(new EventResponse(event));
     }

@@ -8,9 +8,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import { getAllEvents } from "../service/event-api"; // Import API function
 import { Loader2 } from "lucide-react"; // Import Loader icon
 
-// Removed mock data
-// const upcomingEvents = [...]
-
 // Create card stagger animation variants (remains the same)
 const container = {
   hidden: { opacity: 0 },
@@ -32,21 +29,21 @@ const container = {
 
 const item = {
   hidden: { opacity: 0, scale: 0.8, y: 20 },
-  show: { 
-    opacity: 1, 
-    scale: 1, 
+  show: {
+    opacity: 1,
+    scale: 1,
     y: 0,
-    transition: { 
+    transition: {
       type: "spring",
       stiffness: 300,
       damping: 24
     }
   },
-  exit: { 
-    opacity: 0, 
-    scale: 0.8, 
+  exit: {
+    opacity: 0,
+    scale: 0.8,
     y: -20,
-    transition: { 
+    transition: {
       duration: 0.3,
       ease: "easeInOut"
     }
@@ -63,23 +60,28 @@ export default function EventsPage() {
   const [displayedEvents, setDisplayedEvents] = useState([]); // Events to actually display (for animation)
   const [isSearchTransitioning, setIsSearchTransitioning] = useState(false); // Animation state remains
 
+  // Function to fetch events
+  const fetchEvents = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await getAllEvents();
+      setAllEvents(data);
+      setFilteredEvents(data); // Reset filters to show all initially after fetch
+      setDisplayedEvents(data); // Update display
+    } catch (err) {
+      console.error("Failed to fetch events:", err);
+      setError(err.message || "Could not load events.");
+      setAllEvents([]); // Clear on error
+      setFilteredEvents([]);
+      setDisplayedEvents([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Fetch all events on component mount
   useEffect(() => {
-    const fetchEvents = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const data = await getAllEvents();
-        setAllEvents(data);
-        setFilteredEvents(data); // Initially, show all events
-        setDisplayedEvents(data); // Update display
-      } catch (err) {
-        console.error("Failed to fetch events:", err);
-        setError(err.message || "Could not load events.");
-      } finally {
-        setIsLoading(false);
-      }
-    };
     fetchEvents();
   }, []); // Empty dependency array means run once on mount
 
@@ -99,10 +101,8 @@ export default function EventsPage() {
 
     const now = new Date();
     const filtered = allEvents.filter(event => {
-      // Backend returns java.sql.Date which might be just a string or number timestamp
-      // Safely create Date object
       const eventDate = event.dateTime ? new Date(event.dateTime) : null;
-      if (!eventDate) return false; // Skip if date is invalid
+      if (!eventDate) return false;
 
       if (filterValue === "this-week") {
         const weekFromNow = new Date();
@@ -116,7 +116,6 @@ export default function EventsPage() {
         const endOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 2, 0);
         return eventDate >= startOfNextMonth && eventDate <= endOfNextMonth;
       }
-      // Should not happen with current filters, but good practice
       return false;
     });
 
@@ -126,14 +125,11 @@ export default function EventsPage() {
   // Handle search activity state with transition
   const handleSearchStateChange = (isActive) => {
     if (isActive && !isSearchActive) {
-      // Start transition when search becomes active
       setIsSearchTransitioning(true);
-      
-      // Delay setting isSearchActive to true to allow exit animations to complete
       setTimeout(() => {
         setIsSearchActive(true);
         setIsSearchTransitioning(false);
-      }, 400); // This should match the total duration of the exit animations
+      }, 400);
     } else if (!isActive) {
       setIsSearchActive(false);
     }
@@ -222,6 +218,7 @@ export default function EventsPage() {
       <CreateEventDialog
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
+        onEventAdded={fetchEvents} // Pass the fetch function as a prop
       />
     </div>
   );

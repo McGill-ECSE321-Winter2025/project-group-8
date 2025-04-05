@@ -18,11 +18,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
-import org.springframework.security.web.util.matcher.OrRequestMatcher; // Added import
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
 
-import ca.mcgill.ecse321.gameorganizer.security.JwtAuthenticationFilter;
+import ca.mcgill.ecse321.gameorganizer.security.JwtAuthenticationFilter; // Added import
 
 @Configuration
 public class SecurityConfig {
@@ -75,9 +74,10 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable()) // Disable CSRF
             .cors(Customizer.withDefaults()) // Enable CORS
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // Stateless
-            .securityContext(context -> context
-                .securityContextRepository(new RequestAttributeSecurityContextRepository()) // Use stateless context repo
-            )
+            // Remove explicit SecurityContextRepository - rely on default behavior with SecurityContextHolder
+            // .securityContext(context -> context
+            //     .securityContextRepository(new RequestAttributeSecurityContextRepository())
+            // )
             // Add JWT filter for this chain
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
