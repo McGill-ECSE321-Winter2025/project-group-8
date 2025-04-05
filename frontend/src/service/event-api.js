@@ -38,7 +38,6 @@ export const getAllEvents = async () => {
   }
 };
 
-
 // Register for an event (real API implementation)
 export const registerForEvent = async (eventId) => {
   const token = localStorage.getItem("token");

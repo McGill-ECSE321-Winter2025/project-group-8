@@ -184,8 +184,8 @@ export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered
         <div className="flex items-center text-gray-700 mb-4 text-sm">
           <Users className="w-4 h-4 mr-2 flex-shrink-0" />
           <span>
-            {/* Display count from the nested participants object prop */}
-            {event.participants?.current ?? 0}/{event.participants?.capacity ?? '?'} participants
+
+            {event.currentNumberParticipants ?? event.participantCount}/{event.maxParticipants} participants
           </span>
         </div>
 
