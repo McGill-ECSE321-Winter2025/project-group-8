@@ -65,7 +65,7 @@ export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered
       });
     } catch (error) {
       setIsAnimating(false);
-      const errorMsg = error.message || "Something went wrong. Please try again.";
+      const errorMsg =  "⚠️ Event is at full capacity!";
       if (errorMsg.includes("full capacity")) {
         setError("⚠️ Event is at full capacity!");
         toast.error("Event is at full capacity!");

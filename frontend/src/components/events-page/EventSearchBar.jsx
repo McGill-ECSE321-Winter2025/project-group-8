@@ -4,6 +4,7 @@ import { Search, CalendarX, RefreshCw } from "lucide-react";
 import { searchEventsByTitle } from "../../service/event-api.js";
 import { EventCard } from "./EventCard";
 import { motion, AnimatePresence } from "framer-motion";
+import { getRegistrationsByEmail } from "../../service/registration-api.js"; // Import registration fetcher
 
 // Animation variants for search results
 const resultsContainer = {
@@ -36,6 +37,22 @@ export function EventSearchBar({ onSearchStateChange }) {
   const [isLoading, setIsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [prevSearchTerm, setPrevSearchTerm] = useState("");
+  const [userRegistrations, setUserRegistrations] = useState([]); // Store user registrations
+
+  // Fetch registrations when search is performed
+  const fetchUserRegistrations = async () => {
+    const userEmail = localStorage.getItem("userEmail");
+    if (!userEmail) return [];
+    
+    try {
+      const registrations = await getRegistrationsByEmail(userEmail);
+      setUserRegistrations(registrations || []);
+      return registrations;
+    } catch (error) {
+      console.error("Failed to fetch user registrations:", error);
+      return [];
+    }
+  };
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
@@ -60,8 +77,6 @@ export function EventSearchBar({ onSearchStateChange }) {
   // Helper to adapt backend event DTO to what the child Event component expects
   const adaptEventData = (event) => {
     if (!event) return null;
-    // Log the structure of host and featuredGame before accessing name
-    // console.log(`Adapting Event ID: ${event.eventId} - Host Object:`, event.host, "Featured Game Object:", event.featuredGame);
     return {
       id: event.eventId,
       title: event.title,
@@ -83,17 +98,37 @@ export function EventSearchBar({ onSearchStateChange }) {
   const handleSearch = async () => {
     setIsLoading(true);
     try {
-      const results = await searchEventsByTitle(searchTerm);
+      // Fetch search results and user registrations concurrently
+      const [results, registrations] = await Promise.all([
+        searchEventsByTitle(searchTerm),
+        fetchUserRegistrations()
+      ]);
+      
       const adaptedResults = results.map(event => adaptEventData(event));
       setSearchResults(adaptedResults);
       setHasSearched(true);
-      //console.log(results);
     } catch (error) {
       console.error("Search error:", error);
       setSearchResults([]);
       setHasSearched(true);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Function to refresh data after registration action
+  const handleRegistrationUpdate = async () => {
+    // Refresh search results
+    try {
+      const [results, registrations] = await Promise.all([
+        searchEventsByTitle(searchTerm),
+        fetchUserRegistrations()
+      ]);
+      
+      const adaptedResults = results.map(event => adaptEventData(event));
+      setSearchResults(adaptedResults);
+    } catch (error) {
+      console.error("Error refreshing search results:", error);
     }
   };
 
@@ -152,11 +187,23 @@ export function EventSearchBar({ onSearchStateChange }) {
             initial="hidden"
             animate="show"
           >
-            {searchResults.map((event, index) => (
-              <motion.div key={event.id || index} variants={resultItem}>
-                <EventCard event={event} />
-              </motion.div>
-            ))}
+            {searchResults.map((event, index) => {
+              // Find registration for this specific event
+              const registration = userRegistrations.find(reg => reg.eventId === event.id);
+              const registrationId = registration ? registration.id : null;
+              const isRegistered = !!registrationId;
+              
+              return (
+                <motion.div key={event.id || index} variants={resultItem}>
+                  <EventCard 
+                    event={event}
+                    onRegistrationUpdate={handleRegistrationUpdate}
+                    isCurrentUserRegistered={isRegistered}
+                    registrationId={registrationId}
+                  />
+                </motion.div>
+              );
+            })}
           </motion.div>
         ) : null}
       </AnimatePresence>
