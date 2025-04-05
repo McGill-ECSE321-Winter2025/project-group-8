@@ -1,23 +1,40 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
-import { getUserProfile } from '../service/user-api'; // Assuming this function exists or will be created
+import { getUserProfile, logoutUser } from '../service/user-api';
+import { UnauthorizedError } from '../service/apiClient';
 
 const AuthContext = createContext(null);
 
+// Check if we either have a token in localStorage or an authenticated session cookie
+const hasAuthToken = () => {
+  return localStorage.getItem('authToken') !== null;
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true); // Add loading state
+  const [loading, setLoading] = useState(true);
+  const [authInitialized, setAuthInitialized] = useState(false);
 
   // Function to check authentication status on initial load
   const checkAuthStatus = useCallback(async () => {
     setLoading(true);
     try {
-      // Attempt to fetch user profile - relies on the HttpOnly cookie
-      const currentUser = await getUserProfile(); // Use '/api/users/me' or similar
+      // Always attempt to fetch user profile on initial load
+      // The server uses cookies for authentication, so this will work if we have a valid cookie
+      const currentUser = await getUserProfile();
       setUser(currentUser);
+      setAuthInitialized(true);
+      return true;
     } catch (error) {
-      // If fetching fails (e.g., 401 Unauthorized), assume not logged in
-      console.warn('Initial auth check failed:', error.message);
-      setUser(null);
+      // Silent failure for auth errors
+      if (error instanceof UnauthorizedError) {
+        localStorage.removeItem('authToken'); // Clear token if it exists but is invalid
+        setUser(null);
+      } else {
+        console.warn('Auth check failed with unexpected error:', error.message);
+        setUser(null);
+      }
+      setAuthInitialized(true);
+      return false;
     } finally {
       setLoading(false);
     }
@@ -27,18 +44,42 @@ export const AuthProvider = ({ children }) => {
     checkAuthStatus();
   }, [checkAuthStatus]);
 
-  const login = (userData) => {
+  const login = async (userData, token) => {
+    // Store token in localStorage if available
+    if (token) {
+      localStorage.setItem('authToken', token);
+    }
+    
+    // Set user data
     setUser(userData);
+    
+    // Return true to indicate successful login
+    return true;
   };
 
-  const logout = () => {
-    setUser(null);
-    // Optional: Add API call here to backend /auth/logout endpoint if it exists
-    // Example: await logoutUserApi(); // Assuming logoutUserApi exists
+  const logout = async () => {
+    try {
+      // Call backend logout API to clear cookies
+      await logoutUser();
+    } catch (error) {
+      console.error("Error during logout:", error);
+    } finally {
+      // Always clean up local state regardless of API success
+      localStorage.removeItem('authToken');
+      setUser(null);
+    }
   };
 
-  // Provide checkAuthStatus in context if needed elsewhere, e.g., for manual refresh
-  const value = { user, loading, login, logout, checkAuthStatus };
+  // Provide context values
+  const value = { 
+    user, 
+    loading, 
+    login, 
+    logout, 
+    checkAuthStatus,
+    isAuthenticated: !!user,
+    authInitialized
+  };
 
   return (
     <AuthContext.Provider value={value}>
@@ -52,6 +93,5 @@ export const useAuth = () => {
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
-  // Return context directly, components can destructure { user, loading, login, logout }
   return context;
 };

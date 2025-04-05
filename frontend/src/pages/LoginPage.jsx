@@ -38,20 +38,34 @@ export default function LoginPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ email, password }),
-        credentials: 'include', // <<< Send cookies
+        credentials: 'include', // Send and receive cookies
       });
 
       if (response.ok) {
         // Backend now sets HttpOnly cookie automatically.
         // The response body should contain the user summary.
         const userData = await response.json();
-
         
-        login(userData); // Update global auth state
+        // Check for Authorization header that contains the JWT token
+        const authHeader = response.headers.get('Authorization');
+        let token = null;
         
-        // No need for localStorage/sessionStorage or delays.
-        // The useEffect hook above will handle redirection once `user` state updates.
-        // navigate("/dashboard"); // Can navigate immediately or let useEffect handle it
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+          token = authHeader.substring(7); // Remove 'Bearer ' prefix
+        } else if (userData.token) {
+          // If token is in the response body
+          token = userData.token;
+        } else if (userData.accessToken) {
+          // Alternative name for token
+          token = userData.accessToken;
+        }
+        
+        // Pass both user data and token to login function
+        login(userData, token);
+        
+        // Test that the authentication is working
+        console.log("Login successful, redirecting to dashboard...");
+        navigate("/dashboard");
       } else if (response.status === 401) {
         setError("Invalid email or password");
       } else {

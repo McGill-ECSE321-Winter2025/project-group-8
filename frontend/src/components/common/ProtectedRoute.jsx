@@ -13,16 +13,17 @@ import { useAuth } from '@/context/AuthContext'; // Import useAuth hook
  * @param {React.ReactNode} props.children - The child component to render if authenticated.
  */
 const ProtectedRoute = ({ children }) => {
-  const { user, loading } = useAuth(); // Get user state and loading status
+  const { isAuthenticated, loading, authInitialized } = useAuth(); // Use isAuthenticated instead of checking user
   const location = useLocation(); // Get current location
 
-  if (loading) {
+  // Only show loading screen if we're still initializing auth
+  if (loading && !authInitialized) {
     // Show a loading indicator while checking auth status
     // TODO: Replace with a proper loading spinner/component
     return <div>Loading...</div>;
   }
 
-  if (!user) {
+  if (!isAuthenticated) {
     // User not authenticated, redirect to login page
     // Pass the current location to redirect back after login (optional)
     return <Navigate to="/login" state={{ from: location }} replace />;

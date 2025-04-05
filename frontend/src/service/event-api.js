@@ -6,7 +6,7 @@
  */
 
 // Define API_BASE_URL centrally (or import if moved)
-const API_BASE_URL = "http://localhost:8080/api/v1";
+const API_BASE_URL = "http://localhost:8080/";
 
 import apiClient from './apiClient'; // Import the centralized API client
 
@@ -25,6 +25,30 @@ export const getAllEvents = async () => {
     return events;
   } catch (error) {
     console.error("Failed to fetch events:", error);
+    throw error; // Re-throw the specific error from apiClient
+  }
+};
+
+/**
+ * Fetches details for a single event by its ID.
+ * Requires authentication (via HttpOnly cookie).
+ * @param {string} eventId - The UUID of the event.
+ * @returns {Promise<object>} A promise that resolves to the event object.
+ * @throws {UnauthorizedError} If the user is not authenticated.
+ * @throws {ApiError} For other API-related errors.
+ */
+export const getEventById = async (eventId) => {
+  if (!eventId) {
+    throw new Error("Event ID is required to fetch event details.");
+  }
+
+  try {
+    const event = await apiClient(`/events/${eventId}`, {
+      method: "GET",
+    });
+    return event;
+  } catch (error) {
+    console.error(`Failed to fetch event with ID ${eventId}:`, error);
     throw error; // Re-throw the specific error from apiClient
   }
 };

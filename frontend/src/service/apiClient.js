@@ -13,7 +13,7 @@ export class ApiError extends Error {
 }
 
 export class UnauthorizedError extends ApiError {
-  constructor(message = 'Unauthorized') {
+  constructor(message = 'Authentication required') {
     super(message, 401);
     this.name = 'UnauthorizedError';
   }
@@ -26,17 +26,29 @@ export class ForbiddenError extends ApiError {
   }
 }
 
+// Get auth token from localStorage
+const getAuthToken = () => {
+  return localStorage.getItem('authToken');
+};
+
 const apiClient = async (endpoint, { body, method = 'GET', headers = {}, ...customConfig } = {}) => {
+  const authToken = getAuthToken();
+  
   const config = {
     method: method,
     headers: {
       'Content-Type': 'application/json',
       ...headers,
-      // Authorization header is no longer needed, browser handles HttpOnly cookie
     },
-    credentials: 'include', // <<< Crucial for sending cookies
+    credentials: 'include', // Keep this to send cookies (server is using cookies for JWT)
     ...customConfig,
   };
+
+  // Add Authorization header if token exists
+  // NOTE: The server is currently using cookies, but we'll include the header as a fallback
+  if (authToken) {
+    config.headers['Authorization'] = `Bearer ${authToken}`;
+  }
 
   if (body) {
     config.body = JSON.stringify(body);
@@ -49,12 +61,18 @@ const apiClient = async (endpoint, { body, method = 'GET', headers = {}, ...cust
 
     if (!response.ok) {
       const errorData = await response.text(); // Try to get error details
-      console.error(`API Error ${response.status}: ${errorData} for ${method} ${url}`);
-
+      
       if (response.status === 401) {
-        // Throw specific error for unauthorized access
+        // For 401 Unauthorized, clear token as it might be expired
+        if (authToken) {
+          localStorage.removeItem('authToken');
+        }
         throw new UnauthorizedError(errorData || 'Authentication required');
       }
+      
+      // For other errors, log them
+      console.error(`API Error ${response.status}: ${errorData} for ${method} ${url}`);
+      
       if (response.status === 403) {
         // Throw specific error for forbidden access
         throw new ForbiddenError(errorData || 'Permission denied');
@@ -79,11 +97,12 @@ const apiClient = async (endpoint, { body, method = 'GET', headers = {}, ...cust
     }
 
   } catch (error) {
-    // Log network errors or errors thrown above
-    console.error('API Client Error:', error);
+    // Only log non-401 errors or non-UnauthorizedError instances
+    if (!(error instanceof UnauthorizedError)) {
+      console.error('API Client Error:', error);
+    }
 
     // Re-throw the error so it can be handled by the calling code
-    // This ensures specific errors (UnauthorizedError, ForbiddenError) are propagated
     throw error; 
   }
 };

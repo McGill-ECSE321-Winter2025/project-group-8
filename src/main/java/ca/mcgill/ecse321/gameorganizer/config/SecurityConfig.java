@@ -55,6 +55,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/account").permitAll()
                 // Require authentication for account GET requests
                 .requestMatchers(HttpMethod.GET, "/account/**").authenticated()
+                // API users endpoints
+                .requestMatchers(HttpMethod.GET, "/api/users/me").authenticated()
                 // Allow GET operations for browsing content
                 .requestMatchers(HttpMethod.GET, "/games/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/events/**").permitAll()

@@ -1,27 +1,16 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button.jsx";
 import { useEffect, useState } from "react";
+import { useAuth } from "@/context/AuthContext";
 
 export default function MenuBar() {
   const location = useLocation();
   const navigate = useNavigate();
-  // Use isLoggedIn state based on token presence
-  const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem("token"));
+  const { user, isAuthenticated, logout } = useAuth();
 
-  // Update login status whenever the URL path changes
-  useEffect(() => {
-    // Directly check the token presence when the location changes
-    setIsLoggedIn(!!localStorage.getItem("token"));
-  }, [location.pathname]); // Add location.pathname as a dependency
-
-
-  const handleLogout = () => {
-    // Remove token and userId on logout
-    localStorage.removeItem("token");
-    localStorage.removeItem("userId");
-    localStorage.removeItem("userEmail"); // Also remove userEmail
-    setIsLoggedIn(false); // Update state immediately
-    navigate("/"); // Redirect to landing page
+  const handleLogout = async () => {
+    await logout();
+    navigate("/");
   };
 
   const isLandingPage = location.pathname === "/";
@@ -29,7 +18,7 @@ export default function MenuBar() {
   return (
     <header className="bg-white border-b shadow-sm">
       <div className="flex items-center justify-between py-4 px-6 md:px-10 max-w-screen-xl mx-auto">
-        <Link to="/" className="flex items-center gap-2">
+        <Link to={isAuthenticated ? "/dashboard" : "/"} className="flex items-center gap-2">
           <img
             src="https://www.svgrepo.com/show/83116/board-games-set.svg"
             alt="Board Games Icon"
@@ -40,7 +29,7 @@ export default function MenuBar() {
 
         <div className="flex items-center gap-3">
           {/* Navigation Buttons (only for logged in users) */}
-          {isLoggedIn && ( // Check isLoggedIn state
+          {isAuthenticated && (
             <div className="flex items-center gap-2">
               {/* Link to Dashboard instead of Games? */}
               <Link to="/dashboard">
@@ -60,7 +49,7 @@ export default function MenuBar() {
           )}
 
           {/* Login / Sign Up (only if not logged in) */}
-          {!isLoggedIn && ( // Check isLoggedIn state
+          {!isAuthenticated && (
             <>
               <Link to="/login">
                 <Button variant="outline" className="text-sm px-4">Login</Button>
@@ -72,10 +61,11 @@ export default function MenuBar() {
           )}
 
           {/* Logout Button (only if logged in) */}
-          {isLoggedIn && ( // Check isLoggedIn state
+          {isAuthenticated && (
             <div className="flex items-center gap-2 pl-3 border-l border-gray-200">
-              {/* Removed user name display for simplicity for now */}
-              {/* <span className="text-sm text-gray-700 font-medium">Hi, {user.name}</span> */}
+              {user && (
+                <span className="text-sm text-gray-700 font-medium">Hi, {user.name}</span>
+              )}
               <Button
                 onClick={handleLogout}
                 variant="outline"

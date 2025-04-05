@@ -14,7 +14,14 @@ export const getUserProfile = async () => {
     const userProfile = await apiClient('/api/users/me'); 
     return userProfile;
   } catch (error) {
-    // apiClient throws specific errors like UnauthorizedError
+    // For UnauthorizedError, we know this happens if user isn't logged in
+    if (error instanceof UnauthorizedError) {
+      // This is expected behavior for unauthenticated users
+      // Still need to rethrow so AuthContext can handle it
+      throw error;
+    }
+    
+    // For unexpected errors, log them
     console.error("Error fetching user profile:", error);
     // Re-throw the error for the caller (e.g., AuthContext) to handle
     throw error; 
