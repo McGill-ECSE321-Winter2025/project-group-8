@@ -15,4 +15,11 @@ public class CreateEventRequest {
     private int maxParticipants;
     private Game featuredGame;
     private Account host;
+    public void setDateTime(java.util.Date date) {
+        if (date == null) {
+            this.dateTime = null;
+        } else {
+            this.dateTime = new java.sql.Date(date.getTime());
+        }
+    }
 }

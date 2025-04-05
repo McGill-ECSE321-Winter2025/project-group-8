@@ -105,11 +105,15 @@ public class GameController {
             // Service now uses authenticated principal for owner
             GameResponseDto createdGame = service.createGame(gameCreationDto);
             return new ResponseEntity<>(createdGame, HttpStatus.CREATED);
-        } catch (ForbiddenException | UnauthedException e) {
-             throw new ResponseStatusException(HttpStatus.FORBIDDEN, e.getMessage()); // Or UNAUTHORIZED depending on specific exception
+        } catch (UnauthedException e) {
+            // When owner doesn't exist, return 400 Bad Request
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        } catch (ForbiddenException e) {
+            // When permission denied, return 403 Forbidden
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, e.getMessage());
         } catch (IllegalArgumentException e) {
-             // Handle validation errors
-             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+            // Handle validation errors
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
         }
     }
 
@@ -128,7 +132,7 @@ public class GameController {
         } catch (ForbiddenException | UnauthedException e) {
              throw new ResponseStatusException(HttpStatus.FORBIDDEN, e.getMessage()); // Or UNAUTHORIZED
         } catch (ResourceNotFoundException e) {
-             throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
         } catch (IllegalArgumentException e) {
              throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
         }
@@ -147,7 +151,7 @@ public class GameController {
         } catch (ForbiddenException | UnauthedException e) {
              throw new ResponseStatusException(HttpStatus.FORBIDDEN, e.getMessage()); // Or UNAUTHORIZED
         } catch (ResourceNotFoundException e) {
-             throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
         }
     }
 

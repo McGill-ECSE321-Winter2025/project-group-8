@@ -64,11 +64,26 @@ public class JwtUtil {
                 }
             }
             
+            // Check if we're in a test context by checking for test profile
+            boolean isTestContext = "test".equals(System.getProperty("spring.profiles.active")) || 
+                                   (System.getenv("SPRING_PROFILES_ACTIVE") != null && 
+                                    System.getenv("SPRING_PROFILES_ACTIVE").contains("test"));
+            
+            // Also check Spring Environment from TestJwtConfig
+            if (!isTestContext && System.getProperty("spring.profiles.active") == null) {
+                String[] activeProfiles = System.getProperty("spring.active.profiles", "").split(",");
+                for (String profile : activeProfiles) {
+                    if ("test".equals(profile.trim())) {
+                        isTestContext = true;
+                        break;
+                    }
+                }
+            }
+            
             // Check if we have a secret from either source
             if (jwtSecretEnv == null || jwtSecretEnv.isEmpty()) {
                 // For testing purposes only, use a default secret if running in test profile
-                if ("test".equals(System.getProperty("spring.profiles.active")) || 
-                    (System.getenv("SPRING_PROFILES_ACTIVE") != null && System.getenv("SPRING_PROFILES_ACTIVE").contains("test"))) {
+                if (isTestContext) {
                     logger.info("Running in test profile, using default test JWT_SECRET");
                     jwtSecretEnv = "tG8qcqi6M2XZ1s73QTdIHHGhBEzZARBOlDvcxkp4iAoCPU5f8OeYXFmNOkjr9XgJ";
                 } else {
@@ -82,8 +97,7 @@ public class JwtUtil {
 
             // Use HS256 in test mode to accept shorter secrets
             SignatureAlgorithm algorithm = SignatureAlgorithm.HS512; // Default for production
-            if ("test".equals(System.getProperty("spring.profiles.active")) || 
-                (System.getenv("SPRING_PROFILES_ACTIVE") != null && System.getenv("SPRING_PROFILES_ACTIVE").contains("test"))) {
+            if (isTestContext) {
                 algorithm = SignatureAlgorithm.HS256; // Use weaker but suitable algorithm for tests
                 logger.info("Using HS256 algorithm for JWT in test mode");
             } else {

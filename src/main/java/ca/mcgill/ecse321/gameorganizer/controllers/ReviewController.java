@@ -2,6 +2,8 @@ package ca.mcgill.ecse321.gameorganizer.controllers;
 
 import ca.mcgill.ecse321.gameorganizer.dto.ReviewResponseDto;
 import ca.mcgill.ecse321.gameorganizer.dto.ReviewSubmissionDto;
+import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException;
+import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
 import ca.mcgill.ecse321.gameorganizer.services.GameService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -31,9 +33,17 @@ public class ReviewController {
      * @return The created review
      */
     @PostMapping
-    public ResponseEntity<ReviewResponseDto> submitReview(@RequestBody ReviewSubmissionDto reviewDto) {
-        ReviewResponseDto createdReview = gameService.submitReview(reviewDto);
-        return new ResponseEntity<>(createdReview, HttpStatus.CREATED);
+    public ResponseEntity<?> submitReview(@RequestBody ReviewSubmissionDto reviewDto) {
+        try {
+            ReviewResponseDto createdReview = gameService.submitReview(reviewDto);
+            return new ResponseEntity<>(createdReview, HttpStatus.CREATED);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (ForbiddenException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        }
     }
 
     /**
@@ -81,11 +91,19 @@ public class ReviewController {
      * @return The updated review
      */
     @PutMapping("/{id}")
-    public ResponseEntity<ReviewResponseDto> updateReview(
+    public ResponseEntity<?> updateReview(
             @PathVariable int id,
             @RequestBody ReviewSubmissionDto reviewDto) {
-        ReviewResponseDto updatedReview = gameService.updateReview(id, reviewDto);
-        return ResponseEntity.ok(updatedReview);
+        try {
+            ReviewResponseDto updatedReview = gameService.updateReview(id, reviewDto);
+            return ResponseEntity.ok(updatedReview);
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (ForbiddenException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        }
     }
 
     /**
@@ -95,7 +113,13 @@ public class ReviewController {
      * @return Confirmation message
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<String> deleteReview(@PathVariable int id) {
-        return gameService.deleteReview(id);
+    public ResponseEntity<?> deleteReview(@PathVariable int id) {
+        try {
+            return gameService.deleteReview(id);
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        } catch (ForbiddenException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        }
     }
 }

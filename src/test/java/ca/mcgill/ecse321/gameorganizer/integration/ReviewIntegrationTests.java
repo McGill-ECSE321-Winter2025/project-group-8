@@ -27,6 +27,9 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.ContextConfiguration;
+import ca.mcgill.ecse321.gameorganizer.TestJwtConfig;
+import org.junit.jupiter.api.BeforeAll;
 
 // Removed TestRestTemplate, @LocalServerPort, @Import, HttpEntity, HttpHeaders imports
 
@@ -46,6 +49,7 @@ import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
 @AutoConfigureMockMvc // Add this annotation
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@ContextConfiguration(initializers = TestJwtConfig.Initializer.class)
 public class ReviewIntegrationTests {
 
     // @LocalServerPort // Not needed with MockMvc
@@ -78,6 +82,17 @@ public class ReviewIntegrationTests {
     private static final String BASE_URL = "/reviews";
     private static final String TEST_REVIEWER_EMAIL = "reviewer@example.com"; // Added constant
     private static final String TEST_PASSWORD = "password123"; // Added constant
+
+    @BeforeAll
+    public static void setTestEnvironment() {
+        System.setProperty("spring.profiles.active", "test");
+        
+        // Ensure JWT_SECRET is set for tests if not already set
+        if (System.getProperty("JWT_SECRET") == null && System.getenv("JWT_SECRET") == null) {
+            System.setProperty("JWT_SECRET", "tG8qcqi6M2XZ1s73QTdIHHGhBEzZARBOlDvcxkp4iAoCPU5f8OeYXFmNOkjr9XgJ");
+            System.out.println("Setting JWT_SECRET for ReviewIntegrationTests");
+        }
+    }
 
     @BeforeEach
     public void setup() {

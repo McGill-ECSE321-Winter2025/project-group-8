@@ -31,6 +31,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.ContextConfiguration;
+import ca.mcgill.ecse321.gameorganizer.TestJwtConfig;
 
 import ca.mcgill.ecse321.gameorganizer.dto.GameCreationDto;
 import ca.mcgill.ecse321.gameorganizer.dto.GameResponseDto;
@@ -50,11 +52,14 @@ import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 // Removed TestConfig and SecurityConfig imports as they are auto-detected with @SpringBootTest
 
+import org.junit.jupiter.api.BeforeAll;
+
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK) // Use MOCK environment
 @ActiveProfiles("test")
 @AutoConfigureMockMvc // Add this annotation
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@ContextConfiguration(initializers = TestJwtConfig.Initializer.class)
 public class GameIntegrationTests {
 
     @Autowired
@@ -96,6 +101,17 @@ public class GameIntegrationTests {
     private static final String VALID_EMAIL = "owner@example.com";
     private static final String VALID_USERNAME = "gameowner";
     private static final String VALID_PASSWORD = "password123";
+
+    @BeforeAll
+    public static void setTestEnvironment() {
+        System.setProperty("spring.profiles.active", "test");
+        
+        // Ensure JWT_SECRET is set for tests if not already set
+        if (System.getProperty("JWT_SECRET") == null && System.getenv("JWT_SECRET") == null) {
+            System.setProperty("JWT_SECRET", "tG8qcqi6M2XZ1s73QTdIHHGhBEzZARBOlDvcxkp4iAoCPU5f8OeYXFmNOkjr9XgJ");
+            System.out.println("Setting JWT_SECRET for GameIntegrationTests");
+        }
+    }
 
     @BeforeEach
     public void setup() {

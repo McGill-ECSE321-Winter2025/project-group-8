@@ -27,6 +27,8 @@ import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.ContextConfiguration;
+import ca.mcgill.ecse321.gameorganizer.TestJwtConfig;
 
 import java.util.ArrayList;
 import java.util.Base64;
@@ -37,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
+@ContextConfiguration(initializers = TestJwtConfig.Initializer.class)
 public class SimpleAuthTest {
 
     @LocalServerPort

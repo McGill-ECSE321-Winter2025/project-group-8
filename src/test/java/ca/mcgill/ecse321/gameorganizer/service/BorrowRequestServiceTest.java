@@ -291,31 +291,53 @@ public class BorrowRequestServiceTest {
     public void testGetAllBorrowRequests() {
         // Setup
         List<BorrowRequest> requests = new ArrayList<>();
+        // Create test data
+        Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
+        game.setId(VALID_GAME_ID);
+        GameOwner owner = new GameOwner("Owner", "owner@test.com", "password");
+        owner.setId(99);
+        game.setOwner(owner);
+        
+        Account requester = new Account("Requester", "requester@test.com", "password");
+        requester.setId(VALID_REQUESTER_ID);
+        
         BorrowRequest request = new BorrowRequest();
         request.setId(VALID_REQUEST_ID);
-        // Need to set game and requester properly here too for consistency
-        GameOwner owner = new GameOwner("Owner", "owner@test.com", "password");
-        Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
-        game.setOwner(owner);
-        Account requester = new Account("Requester", "requester@test.com", "password");
         request.setRequestedGame(game);
         request.setRequester(requester);
         request.setStatus(BorrowRequestStatus.PENDING);
-        request.setStartDate(new Date()); // Add dates
-        request.setEndDate(new Date(System.currentTimeMillis() + 86400000));
-        request.setRequestDate(new Date()); // Add request date
         requests.add(request);
+        
+        // Setup Authentication with ADMIN role
+        Authentication authentication = new UsernamePasswordAuthenticationToken(
+            "admin@test.com", 
+            "password", 
+            Collections.singletonList(new SimpleGrantedAuthority("ROLE_ADMIN"))
+        );
+        SecurityContext securityContext = new SecurityContextImpl();
+        securityContext.setAuthentication(authentication);
+        SecurityContextHolder.setContext(securityContext);
 
-        when(borrowRequestRepository.findAll()).thenReturn(requests);
-
-        // Test
-        List<BorrowRequestDto> result = borrowRequestService.getAllBorrowRequests();
-
-        // Verify
-        assertNotNull(result);
-        assertEquals(1, result.size());
-        assertEquals(VALID_REQUEST_ID, result.get(0).getId());
-        verify(borrowRequestRepository).findAll();
+        Account adminAccount = new Account("Admin", "admin@test.com", "password");
+        adminAccount.setId(100);
+        
+        try {
+            when(borrowRequestRepository.findAll()).thenReturn(requests);
+            when(accountRepository.findByEmail("admin@test.com")).thenReturn(Optional.of(adminAccount));
+            
+            // Test
+            List<BorrowRequestDto> resultDtos = borrowRequestService.getAllBorrowRequests();
+            
+            // Verify
+            assertNotNull(resultDtos);
+            assertEquals(1, resultDtos.size());
+            assertEquals(VALID_REQUEST_ID, resultDtos.get(0).getId());
+            assertEquals(VALID_GAME_ID, resultDtos.get(0).getRequestedGameId());
+            assertEquals(VALID_REQUESTER_ID, resultDtos.get(0).getRequesterId());
+            verify(borrowRequestRepository).findAll();
+        } finally {
+            SecurityContextHolder.clearContext(); // Clean up security context
+        }
     }
 
     @Test

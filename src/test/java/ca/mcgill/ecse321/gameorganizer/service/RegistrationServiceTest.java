@@ -27,6 +27,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.mockito.ArgumentCaptor;
 
 // Imports for Security Context Mocking
@@ -43,13 +45,17 @@ import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.Registration;
 import ca.mcgill.ecse321.gameorganizer.repositories.RegistrationRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository; // Keep one import
+import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository; // Add EventRepository mock
 import ca.mcgill.ecse321.gameorganizer.services.RegistrationService;
+import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
 
 // Add ContextConfiguration and import TestJwtConfig
 import org.springframework.test.context.ContextConfiguration;
 import ca.mcgill.ecse321.gameorganizer.TestJwtConfig;
+import org.springframework.security.authentication.TestingAuthenticationToken;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 @ContextConfiguration(initializers = TestJwtConfig.Initializer.class)
 public class RegistrationServiceTest {
 
@@ -58,6 +64,9 @@ public class RegistrationServiceTest {
 
     @Mock
     private AccountRepository accountRepository; // Keep one mock
+    
+    @Mock
+    private EventRepository eventRepository; // Add EventRepository mock
 
     @InjectMocks
     private RegistrationService registrationService;
@@ -212,17 +221,16 @@ public class RegistrationServiceTest {
             .thenReturn(Optional.empty());
 
         // Test & Verify
-        assertThrows(IllegalArgumentException.class, () ->
+        assertThrows(ResourceNotFoundException.class, () ->
             registrationService.updateRegistration(VALID_REGISTRATION_ID, new Date())); // Ensure signature: (int, Date)
     }
 
     @Test
     public void testDeleteRegistration() {
-        // Setup Attendee and Security Context
-        Account attendee = new Account("Attendee", "attendee@test.com", "password");
-        attendee.setId(99); // Assign an ID
-        Authentication auth = new UsernamePasswordAuthenticationToken(attendee.getEmail(), "password", Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER")));
-        SecurityContext securityContext = new SecurityContextImpl();
+        // Setup Authentication
+        SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
+        Account attendee = new Account("test@example.com", "testUser", "password123");
+        Authentication auth = new TestingAuthenticationToken(attendee.getEmail(), null);
         securityContext.setAuthentication(auth);
         SecurityContextHolder.setContext(securityContext);
 
@@ -240,14 +248,16 @@ public class RegistrationServiceTest {
             when(accountRepository.findByEmail(attendee.getEmail())).thenReturn(Optional.of(attendee)); // Mock finding authenticated user
             when(registrationRepository.findRegistrationById(VALID_REGISTRATION_ID))
                 .thenReturn(Optional.of(registration));
-            // existsById is implicitly checked by deleteById, no need to mock separately unless logic depends on it beforehand
+            // Add event repository mock
+            when(eventRepository.save(any(Event.class))).thenReturn(event);
 
             // Test
             registrationService.deleteRegistration(VALID_REGISTRATION_ID);
 
             // Verify
             verify(registrationRepository).deleteById(VALID_REGISTRATION_ID);
-            // Optionally verify participant count decreased if relevant
+            verify(eventRepository).save(event); // Verify event was saved
+            assertEquals(4, event.getCurrentNumberParticipants()); // Verify participant count decreased
         } finally {
             SecurityContextHolder.clearContext();
         }

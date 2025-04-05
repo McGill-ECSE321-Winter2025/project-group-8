@@ -24,19 +24,23 @@ public class TestJwtConfig {
         public void initialize(ConfigurableApplicationContext applicationContext) {
             ConfigurableEnvironment environment = applicationContext.getEnvironment();
             
-            // Create a longer secret that meets the 512-bit (64-byte) requirement for HS512
-            String testJwtSecret = "tG8qcqi6M2XZ1s73QTdIHHGhBEzZARBOlDvcxkp4iAoCPU5f8OeYXFmNOkjr9XgJvTwfF2aH9yPoiWnBuYTa0qZxLcMk7DlN";
+            // Use the same secret as in .env.test file
+            String testJwtSecret = "tG8qcqi6M2XZ1s73QTdIHHGhBEzZARBOlDvcxkp4iAoCPU5f8OeYXFmNOkjr9XgJ";
             
             Map<String, Object> props = new HashMap<>();
             props.put("JWT_SECRET", testJwtSecret);
+            
+            // Explicitly set the spring.profiles.active property to "test"
+            props.put("spring.profiles.active", "test");
             
             MapPropertySource testProperties = new MapPropertySource("testJwtProperties", props);
             environment.getPropertySources().addFirst(testProperties);
             
             // Also set as a system property for methods that check there
             System.setProperty("JWT_SECRET", testJwtSecret);
+            System.setProperty("spring.profiles.active", "test");
             
-            System.out.println("JWT_SECRET environment variable set for testing");
+            System.out.println("JWT_SECRET environment variable and test profile set for testing");
         }
     }
 } 

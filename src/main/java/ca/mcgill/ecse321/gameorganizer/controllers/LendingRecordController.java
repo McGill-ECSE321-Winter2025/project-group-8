@@ -434,8 +434,10 @@ public class LendingRecordController {
         try {
             return lendingRecordService.updateEndDate(id, newEndDate);
         } catch (ForbiddenException | UnauthedException e) {
-             // Re-throw auth exceptions for handler
-             throw e;
+            // Re-throw auth exceptions for handler
+            throw e;
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (IllegalArgumentException | IllegalStateException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
@@ -502,14 +504,14 @@ public class LendingRecordController {
             // Service now throws exceptions on failure or returns ResponseEntity on success
             return lendingRecordService.deleteLendingRecord(id);
         } catch (ForbiddenException | UnauthedException e) {
-             // Re-throw auth exceptions for handler
-             throw e;
+            // Re-throw auth exceptions for handler
+            throw e;
         } catch (ResourceNotFoundException e) { // Catch specific not found from service
-             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         } catch (IllegalStateException e) { // Catch specific state errors (e.g., deleting active)
-             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         } catch (Exception e) { // Catch unexpected errors
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An unexpected error occurred: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("An unexpected error occurred: " + e.getMessage());
         }
     }
 
