@@ -222,7 +222,7 @@ export function EventCard({ event, attendeeId }) {
             <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
           </svg>
           <span>
-            {event.participantCount || event.currentNumberParticipants}/{event.maxParticipants} participants
+            {event.currentNumberParticipants ?? event.participantCount}/{event.maxParticipants} participants
           </span>
         </div>
 
