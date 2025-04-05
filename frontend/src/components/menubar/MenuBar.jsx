@@ -46,6 +46,10 @@ export default function MenuBar() {
                <Link to="/games">
                  <Button variant="ghost" className="text-sm font-semibold">Game Search</Button>
                </Link>
+               {/* Add Link to User Search Page */}
+               <Link to="/user-search">
+                 <Button variant="ghost" className="text-sm font-semibold">Users</Button>
+               </Link>
             </div>
           )}
 

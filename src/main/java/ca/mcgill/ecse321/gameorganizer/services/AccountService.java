@@ -192,6 +192,7 @@ public class AccountService implements UserDetailsService { // Implement UserDet
             Event event = registration.getEventRegisteredFor();
             events.add(new EventResponse(event));
         }
+        // Logging removed
         AccountResponse response = new AccountResponse(accountName, events, isGameOwner);
         return ResponseEntity.ok(response);
     }
