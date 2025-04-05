@@ -292,7 +292,7 @@ public class LendingRecordServiceTest {
             // Verify
             assertEquals(HttpStatus.OK, response.getStatusCode());
             assertTrue(response.getBody().contains("successfully"));
-            verify(lendingRecordRepository, times(2)).save(any(LendingRecord.class)); // Expect 2 saves
+            verify(lendingRecordRepository, times(1)).save(any(LendingRecord.class)); // Expect 1 save
             assertEquals(LendingStatus.CLOSED, record.getStatus()); // Verify status change
         } finally {
             SecurityContextHolder.clearContext(); // Clear context after test
@@ -384,7 +384,7 @@ public class LendingRecordServiceTest {
             // Verify
             assertEquals(HttpStatus.OK, response.getStatusCode());
             assertTrue(response.getBody().contains("successfully"));
-            verify(lendingRecordRepository, times(2)).save(any(LendingRecord.class)); // Expect 2 saves
+            verify(lendingRecordRepository, times(1)).save(any(LendingRecord.class)); // Expect 1 save
             assertEquals(LendingStatus.CLOSED, record.getStatus());
             assertTrue(record.isDamaged());
             assertEquals("Minor scratch", record.getDamageNotes());
@@ -433,7 +433,7 @@ public class LendingRecordServiceTest {
             // Verify
             assertEquals(HttpStatus.OK, response.getStatusCode());
             assertTrue(response.getBody().contains("successfully"));
-            verify(lendingRecordRepository, times(2)).save(any(LendingRecord.class)); // Expect 2 saves
+            verify(lendingRecordRepository, times(1)).save(any(LendingRecord.class)); // Expect 1 save
             assertEquals(newEndDate, record.getEndDate()); // Verify date change
         } finally {
             SecurityContextHolder.clearContext();

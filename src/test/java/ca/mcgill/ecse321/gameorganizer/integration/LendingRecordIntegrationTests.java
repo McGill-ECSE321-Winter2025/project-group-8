@@ -155,7 +155,7 @@ public class LendingRecordIntegrationTests {
         requestMap.put("endDate", endDate);
 
         mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL)
-                .with(user(OWNER_EMAIL).password(TEST_PASSWORD).roles("GAME_OWNER")) // Authenticate as owner
+                .with(user(testOwner.getEmail()).password(TEST_PASSWORD).roles("GAME_OWNER")) // Use actual owner email
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(requestMap)))
             .andExpect(status().isOk())
@@ -174,7 +174,7 @@ public class LendingRecordIntegrationTests {
         requestMap.put("endDate", now + 86400000L);
 
         mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL)
-                .with(user(OWNER_EMAIL).password(TEST_PASSWORD).roles("GAME_OWNER"))
+                .with(user(testOwner.getEmail()).password(TEST_PASSWORD).roles("GAME_OWNER"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(requestMap)))
             .andExpect(status().isBadRequest()); // Controller should reject missing requestId
@@ -191,7 +191,7 @@ public class LendingRecordIntegrationTests {
         requestMap.put("endDate", now);
 
         mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL)
-                .with(user(OWNER_EMAIL).password(TEST_PASSWORD).roles("GAME_OWNER"))
+                .with(user(testOwner.getEmail()).password(TEST_PASSWORD).roles("GAME_OWNER"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(requestMap)))
             .andExpect(status().isBadRequest());
@@ -208,7 +208,7 @@ public class LendingRecordIntegrationTests {
         requestMap.put("endDate", now + 86400000L);
 
         mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL)
-                .with(user(OWNER_EMAIL).password(TEST_PASSWORD).roles("GAME_OWNER")) // Authenticate as a valid owner
+                .with(user(testOwner.getEmail()).password(TEST_PASSWORD).roles("GAME_OWNER")) // Use actual owner email
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(requestMap)))
             .andExpect(status().isBadRequest()); // Service should reject based on invalid ownerId in DTO
@@ -223,7 +223,7 @@ public class LendingRecordIntegrationTests {
         Date newEndDate = new Date(System.currentTimeMillis() + 2 * 86400000L); // 2 days from now
 
         mockMvc.perform(MockMvcRequestBuilders.put(BASE_URL + "/" + testRecord.getId() + "/end-date")
-                .with(user(OWNER_EMAIL).password(TEST_PASSWORD).roles("GAME_OWNER")) // Owner updates end date
+                .with(user(testOwner.getEmail()).password(TEST_PASSWORD).roles("GAME_OWNER")) // Use actual owner email
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(newEndDate)))
             .andExpect(status().isOk())
@@ -237,7 +237,7 @@ public class LendingRecordIntegrationTests {
         Date invalidEndDate = new Date(testRecord.getStartDate().getTime() - 86400000L);
 
         mockMvc.perform(MockMvcRequestBuilders.put(BASE_URL + "/" + testRecord.getId() + "/end-date")
-                .with(user(OWNER_EMAIL).password(TEST_PASSWORD).roles("GAME_OWNER"))
+                .with(user(testOwner.getEmail()).password(TEST_PASSWORD).roles("GAME_OWNER"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(invalidEndDate)))
             .andExpect(status().isBadRequest()); // Service validation should fail
@@ -249,7 +249,7 @@ public class LendingRecordIntegrationTests {
         Date newEndDate = new Date(System.currentTimeMillis() + 2 * 86400000L);
 
         mockMvc.perform(MockMvcRequestBuilders.put(BASE_URL + "/99999/end-date")
-                .with(user(OWNER_EMAIL).password(TEST_PASSWORD).roles("GAME_OWNER"))
+                .with(user(testOwner.getEmail()).password(TEST_PASSWORD).roles("GAME_OWNER"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(newEndDate)))
             .andExpect(status().isNotFound()); // Expect 404 for non-existent record
@@ -264,12 +264,13 @@ public class LendingRecordIntegrationTests {
         // First, close the record
         mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL + "/" + testRecord.getId() + "/confirm-return")
                 .param("isDamaged", "false")
-                .with(user(OWNER_EMAIL).password(TEST_PASSWORD).roles("GAME_OWNER")))
+                .param("reason", "Game returned in good condition") // Add reason parameter
+                .with(user(testOwner.getEmail()).password(TEST_PASSWORD).roles("GAME_OWNER")))
             .andExpect(status().isOk());
 
         // Now, delete the CLOSED record
         mockMvc.perform(MockMvcRequestBuilders.delete(BASE_URL + "/" + testRecord.getId())
-                .with(user(OWNER_EMAIL).password(TEST_PASSWORD).roles("GAME_OWNER"))) // Owner deletes
+                .with(user(testOwner.getEmail()).password(TEST_PASSWORD).roles("GAME_OWNER"))) // Use actual owner email
             .andExpect(status().isOk());
 
         assertFalse(lendingRecordRepository.findById(testRecord.getId()).isPresent());
@@ -279,7 +280,7 @@ public class LendingRecordIntegrationTests {
     @Order(9)
     public void testDeleteNonExistentLendingRecord() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.delete(BASE_URL + "/99999")
-                .with(user(OWNER_EMAIL).password(TEST_PASSWORD).roles("GAME_OWNER")))
+                .with(user(testOwner.getEmail()).password(TEST_PASSWORD).roles("GAME_OWNER")))
             .andExpect(status().isNotFound()); // Expect 404
     }
 
@@ -289,17 +290,18 @@ public class LendingRecordIntegrationTests {
         // First, close the record
         mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL + "/" + testRecord.getId() + "/confirm-return")
                 .param("isDamaged", "false")
-                .with(user(OWNER_EMAIL).password(TEST_PASSWORD).roles("GAME_OWNER")))
+                .param("reason", "Game returned in good condition") // Add reason parameter
+                .with(user(testOwner.getEmail()).password(TEST_PASSWORD).roles("GAME_OWNER")))
             .andExpect(status().isOk());
 
         // First deletion attempt
         mockMvc.perform(MockMvcRequestBuilders.delete(BASE_URL + "/" + testRecord.getId())
-                .with(user(OWNER_EMAIL).password(TEST_PASSWORD).roles("GAME_OWNER")))
+                .with(user(testOwner.getEmail()).password(TEST_PASSWORD).roles("GAME_OWNER")))
             .andExpect(status().isOk());
 
         // Second deletion attempt
         mockMvc.perform(MockMvcRequestBuilders.delete(BASE_URL + "/" + testRecord.getId())
-                .with(user(OWNER_EMAIL).password(TEST_PASSWORD).roles("GAME_OWNER")))
+                .with(user(testOwner.getEmail()).password(TEST_PASSWORD).roles("GAME_OWNER")))
             .andExpect(status().isNotFound()); // Expect 404 as it's already deleted
     }
 
@@ -373,7 +375,7 @@ public class LendingRecordIntegrationTests {
         filterDto.setStatus(LendingStatus.ACTIVE.name());
 
         mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL + "/filter")
-                .with(user(OWNER_EMAIL).password(TEST_PASSWORD).roles("GAME_OWNER")) // Requires auth
+                .with(user(testOwner.getEmail()).password(TEST_PASSWORD).roles("GAME_OWNER")) // Use actual owner email
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(filterDto)))
             .andExpect(status().isOk())
@@ -435,7 +437,7 @@ public class LendingRecordIntegrationTests {
         statusDto.setReason("Game is overdue");
 
         mockMvc.perform(MockMvcRequestBuilders.put(BASE_URL + "/" + testRecord.getId() + "/status")
-                .with(user(OWNER_EMAIL).password(TEST_PASSWORD).roles("GAME_OWNER")) // Owner performs action
+                .with(user(testOwner.getEmail()).password(TEST_PASSWORD).roles("GAME_OWNER")) // Use actual owner email
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(statusDto)))
             .andExpect(status().isOk())
@@ -449,7 +451,8 @@ public class LendingRecordIntegrationTests {
         // First, close the record
         mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL + "/" + testRecord.getId() + "/confirm-return")
                 .param("isDamaged", "false")
-                .with(user(OWNER_EMAIL).password(TEST_PASSWORD).roles("GAME_OWNER")))
+                .param("reason", "Game returned in good condition") // Add reason parameter
+                .with(user(testOwner.getEmail()).password(TEST_PASSWORD).roles("GAME_OWNER")))
             .andExpect(status().isOk());
 
         // Now try to change from CLOSED to ACTIVE
@@ -459,7 +462,7 @@ public class LendingRecordIntegrationTests {
         statusDto.setReason("Trying invalid transition");
 
         mockMvc.perform(MockMvcRequestBuilders.put(BASE_URL + "/" + testRecord.getId() + "/status")
-                .with(user(OWNER_EMAIL).password(TEST_PASSWORD).roles("GAME_OWNER"))
+                .with(user(testOwner.getEmail()).password(TEST_PASSWORD).roles("GAME_OWNER"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(statusDto)))
             .andExpect(status().isBadRequest()); // Expect 400 BAD REQUEST for invalid state transition
@@ -470,7 +473,7 @@ public class LendingRecordIntegrationTests {
     public void testMarkGameAsReturned() throws Exception {
         mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL + "/" + testRecord.getId() + "/mark-returned")
                 // .param("userId", String.valueOf(testBorrower.getId())) // userId is optional now
-                .with(user(BORROWER_EMAIL).password(TEST_PASSWORD).roles("USER"))) // Borrower marks as returned
+                .with(user(testBorrower.getEmail()).password(TEST_PASSWORD).roles("USER"))) // Use actual borrower email
             .andExpect(status().isOk());
 
         LendingRecord updatedRecord = lendingRecordRepository.findById(testRecord.getId()).orElse(null);
@@ -486,8 +489,8 @@ public class LendingRecordIntegrationTests {
                 .param("isDamaged", "true")
                 .param("damageNotes", "The game box is damaged")
                 .param("damageSeverity", "2")
-                // .param("userId", String.valueOf(testOwner.getId())) // userId is optional
-                .with(user(OWNER_EMAIL).password(TEST_PASSWORD).roles("GAME_OWNER"))) // Owner confirms return
+                .param("reason", "Game returned with moderate damage") // Add reason parameter
+                .with(user(testOwner.getEmail()).password(TEST_PASSWORD).roles("GAME_OWNER"))) // Use actual owner email
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.isDamaged").value(true))
@@ -537,13 +540,14 @@ public class LendingRecordIntegrationTests {
         // First close the record
         mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL + "/" + testRecord.getId() + "/confirm-return")
                 .param("isDamaged", "false")
-                .with(user(OWNER_EMAIL).password(TEST_PASSWORD).roles("GAME_OWNER")))
+                .param("reason", "Game returned in good condition") // Add reason parameter
+                .with(user(testOwner.getEmail()).password(TEST_PASSWORD).roles("GAME_OWNER")))
             .andExpect(status().isOk());
 
         // Now try updating end date on a closed record
         Date newEndDate = new Date(System.currentTimeMillis() + 86400000L);
         mockMvc.perform(MockMvcRequestBuilders.put(BASE_URL + "/" + testRecord.getId() + "/end-date")
-                .with(user(OWNER_EMAIL).password(TEST_PASSWORD).roles("GAME_OWNER"))
+                .with(user(testOwner.getEmail()).password(TEST_PASSWORD).roles("GAME_OWNER"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(newEndDate)))
             .andExpect(status().isBadRequest()); // Expect 400 BAD REQUEST from GlobalExceptionHandler for IllegalStateException

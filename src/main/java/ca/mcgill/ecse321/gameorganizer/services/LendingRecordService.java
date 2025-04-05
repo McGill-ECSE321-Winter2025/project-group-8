@@ -334,7 +334,7 @@ public class LendingRecordService {
         record.setStatusChangeReason(reason != null ? reason : "Status updated by user");
         
         log.debug("Attempting to save updated record ID: {} with status {}", record.getId(), record.getStatus());
-        lendingRecordRepository.save(record);
+        // REMOVED REDUNDANT SAVE CALL HERE
         try {
             log.debug("Attempting final save for record ID: {}", record.getId());
             lendingRecordRepository.save(record);
@@ -505,7 +505,7 @@ public class LendingRecordService {
         record.recordClosing(userId, closingReason);
         
         log.debug("Attempting to save closed record ID: {} with damage assessment.", record.getId());
-        lendingRecordRepository.save(record);
+        // REMOVED REDUNDANT SAVE CALL HERE
         try {
             lendingRecordRepository.save(record);
             log.info("Successfully saved closed record ID: {}", record.getId());
@@ -588,7 +588,7 @@ public class LendingRecordService {
         
         record.setEndDate(newEndDate);
         log.debug("Attempting to save record ID: {} with updated end date.", record.getId());
-        lendingRecordRepository.save(record);
+        // REMOVED REDUNDANT SAVE CALL HERE
         try {
             lendingRecordRepository.save(record);
             log.info("Successfully saved record ID: {} with updated end date.", record.getId());

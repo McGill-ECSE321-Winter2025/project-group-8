@@ -204,6 +204,9 @@ public class EventController {
             Event event = eventService.createEvent(request, email);
             log.info("Event created successfully with ID: {}", event.getId());
             return ResponseEntity.status(HttpStatus.CREATED).body(new EventResponse(event));
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid request creating event: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         } catch (Exception e) {
             log.error("Error creating event: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
