@@ -41,5 +41,3 @@ export const getUserInfoByEmail = async (email) => {
   }
 };
 
-// TODO: Add other user-related API functions here if needed
-// e.g., searchUsers, getUserById, updateUser, etc.
