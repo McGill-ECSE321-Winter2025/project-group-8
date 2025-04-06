@@ -146,39 +146,69 @@ public class GameService {
             
             // Use ownerId from DTO if provided
             String dtoOwnerId = aNewGame.getOwnerId();
+            
+            // Get authentication from security context
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            
+            // DEBUG: Log authentication info
+            System.out.println("GameService.createGame: Authentication from SecurityContextHolder: " + 
+                (authentication != null ? authentication.getName() : "null"));
+            
+            if (authentication == null) {
+                throw new UnauthedException("No authentication found in security context");
+            }
+            
             if (dtoOwnerId != null && !dtoOwnerId.isEmpty()) {
                 ownerEmail = dtoOwnerId;
+                
+                // DEBUG: Verify owner email matches authenticated user
+                if (!ownerEmail.equals(authentication.getName())) {
+                    System.out.println("GameService.createGame: WARNING - DTO owner email (" + ownerEmail + 
+                        ") doesn't match authenticated user (" + authentication.getName() + ")");
+                }
+                
                 ownerAccount = accountRepository.findByEmail(ownerEmail)
                     .orElseThrow(() -> new UnauthedException("Owner with email " + ownerEmail + " does not exist"));
             } else {
                 // Otherwise use authenticated user
-                Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
                 ownerEmail = authentication.getName();
+                System.out.println("GameService.createGame: Using authenticated user as owner: " + ownerEmail);
+                
                 ownerAccount = accountRepository.findByEmail(ownerEmail)
                     .orElseThrow(() -> new UnauthedException("Authenticated owner account not found in database."));
             }
 
             // Ensure the account is indeed a GameOwner
             if (!(ownerAccount instanceof GameOwner)) {
+                System.out.println("GameService.createGame: User is not a GameOwner: " + ownerEmail);
                 throw new ForbiddenException("User is not a GameOwner.");
             }
+            
             GameOwner gameOwner = (GameOwner) ownerAccount;
+            System.out.println("GameService.createGame: Verified GameOwner status for: " + ownerEmail);
 
+            // Create and save the game
             Game createdGame = new Game(aNewGame.getName(), aNewGame.getMinPlayers(), aNewGame.getMaxPlayers(), 
                                         aNewGame.getImage(), new Date());
             createdGame.setOwner(gameOwner);
             createdGame.setCategory(aNewGame.getCategory());
             
-            gameRepository.save(createdGame);
+            Game savedGame = gameRepository.save(createdGame);
+            System.out.println("GameService.createGame: Successfully created game: " + savedGame.getId() + 
+                " - " + savedGame.getName() + " for owner: " + ownerEmail);
 
-            return new GameResponseDto(createdGame);
+            return new GameResponseDto(savedGame);
 
         } catch (IllegalArgumentException | ForbiddenException | UnauthedException e) {
+            System.out.println("GameService.createGame: Error: " + e.getClass().getSimpleName() + " - " + e.getMessage());
             throw e; // Re-throw these exceptions directly
         } catch (org.springframework.security.access.AccessDeniedException e) {
+            System.out.println("GameService.createGame: Access denied: " + e.getMessage());
             throw new ForbiddenException("Access denied: User must have ROLE_GAME_OWNER to create a game.");
         } catch (Exception e) {
             // Log unexpected errors
+            System.out.println("GameService.createGame: Unexpected error: " + e.getMessage());
+            e.printStackTrace();
             throw new RuntimeException("An unexpected error occurred while creating the game.", e);
         }
     }

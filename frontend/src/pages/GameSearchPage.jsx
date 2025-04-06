@@ -4,9 +4,11 @@ import { Dialog, DialogTrigger } from "../components/ui/dialog";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 // Import game components
 import { GameCard } from "../components/game-search-page/GameCard";
+import AuthRestrictedGameCard from "../components/game-search-page/AuthRestrictedGameCard";
 import { GameDetailsDialog } from "../components/game-search-page/GameDetailsDialog";
 import { RequestGameDialog } from "../components/game-search-page/RequestGameDialog";
 // Removed mock data import
@@ -15,6 +17,7 @@ import { searchGames } from "../service/game-api"; // Added API service import
 export default function GameSearchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const [searchTerm, setSearchTerm] = useState(searchParams.get("q") || "");
   const fromUserId = searchParams.get("fromUser");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -33,6 +36,9 @@ export default function GameSearchPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   
+  // Select the appropriate GameCard component based on authentication status
+  const GameCardComponent = isAuthenticated ? GameCard : AuthRestrictedGameCard;
+
   // Function to apply filters
   const applyFilters = () => {
     setIsFilterOpen(false);
@@ -249,33 +255,42 @@ export default function GameSearchPage() {
             {games.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-lg text-muted-foreground">No games found matching your criteria.</p>
-                <p className="text-sm text-muted-foreground">Try adjusting your search or filters.</p>
+                <p className="text-muted-foreground">Try adjusting your search or filters.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {games.map((game) => (
-                  <GameCard 
-                    key={game.id} 
-                    game={game} 
-                    onRequest={handleRequestGame} 
-                  />
+                  <Dialog key={game.id}>
+                    <DialogTrigger asChild>
+                      <div className="cursor-pointer">
+                        <GameCardComponent 
+                          game={game} 
+                          showInstanceCount={true}
+                        />
+                      </div>
+                    </DialogTrigger>
+                    {isAuthenticated && (
+                      <GameDetailsDialog 
+                        game={game} 
+                        onRequestGame={handleRequestGame} 
+                      />
+                    )}
+                  </Dialog>
                 ))}
               </div>
             )}
           </>
         )}
-      </div>
-
-      {/* Game request dialog */}
-      {isRequestModalOpen && (
-        <RequestGameDialog
-          open={isRequestModalOpen}
+        
+        {/* Request game dialog */}
+        <RequestGameDialog 
+          isOpen={isRequestModalOpen} 
           onClose={() => setIsRequestModalOpen(false)}
           game={selectedGame}
           gameInstance={selectedInstance}
           onSubmit={handleSubmitRequest}
         />
-      )}
+      </div>
     </div>
   );
 }

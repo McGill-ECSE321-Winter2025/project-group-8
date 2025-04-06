@@ -7,7 +7,7 @@ import DashboardGameLibrary from "@/components/dashboard-page/DashboardGameLibra
 import DashboardLendingRecord from "@/components/dashboard-page/DashboardLendingRecord.jsx";
 import SideMenuBar from "@/components/dashboard-page/SideMenuBar.jsx";
 import { Route, Routes } from "react-router-dom";
-import { useState } from "react"; // Keep useState for error state
+import { useState, useEffect } from "react"; // Added useEffect for logging
 import { useAuth } from "@/context/AuthContext"; // Import useAuth
 import { Loader2 } from "lucide-react"; // Import loader
 
@@ -15,8 +15,18 @@ export default function DashboardPage() {
   // Get user and loading state from AuthContext
   const { user, loading: authLoading } = useAuth();
   
+  // Add debug logging for the user object
+  useEffect(() => {
+    console.log("[DashboardPage] User object:", user);
+    console.log("[DashboardPage] Raw gameOwner property:", user?.gameOwner);
+    // Convert to boolean and log
+    const isGameOwner = !!user?.gameOwner;
+    console.log("[DashboardPage] Interpreted as gameOwner:", isGameOwner);
+  }, [user]);
+  
   // Derive userType directly from the user object when available
-  const userType = user ? (user.gameOwner ? "owner" : "player") : null;
+  // Make sure to convert gameOwner property to boolean with !!
+  const userType = user ? (!!user.gameOwner ? "owner" : "player") : null;
 
   // Error state can be simplified or removed if ProtectedRoute handles redirects
   const [error, setError] = useState(null); // Keep for potential non-auth errors? Or remove.
@@ -54,12 +64,12 @@ export default function DashboardPage() {
               <CardHeader className="w-[1/4] flex flex-row items-center gap-4">
                 <Avatar className="h-12 w-12">
                   {/* TODO: Add actual user avatar if available (user.avatarUrl?) */}
-                  <AvatarImage src={user?.avatarUrl || "/placeholder.svg?height=48&width=48"} alt={user?.username || 'User'}/>
-                  {/* Fallback uses initials from username */}
-                  <AvatarFallback>{user?.username ? user.username.substring(0, 2).toUpperCase() : 'U'}</AvatarFallback>
+                  <AvatarImage src={user?.avatarUrl || "/placeholder.svg?height=48&width=48"} alt={user?.name || 'User'}/>
+                  {/* Fallback uses initials from user's name */}
+                  <AvatarFallback>{user?.name ? user.name.substring(0, 2).toUpperCase() : 'U'}</AvatarFallback>
                 </Avatar>
                 <div>
-                  <CardTitle>{user?.username || 'User'}</CardTitle> {/* Use username from context */}
+                  <CardTitle>{user?.name || 'User'}</CardTitle> {/* Use name from context */}
                   <CardDescription>{userType === "owner" ? "Game Owner" : "Player"}</CardDescription>
                 </div>
               </CardHeader>

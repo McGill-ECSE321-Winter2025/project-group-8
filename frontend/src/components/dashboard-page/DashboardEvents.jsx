@@ -1,10 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { TabsContent } from "@/components/ui/tabs.jsx";
 import { Button } from "@/components/ui/button.jsx";
 import Event from "./Event.jsx"; // Assuming this component displays event details
 import CreateEventDialog from "../events-page/CreateEventDialog.jsx"; // Import dialog
 import { getEventsByHostEmail, getEventById } from "../../service/event-api.js"; // Import event fetchers
 import { getRegistrationsByEmail } from "../../service/registration-api.js"; // Import attended events fetcher
+import { UnauthorizedError } from "@/service/apiClient"; // Import UnauthorizedError
+import { useAuth } from "@/context/AuthContext"; // Import useAuth
 import { Loader2 } from "lucide-react"; // Import loader
 
 export default function DashboardEvents({ userType }) { // Accept userType prop
@@ -13,12 +15,24 @@ export default function DashboardEvents({ userType }) { // Accept userType prop
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const MAX_RETRIES = 2;
+  const { user, isSessionExpired, handleSessionExpired } = useAuth(); // Get auth context functions
 
-  // Function to fetch both hosted and attended events
-  const fetchDashboardEvents = async () => {
+  // Function to fetch both hosted and attended events - memoized to prevent infinite loops
+  const fetchDashboardEvents = useCallback(async () => {
+    console.log("[DashboardEvents] Fetching events for user:", user?.email);
+    
+    // Don't attempt to fetch if session is known to be expired
+    if (isSessionExpired) {
+      setIsLoading(false);
+      setError("Your session has expired. Please log in again.");
+      return;
+    }
+    
     setIsLoading(true);
     setError(null);
-    const userEmail = localStorage.getItem("userEmail");
+    const userEmail = user?.email;
 
     if (!userEmail) {
       setError("User email not found. Please log in again.");
@@ -37,11 +51,21 @@ export default function DashboardEvents({ userType }) { // Accept userType prop
       }
 
       // Fetch registrations (attended events)
-      const registrations = await getRegistrationsByEmail(userEmail);
-      // Removed duplicated line below
+      const response = await getRegistrationsByEmail(userEmail);
+      
+      // Ensure registrations is an array
+      const registrations = Array.isArray(response) ? response : [];
+      console.log("[DashboardEvents] Registrations response:", response);
 
       // Get event IDs from registrations
       const eventIds = registrations.map(reg => reg.eventId).filter(Boolean);
+      
+      // If no event IDs, set empty attendedEvents and return early
+      if (eventIds.length === 0) {
+        setAttendedEvents([]);
+        setIsLoading(false);
+        return;
+      }
 
       // Fetch full event details for each attended event ID
       const attendedEventPromises = eventIds.map(id => getEventById(id));
@@ -52,6 +76,9 @@ export default function DashboardEvents({ userType }) { // Accept userType prop
         .map(result => result.value);
       setAttendedEvents(attended || []);
 
+      // Reset retry counter on success
+      setRetryCount(0);
+
       // Log any errors from fetching individual attended events
       attendedEventResults
          .filter(result => result.status === 'rejected')
@@ -59,24 +86,58 @@ export default function DashboardEvents({ userType }) { // Accept userType prop
 
     } catch (err) {
       // This will catch errors from fetching hosted events or registrations list
-      console.error("Failed to fetch dashboard events data:", err);
-      setError(err.message || "Could not load events.");
-      setHostedEvents([]);
-      setAttendedEvents([]);
+      if (err instanceof UnauthorizedError) {
+        console.warn(`Unauthorized access fetching dashboard events (attempt ${retryCount + 1}/${MAX_RETRIES}).`, err);
+        
+        // Check if it's a session expired error
+        if (err.message === 'Session expired') {
+          // Use handleSessionExpired instead of direct logout
+          // Only notify about session expiration if we've tried a few times
+          if (retryCount >= MAX_RETRIES - 1) {
+            handleSessionExpired();
+          } else {
+            // Try again with a delay
+            setRetryCount(prevCount => prevCount + 1);
+            setTimeout(() => {
+              fetchDashboardEvents();
+            }, 1000);
+            return; // Exit to avoid setting loading to false
+          }
+        }
+      } else {
+        console.error("Failed to fetch dashboard events data:", err);
+        setError(err.message || "Could not load events.");
+        setHostedEvents([]);
+        setAttendedEvents([]);
+      }
     } finally {
-      setIsLoading(false);
+      // Only set loading to false if we're not retrying
+      if (retryCount >= MAX_RETRIES - 1 || !error) {
+        setIsLoading(false);
+      }
     }
-  };
+  }, [userType, user?.email, handleSessionExpired, retryCount, isSessionExpired]);
 
-  // Fetch events on component mount and when userType changes
+  // Fetch events on component mount and when userType or user changes
   useEffect(() => {
-    fetchDashboardEvents();
-  }, [userType]);
+    console.log("[DashboardEvents] useEffect triggered, user:", !!user);
+    if (user) {
+      fetchDashboardEvents();
+    }
+  }, [userType, user, fetchDashboardEvents]);
+
+  // Effect to handle session expiration state changes
+  useEffect(() => {
+    if (isSessionExpired) {
+      setIsLoading(false);
+      setError("Your session has expired. Please log in again.");
+    }
+  }, [isSessionExpired]);
 
   // Function to handle event creation success (passed to dialog)
-  const handleEventAdded = () => {
+  const handleEventAdded = useCallback(() => {
     fetchDashboardEvents(); // Re-fetch events after adding a new one
-  };
+  }, [fetchDashboardEvents]);
 
   // Helper to adapt backend event DTO to what the child Event component expects
   // TODO: Verify props expected by the ./Event.jsx component

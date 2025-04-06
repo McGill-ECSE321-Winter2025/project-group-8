@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { getUserInfoByEmail } from "../service/user-api.js";
 import { getGamesByOwner } from "../service/game-api.js";
 import { Loader2 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext"; // Import useAuth
 
 // Define GameCard locally if it's specific to this page, otherwise import it
 const GameCard = ({ game }) => {
@@ -32,53 +33,72 @@ const GameCard = ({ game }) => {
 export default function UserProfilePage() {
   const [searchParams] = useSearchParams();
   const profileEmail = searchParams.get('email');
+  const { user: currentUser } = useAuth(); // Get current user from AuthContext
 
   // State for fetched data
   const [userInfo, setUserInfo] = useState(null); // Includes name, events, isGameOwner
   const [ownedGamesList, setOwnedGamesList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // Ref to track the last fetched email to prevent redundant API calls
+  const lastFetchedEmailRef = useRef(null);
+
+  // Memoize fetchData to prevent recreation on each render
+  const fetchData = useCallback(async (emailToFetch) => {
+    // Skip if we're trying to fetch the same email again
+    if (lastFetchedEmailRef.current === emailToFetch && userInfo) {
+      return;
+    }
+    
+    // Update the ref to the current email being fetched
+    lastFetchedEmailRef.current = emailToFetch;
+    
+    if (!emailToFetch) {
+      setError("No user email specified in URL and you are not logged in.");
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    setUserInfo(null);
+    setOwnedGamesList([]);
+
+    try {
+      // Fetch basic account info (name, type, registered events)
+      const accountData = await getUserInfoByEmail(emailToFetch);
+      setUserInfo(accountData);
+
+      // If user is a game owner, fetch their games
+      if (accountData && accountData.gameOwner) {
+        try {
+          const gamesData = await getGamesByOwner(emailToFetch);
+          setOwnedGamesList(gamesData || []);
+        } catch (gamesError) {
+           console.error("Failed to fetch owned games:", gamesError);
+           setError("Could not load owned games. " + (gamesError.message || ''));
+        }
+      }
+    } catch (accountError) {
+      console.error("Failed to fetch user info:", accountError);
+      setError(accountError.message || "Could not load user profile.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchData = async () => {
-      if (!profileEmail) {
-        setError("No user email specified in URL.");
-        setIsLoading(false);
-        return;
-      }
-
-      setIsLoading(true);
-      setError(null);
-      setUserInfo(null);
-      setOwnedGamesList([]);
-
-      try {
-        // Fetch basic account info (name, type, registered events)
-        const accountData = await getUserInfoByEmail(profileEmail);
-        setUserInfo(accountData);
-
-        // If user is a game owner, fetch their games
-        if (accountData && accountData.gameOwner) {
-          try {
-            const gamesData = await getGamesByOwner(profileEmail);
-            setOwnedGamesList(gamesData || []);
-          } catch (gamesError) {
-             console.error("Failed to fetch owned games:", gamesError);
-             setError("Could not load owned games. " + (gamesError.message || ''));
-             // Continue loading profile even if games fail? Or set main error?
-             // Let's set the main error for now.
-          }
-        }
-      } catch (accountError) {
-        console.error("Failed to fetch user info:", accountError);
-        setError(accountError.message || "Could not load user profile.");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [profileEmail]); // Re-fetch if email changes
+    console.log(`[UserProfilePage] Rendering with profileEmail: ${profileEmail}, currentUser: ${!!currentUser?.email}`);
+    
+    // Use profile email from URL params, or fall back to current user's email
+    const emailToFetch = profileEmail || currentUser?.email;
+    
+    // Only fetch if we have an email to fetch
+    if (emailToFetch) {
+      fetchData(emailToFetch);
+    }
+  }, [profileEmail, fetchData]); // Remove currentUser?.email from dependencies
 
   // Loading state
   if (isLoading) {

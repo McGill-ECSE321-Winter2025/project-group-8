@@ -29,9 +29,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     public static final String AUTH_ATTRIBUTE = "JWT_AUTHENTICATION";
     
-    // Add this ThreadLocal to track authentication across filter chain
-    private static final ThreadLocal<Authentication> authenticationThreadLocal = new ThreadLocal<>();
-    
     private final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
     
     private final JwtUtil jwtUtil;
@@ -107,9 +104,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         // Set authentication in context
                         SecurityContextHolder.getContext().setAuthentication(authRef[0]);
                         
-                        // Store authentication in ThreadLocal to track changes
-                        authenticationThreadLocal.set(authRef[0]);
-                        
                         log.debug("Authentication set in SecurityContextHolder: {}", authRef[0]);
                         
                         // Store in request attributes for later use
@@ -141,48 +135,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             log.warn("No token provided for authenticated account endpoint: {}", request.getRequestURI());
         }
         
-        // Store authentication reference for the lambda
-        final Authentication auth = authRef[0];
-        
-        // Create a wrapper for the response to restore authentication after the filter chain
-        HttpServletResponseWrapper responseWrapper = new HttpServletResponseWrapper(response) {
-            // When the filter chain finishes, we need to ensure authentication context propagation
-            @Override
-            public void setStatus(int sc) {
-                // If we have a 401 error, and it's an authenticated resource, log for debugging
-                if (sc == HttpServletResponse.SC_UNAUTHORIZED && auth != null) {
-                    log.warn("Downstream filter set 401 response despite valid authentication");
-                    super.setStatus(sc);
-                    return;
-                }
-                
-                super.setStatus(sc);
-            }
-        };
-        
-        try {
-            // Proceed with the filter chain, using our custom response wrapper
-            filterChain.doFilter(request, responseWrapper);
-        } finally {
-            // Check if authentication was modified
-            Authentication currentAuth = SecurityContextHolder.getContext().getAuthentication();
-            Authentication originalAuth = authenticationThreadLocal.get();
-            
-            if (originalAuth != null && currentAuth == null) {
-                log.error("Authentication was removed during filter chain execution!");
-                log.error("Original auth: {}", originalAuth);
-                
-                // Log current security filters to help debug
-                log.error("Request URI: {}", request.getRequestURI());
-                log.error("Response status: {}", responseWrapper.getStatus());
-            }
-            
-            // Log security context after the filter chain (for debugging purposes)
-            log.debug("Security context AFTER filter chain: {}", SecurityContextHolder.getContext());
-            
-            // Clear ThreadLocal to prevent memory leaks
-            authenticationThreadLocal.remove();
-        }
+        // Proceed with the filter chain using the original response
+        filterChain.doFilter(request, response);
+
+        // Log security context after the filter chain (for debugging purposes)
+        log.debug("Security context AFTER filter chain: {}", SecurityContextHolder.getContext());
     }
     
     /**

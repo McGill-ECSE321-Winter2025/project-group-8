@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "../../ui/dialog";
@@ -10,6 +10,7 @@ import { createEvent } from "../../service/event-api.js";
 // Import searchGames API function and Loader icon
 import { searchGames, getGamesByOwner } from "../../service/game-api.js";
 import { Loader2 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext"; // Import useAuth
 
 // Accept onEventAdded prop
 export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) {
@@ -21,6 +22,12 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
   const [isSearchingGames, setIsSearchingGames] = useState(false);
   const [userGames, setUserGames] = useState([]);
   const [isLoadingUserGames, setIsLoadingUserGames] = useState(false);
+  const { user } = useAuth(); // Get user from AuthContext
+  
+  // Track if component is mounted
+  const isMountedRef = useRef(true);
+  // Track last fetched email to prevent redundant fetches
+  const lastFetchedEmailRef = useRef(null);
 
   const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm({
     defaultValues: {
@@ -33,22 +40,41 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
     },
   });
 
-  // Get current user's email from localStorage
-  const userEmail = localStorage.getItem("userEmail");
+  // Get current user's email from context
+  const userEmail = user?.email;
+  
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Load user's games when dialog opens
   useEffect(() => {
-    if (open && userEmail) {
+    console.log("[CreateEventDialog] Dialog open state changed:", open);
+    
+    if (open && userEmail && lastFetchedEmailRef.current !== userEmail) {
       const loadUserGames = async () => {
         setIsLoadingUserGames(true);
+        lastFetchedEmailRef.current = userEmail;
+        
         try {
+          console.log("[CreateEventDialog] Loading games for user:", userEmail);
           const games = await getGamesByOwner(userEmail);
-          setUserGames(games || []);
+          
+          if (isMountedRef.current) {
+            setUserGames(games || []);
+          }
         } catch (error) {
           console.error("Failed to load user's games:", error);
-          toast.error("Failed to load your games. Please try again.");
+          if (isMountedRef.current) {
+            toast.error("Failed to load your games. Please try again.");
+          }
         } finally {
-          setIsLoadingUserGames(false);
+          if (isMountedRef.current) {
+            setIsLoadingUserGames(false);
+          }
         }
       };
       
@@ -94,12 +120,12 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
     return () => clearTimeout(debounceTimer);
   }, [watchedGameSearchTerm, selectedGameId, userGames]);
 
-  const handleGameSelect = (game) => {
+  const handleGameSelect = useCallback((game) => {
     setSelectedGameId(game.id);
     setValue("gameSearchTermInput", game.name);
     setGameSearchResults([]);
     setSubmitError("");
-  };
+  }, [setValue]);
 
   const onSubmit = handleSubmit(async (data) => {
     // Manually check if a game was selected
@@ -118,7 +144,6 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
     // Remove the temporary search input value from the data to be submitted
     const { gameSearchTermInput, ...formData } = data;
 
-
     setIsLoading(true);
     setSubmitError("");
 
@@ -128,32 +153,39 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
       featuredGameId: selectedGameId,
     };
 
-
     try {
       const result = await createEvent(payload);
-      toast.success(`Successfully created event: ${result.title}`);
-      if (onEventAdded) {
-        onEventAdded();
+      
+      if (isMountedRef.current) {
+        toast.success(`Successfully created event: ${result.title}`);
+        if (onEventAdded) {
+          onEventAdded();
+        }
+        handleCancel();
       }
-      handleCancel();
     } catch (error) {
       console.error("Create event error:", error);
-      const errorMsg = error.message || "Failed to create event. Please try again.";
-      setSubmitError(errorMsg);
-      toast.error(errorMsg);
+      
+      if (isMountedRef.current) {
+        const errorMsg = error.message || "Failed to create event. Please try again.";
+        setSubmitError(errorMsg);
+        toast.error(errorMsg);
+      }
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
   });
 
   // Custom reset function to clear game search state as well
-  const handleCancel = () => {
+  const handleCancel = useCallback(() => {
     reset();
     setSelectedGameId(null);
     setGameSearchResults([]);
     setSubmitError("");
     onOpenChange(false);
-  };
+  }, [reset, onOpenChange]);
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {

@@ -1,136 +1,128 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '@/context/AuthContext'; // Import useAuth hook
+import { useAuth } from '../../context/AuthContext';
 import { Loader2 } from 'lucide-react';
 
 /**
- * A component that wraps routes requiring authentication.
- * Checks the authentication state from AuthContext.
- * If the user is authenticated, it renders the child component.
- * If the user is not authenticated, it redirects to the login page.
- * Handles the initial loading state while authentication status is being checked.
- *
- * @param {object} props - The component props.
- * @param {React.ReactNode} props.children - The child component to render if authenticated.
+ * Protected route component that ensures users are authenticated.
+ * Redirects to login page if not authenticated with return URL.
+ * 
+ * @param {Object} props - Component props
+ * @param {React.ReactNode} props.children - Child components to render if authenticated
+ * @param {Array<string>} [props.roles] - Optional roles required to access this route
+ * @returns {React.ReactNode} - The protected children or redirect
  */
-const ProtectedRoute = ({ children }) => {
-  const { user, isAuthenticated, loading, authInitialized, checkAuthStatus, connectionError } = useAuth();
+const ProtectedRoute = ({ children, roles }) => {
+  const { user, isAuthenticated, loading, error, refreshUser, isSessionExpired } = useAuth();
   const location = useLocation();
-  const [localLoading, setLocalLoading] = useState(true);
-  const [retryCount, setRetryCount] = useState(0);
+  const [loadingTimer, setLoadingTimer] = useState(0);
   
-  // Maximum number of times to retry auth check on page load
-  const MAX_RETRIES = 3;
-  const RETRY_DELAY = 1000; // 1 second delay between retries
+  const EXTENDED_LOADING_THRESHOLD = 3; // Show extended message after 3 seconds
 
-  // Effect to log state for debugging
+  // Increment loading timer every second when in loading state
   useEffect(() => {
-    console.log('ProtectedRoute state:', { 
-      path: location.pathname,
-      isAuthenticated, 
-      loading, 
-      localLoading,
-      authInitialized,
-      hasUser: !!user,
-      retryCount,
-      connectionError,
-      hasStoredUser: !!localStorage.getItem('boardgame_connect_user'),
-      hasCookie: document.cookie.includes('accessToken')
-    });
-  }, [isAuthenticated, loading, localLoading, authInitialized, location.pathname, user, retryCount, connectionError]);
-
-  // Effect to perform an extra auth check on initial component mount
-  // This helps with page reloads
-  useEffect(() => {
-    let timeoutId;
-    
-    const verifyAuthentication = async () => {
-      try {
-        // Only retry if not yet authenticated and we haven't exceeded max retries
-        if (!isAuthenticated && retryCount < MAX_RETRIES) {
-          console.log(`ProtectedRoute: Verifying authentication (attempt ${retryCount + 1})`);
-          const result = await checkAuthStatus();
-          
-          if (!result && retryCount < MAX_RETRIES - 1) {
-            console.log(`ProtectedRoute: Auth check failed, scheduling retry in ${RETRY_DELAY}ms`);
-            // Schedule next retry with a delay
-            timeoutId = setTimeout(() => {
-              setRetryCount(prev => prev + 1);
-            }, RETRY_DELAY);
-            return; // Exit early, we'll try again
-          }
-          
-          // Either we succeeded or we're out of retries
-          setRetryCount(prev => prev + 1);
-        }
-      } catch (error) {
-        console.error('ProtectedRoute: Error checking auth status:', error);
-      } finally {
-        // Set local loading to false after auth check attempts are complete
-        if (retryCount >= MAX_RETRIES - 1) {
-          setLocalLoading(false);
-        }
-      }
-    };
-
-    // Check if we have a stored user but auth says we're not authenticated
-    const hasStoredUser = !!localStorage.getItem('boardgame_connect_user');
-    
-    // If auth is initialized but no user, or we have a stored user but auth says we're not authenticated
-    if ((authInitialized && !isAuthenticated) || (!isAuthenticated && hasStoredUser)) {
-      verifyAuthentication();
+    let timerId;
+    if (loading) {
+      timerId = setInterval(() => {
+        setLoadingTimer(prev => prev + 1);
+      }, 1000);
     } else {
-      setLocalLoading(false);
+      setLoadingTimer(0);
     }
     
-    // Clean up timeout if component unmounts
     return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
+      clearInterval(timerId);
     };
-  }, [isAuthenticated, authInitialized, checkAuthStatus, retryCount]);
+  }, [loading]);
 
-  // Show loading state when either global or local loading is true
-  if ((loading && !authInitialized) || localLoading) {
-    console.log('ProtectedRoute: Still loading auth status');
+  // Show loading state during initial authentication
+  if (loading && loadingTimer > 1) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="flex flex-col items-center space-y-4">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-lg text-muted-foreground">Verifying your session...</p>
-        </div>
+      <div className="flex flex-col h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+        
+        {loadingTimer < EXTENDED_LOADING_THRESHOLD ? (
+          <span className="text-lg">Loading...</span>
+        ) : (
+          <div className="text-center max-w-md px-4">
+            <span className="text-lg mb-2">Still working on it...</span>
+            <p className="text-sm text-muted-foreground mt-2">
+              This is taking longer than expected. If this persists,
+              try refreshing the page or clearing your browser cache.
+            </p>
+            {loadingTimer > 8 && (
+              <button 
+                onClick={() => window.location.reload()}
+                className="mt-4 px-4 py-2 bg-primary text-white rounded hover:bg-primary/80"
+              >
+                Refresh Page
+              </button>
+            )}
+          </div>
+        )}
       </div>
     );
   }
 
-  // Show connection error message
-  if (connectionError) {
+  // Show session expired message if session has expired
+  if (isSessionExpired) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="max-w-md p-6 bg-destructive/10 rounded-lg border border-destructive/20">
-          <h2 className="text-xl font-semibold mb-2">Connection Error</h2>
-          <p className="mb-4">Unable to connect to the server. Please check your internet connection and try again.</p>
+      <div className="flex h-screen flex-col items-center justify-center text-center p-4">
+        <h2 className="text-xl font-bold mb-2">Session Expired</h2>
+        <p className="mb-4 max-w-md">Your session has expired due to inactivity. Please log in again to continue.</p>
+        <div className="flex gap-2">
           <button 
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-md"
-            onClick={() => window.location.reload()}
+            onClick={() => window.location.href = `/login?redirect=${encodeURIComponent(location.pathname)}`}
+            className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/80"
           >
-            Retry
+            Log In Again
           </button>
         </div>
       </div>
     );
   }
 
+  // If not authenticated, redirect to login with return URL
   if (!isAuthenticated) {
-    // User not authenticated, redirect to login page
-    console.log('ProtectedRoute: Not authenticated, redirecting to login');
-    // Pass the current location to redirect back after login (optional)
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname)}`} replace />;
   }
 
-  // User is authenticated, render the requested component
-  console.log('ProtectedRoute: User authenticated, rendering protected content');
+  // If there's a connection error, show error message
+  if (error) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center text-center p-4">
+        <h2 className="text-xl font-bold mb-2">Connection Error</h2>
+        <p className="mb-4 max-w-md">{error || "Unable to connect to the server. Please check your internet connection."}</p>
+        <div className="flex gap-2">
+          <button 
+            onClick={() => refreshUser()}
+            className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/80"
+          >
+            Retry Connection
+          </button>
+          <button 
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-secondary text-white rounded hover:bg-secondary/80"
+          >
+            Refresh Page
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // If roles are specified, check if user has required role
+  if (roles && roles.length > 0 && user) {
+    const userRoles = user.roles || [];
+    const hasRequiredRole = roles.some(role => userRoles.includes(role));
+    
+    if (!hasRequiredRole) {
+      // User doesn't have required role, redirect to unauthorized page
+      return <Navigate to="/unauthorized" replace />;
+    }
+  }
+
+  // User is authenticated and has required roles (if specified)
   return children;
 };
 

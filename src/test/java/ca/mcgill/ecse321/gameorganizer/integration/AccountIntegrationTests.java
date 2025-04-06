@@ -32,6 +32,10 @@ import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 
+import java.util.HashMap;
+import java.util.Map;
+import com.fasterxml.jackson.core.type.TypeReference;
+
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK) // Use MOCK environment
 @ActiveProfiles("test")
 @AutoConfigureMockMvc // Add this annotation
@@ -116,6 +120,45 @@ public class AccountIntegrationTests {
 
     @Test
     @Order(3)
+    public void testLoginAsGameOwnerReturnsFlagInResponse() throws Exception {
+        // First create a game owner account
+        CreateAccountRequest createRequest = new CreateAccountRequest();
+        createRequest.setEmail("ownerlogin@example.com");
+        createRequest.setUsername("gameownerlogin");
+        createRequest.setPassword("ownerpass123");
+        createRequest.setGameOwner(true);
+
+        mockMvc.perform(post(BASE_URL)
+                .with(anonymous())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(createRequest)))
+            .andExpect(status().isCreated());
+
+        // Now attempt to login with this account
+        Map<String, String> loginRequest = new HashMap<>();
+        loginRequest.put("email", "ownerlogin@example.com");
+        loginRequest.put("password", "ownerpass123");
+
+        // Perform login and inspect the response
+        String response = mockMvc.perform(post("/auth/login")
+                .with(anonymous())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(loginRequest)))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+        // Convert the response to a map and check the gameOwner flag
+        Map<String, Object> responseMap = objectMapper.readValue(response, new TypeReference<Map<String, Object>>() {});
+        
+        // Fix assertTrue assertion
+        Boolean isGameOwner = (Boolean) responseMap.get("gameOwner");
+        assertTrue(isGameOwner, "Game owner flag should be true");
+    }
+
+    @Test
+    @Order(4)
     public void testCreateAccountWithDuplicateEmail() throws Exception {
         CreateAccountRequest request = new CreateAccountRequest();
         request.setEmail(VALID_EMAIL);  // Same as the existing testAccount
@@ -131,7 +174,7 @@ public class AccountIntegrationTests {
     }
 
     @Test
-    @Order(4)
+    @Order(5)
     public void testCreateAccountWithInvalidData() throws Exception {
         // Missing email
         CreateAccountRequest request = new CreateAccountRequest();
@@ -149,7 +192,7 @@ public class AccountIntegrationTests {
     // ----- UPDATE tests -----
 
     @Test
-    @Order(5)
+    @Order(6)
     public void testUpdateAccountSuccess() throws Exception {
         UpdateAccountRequest request = new UpdateAccountRequest();
         request.setEmail(VALID_EMAIL);
@@ -170,7 +213,7 @@ public class AccountIntegrationTests {
     }
 
     @Test
-    @Order(6)
+    @Order(7)
     public void testUpdateAccountWithWrongPassword() throws Exception {
         UpdateAccountRequest request = new UpdateAccountRequest();
         request.setEmail(VALID_EMAIL);
@@ -187,7 +230,7 @@ public class AccountIntegrationTests {
     }
 
     @Test
-    @Order(7)
+    @Order(8)
     public void testUpdateNonExistentAccount() throws Exception {
         UpdateAccountRequest request = new UpdateAccountRequest();
         request.setEmail("nonexistent@example.com"); // Non-existent email
@@ -290,7 +333,7 @@ public class AccountIntegrationTests {
     // ----- DELETE tests -----
 
     @Test
-    @Order(8)
+    @Order(9)
     public void testDeleteAccountSuccess() throws Exception {
         // Simulate request as the authenticated user being deleted
         mockMvc.perform(delete(BASE_URL + "/" + VALID_EMAIL) // Use static import
@@ -299,7 +342,7 @@ public class AccountIntegrationTests {
     }
 
     @Test
-    @Order(9)
+    @Order(10)
     public void testDeleteNonExistentAccount() throws Exception {
         // Simulate request as *some* authenticated user (e.g., the test user)
         // The authorization will reject the request because the email in the path

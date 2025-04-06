@@ -56,15 +56,33 @@ export const createGame = async (gameData) => {
     maxPlayers: parseInt(gameData.maxPlayers, 10),
   };
 
+  console.log("createGame: Attempting to create game:", payload);
+  
   try {
     // Use apiClient for the POST request
     const createdGame = await apiClient("/games", {
       method: "POST",
       body: payload,
     });
+    
+    console.log("createGame: Successfully created game:", createdGame);
     return createdGame; // Return the created game object from backend
   } catch (error) {
-    console.error("Failed to create game:", error);
+    console.error("createGame: Failed to create game:", error);
+    // Check if this is an authentication issue
+    if (error.name === 'UnauthorizedError') {
+      console.error("createGame: Authentication error - user not logged in or session expired");
+    } else if (error.name === 'ForbiddenError') {
+      console.error("createGame: Permission error - user does not have GAME_OWNER role");
+    }
+    
+    // Log cookies state to help debug
+    console.log("createGame: Cookie state at time of error:", {
+      isAuthenticated: document.cookie.includes('isAuthenticated=true'),
+      hasAccessToken: document.cookie.includes('accessToken='),
+      allCookies: document.cookie
+    });
+    
     // Re-throw the specific error from apiClient
     throw error;
   }
@@ -84,15 +102,37 @@ export const getGamesByOwner = async (ownerEmail) => {
      throw new Error("Owner email is required to fetch games.");
   }
 
-  // The backend endpoint uses email as the identifier in the path
-  const endpoint = `/users/${encodeURIComponent(ownerEmail)}/games`;
+  console.log("getGamesByOwner: Fetching games for owner:", ownerEmail);
+
+  // Using the proper endpoint for fetching games by owner
+  const endpoint = `/games?ownerId=${encodeURIComponent(ownerEmail)}`;
+  console.log("getGamesByOwner: Using endpoint:", endpoint);
 
   try {
-    // Use apiClient for the GET request
-    const games = await apiClient(endpoint, { method: "GET" });
+    // Log cookie state before making the request
+    console.log("getGamesByOwner: Cookie state before fetch:", {
+      isAuthenticated: document.cookie.includes('isAuthenticated=true'),
+      hasAccessToken: document.cookie.includes('accessToken='),
+      allCookies: document.cookie
+    });
+    
+    // Use apiClient for the GET request with skipPrefix option
+    const games = await apiClient(endpoint, { 
+      method: "GET",
+      skipPrefix: true 
+    });
+    
+    console.log(`getGamesByOwner: Successfully fetched ${games.length} games for owner ${ownerEmail}:`, games);
     return games;
   } catch (error) {
-    console.error(`Failed to fetch games for owner ${ownerEmail}:`, error);
+    console.error(`getGamesByOwner: Failed to fetch games for owner ${ownerEmail}:`, error);
+    // Check specific error types
+    if (error.name === 'UnauthorizedError') {
+      console.error("getGamesByOwner: Authentication error - user not logged in or session expired");
+    } else if (error.name === 'ForbiddenError') {
+      console.error("getGamesByOwner: Permission error accessing games");
+    }
+    
     // Re-throw the specific error from apiClient
     throw error;
   }

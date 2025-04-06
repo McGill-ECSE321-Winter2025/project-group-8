@@ -2,7 +2,7 @@ package ca.mcgill.ecse321.gameorganizer.dto.request;
 
 /**
  * Data Transfer Object for authentication.
- * Contains email and password fields.
+ * Contains email, password, and rememberMe fields.
  * 
  * @author Shayan
  */
@@ -10,6 +10,7 @@ public class AuthenticationDTO {
 
     private String email;
     private String password;
+    private boolean rememberMe;
 
     /**
      * Default constructor.
@@ -26,6 +27,20 @@ public class AuthenticationDTO {
     public AuthenticationDTO(String email, String password) {
         this.email = email;
         this.password = password;
+        this.rememberMe = false; // Default to false
+    }
+
+    /**
+     * Constructs an AuthenticationDTO with the specified email, password, and rememberMe flag.
+     * 
+     * @param email the email address
+     * @param password the password
+     * @param rememberMe whether to remember the user
+     */
+    public AuthenticationDTO(String email, String password, boolean rememberMe) {
+        this.email = email;
+        this.password = password;
+        this.rememberMe = rememberMe;
     }
 
     /**
@@ -62,5 +77,23 @@ public class AuthenticationDTO {
      */
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    /**
+     * Returns whether to remember the user.
+     * 
+     * @return true if the user should be remembered, false otherwise
+     */
+    public boolean isRememberMe() {
+        return rememberMe;
+    }
+
+    /**
+     * Sets whether to remember the user.
+     * 
+     * @param rememberMe true if the user should be remembered, false otherwise
+     */
+    public void setRememberMe(boolean rememberMe) {
+        this.rememberMe = rememberMe;
     }
 }

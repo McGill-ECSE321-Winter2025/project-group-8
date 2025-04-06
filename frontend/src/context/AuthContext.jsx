@@ -1,195 +1,189 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
-import { getUserProfile, logoutUser } from '../service/user-api';
-import { UnauthorizedError, ConnectionError } from '../service/apiClient';
+import { checkAuthStatus, getUserProfile, logoutUser } from '../service/auth-api';
 
+// Create the auth context
 const AuthContext = createContext(null);
 
-// Key for storing user data in localStorage
-const USER_STORAGE_KEY = 'boardgame_connect_user';
+// Inactive timeout - 30 minutes
+const INACTIVE_TIMEOUT = 30 * 60 * 1000;
 
+// Auth context provider component
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(() => {
-    // Try to get stored user data on initial load
-    try {
-      const storedUser = localStorage.getItem(USER_STORAGE_KEY);
-      return storedUser ? JSON.parse(storedUser) : null;
-    } catch (e) {
-      console.error('Error reading user from localStorage:', e);
-      return null;
-    }
-  });
+  // User state - contains user data when authenticated
+  const [user, setUser] = useState(null);
+  // Loading state for async operations
   const [loading, setLoading] = useState(true);
-  const [authInitialized, setAuthInitialized] = useState(false);
-  const [connectionError, setConnectionError] = useState(false);
-  const [authCheckRetries, setAuthCheckRetries] = useState(0);
-  
-  const MAX_AUTH_CHECK_RETRIES = 3;
-  const RETRY_DELAY_MS = 1000; // 1 second
+  // Authentication state
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // Error state
+  const [error, setError] = useState(null);
+  // Session expired flag
+  const [isSessionExpired, setIsSessionExpired] = useState(false);
+  // Remember me state
+  const [rememberMe, setRememberMe] = useState(false);
+  // Last activity timestamp
+  const [lastActivity, setLastActivity] = useState(Date.now());
 
-  // Function to update user in state and localStorage
-  const updateUser = useCallback((userData) => {
-    setUser(userData);
-    if (userData) {
-      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(userData));
-    } else {
-      localStorage.removeItem(USER_STORAGE_KEY);
+  // Function to update last activity timestamp
+  const updateActivity = useCallback(() => {
+    setLastActivity(Date.now());
+    // If session was expired but user is active, attempt to revalidate
+    if (isSessionExpired) {
+      checkAuthStatus()
+        .then(isAuth => {
+          if (isAuth) {
+            setIsSessionExpired(false);
+          }
+        })
+        .catch(() => {
+          // Ignore errors - will remain in expired state
+        });
+    }
+  }, [isSessionExpired]);
+
+  // Initialize authentication state
+  const initAuth = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Check if user is authenticated
+      const isAuth = await checkAuthStatus();
+
+      if (isAuth) {
+        // Fetch user profile if authenticated
+        const userProfile = await getUserProfile();
+        setUser(userProfile);
+        setIsAuthenticated(true);
+        setIsSessionExpired(false);
+
+        // Check if remember me was set
+        const savedRememberMe = localStorage.getItem('rememberMe') === 'true';
+        setRememberMe(savedRememberMe);
+      } else {
+        // Clear authentication state
+        setUser(null);
+        setIsAuthenticated(false);
+        localStorage.removeItem('rememberMe');
+      }
+    } catch (err) {
+      console.error('Error initializing auth:', err);
+      setError('Failed to initialize authentication');
+      setUser(null);
+      setIsAuthenticated(false);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
-  // Function to check authentication status with retry capability
-  const checkAuthStatus = useCallback(async (isRetry = false) => {
-    if (!isRetry) {
-      setLoading(true);
-      setConnectionError(false);
-    }
-    
-    console.log(`AuthContext: Checking auth status${isRetry ? ' (retry attempt)' : ''}`);
-    
-    // First check if the isAuthenticated cookie exists
-    const isAuthCookie = document.cookie.includes('isAuthenticated=true');
-    console.log('AuthContext: isAuthenticated cookie exists:', isAuthCookie);
-    
-    // If cookie doesn't exist, we're not authenticated
-    if (!isAuthCookie && !isRetry) {
-      console.log('AuthContext: No authentication cookie found, user is not authenticated');
-      updateUser(null);
-      setAuthInitialized(true);
-      setLoading(false);
-      return false;
-    }
-    
-    try {
-      // Attempt to fetch user profile to check if we're authenticated
-      const currentUser = await getUserProfile();
-      console.log('AuthContext: User is authenticated', currentUser);
-      updateUser(currentUser);
-      setAuthInitialized(true);
-      setAuthCheckRetries(0); // Reset retry counter on success
-      return true;
-    } catch (error) {
-      // Handle connection errors with retry logic
-      if (error instanceof ConnectionError) {
-        console.warn('AuthContext: Backend connection error:', error.message);
-        setConnectionError(true);
-        
-        // Implement retry logic for connection errors
-        if (authCheckRetries < MAX_AUTH_CHECK_RETRIES) {
-          console.log(`AuthContext: Will retry auth check (attempt ${authCheckRetries + 1} of ${MAX_AUTH_CHECK_RETRIES})`);
-          setAuthCheckRetries(prev => prev + 1);
-          // Schedule retry after delay
-          setTimeout(() => checkAuthStatus(true), RETRY_DELAY_MS);
-          return false; // Don't complete auth flow yet
-        } else {
-          console.warn('AuthContext: Max retries reached, giving up auth check');
-          // Keep existing user state on connection error after max retries
-          // This helps prevent logout on temporary network issues
-          setAuthInitialized(true);
-        }
-      }
-      // Handle auth errors
-      else if (error instanceof UnauthorizedError) {
-        console.log('AuthContext: User is not authenticated');
-        updateUser(null);
-        setAuthInitialized(true);
-      } 
-      // Handle other errors
-      else {
-        console.warn('AuthContext: Auth check failed with unexpected error:', error.message);
-        // Similar to connection errors, don't immediately clear user state
-        // This helps prevent logout on temporary backend issues
-        if (authCheckRetries < MAX_AUTH_CHECK_RETRIES) {
-          console.log(`AuthContext: Will retry auth check for unexpected error (attempt ${authCheckRetries + 1} of ${MAX_AUTH_CHECK_RETRIES})`);
-          setAuthCheckRetries(prev => prev + 1);
-          setTimeout(() => checkAuthStatus(true), RETRY_DELAY_MS);
-          return false;
-        } else {
-          console.warn('AuthContext: Max retries reached for unexpected error');
-          // Only clear user state after exhausting retries
-          updateUser(null);
-          setAuthInitialized(true);
-        }
-      }
-      return false;
-    } finally {
-      if (!isRetry || authCheckRetries >= MAX_AUTH_CHECK_RETRIES) {
-        setLoading(false);
-      }
-    }
-  }, [authCheckRetries, updateUser]);
-
-  // Check auth status on initial load and handle network reconnection
+  // Initialize auth when component mounts
   useEffect(() => {
-    checkAuthStatus();
-    
-    // Add an event listener for when the network comes back online
-    // This helps restore authentication after network disconnections
-    const handleOnline = () => {
-      console.log('AuthContext: Network is back online, rechecking auth status');
-      checkAuthStatus();
-    };
-    
-    window.addEventListener('online', handleOnline);
-    
-    // Clean up event listener on component unmount
-    return () => {
-      window.removeEventListener('online', handleOnline);
-    };
-  }, [checkAuthStatus]);
+    initAuth();
+  }, [initAuth]);
 
-  const login = async (userData) => {
-    // Log successful authentication
-    console.log('AuthContext: Setting user data', userData);
-    
-    // Set user data in state and localStorage
-    updateUser(userData);
-    
-    // Clear any previous connection errors
-    setConnectionError(false);
-    setAuthCheckRetries(0);
-    
-    // Return true to indicate successful login
-    return true;
-  };
-
-  const logout = async () => {
-    try {
-      console.log('AuthContext: Logging out user');
-      // Call backend logout API to clear cookies
-      await logoutUser();
-    } catch (error) {
-      console.error("AuthContext: Error during logout:", error);
-      // Continue with local logout even if API call fails
-    } finally {
-      // Always clean up local state regardless of API success
-      updateUser(null);
-      setConnectionError(false);
-      setAuthCheckRetries(0);
+  // Setup inactivity monitoring based on remember me
+  useEffect(() => {
+    // Only monitor inactivity if user is authenticated and remember me is not set
+    if (!isAuthenticated || rememberMe) {
+      return;
     }
+
+    // Check for inactivity
+    const checkInactivity = () => {
+      const now = Date.now();
+      const inactiveTime = now - lastActivity;
+
+      // If user has been inactive for too long, expire session
+      if (inactiveTime >= INACTIVE_TIMEOUT) {
+        setIsSessionExpired(true);
+      }
+    };
+
+    // Set up interval to check inactivity
+    const intervalId = setInterval(checkInactivity, 60000); // Check every minute
+
+    // Listen for user activity
+    const activityEvents = ['mousedown', 'keypress', 'scroll', 'touchstart'];
+    
+    const handleActivity = () => {
+      updateActivity();
+    };
+
+    // Add event listeners for user activity
+    activityEvents.forEach(event => {
+      window.addEventListener(event, handleActivity);
+    });
+
+    // Cleanup function
+    return () => {
+      clearInterval(intervalId);
+      activityEvents.forEach(event => {
+        window.removeEventListener(event, handleActivity);
+      });
+    };
+  }, [isAuthenticated, lastActivity, rememberMe, updateActivity]);
+
+  // Login function
+  const login = useCallback(async (userData, remember = false) => {
+    setUser(userData);
+    setIsAuthenticated(true);
+    setIsSessionExpired(false);
+    setRememberMe(remember);
+    setLastActivity(Date.now());
+    
+    // Save remember me preference
+    localStorage.setItem('rememberMe', remember ? 'true' : 'false');
+    
+    return userData;
+  }, []);
+
+  // Logout function
+  const logout = useCallback(async () => {
+    try {
+      await logoutUser();
+    } catch (err) {
+      // Log error but proceed with client-side logout
+      console.error('Error during logout:', err);
+    } finally {
+      // Clear auth state
+      setUser(null);
+      setIsAuthenticated(false);
+      setIsSessionExpired(false);
+      setRememberMe(false);
+      localStorage.removeItem('rememberMe');
+    }
+  }, []);
+
+  // Handle session expiration
+  const handleSessionExpired = useCallback(() => {
+    setIsSessionExpired(true);
+  }, []);
+
+  // Context value to be provided
+  const value = {
+    user,
+    loading,
+    error,
+    isAuthenticated,
+    isSessionExpired,
+    rememberMe,
+    login,
+    logout,
+    handleSessionExpired,
+    updateActivity,
+    refreshUser: initAuth,
   };
 
-  // Provide context values
-  const value = { 
-    user, 
-    loading, 
-    login, 
-    logout, 
-    checkAuthStatus,
-    isAuthenticated: !!user,
-    authInitialized,
-    connectionError
-  };
-
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
+// Hook to use the auth context
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (context === null) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 };
+
+export default AuthContext; 

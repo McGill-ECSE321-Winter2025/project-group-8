@@ -1,9 +1,12 @@
 package ca.mcgill.ecse321.gameorganizer.controllers;
 
-import jakarta.servlet.http.Cookie; // Import Cookie
+// import jakarta.servlet.http.Cookie; // Replaced by ResponseCookie
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import jakarta.servlet.http.HttpServletResponse; // Import HttpServletResponse
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders; // Needed for Set-Cookie header
 import org.springframework.http.ResponseCookie; // Import ResponseCookie for SameSite etc.
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -29,6 +32,7 @@ import ca.mcgill.ecse321.gameorganizer.exceptions.EmailNotFoundException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.InvalidPasswordException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.InvalidTokenException;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
+import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.security.JwtUtil;
 import ca.mcgill.ecse321.gameorganizer.services.AuthenticationService;
@@ -49,6 +53,7 @@ public class AuthenticationController {
     @Autowired
     private AuthenticationService authenticationService; 
 
+    private static final Logger logger = LoggerFactory.getLogger(AuthenticationController.class);
     @Autowired // Inject AuthenticationManager
     private AuthenticationManager authenticationManager;
 
@@ -101,34 +106,52 @@ public class AuthenticationController {
             String jwt = jwtUtil.generateToken(userDetails, user);
             System.out.println("JWT token generated successfully for user: " + user.getId());
 
-            // Create HttpOnly cookie with improved configuration - try both methods
-            // Method 1: Using ResponseCookie (better for controlling properties)
-            ResponseCookie cookie = ResponseCookie.from("accessToken", jwt)
-                .httpOnly(true)
-                .secure(false) // Set to false for local development, true for production
-                .path("/")
-                .maxAge(24 * 3600) // 24 hours expiration (in seconds)
-                .sameSite("Strict") // Align with integration test requirements
-                .build();
+            // Check if the account is a GameOwner
+            boolean isGameOwner = user instanceof GameOwner;
+            
+            // Create user summary with gameOwner flag
+            UserSummaryDto userSummary = new UserSummaryDto(user.getId(), user.getName(), user.getEmail(), isGameOwner);
+            
+            // Log the account type for debugging
+            System.out.println("AuthController: Login successful - User ID: " + user.getId() + 
+                              ", Email: " + user.getEmail() + 
+                              ", IsGameOwner: " + isGameOwner);
+                              
+            // Determine cookie expiration based on rememberMe flag
+            int cookieMaxAge = authenticationDTO.isRememberMe() 
+                ? 30 * 24 * 3600  // 30 days in seconds (if rememberMe is true)
+                : 24 * 3600;      // 24 hours in seconds (default)
+                
+            System.out.println("Setting cookie max age to: " + cookieMaxAge + " seconds. Remember me: " + authenticationDTO.isRememberMe());
 
-            // Add cookie to the response header
-            response.addHeader("Set-Cookie", cookie.toString());
-            
-            // Add a non-HttpOnly cookie for client-side authentication status checking
-            ResponseCookie authFlagCookie = ResponseCookie.from("isAuthenticated", "true")
-                .httpOnly(false) // Not HttpOnly so JavaScript can read it
-                .secure(false) // Set to false for local development, true for production
+            // --- Use ResponseCookie for setting cookies with SameSite ---
+
+            // Create HttpOnly cookie for the JWT using ResponseCookie
+            ResponseCookie accessTokenCookie = ResponseCookie.from("accessToken", jwt)
+                .httpOnly(true)
+                .secure(false) // false for local HTTP development; set true for HTTPS
                 .path("/")
-                .maxAge(24 * 3600) // 24 hours expiration (in seconds)
-                .sameSite("Lax")
+                .maxAge(cookieMaxAge)
+                .sameSite("Lax") // Explicitly set SameSite=Lax
                 .build();
-            response.addHeader("Set-Cookie", authFlagCookie.toString());
-            
+            response.addHeader(HttpHeaders.SET_COOKIE, accessTokenCookie.toString());
+            logger.debug("Added accessToken cookie using ResponseCookie. MaxAge: {}, SameSite: Lax", cookieMaxAge);
+            logger.debug("Generated JWT for accessToken (start): {}...", jwt.substring(0, Math.min(jwt.length(), 20)));
+
+            // Create non-HttpOnly cookie for client-side authentication status checking using ResponseCookie
+            ResponseCookie isAuthenticatedCookie = ResponseCookie.from("isAuthenticated", "true")
+                .httpOnly(false) // Allow JS access
+                .secure(false) // false for local HTTP development; set true for HTTPS
+                .path("/")
+                .maxAge(cookieMaxAge)
+                .sameSite("Lax") // Explicitly set SameSite=Lax
+                .build();
+            response.addHeader(HttpHeaders.SET_COOKIE, isAuthenticatedCookie.toString());
+            logger.debug("Added isAuthenticated cookie using ResponseCookie. MaxAge: {}, SameSite: Lax", cookieMaxAge);
+
             // Debug cookie setting
-            System.out.println("Setting accessToken cookie via header: " + cookie.toString());
-            System.out.println("Setting isAuthenticated cookie via header: " + authFlagCookie.toString());
-            // Return UserSummaryDto to be consistent with test expectations
-            UserSummaryDto userSummary = new UserSummaryDto(user.getId(), user.getName(), user.getEmail());
+            System.out.println("Setting accessToken cookie via response.addCookie()");
+            System.out.println("Setting isAuthenticated cookie via response.addCookie()");
             return ResponseEntity.ok(userSummary);
         } catch (BadCredentialsException e) {
             // Return 401 UNAUTHORIZED when credentials are invalid
@@ -154,43 +177,32 @@ public class AuthenticationController {
     public ResponseEntity<String> logout(HttpServletResponse response) {
         System.out.println("Logout requested");
         
-        // Method 1: Clear the JWT cookie using ResponseCookie
-        ResponseCookie cookie = ResponseCookie.from("accessToken", "")
+        // --- Use ResponseCookie for clearing cookies ---
+
+        // Clear the JWT cookie using ResponseCookie
+        ResponseCookie clearAccessTokenCookie = ResponseCookie.from("accessToken", "") // Empty value
             .httpOnly(true)
-            .secure(false) // Set to false for local development, true for production
+            .secure(false) // Match setting during creation
             .path("/")
             .maxAge(0) // Expire immediately
-            .sameSite("Lax") // Less strict for easier development
+            .sameSite("Lax") // Match setting during creation
             .build();
-        
-        // Clear the isAuthenticated cookie
-        ResponseCookie authFlagCookie = ResponseCookie.from("isAuthenticated", "")
-            .httpOnly(false) // Not HttpOnly so JavaScript can read it
-            .secure(false) // Set to false for local development, true for production
+        response.addHeader(HttpHeaders.SET_COOKIE, clearAccessTokenCookie.toString());
+        System.out.println("Clearing accessToken cookie via ResponseCookie");
+
+        // Clear the isAuthenticated cookie using ResponseCookie
+        ResponseCookie clearIsAuthenticatedCookie = ResponseCookie.from("isAuthenticated", "") // Empty value
+            .httpOnly(false)
+            .secure(false) // Match setting during creation
             .path("/")
             .maxAge(0) // Expire immediately
-            .sameSite("Lax")
+            .sameSite("Lax") // Match setting during creation
             .build();
-        
-        response.addHeader("Set-Cookie", cookie.toString());
-        response.addHeader("Set-Cookie", authFlagCookie.toString());
-        System.out.println("Clearing cookie via header: " + cookie.toString());
-        
-        // Method 2: Also try traditional Cookie approach as a backup
-        Cookie traditionalCookie = new Cookie("accessToken", "");
-        traditionalCookie.setHttpOnly(true);
-        traditionalCookie.setPath("/");
-        traditionalCookie.setMaxAge(0); // Expire immediately
-        response.addCookie(traditionalCookie);
-        
-        // Clear traditional auth flag cookie
-        Cookie authCookie = new Cookie("isAuthenticated", "");
-        authCookie.setHttpOnly(false);
-        authCookie.setPath("/");
-        authCookie.setMaxAge(0); // Expire immediately
-        response.addCookie(authCookie);
-        
-        System.out.println("Clearing cookies via Cookie object");
+        response.addHeader(HttpHeaders.SET_COOKIE, clearIsAuthenticatedCookie.toString());
+        System.out.println("Clearing isAuthenticated cookie via ResponseCookie");
+
+        // Remove the redundant traditional cookie clearing section below
+        // Redundant traditional cookie clearing removed as we now consistently use response.addCookie() above.
         
         // Clear security context
         SecurityContextHolder.clearContext();

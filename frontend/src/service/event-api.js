@@ -163,8 +163,10 @@ export const getEventsByHostEmail = async (hostEmail) => {
   }
 
   try {
+    // Using the correct endpoint based on backend API
     const events = await apiClient(`/events/by-host-email?hostEmail=${encodeURIComponent(hostEmail)}`, {
       method: "GET",
+      skipPrefix: true
     });
     return events;
   } catch (error) {

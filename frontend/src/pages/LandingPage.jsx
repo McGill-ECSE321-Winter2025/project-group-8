@@ -1,3 +1,4 @@
+// Importing React and necessary hooks and assets
 import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext"; // Import useAuth
@@ -6,11 +7,13 @@ import game2 from '../assets/games/game2.png';
 import game3 from '../assets/games/game3.png';
 import game4 from '../assets/games/game4.png';
 
+// Landing page component shown to visitors before login
 export default function LandingPage() {
   const navigate = useNavigate();
   const { user } = useAuth(); // Get user state from context
   const gameImages = [game1, game2, game3, game4];
 
+  // Redirect to dashboard if user is already logged in
   useEffect(() => {
     // If user is already logged in (from AuthContext), redirect to dashboard
     if (user) {
@@ -21,7 +24,8 @@ export default function LandingPage() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      {/* Hero Section */}
+
+      {/* Hero Section - Main call to action area */}
       <main className="flex flex-col items-center justify-center text-center py-32 px-4 bg-gradient-to-b from-white to-gray-100">
         <h1 className="text-5xl font-bold mb-6">Connect Through Board Games</h1>
         <p className="text-gray-600 mb-8 max-w-2xl text-lg">
@@ -43,7 +47,7 @@ export default function LandingPage() {
         </div>
       </main>
 
-      {/* How It Works Section */}
+      {/* How It Works Section - Feature walkthrough */}
       <section className="py-24 px-6 bg-white">
         <h2 className="text-3xl font-bold text-center mb-14">How It Works</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-12 text-center">
@@ -71,7 +75,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Share Your Collection Section */}
+      {/* Share Your Collection Section - Showcase and sharing feature */}
       <section className="py-24 px-6 bg-gray-100 flex flex-col lg:flex-row items-center justify-between">
         <div className="max-w-lg mb-12 lg:mb-0">
           <h2 className="text-3xl font-bold mb-6">Share Your Collection</h2>
@@ -85,6 +89,8 @@ export default function LandingPage() {
             Register as a Game Owner
           </button>
         </div>
+
+        {/* Display grid of sample game images */}
         <div className="grid grid-cols-2 gap-6 w-full lg:w-1/2">
           {gameImages.map((img, i) => (
             <div key={i} className="rounded-xl overflow-hidden shadow-lg transition-transform hover:scale-105">
@@ -98,6 +104,7 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Footer - Copyright notice */}
       <footer className="text-center text-sm text-gray-500 py-6 border-t">
         <div className="flex items-center justify-center gap-2 font-semibold text-black">
         </div>

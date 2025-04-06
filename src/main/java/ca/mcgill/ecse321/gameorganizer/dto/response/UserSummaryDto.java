@@ -4,6 +4,7 @@ public class UserSummaryDto {
     private int id; // Changed type from Long to int
     private String name; // Changed field from username to name
     private String email; // Added email field
+    private boolean gameOwner; // Added gameOwner field
     // Consider adding 'name' if it exists in Account and is needed
 
     // Default constructor for frameworks
@@ -13,6 +14,7 @@ public class UserSummaryDto {
     public UserSummaryDto(int id, String name) { // Updated constructor signature
         this.id = id;
         this.name = name; // Updated assignment
+        this.gameOwner = false; // Default to false
     }
     
     // New constructor with email
@@ -20,6 +22,15 @@ public class UserSummaryDto {
         this.id = id;
         this.name = name;
         this.email = email;
+        this.gameOwner = false; // Default to false
+    }
+    
+    // New constructor with all fields including gameOwner
+    public UserSummaryDto(int id, String name, String email, boolean gameOwner) {
+        this.id = id;
+        this.name = name;
+        this.email = email;
+        this.gameOwner = gameOwner;
     }
 
     // Getters
@@ -34,6 +45,10 @@ public class UserSummaryDto {
     public String getEmail() {
         return email;
     }
+    
+    public boolean isGameOwner() {
+        return gameOwner;
+    }
 
     // Setters (optional, depending on usage)
     public void setId(int id) { // Changed parameter type
@@ -46,5 +61,9 @@ public class UserSummaryDto {
     
     public void setEmail(String email) {
         this.email = email;
+    }
+    
+    public void setGameOwner(boolean gameOwner) {
+        this.gameOwner = gameOwner;
     }
 }
