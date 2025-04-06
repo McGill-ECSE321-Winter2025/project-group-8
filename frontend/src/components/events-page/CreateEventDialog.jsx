@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"; // Import useEffect
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "../../ui/dialog";
@@ -8,7 +8,7 @@ import { Textarea } from "../../ui/textarea";
 import { Label } from "../../ui/label";
 import { createEvent } from "../../service/event-api.js";
 // Import searchGames API function and Loader icon
-import { searchGames } from "../../service/game-api.js";
+import { searchGames, getGamesByOwner } from "../../service/game-api.js";
 import { Loader2 } from "lucide-react";
 
 // Accept onEventAdded prop
@@ -19,7 +19,8 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
   const [gameSearchResults, setGameSearchResults] = useState([]);
   const [selectedGameId, setSelectedGameId] = useState(null);
   const [isSearchingGames, setIsSearchingGames] = useState(false);
-
+  const [userGames, setUserGames] = useState([]);
+  const [isLoadingUserGames, setIsLoadingUserGames] = useState(false);
 
   const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm({
     defaultValues: {
@@ -28,68 +29,90 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
       location: "",
       description: "",
       maxParticipants: "",
-      // featuredGame removed from form default values, use gameSearchTermInput instead
       gameSearchTermInput: "",
     },
   });
 
-  // Watch the game search term input to trigger API calls
+  // Get current user's email from localStorage
+  const userEmail = localStorage.getItem("userEmail");
+
+  // Load user's games when dialog opens
+  useEffect(() => {
+    if (open && userEmail) {
+      const loadUserGames = async () => {
+        setIsLoadingUserGames(true);
+        try {
+          const games = await getGamesByOwner(userEmail);
+          setUserGames(games || []);
+        } catch (error) {
+          console.error("Failed to load user's games:", error);
+          toast.error("Failed to load your games. Please try again.");
+        } finally {
+          setIsLoadingUserGames(false);
+        }
+      };
+      
+      loadUserGames();
+    }
+  }, [open, userEmail]);
+
+  // Watch the game search term input to trigger filtering
   const watchedGameSearchTerm = watch("gameSearchTermInput");
 
-  // Debounced effect for game search API call
+  // Filter user's games based on search term
   useEffect(() => {
     // Clear results if search term is cleared
     if (!watchedGameSearchTerm) {
       setGameSearchResults([]);
-      // If user clears input AFTER selecting, clear the selection too
       if (selectedGameId) setSelectedGameId(null);
       return;
     }
 
-    const fetchGames = async () => {
-      // Don't search if a game is already selected by ID
-      if (selectedGameId) {
-          setGameSearchResults([]); // Clear results if a game is selected
-          return;
-      }
-      setIsSearchingGames(true);
-      try {
-        const results = await searchGames({ name: watchedGameSearchTerm });
-        setGameSearchResults(results || []); // Ensure results is always an array
-      } catch (error) {
-        console.error("Failed to search games:", error);
-        setGameSearchResults([]); // Clear results on error
-      } finally {
-        setIsSearchingGames(false);
-      }
+    // Don't search if a game is already selected by ID
+    if (selectedGameId) {
+      setGameSearchResults([]);
+      return;
+    }
+
+    // Filter from already loaded user games instead of making API call
+    const filterUserGames = () => {
+      const searchTerm = watchedGameSearchTerm.toLowerCase();
+      const filteredGames = userGames.filter(game => 
+        game.name.toLowerCase().includes(searchTerm)
+      );
+      setGameSearchResults(filteredGames);
     };
 
     const debounceTimer = setTimeout(() => {
-       // Only search if term is long enough and no game is selected
-       if (watchedGameSearchTerm.length > 1 && !selectedGameId) {
-           fetchGames();
-       } else {
-           setGameSearchResults([]); // Clear results for short terms or if game selected
-       }
-    }, 500); // 500ms debounce
+      if (watchedGameSearchTerm.length > 1 && !selectedGameId) {
+        filterUserGames();
+      } else {
+        setGameSearchResults([]);
+      }
+    }, 300);
 
     return () => clearTimeout(debounceTimer);
-  }, [watchedGameSearchTerm, selectedGameId]); // Depend on watched term and selection
-
+  }, [watchedGameSearchTerm, selectedGameId, userGames]);
 
   const handleGameSelect = (game) => {
     setSelectedGameId(game.id);
-    setValue("gameSearchTermInput", game.name); // Update the input field to show selected game name
-    setGameSearchResults([]); // Clear search results
-    setSubmitError(""); // Clear potential previous submit error
+    setValue("gameSearchTermInput", game.name);
+    setGameSearchResults([]);
+    setSubmitError("");
   };
-
 
   const onSubmit = handleSubmit(async (data) => {
     // Manually check if a game was selected
     if (!selectedGameId) {
-       setSubmitError("Please select a featured game from the search results.");
-       return; // Prevent submission
+      setSubmitError("Please select one of your games from the search results.");
+      return;
+    }
+
+    // Verify the selected game belongs to the user
+    const isUserGame = userGames.some(game => game.id === selectedGameId);
+    if (!isUserGame) {
+      setSubmitError("You can only create events for games you own.");
+      return;
     }
 
     // Remove the temporary search input value from the data to be submitted
@@ -102,17 +125,17 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
     // Add the selected game ID to the data payload
     const payload = {
       ...formData,
-      featuredGameId: selectedGameId, // Pass the selected ID
+      featuredGameId: selectedGameId,
     };
 
 
     try {
-      const result = await createEvent(payload); // createEvent expects featuredGameId
+      const result = await createEvent(payload);
       toast.success(`Successfully created event: ${result.title}`);
-      if (onEventAdded) { // Call the refresh function passed from parent
+      if (onEventAdded) {
         onEventAdded();
       }
-      handleCancel(); // Use handleCancel to reset everything
+      handleCancel();
     } catch (error) {
       console.error("Create event error:", error);
       const errorMsg = error.message || "Failed to create event. Please try again.";
@@ -125,28 +148,25 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
 
   // Custom reset function to clear game search state as well
   const handleCancel = () => {
-      reset(); // Reset react-hook-form fields
-      setSelectedGameId(null);
-      setGameSearchResults([]);
-      setSubmitError("");
-      onOpenChange(false); // Close dialog
+    reset();
+    setSelectedGameId(null);
+    setGameSearchResults([]);
+    setSubmitError("");
+    onOpenChange(false);
   };
-
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
-        // Reset form and state if dialog is closed externally
-        if (!isOpen) handleCancel();
-        else onOpenChange(true);
+      if (!isOpen) handleCancel();
+      else onOpenChange(true);
     }}>
       <DialogContent className="sm:max-w-[525px]">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold">Create New Event</DialogTitle>
         </DialogHeader>
 
-        {/* Use onSubmit from react-hook-form */}
         <form onSubmit={onSubmit} className="space-y-4 py-4">
-        <div className="space-y-2">
+          <div className="space-y-2">
             <Label htmlFor="title">Event Title <span className="text-red-500">*</span></Label>
             <Input
               id="title"
@@ -172,29 +192,42 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
             <Input id="location" {...register("location")} />
           </div>
 
-          {/* Game Search Input and Results */}
+          {/* Game Search Input and Results - Now filtering from user's games */}
           <div className="space-y-2 relative">
-            <Label htmlFor="gameSearchTermInput">Featured Game <span className="text-red-500">*</span></Label>
+            <Label htmlFor="gameSearchTermInput">
+              Your Game <span className="text-red-500">*</span>
+              {isLoadingUserGames && <Loader2 className="ml-2 inline h-4 w-4 animate-spin" />}
+            </Label>
             <div className="flex items-center gap-2">
-                 <Input
-                   id="gameSearchTermInput"
-                   placeholder="Search for game..."
-                   {...register("gameSearchTermInput")} // Register this input
-                   // Clear selection if user types again after selecting
-                   onChange={(e) => {
-                       setValue("gameSearchTermInput", e.target.value); // Update form state
-                       if (selectedGameId) setSelectedGameId(null); // Clear selection on type
-                   }}
-                   autoComplete="off" // Prevent browser autocomplete
-                   className={!selectedGameId && submitError.includes("select a featured game") ? "border-red-500" : ""} // Error indication if game not selected on submit attempt
-                 />
-                 {isSearchingGames && <Loader2 className="h-4 w-4 animate-spin" />}
+              <Input
+                id="gameSearchTermInput"
+                placeholder="Search your games..."
+                {...register("gameSearchTermInput")}
+                onChange={(e) => {
+                  setValue("gameSearchTermInput", e.target.value);
+                  if (selectedGameId) setSelectedGameId(null);
+                }}
+                autoComplete="off"
+                className={!selectedGameId && submitError.includes("select") ? "border-red-500" : ""}
+                disabled={isLoadingUserGames} // Disable while loading user games
+              />
+              {isSearchingGames && <Loader2 className="h-4 w-4 animate-spin" />}
             </div>
-             {/* Display error if submit attempted without selection */}
-             {!selectedGameId && submitError.includes("select a featured game") && <p className="text-red-500 text-sm">{submitError}</p>}
+            
+            {/* Display no games message if needed */}
+            {userGames.length === 0 && !isLoadingUserGames && (
+              <p className="text-sm text-yellow-600 mt-1">
+                You don't have any games. Please add a game in your collection first.
+              </p>
+            )}
+            
+            {/* Display error if submit attempted without selection */}
+            {submitError && submitError.includes("select") && (
+              <p className="text-red-500 text-sm">{submitError}</p>
+            )}
 
-            {/* Search Results Dropdown */}
-            {gameSearchResults.length > 0 && !selectedGameId && ( // Only show results if no game is selected
+            {/* Search Results Dropdown - Now showing only user's games */}
+            {gameSearchResults.length > 0 && !selectedGameId && (
               <ul className="absolute z-10 w-full bg-background border border-border rounded-md mt-1 max-h-40 overflow-y-auto shadow-lg">
                 {gameSearchResults.map((game) => (
                   <li
@@ -202,13 +235,12 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
                     className="px-3 py-2 hover:bg-accent cursor-pointer text-sm"
                     onClick={() => handleGameSelect(game)}
                   >
-                    {game.name} {/* Assuming backend returns name */}
+                    {game.name}
                   </li>
                 ))}
               </ul>
             )}
           </div>
-
 
           <div className="space-y-2">
             <Label htmlFor="maxParticipants">Maximum Participants <span className="text-red-500">*</span></Label>
@@ -218,7 +250,7 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
               min="1"
               {...register("maxParticipants", {
                 required: "Maximum participants is required",
-                valueAsNumber: true, // Ensure value is treated as number
+                valueAsNumber: true,
                 min: { value: 1, message: "Must be greater than 0" }
               })}
               className={errors.maxParticipants ? "border-red-500" : ""}
@@ -236,16 +268,18 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
           </div>
 
           {/* Display general submit error only if it's not the game selection error */}
-          {submitError && !submitError.includes("select a featured game") && (
+          {submitError && !submitError.includes("select") && (
             <p className="text-red-500 text-sm text-center">{submitError}</p>
           )}
 
           <DialogFooter className="pt-4">
-            {/* Use custom cancel handler */}
             <Button variant="outline" type="button" onClick={handleCancel}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading || isSearchingGames}>
+            <Button 
+              type="submit" 
+              disabled={isLoading || isSearchingGames || isLoadingUserGames || userGames.length === 0}
+            >
               {isLoading ? "Creating..." : "Create Event"}
             </Button>
           </DialogFooter>
