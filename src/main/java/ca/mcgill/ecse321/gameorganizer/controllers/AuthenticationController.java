@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.core.env.Environment;
 
 import ca.mcgill.ecse321.gameorganizer.dto.AuthenticationDTO;
 // import ca.mcgill.ecse321.gameorganizer.dto.JwtAuthenticationResponse; // No longer returning JWT in body
@@ -32,6 +33,8 @@ import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.security.JwtUtil;
 import ca.mcgill.ecse321.gameorganizer.services.AuthenticationService;
 import ca.mcgill.ecse321.gameorganizer.dto.LoginResponse;
+
+import java.util.Arrays;
 
 /**
  * Controller to handle authentication-related endpoints.
@@ -58,6 +61,9 @@ public class AuthenticationController {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private Environment environment;
 
     /**
      * Endpoint for user login.
@@ -144,14 +150,28 @@ public class AuthenticationController {
     public ResponseEntity<?> requestPasswordReset(@RequestBody PasswordResetRequestDto requestDto) {
         try {
             authenticationService.requestPasswordReset(requestDto);
+            
+            // In development mode, add a hint about the dev endpoint
+            if (Arrays.asList(environment.getActiveProfiles()).contains("dev")) {
+                return ResponseEntity.ok("Password reset token generated. In development mode, you can retrieve it using: " +
+                                        "/dev/password-reset-token/" + requestDto.getEmail() + " or generate a new one with " +
+                                        "/dev/generate-reset-token?email=" + requestDto.getEmail());
+            }
+            
+            // Standard response for production
             return ResponseEntity.ok("Password reset token request processed. If the email exists, a reset link will be sent."); // Generic message for security
         } catch (EmailNotFoundException e) {
             // Still return OK to prevent email enumeration attacks
             return ResponseEntity.ok("Password reset token request processed. If the email exists, a reset link will be sent.");
         } catch (IllegalArgumentException e) {
              return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             System.err.println("Error requesting password reset: " + e.getMessage());
+            e.printStackTrace(); // More detailed logging for troubleshooting
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An internal error occurred sending the email. Please verify SMTP settings or try again later.");
+        } catch (Exception e) {
+            System.err.println("Unexpected error requesting password reset: " + e.getMessage());
+            e.printStackTrace(); // More detailed logging for troubleshooting
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An internal error occurred.");
         }
     }

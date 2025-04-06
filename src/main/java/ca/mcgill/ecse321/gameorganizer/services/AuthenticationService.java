@@ -18,6 +18,9 @@ import ca.mcgill.ecse321.gameorganizer.exceptions.InvalidPasswordException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.InvalidTokenException;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import jakarta.mail.MessagingException;
 import jakarta.servlet.http.HttpSession;
 
 /**
@@ -29,13 +32,18 @@ import jakarta.servlet.http.HttpSession;
 @Service
 public class AuthenticationService {
 
+    private static final Logger log = LoggerFactory.getLogger(AuthenticationService.class);
+
     @Autowired
     private AccountRepository accountRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+    
+    @Autowired
+    private EmailService emailService;
 
-    private static final long EXPIRE_TOKEN_AFTER_MINUTES = 15; // Token validity: 15 minutes
+    private static final long EXPIRE_TOKEN_AFTER_MINUTES = 30; // Token validity: 30 minutes
 
     /**
      * Logs in a user by validating their email and password.
@@ -81,7 +89,7 @@ public class AuthenticationService {
 
     /**
      * Initiates the password reset process for a given email address.
-     * Generates a unique token and sets an expiry time.
+     * Generates a unique token, sets an expiry time, and sends a reset email.
      *
      * @param requestDto DTO containing the user's email.
      * @throws EmailNotFoundException if the email is not found.
@@ -99,9 +107,30 @@ public class AuthenticationService {
         account.setResetPasswordToken(token);
         account.setResetPasswordTokenExpiry(LocalDateTime.now().plusMinutes(EXPIRE_TOKEN_AFTER_MINUTES));
         accountRepository.save(account);
+        
+        log.info("Password reset token generated for email: {}", account.getEmail());
+        log.info("Token will expire in {} minutes", EXPIRE_TOKEN_AFTER_MINUTES);
 
-        // In a real application, you would send an email with the token here.
-        // For this task, we just generate and store it.
+        try {
+            // Send password reset email
+            emailService.sendPasswordResetEmail(account.getEmail(), token, account.getName());
+            log.info("Password reset email sent to: {}", account.getEmail());
+        } catch (MessagingException e) {
+            log.error("Failed to send password reset email to: {}, Error: {}", account.getEmail(), e.getMessage(), e);
+            // Don't throw an exception to prevent email enumeration attacks, but log the detailed error
+            log.info("DEVELOPMENT MODE: To reset password without email, use: " +
+                     "http://localhost:8080/dev/generate-reset-token?email={}", account.getEmail());
+        } catch (Exception e) {
+            log.error("Unexpected error when sending password reset email: {}", e.getMessage(), e);
+            log.info("DEVELOPMENT MODE: To reset password without email, use: " +
+                     "http://localhost:8080/dev/generate-reset-token?email={}", account.getEmail());
+            
+            // Don't throw an exception, we'll just rely on the dev endpoint
+            // In production, we might want to throw an exception here, but we'll log it instead
+        }
+        
+        // Token has been saved regardless of email sending status
+        log.info("Password reset process completed for: {}", account.getEmail());
     }
 
 

@@ -39,3 +39,6 @@ out/
 
 # Environment variables file
 /.env
+
+# OAuth tokens directory
+/tokens/

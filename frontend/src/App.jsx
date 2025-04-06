@@ -6,6 +6,8 @@ import EventsPage from "./pages/EventsPage.jsx";
 import GameSearchPage from "./pages/GameSearchPage.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
 import RegistrationPage from "./pages/RegistrationPage.jsx";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage.jsx";
+import ResetPasswordPage from "./pages/ResetPasswordPage.jsx";
 import UserProfilePage from "./pages/UserProfilePage.jsx";
 import UserSearchPage from "./pages/UserSearchPage.jsx";
 import DashboardPage from "./pages/DashboardPage.jsx";
@@ -21,6 +23,8 @@ function App() {
           <Route path="/"               element={<LandingPage />} />
           <Route path="/login"          element={<LoginPage />}/>
           <Route path="/register"       element={<RegistrationPage />}/>
+          <Route path="/forgot-password" element={<ForgotPasswordPage />}/>
+          <Route path="/reset-password" element={<ResetPasswordPage />}/>
 
           {/* Protected Routes */}
           <Route path="/events"         element={<ProtectedRoute><EventsPage /></ProtectedRoute>} />
