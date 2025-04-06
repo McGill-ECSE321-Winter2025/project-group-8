@@ -46,7 +46,7 @@ import java.util.Collection;
  * @author @Yessine-glitch
  */
 @RestController
-@RequestMapping("/events")
+@RequestMapping("/api/events")
 public class EventController {
     
     private static final Logger log = LoggerFactory.getLogger(EventController.class);

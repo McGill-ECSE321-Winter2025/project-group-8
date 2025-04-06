@@ -30,55 +30,8 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game, selected
   // Get today's date in YYYY-MM-DD format
   const today = new Date().toISOString().split('T')[0];
 
-  const validateDates = (data) => {
-    // Create error object to store validation errors
-    const errors = {};
-    
-    // Validate start date is provided
-    if (!data.startDate) {
-      errors.startDate = {
-        type: "required",
-        message: "Start date is required"
-      };
-    } 
-    // Validate start date is not in the past
-    else if (new Date(data.startDate) < new Date(today)) {
-      errors.startDate = {
-        type: "min",
-        message: "Start date must be today or in the future"
-      };
-    }
-    
-    // Validate end date is provided
-    if (!data.endDate) {
-      errors.endDate = {
-        type: "required",
-        message: "End date is required"
-      };
-    } 
-    // Validate end date is not before start date
-    else if (data.startDate && new Date(data.endDate) < new Date(data.startDate)) {
-      errors.endDate = {
-        type: "min",
-        message: "End date must be on or after the start date"
-      };
-    }
-    
-    return errors;
-  };
-
   const handleSubmit = (data) => {
-    // Perform manual validation
-    const errors = validateDates(data);
-    
-    // If there are validation errors, set them in the form
-    if (Object.keys(errors).length > 0) {
-      Object.keys(errors).forEach(field => {
-        form.setError(field, errors[field]);
-      });
-      return;
-    }
-    
+    // Validation is now handled by react-hook-form rules
     // Convert form data to match CreateBorrowRequestDto
     const borrowRequest = {
       game,
@@ -118,14 +71,16 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game, selected
               <FormField
                 control={form.control}
                 name="startDate"
+                rules={{
+                  required: 'Start date is required',
+                  validate: (value) => new Date(value) >= new Date(today) || 'Start date must be today or in the future'
+                }}
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Start Date</FormLabel>
                     <FormControl>
                       <Input
                         type="date"
-                        min={today}
-                        required
                         {...field}
                       />
                     </FormControl>
@@ -137,14 +92,19 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game, selected
               <FormField
                 control={form.control}
                 name="endDate"
+                rules={{
+                  required: 'End date is required',
+                  validate: (value) => {
+                    const startDate = form.getValues("startDate");
+                    return !startDate || new Date(value) >= new Date(startDate) || 'End date must be on or after the start date';
+                  }
+                }}
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>End Date</FormLabel>
                     <FormControl>
                       <Input
                         type="date"
-                        min={form.watch("startDate") || today}
-                        required
                         {...field}
                       />
                     </FormControl>

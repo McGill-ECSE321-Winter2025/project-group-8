@@ -12,15 +12,73 @@ export async function getIncomingBorrowRequests(gameOwnerId, retryCount = 0) {
   }
   
   try {
-    return await apiClient(`/api/borrowrequests/gameOwner/${gameOwnerId}?userId=${gameOwnerId}`, {
-      skipPrefix: true,
+    // Get userId for request headers
+    const userId = localStorage.getItem('userId');
+    
+    // Debug auth state
+    console.log(`[API] getIncomingBorrowRequests for owner: ${gameOwnerId}, userId: ${userId}`);
+    
+    // The backend uses cookies for authentication, we just need the user ID in headers
+    const headers = {
+      'X-User-Id': userId || gameOwnerId
+    };
+    
+    // Assuming the backend endpoint for incoming requests is /api/borrowrequests/gameOwner/{gameOwnerId}
+    return await apiClient(`/api/borrowrequests/gameOwner/${gameOwnerId}`, {
+      skipPrefix: false,
       retryOnAuth: true,
-      credentials: 'include'
+      credentials: 'include', // Important for cookie-based auth
+      headers
     });
   } catch (error) {
     if (error instanceof UnauthorizedError && retryCount < MAX_RETRIES) {
       console.log(`Auth not ready, retrying incoming requests fetch (attempt ${retryCount + 1})`);
       return getIncomingBorrowRequests(gameOwnerId, retryCount + 1);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Search for users based on search criteria with retry for auth issues
+ * @param {object} searchParams - Search parameters (name, email, etc.)
+ * @param {number} retryCount - Current retry attempt (internal use)
+ * @returns {Promise<Array>} - Array of matching user objects
+ */
+export async function searchUsers(searchParams, retryCount = 0) {
+  const MAX_RETRIES = 3;
+  
+  // Add delay for retry attempts with increasing delay times
+  if (retryCount > 0) {
+    const delay = retryCount * 1000;  // Progressive delay: 1s, 2s, 3s
+    console.log(`Waiting ${delay}ms before retry ${retryCount}/${MAX_RETRIES}`);
+    await new Promise(resolve => setTimeout(resolve, delay));
+  }
+  
+  try {
+    console.log(`[API Request] Searching for users with params:`, searchParams);
+    
+    // Get userId from localStorage for consistent auth
+    const userId = localStorage.getItem('userId');
+    if (!userId) {
+      console.warn('[API Request] No userId found in localStorage for user search');
+    }
+    
+    // Make sure we have proper credentials and authentication
+    return await apiClient(`/users/search`, {
+      method: "POST",
+      body: searchParams,
+      skipPrefix: false,
+      retryOnAuth: true,
+      credentials: 'include',
+      headers: {
+        'X-User-Id': userId
+      }
+    });
+  } catch (error) {
+    if (error instanceof UnauthorizedError && retryCount < MAX_RETRIES) {
+      console.log(`Auth not ready, retrying user search (attempt ${retryCount + 1})`);
+      return searchUsers(searchParams, retryCount + 1);
     }
     throw error;
   }
@@ -42,13 +100,16 @@ export async function getOutgoingBorrowRequests(accountId, retryCount = 0) {
   try {
     console.log(`[API Request] Fetching borrow requests for user ${accountId}`);
     
+    // Get userId from localStorage for consistent auth
+    const userId = localStorage.getItem('userId') || accountId;
+    
     // Make sure we have proper credentials and authentication
     return await apiClient(`/api/borrowrequests/requester/${accountId}`, {
-      skipPrefix: true,
+      skipPrefix: false,
       retryOnAuth: true,
       credentials: 'include',
       headers: {
-        'X-User-Id': accountId
+        'X-User-Id': userId
       }
     });
   } catch (error) {
@@ -65,8 +126,11 @@ export async function actOnBorrowRequest(requestId, request) {
   return apiClient(`/api/borrowrequests/${requestId}`, {
     method: "PUT",
     body: request,
-    skipPrefix: true,
-    credentials: 'include'
+    skipPrefix: false,
+    credentials: 'include',
+    headers: {
+      'X-User-Id': userId
+    }
   });
 }
 
@@ -86,14 +150,23 @@ export async function getLendingHistory(accountId, isOwner, retryCount = 0) {
   try {
     console.log(`[API Request] Fetching lending history for user ${accountId}`);
     
+    // Get userId for headers
+    const userId = localStorage.getItem('userId') || accountId;
+    
+    // Debug auth state
+    console.log(`[API] getLendingHistory for userId: ${userId}, isOwner: ${isOwner}`);
+    
+    // The backend uses cookies for authentication, we just need the user ID in headers
+    const headers = {
+      'X-User-Id': userId
+    };
+    
     // Make sure we have proper credentials and authentication
     return await apiClient(`/api/lending-records/${isOwner ? "owner" : "borrower"}/${accountId}`, {
-      skipPrefix: true,
+      skipPrefix: false,
       retryOnAuth: true,
       credentials: 'include',
-      headers: {
-        'X-User-Id': accountId
-      }
+      headers
     });
   } catch (error) {
     if (error instanceof UnauthorizedError && retryCount < MAX_RETRIES) {
@@ -109,7 +182,11 @@ export async function markAsReturned(lendingId, information) {
   return apiClient(`/api/lending-records/${lendingId}/mark-returned?userId=${userId}`, {
     method: "POST",
     body: information,
-    skipPrefix: true
+    skipPrefix: false,
+    credentials: 'include',
+    headers: {
+      'X-User-Id': userId
+    }
   });
 }
 
@@ -118,7 +195,11 @@ export async function updateUsernamePassword(request) {
   return apiClient(`/account?userId=${userId}`, {
     method: "PUT",
     body: request,
-    skipPrefix: true
+    skipPrefix: false,
+    credentials: 'include',
+    headers: {
+      'X-User-Id': userId
+    }
   });
 }
 
@@ -126,12 +207,21 @@ export async function upgradeAccountToGameOwner(email) {
   const userId = localStorage.getItem('userId');
   return apiClient(`/account/${email}?userId=${userId}`, {
     method: "PUT",
-    skipPrefix: true
+    skipPrefix: false,
+    credentials: 'include',
+    headers: {
+      'X-User-Id': userId
+    }
   });
 }
 
 export async function getHostedEvents(hostId) {
+  const userId = localStorage.getItem('userId');
   return apiClient(`/events/by-host-id/${hostId}?userId=${hostId}`, {
-    skipPrefix: true
+    skipPrefix: false,
+    credentials: 'include',
+    headers: {
+      'X-User-Id': userId || hostId
+    }
   });
 }

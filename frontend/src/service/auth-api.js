@@ -1,4 +1,16 @@
-import apiClient, { getCookieAuthState } from './apiClient';
+import apiClient, { getCookieAuthState, UnauthorizedError, ConnectionError, setAuthInProgress } from './apiClient'; // Import setAuthInProgress
+
+// Base URL from apiClient for consistent configuration
+const BASE_URL = 'http://localhost:8080';
+
+/**
+ * Utility function to get auth headers with user ID
+ * @returns {Object} Headers object with X-User-Id if available
+ */
+const getAuthHeaders = () => {
+  const userId = localStorage.getItem('userId');
+  return userId ? { 'X-User-Id': userId } : {};
+};
 
 /**
  * Logs in a user with email and password
@@ -11,298 +23,297 @@ export const loginUser = async (email, password, rememberMe = false) => {
   if (!email || !password) {
     throw new Error("Email and password are required");
   }
-  
+
   try {
     // Set auth in progress flag before making the request
-    // This will prevent other requests from running before login completes
-    const { setAuthInProgress } = await import('./apiClient');
     setAuthInProgress(true);
-    
-    // Clear any existing auth cookies before attempting login
+    console.log('[AuthAPI] Login started. Auth in progress: true');
+
+    // Clear potentially stale client-side auth state indicators *before* login attempt
+    // This helps prevent race conditions where old state might interfere.
     document.cookie = "isAuthenticated=false; path=/; max-age=0";
-    document.cookie = "hasAccessToken=false; path=/; max-age=0";
-    
+    localStorage.removeItem('userId');
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('user');
+    localStorage.removeItem('rememberMe');
+    console.log('[AuthAPI] Cleared potential stale client-side auth state.');
+
     // Make the login request
     const response = await apiClient('/auth/login', {
       method: 'POST',
       body: { email, password, rememberMe },
-      credentials: 'include',
+      credentials: 'include', // Crucial for receiving HttpOnly cookies
+      requiresAuth: false, // Login itself doesn't require prior auth
+      skipPrefix: true // Auth endpoint is likely not under /api
     });
+
+    // Log full response for debugging
+    console.log('[AuthAPI] Login response full structure:', JSON.stringify(response, null, 2));
+
+    // Backend sets HttpOnly accessToken cookie and a non-HttpOnly isAuthenticated cookie
+    // We don't need to extract or store tokens manually
     
-    // With HttpOnly cookie auth, we don't need to look for a token in the response
-    // We just need to make sure we got a valid user object back
+    // Verify that we have the isAuthenticated cookie now
+    const hasAuthCookie = document.cookie.includes('isAuthenticated=true');
+    console.log('[AuthAPI] Authentication cookie check:', hasAuthCookie ? 'Cookie present' : 'Cookie missing');
+    
+    // Small delay to potentially allow browser to process Set-Cookie headers
+    await new Promise(resolve => setTimeout(resolve, 100));
+    console.log('[AuthAPI] Cookie state after login API call and delay:', getCookieAuthState());
+
+    // The response body should contain user summary data.
     if (response && response.id) {
-      // Log cookie state for debugging
-      console.log('Cookie state after login:', getCookieAuthState());
-      
-      // Set both auth cookies simultaneously to ensure a consistent state
-      // Use SameSite=Lax for better compatibility and security
-      const maxAge = rememberMe ? 7 * 24 * 60 * 60 : 24 * 60 * 60; // 7 days if remember me, otherwise 24 hours
-      const cookieOptions = `path=/; max-age=${maxAge}; SameSite=Lax`;
-      document.cookie = `isAuthenticated=true; ${cookieOptions}`;
-      document.cookie = `hasAccessToken=true; ${cookieOptions}`;
-      
-      // Small delay to ensure cookies are set before continuing
-      await new Promise(resolve => setTimeout(resolve, 200));
-      
-      // Store user data in localStorage as backup
-      if (response.id) {
-        localStorage.setItem('userId', response.id);
-      }
-      if (response.email) {
-        localStorage.setItem('userEmail', response.email);
-      }
-      
+      console.log('[AuthAPI] Login API call successful. User data received:', response);
+
+      // Store user data in localStorage as a backup/convenience
+      localStorage.setItem('userId', response.id);
+      localStorage.setItem('userEmail', response.email);
+      localStorage.setItem('user', JSON.stringify(response));
+      localStorage.setItem('rememberMe', rememberMe ? 'true' : 'false'); // Store rememberMe preference
+
       // Auth process complete
       setAuthInProgress(false);
-      
-      return response;
+      console.log('[AuthAPI] Login finished. Auth in progress: false');
+
+      return response; // Return the user summary DTO
     }
-    
-    // If we get here, the login response wasn't valid
+
+    // If we get here, the login response wasn't valid (e.g., missing user ID)
+    console.error('[AuthAPI] Login failed: Invalid response from login endpoint:', response);
     setAuthInProgress(false);
+    console.log('[AuthAPI] Login finished (invalid response). Auth in progress: false');
     throw new Error("Invalid response from login endpoint");
+
   } catch (error) {
     // Ensure auth in progress flag is reset on error
-    const { setAuthInProgress } = await import('./apiClient');
     setAuthInProgress(false);
-    
-    console.error('Login error:', error);
-    throw error;
+    console.error('[AuthAPI] Login error caught:', error);
+    console.log('[AuthAPI] Login finished (error). Auth in progress: false');
+    // Clear potentially partially set cookies/localStorage on error
+    document.cookie = "isAuthenticated=false; path=/; max-age=0";
+    localStorage.removeItem('userId');
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('user');
+    localStorage.removeItem('rememberMe');
+    throw error; // Re-throw the error for the caller (e.g., LoginPage) to handle
   }
 };
 
 /**
- * Logs out the current user by clearing authentication cookies
- * @returns {Promise<void>}
+ * Logs out the current user by clearing authentication cookies and state.
+ * @returns {Promise<boolean>} - True if logout process completed (even if API call failed)
  */
 export const logoutUser = async () => {
   try {
     // Set auth in progress flag before making the request
-    const { setAuthInProgress } = await import('./apiClient');
     setAuthInProgress(true);
-    
-    // Clear auth cookies first to prevent race conditions
-    console.log('Clearing auth cookies before logout request');
+    console.log('[AuthAPI] Logout started. Auth in progress: true');
+
+    // Clear client-side state *first* to ensure immediate logout feel
     document.cookie = "isAuthenticated=false; path=/; max-age=0";
-    document.cookie = "hasAccessToken=false; path=/; max-age=0";
-    
-    // Clear localStorage
+    // The HttpOnly accessToken cookie will be cleared by the backend response
     localStorage.removeItem('userId');
     localStorage.removeItem('userEmail');
-    localStorage.removeItem('token');
     localStorage.removeItem('user');
-    
-    // Make the logout request
+    localStorage.removeItem('rememberMe');
+    console.log('[AuthAPI] Cleared client-side auth state.');
+
+    // Make the logout request to the backend
     await apiClient('/auth/logout', {
       method: 'POST',
-      credentials: 'include',
-      // Skip auth checks for logout - it should work even if auth is not ready
-      requiresAuth: false
+      credentials: 'include', // Needed to potentially clear HttpOnly cookie via backend response
+      requiresAuth: false, // Logout should work even if not fully authenticated
+      skipPrefix: true // Auth endpoint
     });
-    
-    // Log cookie state after logout
-    console.log('Cookie state after logout:', getCookieAuthState());
-    
-    // Double-check that cookies are cleared
-    if (getCookieAuthState().isAuthenticated || getCookieAuthState().hasAccessToken) {
-      console.log('Forcing cookie removal after logout');
-      document.cookie = "isAuthenticated=false; path=/; max-age=0";
-      document.cookie = "hasAccessToken=false; path=/; max-age=0";
-    }
-    
+    console.log('[AuthAPI] Logout API call successful.');
+
     // Auth process complete
     setAuthInProgress(false);
+    console.log('[AuthAPI] Logout finished. Auth in progress: false');
+    console.log('[AuthAPI] Cookie state after logout:', getCookieAuthState());
     return true;
+
   } catch (error) {
     // Ensure auth in progress flag is reset on error
-    const { setAuthInProgress } = await import('./apiClient');
-    
-    console.error('Logout error:', error);
-    // Even if the server request fails, consider the user logged out
-    // Force cookies to be removed
+    setAuthInProgress(false);
+    console.error('[AuthAPI] Logout API error:', error);
+    console.log('[AuthAPI] Logout finished (API error). Auth in progress: false');
+
+    // Even if the server request fails, ensure client-side state is cleared
+    // Force removal again just in case
     document.cookie = "isAuthenticated=false; path=/; max-age=0";
-    document.cookie = "hasAccessToken=false; path=/; max-age=0";
-    
-    // Clear localStorage
     localStorage.removeItem('userId');
     localStorage.removeItem('userEmail');
-    localStorage.removeItem('token');
     localStorage.removeItem('user');
-    
-    setAuthInProgress(false);
+    localStorage.removeItem('rememberMe');
+    console.log('[AuthAPI] Ensured client-side state cleared after logout API error.');
+    console.log('[AuthAPI] Cookie state after failed logout API call:', getCookieAuthState());
+
+    // Consider the user logged out on the client even if the backend call failed
     return true;
   }
 };
 
 /**
- * Gets the current authentication status with retry logic
- * @param {number} retryCount - Number of retry attempts made (default 0)
- * @returns {Promise<boolean>} - Whether the user is authenticated
+ * Gets the current authentication status by fetching the user profile.
+ * Relies on the browser automatically sending the HttpOnly accessToken cookie.
+ * @returns {Promise<Object|null>} - User profile object if authenticated, null otherwise
  */
-export const checkAuthStatus = async (retryCount = 0) => {
-  const MAX_RETRIES = 3; // Increase from 2 to 3
-  
+export const checkAuthStatus = async () => {
   try {
-    // Log cookie state before auth check
-    const cookieState = getCookieAuthState();
-    console.log('Cookie state before auth check:', cookieState);
-    
-    // If we have both cookies and we've already retried,
-    // trust the cookies and return true to prevent endless retries
-    if (cookieState.isAuthenticated && cookieState.hasAccessToken && retryCount > 0) {
-      console.log('Using cookie auth state after retry:', cookieState.isAuthenticated);
-      return true;
-    }
-    
+    console.log('[AuthAPI] Checking auth status via /users/me...');
+    console.log('[AuthAPI] Cookie state before /users/me check:', getCookieAuthState());
+
     // Use the user profile endpoint to check authentication
+    // apiClient handles credentials: 'include' automatically
     const userProfile = await apiClient('/users/me', {
       method: 'GET',
-      credentials: 'include',
-      skipPrefix: true,
-      suppressErrors: true
+      skipPrefix: true, // Endpoint is likely /users/me, not /api/users/me
+      suppressErrors: true, // Don't throw ApiError for 401, let us handle it
+      requiresAuth: true, // This endpoint definitely requires auth
+      headers: getAuthHeaders() // Use consistent auth headers
     });
-    
+
     // If we get a valid response, user is authenticated
-    // Also ensure cookies are set
     if (userProfile && userProfile.id) {
-      // Set both cookies with identical options to ensure a consistent state
-      const cookieOptions = `path=/; max-age=86400; SameSite=Lax`; // 24 hours
-      console.log('Setting auth cookies after successful profile check');
-      document.cookie = `isAuthenticated=true; ${cookieOptions}`;
-      document.cookie = `hasAccessToken=true; ${cookieOptions}`;
-      
-      // Store user ID in localStorage for backup
-      if (userProfile.id && !localStorage.getItem('userId')) {
+      console.log('[AuthAPI] Auth status check successful. User:', userProfile.email);
+      // *** REMOVED client-side cookie setting here ***
+      // Backend should have already set necessary cookies if needed.
+      // Frontend should not try to manage hasAccessToken cookie.
+      // It can set isAuthenticated if needed by other parts, but ideally AuthContext handles this.
+
+      // Ensure localStorage is consistent (backup)
+      if (!localStorage.getItem('userId')) {
         localStorage.setItem('userId', userProfile.id);
       }
-      
-      return true;
+      if (!localStorage.getItem('userEmail')) {
+         localStorage.setItem('userEmail', userProfile.email);
+      }
+       // Optionally update the full user object in localStorage
+      localStorage.setItem('user', JSON.stringify(userProfile));
+
+      return userProfile; // Return the user profile object on success
     }
-    
-    // If we get here but no error was thrown,
-    // the response was empty or invalid, so user is not authenticated
-    console.log('Auth check: User profile check returned but no valid user data');
-    document.cookie = "isAuthenticated=false; path=/; max-age=0";
-    document.cookie = "hasAccessToken=false; path=/; max-age=0";
-    return false;
+
+    // If response was invalid or empty, user is not authenticated.
+    console.log('[AuthAPI] Auth status check returned no valid user profile.');
+    // *** REMOVED client-side cookie clearing here ***
+    // Let login/logout functions manage cookie state. A failed check doesn't
+    // necessarily mean cookies *should* be cleared (e.g., could be temporary network issue).
+    return null;
+
   } catch (error) {
-    // If unauthorized, user is not authenticated
-    if (error.status === 401) {
-      console.log('Auth check: User is not authenticated (401)');
-      document.cookie = "isAuthenticated=false; path=/; max-age=0";
-      document.cookie = "hasAccessToken=false; path=/; max-age=0";
-      return false;
+    // Handle specific error types from apiClient
+    if (error instanceof UnauthorizedError) {
+      // 401 Unauthorized: User is definitely not logged in according to the backend.
+      console.log('[AuthAPI] Auth status check failed: Unauthorized (401)');
+      // *** REMOVED client-side cookie clearing here ***
+      // Let login/logout functions handle cookie state.
+      return null;
+    } else if (error instanceof ConnectionError) {
+      // Network error: Cannot reach the server to verify.
+      console.error('[AuthAPI] Connection error during auth status check:', error.message);
+      // We cannot confirm auth status. Returning null is safest.
+      // We could potentially trust existing cookies here, but it's risky.
+      // *** REMOVED client-side cookie clearing here ***
+      return null;
+    } else {
+      // Other errors (e.g., 500 Internal Server Error, unexpected issues)
+      console.error('[AuthAPI] Unexpected error during auth status check:', error);
+      // *** REMOVED client-side cookie clearing here ***
+      return null;
     }
-    
-    // For network errors, we can't determine auth state directly
-    // Check if we have cookies that say we're authenticated
-    if (error.status === 0 || error.name === 'ConnectionError') {
-      console.error('Network error during auth check');
-      
-      // If we have both cookies, trust them during network issues
-      const cookieState = getCookieAuthState();
-      if (cookieState.isAuthenticated && cookieState.hasAccessToken) {
-        console.log('Network error, but using cookie auth state:', true);
-        return true;
-      }
-      
-      // If we have partial cookie state, try to recover by setting both cookies
-      if (cookieState.isAuthenticated || cookieState.hasAccessToken) {
-        console.log('Partial cookie state during network error, attempting to fix');
-        const cookieOptions = `path=/; max-age=86400; SameSite=Lax`; // 24 hours
-        document.cookie = `isAuthenticated=true; ${cookieOptions}`;
-        document.cookie = `hasAccessToken=true; ${cookieOptions}`;
-        return true;
-      }
-      
-      // If we've reached max retries, use whatever auth state we have
-      if (retryCount >= MAX_RETRIES) {
-        console.log(`Max retries (${MAX_RETRIES}) reached during network error`);
-        // If we have a userId in localStorage, assume we might be authenticated
-        if (localStorage.getItem('userId')) {
-          console.log('Using localStorage userId as fallback for auth state');
-          return true;
-        }
-        throw error;
-      }
-      
-      // Retry after a delay with exponential backoff
-      const delay = 1000 * Math.pow(2, retryCount);
-      console.log(`Network error during auth check, retrying in ${delay}ms (${retryCount + 1}/${MAX_RETRIES})...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-      return checkAuthStatus(retryCount + 1);
-    }
-    
-    console.log('Auth check: Failed with error', error.status, error.message);
-    return false;
   }
 };
 
 /**
- * Gets the current user's profile
+ * Gets the current user's profile (similar to checkAuthStatus but throws errors).
  * @returns {Promise<Object>} - The user's profile data
+ * @throws {UnauthorizedError} If not authenticated
+ * @throws {ApiError} For other errors
  */
 export const getUserProfile = async () => {
   try {
+    console.log('[AuthAPI] Getting user profile via /users/me...');
     const userProfile = await apiClient('/users/me', {
       method: 'GET',
-      credentials: 'include',
-      skipPrefix: true
+      skipPrefix: true, // Endpoint is likely /users/me
+      suppressErrors: false, // Let errors propagate
+      requiresAuth: true,
+      headers: getAuthHeaders() // Use consistent auth headers
     });
-    
-    // If we get a valid response, ensure cookies are set
+
+    // If we get a valid response, ensure localStorage is consistent
     if (userProfile && userProfile.id) {
-      if (!getCookieAuthState().isAuthenticated) {
-        console.log('Setting isAuthenticated cookie after successful profile fetch');
-        document.cookie = "isAuthenticated=true; path=/; max-age=86400"; // 24 hours
-      }
-      if (!getCookieAuthState().hasAccessToken) {
-        console.log('Setting hasAccessToken cookie after successful profile fetch');
-        document.cookie = "hasAccessToken=true; path=/; max-age=86400"; // 24 hours
-      }
+       if (!localStorage.getItem('userId')) {
+         localStorage.setItem('userId', userProfile.id);
+       }
+       if (!localStorage.getItem('userEmail')) {
+          localStorage.setItem('userEmail', userProfile.email);
+       }
+       localStorage.setItem('user', JSON.stringify(userProfile));
+       // *** REMOVED client-side cookie setting ***
+    } else {
+       // Should not happen if API call succeeded, but as a safeguard:
+       console.warn('[AuthAPI] getUserProfile succeeded but returned invalid data:', userProfile);
+       throw new ApiError("Invalid user profile data received", 500);
     }
-    
+
     return userProfile;
   } catch (error) {
-    // If unauthorized, ensure cookies reflect this state
-    if (error.status === 401) {
-      document.cookie = "isAuthenticated=false; path=/; max-age=0";
-      document.cookie = "hasAccessToken=false; path=/; max-age=0";
+    console.error('[AuthAPI] Error fetching user profile:', error);
+    // If unauthorized, ensure client-side state reflects this (though logout should handle it)
+    if (error instanceof UnauthorizedError) {
+       // Optionally trigger a logout here if needed, but AuthContext usually handles this
+       // document.cookie = "isAuthenticated=false; path=/; max-age=0";
+       // localStorage.clear(); // Or specific items
     }
-    throw error;
+    throw error; // Re-throw the error
   }
 };
 
 /**
  * Registers a new user
- * @param {Object} userData - Registration data
- * @returns {Promise<Object>} - The created user
+ * @param {Object} userData - Registration data (name, email, password, gameOwner boolean)
+ * @returns {Promise<Object>} - The created user account details (or success message)
  */
 export const registerUser = async (userData) => {
   if (!userData.email || !userData.password || !userData.name) {
-    throw new Error("Required fields missing for registration");
+    throw new Error("Required fields missing for registration (name, email, password)");
   }
-  
-  return apiClient('/auth/register', {
+
+  // Backend expects 'username', map 'name' to it
+  const payload = {
+    username: userData.name,
+    email: userData.email,
+    password: userData.password,
+    gameOwner: userData.gameOwner || false // Default to false if not provided
+  };
+
+  // Use POST /account endpoint
+  return apiClient('/account', {
     method: 'POST',
-    body: userData,
+    body: payload,
+    requiresAuth: false, // Registration doesn't require prior auth
+    skipPrefix: true // Endpoint is likely /account
   });
 };
 
 /**
  * Requests a password reset for a user
  * @param {string} email - The user's email
- * @returns {Promise<Object>} - Response
+ * @returns {Promise<Object>} - Response from the backend
  */
 export const requestPasswordReset = async (email) => {
   if (!email) {
     throw new Error("Email is required");
   }
-  
+
   return apiClient('/auth/request-password-reset', {
     method: 'POST',
     body: { email },
+    requiresAuth: false,
+    skipPrefix: true
   });
 };
 
@@ -310,29 +321,36 @@ export const requestPasswordReset = async (email) => {
  * Resets a user's password using a token
  * @param {string} token - The reset token
  * @param {string} newPassword - The new password
- * @returns {Promise<Object>} - Response
+ * @returns {Promise<Object>} - Response from the backend
  */
 export const resetPassword = async (token, newPassword) => {
   if (!token || !newPassword) {
     throw new Error("Token and new password are required");
   }
-  
+
   return apiClient('/auth/perform-password-reset', {
     method: 'POST',
     body: { token, newPassword },
+    requiresAuth: false,
+    skipPrefix: true
   });
 };
 
 /**
- * Updates the current user's profile
- * @param {Object} profileData - The profile data to update
- * @returns {Promise<Object>} - The updated user
+ * Updates the current user's profile (e.g., username, password)
+ * @param {Object} profileData - The profile data to update (e.g., { username, password, newPassword })
+ * @returns {Promise<Object>} - Success message or updated user data
  */
 export const updateUserProfile = async (profileData) => {
-  return apiClient('/users/me', {
+  // Backend endpoint seems to be PUT /account
+  // It requires email, username, password (current), and optionally newPassword
+  if (!profileData || !profileData.email || !profileData.username || !profileData.password) {
+     throw new Error("Email, username, and current password are required to update profile.");
+  }
+  return apiClient('/account', { // Use PUT /account based on backend controller
     method: 'PUT',
     body: profileData,
-    credentials: 'include',
+    requiresAuth: true, // Requires authentication
     skipPrefix: true
   });
-}; 
+};

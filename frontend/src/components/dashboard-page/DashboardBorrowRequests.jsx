@@ -1,7 +1,7 @@
 import BorrowRequest from "@/components/dashboard-page/BorrowRequest.jsx";
 import {TabsContent} from "@/components/ui/tabs.jsx";
 import { useEffect, useState, useCallback } from "react";
-import { getOutgoingBorrowRequests } from "@/service/dashboard-api";
+import { getIncomingBorrowRequests } from "@/service/dashboard-api";
 import { UnauthorizedError } from "@/service/apiClient"; // Import UnauthorizedError
 import { useAuth } from "@/context/AuthContext";
 import { Loader2 } from "lucide-react";
@@ -27,12 +27,10 @@ export default function DashboardBorrowRequests() {
     try {
       setIsLoading(true);
       setFetchAttempted(true);
-      console.log(`Fetching borrow requests for user: ${user.id}`);
-      
       // Wait a bit to ensure auth is fully established
       await new Promise(resolve => setTimeout(resolve, 300));
       
-      const requests = await getOutgoingBorrowRequests(user.id);
+      const requests = await getIncomingBorrowRequests(user.id);
       setBorrowRequests(requests);
       setError(null); // Clear any previous errors
     } catch (err) {
@@ -68,7 +66,7 @@ export default function DashboardBorrowRequests() {
 
   return <TabsContent value="requests" className="space-y-6">
     <div className="flex justify-between items-center">
-      <h2 className="text-2xl font-bold">My Borrow Requests</h2>
+      <h2 className="text-2xl font-bold">Incoming Borrow Requests</h2>
     </div>
     <div className="space-y-4">
       {isLoading ? (
@@ -89,6 +87,7 @@ export default function DashboardBorrowRequests() {
             date={request.requestDate}
             endDate={request.endDate}
             status={request.status}
+            imageSrc={request.gameImage} // Pass the image source
           />
         )
       )}

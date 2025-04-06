@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react'; // Added useCallback
 import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
@@ -15,40 +15,34 @@ import GameOwnerTag from '../common/GameOwnerTag.jsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Users, GamepadIcon, Mail, Loader2 } from 'lucide-react';
 import { formatJoinDate, formatRelativeTime } from '../lib/dateUtils.js';
-import { getGamesByOwner } from '@/service/game-api';
+import { sendConnectionRequest } from '@/service/user-api.js'; // Added connection API import
 import { useAuth } from '@/context/AuthContext';
+import { toast } from 'sonner'; // Added toast import
 
 const UserPreviewOverlay = ({ user, isOpen, onClose }) => {
   const navigate = useNavigate();
-  const { user: currentUser } = useAuth();
-  const [currentUserGames, setCurrentUserGames] = useState([]);
-  const [isLoadingGames, setIsLoadingGames] = useState(false);
-  
-  // Fetch current user's games when needed to compare with viewed user
+  const { user: currentUser, currentUserGames, currentUserGamesError } = useAuth(); // Get games and error from context
+  // Removed: const [currentUserGames, setCurrentUserGames] = useState([]);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [connectStatus, setConnectStatus] = useState('idle'); // 'idle', 'success', 'error'
+  const [connectError, setConnectError] = useState('');
+
+  // Reset connection state when the dialog opens or user changes
   useEffect(() => {
-    async function fetchCurrentUserGames() {
-      if (!currentUser?.email || !isOpen) return;
-      
-      try {
-        setIsLoadingGames(true);
-        const gamesData = await getGamesByOwner(currentUser.email);
-        // Extract just the names from the games data
-        const gameNames = gamesData.map(game => game.name);
-        setCurrentUserGames(gameNames);
-      } catch (err) {
-        console.error("Error fetching current user games:", err);
-        setCurrentUserGames([]);
-      } finally {
-        setIsLoadingGames(false);
-      }
+    if (isOpen) {
+      setIsConnecting(false);
+      setConnectStatus('idle');
+      setConnectError('');
     }
-    
-    fetchCurrentUserGames();
-  }, [currentUser, isOpen]);
+  }, [isOpen, user?.id]);
 
   if (!user) return null;
   
   // Find common games between current user and viewed profile
+  // TODO: [Refactor] Compare games by ID if both currentUserGames (from AuthContext)
+  // and user.gamesPlayed (from API) consistently provide unique game IDs.
+  // Currently comparing by name due to uncertainty about ID availability in user.gamesPlayed.
+
   const commonGames = user?.gamesPlayed?.filter(game => currentUserGames.includes(game)) || [];
 
   // Format join date
@@ -91,6 +85,34 @@ const UserPreviewOverlay = ({ user, isOpen, onClose }) => {
       className="transition-all duration-200"
     />
   );
+
+  const handleConnect = useCallback(async () => {
+    if (!user?.email || connectStatus === 'success' || isConnecting) return;
+
+    setIsConnecting(true);
+    setConnectStatus('idle');
+    setConnectError('');
+
+    try {
+      await sendConnectionRequest(user.email);
+      setConnectStatus('success');
+      toast.success(`Connection request sent to ${user.username || 'user'}.`);
+      // Keep button disabled after success
+    } catch (error) {
+      console.error("Failed to send connection request:", error);
+      const errorMsg = error.message || "Could not send connection request. Please try again.";
+      setConnectError(errorMsg);
+      setConnectStatus('error');
+      toast.error(errorMsg);
+      // Re-enable button on error to allow retry? Or keep disabled? Let's re-enable for now.
+      // If we want to keep disabled, remove the setIsConnecting(false) below.
+    } finally {
+      // Only set connecting to false on error if we want to allow retries
+      if (connectStatus !== 'success') {
+         setIsConnecting(false);
+      }
+    }
+  }, [user?.email, user?.username, isConnecting, connectStatus]);
 
   return (
     <AnimatePresence>
@@ -158,23 +180,31 @@ const UserPreviewOverlay = ({ user, isOpen, onClose }) => {
                   </div>
                 )}
 
-                {/* Common Games Section - Only show if loading or if games found */}
-                {isLoadingGames ? (
-                  <div className="mb-6 flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                    <span className="text-sm">Finding games in common...</span>
+                {/* Common Games Section */}
+                <div className="mb-6">
+                  <div className="flex items-center gap-2 mb-2">
+                    <GamepadIcon className="h-4 w-4 text-primary" />
+                    <h4 className="text-sm font-medium">Games Played in Common:</h4>
                   </div>
-                ) : commonGames.length > 0 && (
-                  <div className="mb-6">
-                    <div className="flex items-center gap-2 mb-2">
-                      <GamepadIcon className="h-4 w-4 text-primary" />
-                      <h4 className="text-sm font-medium">Games Played in Common:</h4>
-                    </div>
+                  {/* Display error if fetching current user's games failed */}
+                  {currentUserGamesError && (
+                    <motion.div variants={itemVariants} className="text-xs text-destructive bg-destructive/10 p-2 rounded-md mb-2">
+                      Could not load common games info: {currentUserGamesError}
+                    </motion.div>
+                  )}
+                  {/* Only show common games list if there's no error and common games exist */}
+                  {!currentUserGamesError && commonGames.length > 0 && (
                     <div className="flex flex-wrap gap-2">
                       {commonGames.map((game, index) => renderGameTag(game, index + 100))}
                     </div>
-                  </div>
-                )}
+                  )}
+                  {/* Show message if no common games and no error */}
+                  {!currentUserGamesError && commonGames.length === 0 && user?.gamesPlayed?.length > 0 && (
+                     <motion.p variants={itemVariants} className="text-xs text-muted-foreground italic">
+                       No games in common found.
+                     </motion.p>
+                  )}
+                </div>
               </div>
 
               {/* Footer Section */}
@@ -190,15 +220,23 @@ const UserPreviewOverlay = ({ user, isOpen, onClose }) => {
                   <Users className="h-4 w-4" />
                   View Profile
                 </Button>
-                <Button 
+                <Button
                   className="flex-1 gap-2"
-                  onClick={() => {
-                    // TODO: Implement actual friend request logic
-                    onClose();
-                  }}
+                  onClick={handleConnect}
+                  disabled={isConnecting || connectStatus === 'success' || !user?.email}
                 >
-                  <Mail className="h-4 w-4" />
-                  Connect
+                  {isConnecting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Mail className="h-4 w-4" />
+                  )}
+                  {isConnecting
+                    ? 'Sending...'
+                    : connectStatus === 'success'
+                    ? 'Request Sent'
+                    : connectStatus === 'error'
+                    ? 'Retry Connect' // Or just 'Connect'
+                    : 'Connect'}
                 </Button>
               </DialogFooter>
             </motion.div>

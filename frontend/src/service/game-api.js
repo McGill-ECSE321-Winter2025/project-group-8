@@ -27,7 +27,7 @@ export const searchGames = async (criteria) => {
     // Use apiClient - it handles credentials automatically if needed
     const games = await apiClient(endpoint, { 
       method: "GET",
-      skipPrefix: true // Skip the /api prefix
+      skipPrefix: false // Should now use the /api prefix
     });
     return games;
   } catch (error) {
@@ -66,7 +66,7 @@ export const createGame = async (gameData) => {
     const createdGame = await apiClient("/games", {
       method: "POST",
       body: payload,
-      skipPrefix: true // Skip the /api prefix
+      skipPrefix: false // Should now use the /api prefix
     });
     
     console.log("createGame: Successfully created game:", createdGame);
@@ -123,7 +123,7 @@ export const getGamesByOwner = async (ownerEmail) => {
     // Use apiClient for the GET request with skipPrefix option
     const games = await apiClient(endpoint, { 
       method: "GET",
-      skipPrefix: true 
+      skipPrefix: false
     });
     
     console.log(`getGamesByOwner: Successfully fetched ${games.length} games for owner ${ownerEmail}:`, games);
@@ -142,6 +142,90 @@ export const getGamesByOwner = async (ownerEmail) => {
   }
 };
 
+
+/**
+ * Fetches all instances (physical copies) of a specific game.
+ * Authentication might be required depending on backend setup.
+ * @param {string|number} gameId - The ID of the game.
+ * @returns {Promise<Array>} A promise that resolves to an array of game instance objects.
+ * @throws {ApiError} For API-related errors.
+ */
+export const getGameInstances = async (gameId) => {
+  if (!gameId) {
+    throw new Error("Game ID is required to fetch instances.");
+  }
+  const endpoint = `/games/${gameId}/instances`;
+  console.log("getGameInstances: Fetching instances for game:", gameId);
+
+  try {
+    const instances = await apiClient(endpoint, { 
+      method: "GET",
+      skipPrefix: false // Should now use the /api prefix
+    });
+    console.log(`getGameInstances: Successfully fetched ${instances.length} instances for game ${gameId}:`, instances);
+    return instances;
+  } catch (error) {
+    console.error(`getGameInstances: Failed to fetch instances for game ${gameId}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Fetches all reviews for a specific game.
+ * Authentication might be required depending on backend setup.
+ * @param {string|number} gameId - The ID of the game.
+ * @returns {Promise<Array>} A promise that resolves to an array of review objects.
+ * @throws {ApiError} For API-related errors.
+ */
+export const getGameReviews = async (gameId) => {
+  if (!gameId) {
+    throw new Error("Game ID is required to fetch reviews.");
+  }
+  const endpoint = `/games/${gameId}/reviews`;
+  console.log("getGameReviews: Fetching reviews for game:", gameId);
+
+  try {
+    const reviews = await apiClient(endpoint, { 
+      method: "GET",
+      skipPrefix: false // Should now use the /api prefix
+    });
+    console.log(`getGameReviews: Successfully fetched ${reviews.length} reviews for game ${gameId}:`, reviews);
+    return reviews;
+  } catch (error) {
+    console.error(`getGameReviews: Failed to fetch reviews for game ${gameId}:`, error);
+    throw error;
+  }
+};
+
+
+
+/**
+ * Deletes a game by its ID. Requires authentication.
+ * @param {string|number} gameId - The ID of the game to delete.
+ * @returns {Promise<void>} A promise that resolves when the game is deleted.
+ * @throws {UnauthorizedError} If the user is not authenticated.
+ * @throws {ForbiddenError} If the user is not allowed to delete the game (e.g., not the owner).
+ * @throws {ApiError} For other API-related errors.
+ */
+export const deleteGame = async (gameId) => {
+  if (!gameId) {
+    throw new Error("Game ID is required to delete the game.");
+  }
+  const endpoint = `/games/${gameId}`;
+  console.log("deleteGame: Attempting to delete game:", gameId);
+
+  try {
+    await apiClient(endpoint, {
+      method: "DELETE",
+      skipPrefix: false // Should now use the /api prefix
+    });
+    console.log(`deleteGame: Successfully deleted game ${gameId}`);
+  } catch (error) {
+    console.error(`deleteGame: Failed to delete game ${gameId}:`, error);
+    // Re-throw the specific error from apiClient
+    throw error;
+  }
+};
 
 // Add other game-related API functions here as needed, using apiClient
 // e.g., getGameById, updateGame, deleteGame, getGameReviews, submitReview etc.

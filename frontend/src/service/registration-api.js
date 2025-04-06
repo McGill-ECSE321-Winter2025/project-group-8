@@ -26,7 +26,7 @@ export const getRegistrationsByEmail = async (email, retryCount = 0) => {
     // Use the correct API endpoint path
     const registrations = await apiClient(`/registrations/user/${encodeURIComponent(email)}`, {
       method: "GET",
-      skipPrefix: true
+      skipPrefix: false
     });
     return registrations;
   } catch (error) {
@@ -37,6 +37,32 @@ export const getRegistrationsByEmail = async (email, retryCount = 0) => {
     }
     
     console.error(`Failed to fetch registrations for user ${email}:`, error);
+    throw error; // Re-throw the specific error from apiClient
+  }
+};
+
+
+/**
+ * Unregisters a user from an event.
+ * Requires authentication.
+ * @param {string} registrationId - The ID of the registration to delete.
+ * @returns {Promise<Object>} A promise that resolves to the response data (likely empty or confirmation).
+ * @throws {UnauthorizedError} If the user is not authenticated.
+ * @throws {ApiError} For other API-related errors.
+ */
+export const unregisterFromEvent = async (registrationId) => {
+  if (!registrationId) {
+    throw new Error("Registration ID is required to unregister.");
+  }
+
+  try {
+    const response = await apiClient(`/registrations/${registrationId}`, {
+      method: "DELETE",
+      skipPrefix: false // Assuming '/registrations/{id}' is the full path
+    });
+    return response; // Or handle specific success response if needed
+  } catch (error) {
+    console.error(`Failed to unregister registration ${registrationId}:`, error);
     throw error; // Re-throw the specific error from apiClient
   }
 };

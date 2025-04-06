@@ -32,6 +32,8 @@ import org.springframework.web.server.ResponseStatusException; // Import
  */
 
 @RestController
+@RequestMapping("/api/games")
+
 public class GameController {
     @Autowired
     private GameService service;
@@ -47,7 +49,7 @@ public class GameController {
      * @param namePart Optional parameter to filter games by name containing text
      * @return List of games matching the filter criteria
      */
-    @GetMapping("/games")
+    @GetMapping
     public ResponseEntity<List<GameResponseDto>> getAllGames(
             @RequestParam(required = false) String ownerId,
             @RequestParam(required = false) String category,
@@ -87,7 +89,7 @@ public class GameController {
      * @param id ID of the game to retrieve
      * @return The requested game
      */
-    @GetMapping("/games/{id}")
+    @GetMapping("/{id}")
     public ResponseEntity<GameResponseDto> findGameById(@PathVariable int id) {
         Game game = service.getGameById(id);
         return ResponseEntity.ok(new GameResponseDto(game));
@@ -99,7 +101,7 @@ public class GameController {
      * @param gameCreationDto Data for the new game
      * @return The created game
      */
-    @PostMapping("/games")
+    @PostMapping
     public ResponseEntity<GameResponseDto> createGame(@RequestBody GameCreationDto gameCreationDto) {
         try {
             // Service now uses authenticated principal for owner
@@ -124,7 +126,7 @@ public class GameController {
      * @param gameDto Updated game data
      * @return The updated game
      */
-    @PutMapping("/games/{id}")
+    @PutMapping("/{id}")
     public ResponseEntity<GameResponseDto> updateGame(@PathVariable int id, @RequestBody GameCreationDto gameDto) {
         try {
             GameResponseDto updatedGame = service.updateGame(id, gameDto);
@@ -144,7 +146,7 @@ public class GameController {
      * @param id ID of the game to delete
      * @return Confirmation message
      */
-    @DeleteMapping("/games/{id}")
+    @DeleteMapping("/{id}")
     public ResponseEntity<String> deleteGame(@PathVariable int id) {
         try {
             return service.deleteGame(id);
@@ -161,7 +163,7 @@ public class GameController {
      * @param players Number of players
      * @return List of games compatible with the player count
      */
-    @GetMapping("/games/players")
+    @GetMapping("/players")
     public ResponseEntity<List<GameResponseDto>> getGamesByPlayerCount(@RequestParam int players) {
         List<Game> games = service.getGamesByPlayerRange(players, players);
         List<GameResponseDto> gameResponseDtos = games.stream()
@@ -173,7 +175,7 @@ public class GameController {
     /**
      * Advanced search endpoint for games with multiple criteria
      */
-    @GetMapping("/games/search")
+    @GetMapping("/search")
     public ResponseEntity<List<GameResponseDto>> searchGames(GameSearchCriteria criteria) {
         List<Game> games = service.searchGames(criteria);
         List<GameResponseDto> gameResponseDtos = games.stream()
@@ -201,7 +203,7 @@ public class GameController {
     /**
      * Get all reviews for a specific game
      */
-    @GetMapping("/games/{id}/reviews")
+    @GetMapping("/{id}/reviews")
     public ResponseEntity<List<ReviewResponseDto>> getGameReviews(@PathVariable int id) {
         List<ReviewResponseDto> reviews = service.getReviewsByGameId(id);
         return ResponseEntity.ok(reviews);
@@ -210,7 +212,7 @@ public class GameController {
     /**
      * Submit a new review for a game
      */
-    @PostMapping("/games/{id}/reviews")
+    @PostMapping("/{id}/reviews")
     public ResponseEntity<ReviewResponseDto> submitGameReview(
             @PathVariable int id,
             @RequestBody ReviewSubmissionDto reviewDto) {
@@ -231,7 +233,7 @@ public class GameController {
     /**
      * Get average rating for a game
      */
-    @GetMapping("/games/{id}/rating")
+    @GetMapping("/{id}/rating")
     public ResponseEntity<Double> getGameRating(@PathVariable int id) {
         double rating = service.getAverageRatingForGame(id);
         return ResponseEntity.ok(rating);

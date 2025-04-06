@@ -30,7 +30,7 @@ import ca.mcgill.ecse321.gameorganizer.services.EventService;
 import ca.mcgill.ecse321.gameorganizer.services.RegistrationService;
 
 @RestController
-@RequestMapping("/registrations")
+@RequestMapping("/api/registrations")
 public class RegistrationController {
 
     @Autowired

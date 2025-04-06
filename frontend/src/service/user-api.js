@@ -23,7 +23,10 @@ export const getUserInfoByEmail = async (email) => {
     throw new Error("Email is required to fetch account info");
   }
 
-  return apiClient(`/users/search/${encodeURIComponent(email)}`);
+  return apiClient(`/users/search/${encodeURIComponent(email)}`, {
+    skipPrefix: false
+  });
+
 };
 
 /**
@@ -68,7 +71,9 @@ export const updateUserProfile = async (userData) => {
 export const searchUsers = async (searchParams) => {
   return apiClient('/users/search', {
     method: 'POST',
-    body: searchParams
+    body: searchParams,
+    skipPrefix: false
+
   });
 };
 
@@ -87,6 +92,41 @@ export const changePassword = async (currentPassword, newPassword) => {
     method: 'POST',
     body: { currentPassword, newPassword }
   });
+};
+
+
+/**
+ * Sends a connection request to another user.
+ * Requires authentication.
+ * @param {string} targetUserEmail - The email of the user to connect with.
+ * @returns {Promise<object>} Success response from the backend.
+ * @throws {UnauthorizedError} If the user is not authenticated.
+ * @throws {ApiError} For other API-related errors (e.g., user not found, already connected).
+ */
+export const sendConnectionRequest = async (targetUserEmail) => {
+  if (!targetUserEmail) {
+    throw new Error("Target user email is required to send a connection request.");
+  }
+
+  console.log("sendConnectionRequest: Sending request to:", targetUserEmail);
+
+  try {
+    // Use apiClient for the POST request. Assumes endpoint is /connections/request
+    // and expects { email: targetUserEmail } in the body.
+    const response = await apiClient('/connections/request', {
+      method: 'POST',
+      body: { email: targetUserEmail },
+      // Assuming this endpoint is prefixed with /api like others
+      skipPrefix: false,
+
+    });
+    console.log("sendConnectionRequest: Successfully sent request to", targetUserEmail, response);
+    return response; // Return the success response
+  } catch (error) {
+    console.error(`sendConnectionRequest: Failed to send request to ${targetUserEmail}:`, error);
+    // Re-throw the specific error from apiClient
+    throw error;
+  }
 };
 
 // TODO: Add other user-related API functions here if needed, using apiClient

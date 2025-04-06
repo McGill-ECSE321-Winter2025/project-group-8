@@ -27,6 +27,7 @@ import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 import org.springframework.security.web.access.ExceptionTranslationFilter;
 import org.springframework.security.web.context.NullSecurityContextRepository;
+import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
 import java.util.Arrays;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -49,87 +50,55 @@ public class SecurityConfig {
     }
 
     // Main security filter chain
+    // Main security filter chain
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            .securityMatcher("/**") // Match all requests
+            // Apply rules only to paths starting with /api or /auth or /users/me or /dev
+            .securityMatcher("/api/**", "/auth/**", "/users/me", "/dev/**")
             .authorizeHttpRequests(authz -> authz
-                // Allow unauthenticated access for auth endpoints and account creation
+                // --- Authentication & Account Creation ---
                 .requestMatchers("/auth/**").permitAll()
-                .requestMatchers(HttpMethod.POST, "/account").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/account").permitAll()
-                // Require authentication for account GET requests
-                .requestMatchers(HttpMethod.GET, "/account/**").authenticated()
-                .requestMatchers(HttpMethod.GET, "/api/account/**").authenticated()
-                .requestMatchers(HttpMethod.GET, "/api/users/me").authenticated()
-                .requestMatchers(HttpMethod.GET, "/users/me").authenticated()
-                // Allow GET operations for browsing content
-                .requestMatchers(HttpMethod.GET, "/games/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/account").permitAll() // Account creation via API
+                .requestMatchers("/dev/**").permitAll() // Allow dev endpoints
+
+                // --- Public Read Operations (using /api prefix) ---
                 .requestMatchers(HttpMethod.GET, "/api/games/**").permitAll()
-                .requestMatchers(HttpMethod.GET, "/events/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/events/**").permitAll()
-                .requestMatchers(HttpMethod.GET, "/users/*/games").permitAll()
+                // Note: /api/users/*/games might need adjustment based on UserController mapping
                 .requestMatchers(HttpMethod.GET, "/api/users/*/games").permitAll()
-                .requestMatchers(HttpMethod.GET, "/lending-records/**").authenticated()
-                .requestMatchers(HttpMethod.GET, "/api/lending-records/**").authenticated()
-                .requestMatchers(HttpMethod.GET, "/api/borrowrequests/**").authenticated()
-                .requestMatchers(HttpMethod.GET, "/borrowrequests/**").authenticated()
-                // Account management
-                .requestMatchers(HttpMethod.PUT, "/account/**").authenticated()
+
+                // --- Authenticated Operations (using /api prefix) ---
+                .requestMatchers("/users/me").authenticated() // Specific user profile endpoint
+                .requestMatchers(HttpMethod.GET, "/api/account/**").authenticated()
                 .requestMatchers(HttpMethod.PUT, "/api/account/**").authenticated()
-                .requestMatchers(HttpMethod.DELETE, "/account/**").authenticated()
                 .requestMatchers(HttpMethod.DELETE, "/api/account/**").authenticated()
-                // Game operations - Ensure only game owners can modify
-                .requestMatchers(HttpMethod.POST, "/games/**").hasRole("GAME_OWNER")
-                .requestMatchers(HttpMethod.POST, "/api/games/**").hasRole("GAME_OWNER")
-                .requestMatchers(HttpMethod.PUT, "/games/**").hasRole("GAME_OWNER")
-                .requestMatchers(HttpMethod.PUT, "/api/games/**").hasRole("GAME_OWNER")
-                .requestMatchers(HttpMethod.DELETE, "/games/**").hasRole("GAME_OWNER")
-                .requestMatchers(HttpMethod.DELETE, "/api/games/**").hasRole("GAME_OWNER")
-                // Event operations
-                .requestMatchers(HttpMethod.POST, "/events/**").authenticated()
-                .requestMatchers(HttpMethod.POST, "/api/events/**").authenticated()
-                .requestMatchers(HttpMethod.PUT, "/events/**").authenticated()
-                .requestMatchers(HttpMethod.PUT, "/api/events/**").authenticated()
-                .requestMatchers(HttpMethod.DELETE, "/events/**").authenticated()
-                .requestMatchers(HttpMethod.DELETE, "/api/events/**").authenticated()
-                // Borrow Requests
-                .requestMatchers(HttpMethod.POST, "/borrowrequests/**").authenticated()
-                .requestMatchers(HttpMethod.POST, "/api/borrowrequests/**").authenticated()
-                .requestMatchers(HttpMethod.PUT, "/borrowrequests/**").authenticated()
-                .requestMatchers(HttpMethod.PUT, "/api/borrowrequests/**").authenticated()
-                .requestMatchers(HttpMethod.DELETE, "/borrowrequests/**").authenticated()
-                .requestMatchers(HttpMethod.DELETE, "/api/borrowrequests/**").authenticated()
-                // Lending Records
-                .requestMatchers(HttpMethod.POST, "/lending-records/**").authenticated()
-                .requestMatchers(HttpMethod.POST, "/api/lending-records/**").authenticated()
-                .requestMatchers(HttpMethod.PUT, "/lending-records/**").authenticated()
-                .requestMatchers(HttpMethod.PUT, "/api/lending-records/**").authenticated()
-                .requestMatchers(HttpMethod.DELETE, "/lending-records/**").hasRole("GAME_OWNER")
-                .requestMatchers(HttpMethod.DELETE, "/api/lending-records/**").hasRole("GAME_OWNER")
-                // Reviews
-                .requestMatchers("/reviews/**").authenticated()
-                .requestMatchers("/api/reviews/**").authenticated()
-                // Registrations
-                .requestMatchers("/registrations/**").authenticated()
                 .requestMatchers("/api/registrations/**").authenticated()
-                // Default: require authentication for any other endpoints
+                .requestMatchers("/api/borrowrequests/**").authenticated()
+                .requestMatchers("/api/lending-records/**").authenticated()
+                .requestMatchers("/api/reviews/**").authenticated()
+                // Add specific role checks if needed (example below)
+                .requestMatchers(HttpMethod.POST, "/api/games/**").hasRole("GAME_OWNER") // Example role check
+                .requestMatchers(HttpMethod.PUT, "/api/games/**").hasRole("GAME_OWNER")
+                .requestMatchers(HttpMethod.DELETE, "/api/games/**").hasRole("GAME_OWNER")
+                .requestMatchers(HttpMethod.DELETE, "/api/lending-records/**").hasRole("GAME_OWNER")
+                // Default: require authentication for any other /api endpoints
+                .requestMatchers("/api/**").authenticated()
+                // Fallback for any other matched request (shouldn't be hit often with specific matcher)
                 .anyRequest().authenticated()
             )
             .csrf(csrf -> csrf.disable())
-            .cors(Customizer.withDefaults())
+            .cors(Customizer.withDefaults()) // Uses corsConfigurationSource bean
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .securityContext(context -> context
-                .requireExplicitSave(false) // Ensure security context changes are saved automatically
-                .securityContextRepository(new RequestAttributeSecurityContextRepository()) // Use RequestAttribute repository
-            )
-            
-            // Completely disable anonymous authentication to prevent it from overriding JWT auth
+            // Removed explicit .securityContext configuration.
+            // Will rely on SecurityContextHolderFilter added below.
+            // Removed explicit requestCache and logout configurations.
             .anonymous(anonymous -> anonymous.disable())
-            
             .exceptionHandling(handling -> handling
                 .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
             )
+            // Reverted adding SecurityContextHolderFilter explicitly due to ordering issues.
+            // Relying on STATELESS + NullSecurityContextRepository.
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

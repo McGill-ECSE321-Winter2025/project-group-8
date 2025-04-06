@@ -38,7 +38,7 @@ import java.util.Collections;
  * @author @YoussGm3o8
  */
 @RestController
-@RequestMapping("/lending-records")
+@RequestMapping("/api/lending-records")
 public class LendingRecordController {
 
     @Autowired

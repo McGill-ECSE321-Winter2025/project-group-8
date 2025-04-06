@@ -78,18 +78,23 @@ const buildUrl = (endpoint, skipPrefix = true) => {
   }
 
   // Auth endpoints and some others don't need API prefix
-  const noApiPrefixPaths = ['/auth', '/profile'];
+  const noApiPrefixPaths = ['/auth', '/profile', '/users/me']; // Added /users/me
   const hasPrefix = endpoint.startsWith(API_PREFIX);
   const shouldNotPrefix = noApiPrefixPaths.some(path => endpoint.startsWith(path));
-  
+
   // Skip prefix if explicitly requested or if it's a special path
   if (skipPrefix || shouldNotPrefix || hasPrefix) {
-    return `${BASE_URL}${endpoint}`;
+    // Ensure leading slash if missing after BASE_URL
+    const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    return `${BASE_URL}${path}`;
   }
-  
+
   // Add API prefix for regular API endpoints
-  return `${BASE_URL}${API_PREFIX}${endpoint}`;
+  // Ensure leading slash if missing
+  const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  return `${BASE_URL}${API_PREFIX}${path}`;
 };
+
 
 /**
  * Check if an endpoint is an authentication endpoint
@@ -97,9 +102,9 @@ const buildUrl = (endpoint, skipPrefix = true) => {
  * @returns {boolean} - Whether this is an auth endpoint
  */
 const isAuthEndpoint = (endpoint) => {
-  return endpoint.includes('/auth/login') || 
-         endpoint.includes('/auth/logout') || 
-         endpoint.includes('/users/me') ||
+  return endpoint.includes('/auth/login') ||
+         endpoint.includes('/auth/logout') ||
+         endpoint.includes('/users/me') || // Match both /users/me and /api/users/me
          endpoint.includes('/api/users/me');
 };
 
@@ -108,94 +113,68 @@ const isAuthEndpoint = (endpoint) => {
  * @returns {Object} Object containing all cookies
  */
 const getCookies = () => {
-  return document.cookie.split('; ').reduce((prev, current) => {
+  if (typeof document === 'undefined' || !document.cookie) {
+    return {}; // Return empty object if no cookies are set or not in browser
+  }
+  return document.cookie.split(';').reduce((prev, current) => {
     const [name, ...value] = current.split('=');
-    prev[name] = value.join('=');
+    // Trim whitespace from name and value
+    const trimmedName = name ? name.trim() : '';
+    const trimmedValue = value.join('=').trim();
+    if (trimmedName) { // Ensure name is not empty after trimming
+      prev[trimmedName] = trimmedValue;
+    }
     return prev;
   }, {});
 };
 
 /**
- * Get the authentication token from storage
+ * Get the authentication token from storage (DEPRECATED for HttpOnly)
+ * Rely on browser sending HttpOnly cookie automatically.
+ * This function is kept for potential legacy/debugging but shouldn't be relied upon for auth checks.
  * @returns {string|null} The token or null if not found
  */
 const getAuthToken = () => {
-  // Since we're using HttpOnly cookies, we shouldn't be accessing the token directly
-  // Check for both isAuthenticated and hasAccessToken cookies for complete auth state
+  // Primary check should be the backend verifying the HttpOnly cookie.
+  // This function is now mostly for debugging or legacy compatibility.
   const cookies = getCookies();
   const hasAuthCookie = cookies.isAuthenticated === 'true';
-  const hasAccessTokenCookie = cookies.hasAccessToken === 'true';
-  
-  // If we have both cookies, we have a valid auth state via HttpOnly cookies
-  if (hasAuthCookie && hasAccessTokenCookie) {
-    console.log('Auth token: Using cookie-based authentication');
-    return 'cookie-auth-present';
-  } else if (hasAuthCookie) {
-    // If we only have isAuthenticated but not hasAccessToken, we might have a partial state
-    // Still return a token indicator but log the inconsistency
-    console.log('Auth token: Using partial cookie authentication (missing hasAccessToken)');
+
+  if (hasAuthCookie) {
+    // Indicate that cookie-based authentication is *expected*.
+    // Doesn't guarantee the HttpOnly cookie is actually present/valid.
     return 'cookie-auth-present';
   }
-  
-  // Fallback to localStorage for backwards compatibility
+
+  // Fallback to localStorage (consider removing if fully migrated)
   const token = localStorage.getItem('token');
-  if (!token) return null;
-  
-  // Check if the token might be malformed or corrupted
-  if (token.length < 10) {
-    console.warn('Potentially invalid token detected');
+  if (token) {
+    console.warn("Found token in localStorage. This is deprecated for HttpOnly cookie auth.");
+    return token;
   }
-  
-  return token;
+
+  return null;
 };
 
+
 /**
- * Check if authentication is fully ready
+ * Check if authentication state processing is complete.
+ * This check is simplified and primarily focuses on whether an auth operation
+ * (login/logout/refresh) is currently in progress. It does NOT guarantee
+ * that the user *is* authenticated, only that the system isn't in a transitional auth state.
  * @returns {boolean} Whether authentication is ready for API requests
  */
 const isAuthReady = () => {
+  // The most reliable check is simply whether an auth operation is in progress.
+  // Rely on the API calls themselves to fail with 401 if cookies aren't sent/valid.
   if (authInProgress) {
-    console.log('Auth in progress, not ready');
+    console.log('[isAuthReady] Returning false (auth operation in progress)');
     return false;
   }
-  
-  // Check for isAuthenticated cookie first
-  const cookies = getCookies();
-  const hasAuthCookie = cookies.isAuthenticated === 'true';
-  const hasAccessTokenCookie = cookies.hasAccessToken === 'true';
-  
-  // If we have both authentication cookies, we're good to go
-  if (hasAuthCookie && hasAccessTokenCookie) {
-    console.log('Auth ready: Found both isAuthenticated and hasAccessToken cookies');
-    return true;
-  }
-  
-  // If isAuthenticated without hasAccessToken, attempt to repair by setting both
-  if (hasAuthCookie && !hasAccessTokenCookie) {
-    console.log('Auth state partially ready: Setting missing hasAccessToken cookie');
-    document.cookie = "hasAccessToken=true; path=/; max-age=86400; SameSite=Lax"; // 24 hours
-    return true;
-  }
-  
-  // If hasAccessToken without isAuthenticated, attempt to repair by setting both
-  if (!hasAuthCookie && hasAccessTokenCookie) {
-    console.log('Auth state partially ready: Setting missing isAuthenticated cookie');
-    document.cookie = "isAuthenticated=true; path=/; max-age=86400; SameSite=Lax"; // 24 hours
-    return true;
-  }
-  
-  // Fallback to localStorage for backwards compatibility
-  const token = localStorage.getItem('token');
-  const userId = localStorage.getItem('userId');
-  
-  if (token && userId) {
-    console.log('Auth ready: Found token and userId in localStorage');
-    return true;
-  }
-  
-  console.log('Auth not ready: No authentication data found');
-  return false;
+  console.log('[isAuthReady] Returning true (no auth operation in progress)');
+  return true;
 };
+
 
 /**
  * Get cookie auth state for debugging
@@ -203,10 +182,11 @@ const isAuthReady = () => {
  */
 export const getCookieAuthState = () => {
   const cookies = getCookies();
+  // Simplify debugging state to only show isAuthenticated status
   return {
     isAuthenticated: cookies.isAuthenticated === 'true',
-    hasAccessToken: cookies.hasAccessToken === 'true',
-    allCookies: document.cookie
+    // hasAccessToken check removed as it was unreliable and misleading
+    allCookies: typeof document !== 'undefined' ? document.cookie : 'N/A (SSR/Worker?)'
   };
 };
 
@@ -216,286 +196,254 @@ export const getCookieAuthState = () => {
  * @param {Object} options - Request options
  * @returns {Promise<any>} - Response data
  */
-const apiClient = async (endpoint, { 
-  body, 
+const apiClient = async (endpoint, {
+  body,
   method = 'GET',
   headers = {},
   timeout = DEFAULT_TIMEOUT_MS,
-  skipPrefix = true,
+  skipPrefix = true, // Default skipPrefix to true as most auth/user endpoints don't use /api
   suppressErrors = false,
   retryOnAuth = true,
-  requiresAuth = true,  // New parameter to indicate if endpoint requires authentication
-  ...customConfig 
+  requiresAuth = true,  // Assume endpoints require auth unless specified
+  credentials = 'include', // Always include credentials by default
+  ...customConfig
 } = {}) => {
   // Special handling for /users/me endpoint - don't suppress errors by default
   const isUserMeEndpoint = endpoint.includes('/users/me');
   const effectiveSuppressErrors = isUserMeEndpoint ? false : suppressErrors;
 
-  // Skip auth checks for auth endpoints
-  const isAuthRelatedEndpoint = isAuthEndpoint(endpoint);
+  // Skip auth checks for auth endpoints (login, logout)
+  // Note: /users/me *does* require auth checks
+  const isAuthActionEndpoint = endpoint.includes('/auth/login') || endpoint.includes('/auth/logout');
 
-  // If auth is in progress and this isn't an auth endpoint, wait a bit or abort
-  if (authInProgress && !isAuthRelatedEndpoint) {
-    if (!effectiveSuppressErrors) {
-      console.log(`Auth in progress for request to ${endpoint}`);
-    }
-    
-    // If retry is enabled and auth just started, wait longer and retry
-    if (retryOnAuth && Date.now() - lastAuthCheck < 10000) { // Increased from 5000ms to 10000ms
-      if (!effectiveSuppressErrors) {
-        console.log(`Waiting for auth to complete before retrying...`);
-      }
-      // Wait longer - increase from 700ms to 1000ms
+  // If auth is in progress and this isn't an auth action endpoint, wait or abort
+  if (authInProgress && !isAuthActionEndpoint) {
+    console.log(`[API] Auth in progress, delaying request to ${endpoint}`);
+    if (retryOnAuth && Date.now() - lastAuthCheck < 10000) { // Increased wait time
+      console.log(`[API] Waiting up to 2s for auth to complete for ${endpoint}`);
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Check again - if auth is still in progress but we haven't timed out yet, wait more
       if (authInProgress && Date.now() - lastAuthCheck < 10000) {
-        console.log(`Auth still in progress, waiting a bit more...`);
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
-      
-      // If auth is still in progress after waiting, abort
       if (authInProgress) {
+        console.error(`[API] Auth still in progress after waiting, aborting request to ${endpoint}`);
         throw new UnauthorizedError('Authentication in progress');
       }
+      console.log(`[API] Auth completed, proceeding with request to ${endpoint}`);
     } else {
+       console.error(`[API] Auth in progress, aborting immediate request to ${endpoint}`);
       throw new UnauthorizedError('Authentication in progress');
     }
   }
-  
-  // Only check auth readiness for endpoints that require authentication
-  // Make an exception for auth-related endpoints (login, logout, users/me)
-  const shouldCheckAuth = requiresAuth && !isAuthRelatedEndpoint;
-  
-  // Check if auth is ready for secured endpoints
+
+  // Check if auth is ready only for endpoints that require it and are not auth actions
+  const shouldCheckAuth = requiresAuth && !isAuthActionEndpoint;
+
+  // The isAuthReady check is now simplified. We rely more on the backend returning 401.
+  // If an endpoint requires auth, we still ensure no auth operation is actively running.
   if (shouldCheckAuth && !isAuthReady()) {
-    if (!effectiveSuppressErrors) {
-      console.log(`Auth not ready for request to ${endpoint}`);
-    }
-    
-    if (retryOnAuth) {
-      // Wait longer and check again - increase from 500ms to 1000ms
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // If still not ready, try one more time with a longer delay
-      if (!isAuthReady()) {
-        console.log(`Auth still not ready, waiting a bit more...`);
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        // Final check
-        if (!isAuthReady()) {
-          throw new UnauthorizedError('Authentication not ready');
-        }
-      }
-    } else {
-      throw new UnauthorizedError('Authentication not ready');
-    }
+     console.error(`[API] Auth not ready (operation in progress), aborting request to ${endpoint}`);
+     // This path should ideally not be hit often if authInProgress logic above works.
+     throw new UnauthorizedError('Authentication not ready (operation in progress)');
   }
-  
-  // Ensure credentials: 'include' for endpoints that need cookies
-  if (isAuthRelatedEndpoint || requiresAuth) {
-    customConfig.credentials = 'include';
-  }
+
+  // Get the user ID from localStorage if available
+  const userId = localStorage.getItem('userId');
   
   // Build request configuration
   const config = {
     method,
     headers: {
       'Content-Type': 'application/json',
+      // Add Authorization header with user ID if available
+      ...(userId && { 'X-User-Id': userId }),
       ...headers,
     },
-    credentials: 'include', // Always include cookies for all requests
+    credentials: 'include', // ALWAYS include credentials for cookies
     ...customConfig,
   };
 
-  // Add Authorization header with token if available
-  const token = getAuthToken();
-  if (token) {
-    // Use Bearer token format for the Authorization header
-    config.headers.Authorization = `Bearer ${token}`;
-    
-    // Also add userId as query param for endpoints that need it
-    if (endpoint.includes('?')) {
-      // If endpoint already has query params, add userId if it doesn't exist
-      if (!endpoint.includes('userId=')) {
-        const userId = localStorage.getItem('userId');
-        if (userId && !isAuthEndpoint(endpoint)) {
-          endpoint = `${endpoint}&userId=${userId}`;
-        }
-      }
-    } else {
-      // If endpoint doesn't have query params, add userId
-      const userId = localStorage.getItem('userId');
-      if (userId && !isAuthEndpoint(endpoint)) {
-        endpoint = `${endpoint}?userId=${userId}`;
-      }
-    }
-  } else if (requiresAuth && !isAuthEndpoint(endpoint)) {
-    // If token is missing but endpoint requires auth, try to get auth state from cookies
-    const cookies = getCookies();
-    if (cookies.isAuthenticated === 'true') {
-      // Use a placeholder bearer token to indicate we're using cookie auth
-      config.headers.Authorization = 'Bearer cookie-auth';
-      
-      // Add userId param if available in localStorage
-      const userId = localStorage.getItem('userId');
-      if (userId) {
-        if (endpoint.includes('?')) {
-          if (!endpoint.includes('userId=')) {
-            endpoint = `${endpoint}&userId=${userId}`;
-          }
-        } else {
-          endpoint = `${endpoint}?userId=${userId}`;
-        }
-      }
-    } else {
-      // If no token and no auth cookie, log the issue
-      console.warn(`No authentication found for protected endpoint: ${endpoint}`);
-    }
+  // Don't manually add Authorization header - let browser send the cookie
+  // The backend uses a cookie-based system with 'accessToken' HttpOnly cookie
+  // We don't need to manually extract and add the token to headers
+
+  // Add CSRF token if available
+  const csrfToken = localStorage.getItem('csrfToken');
+  if (csrfToken && !config.headers['X-CSRF-TOKEN']) {
+    config.headers['X-CSRF-TOKEN'] = csrfToken;
+    console.log(`[API] Added CSRF token to request`);
   }
 
   // Add body if provided
-  if (body) {
+  if (body && method !== 'GET') { // Ensure body is not added for GET requests
     config.body = JSON.stringify(body);
   }
 
+  // Should we return headers with the response?
+  const returnHeaders = customConfig.returnHeaders || false;
+
   // Build the complete URL
   const url = buildUrl(endpoint, skipPrefix);
-  
+
   // Setup request timeout
   const controller = new AbortController();
   config.signal = customConfig.signal || controller.signal;
   const timeoutId = setTimeout(() => controller.abort(), timeout);
-  
+
   try {
     // Make the request
-    if (!effectiveSuppressErrors) {
-      console.log(`API Request: ${method} ${url}`);
-    }
+    console.log(`[API] Making ${config.method} request to ${url}`);
+    console.log(`[API] Request headers:`, config.headers);
+    console.log(`[API] Request includes credentials:`, config.credentials);
     const response = await fetch(url, config);
-    
+
     // Clear the timeout
     clearTimeout(timeoutId);
-    
+
     // Handle different response statuses
     if (!response.ok) {
-      await handleErrorResponse(response, effectiveSuppressErrors);
+      // Pass the original endpoint for better error context
+      await handleErrorResponse(response, endpoint, effectiveSuppressErrors);
     }
-    
+
     // Check for no content responses
     if (response.status === 204) {
-      return null;
+      return returnHeaders ? { data: null, headers: response.headers } : null;
     }
-    
+
+    let responseData;
     // Parse JSON response if available
     const contentType = response.headers.get('content-type');
     if (contentType && contentType.includes('application/json')) {
-      return await response.json();
+      responseData = await response.json();
+    } else {
+      // Return text for non-JSON responses
+      responseData = await response.text();
     }
     
-    // Return text for non-JSON responses
-    return await response.text();
+    // Return data with headers if requested
+    return returnHeaders ? { data: responseData, headers: response.headers } : responseData;
   } catch (error) {
     // Clear the timeout
     clearTimeout(timeoutId);
-    
+
     // Handle aborted requests (timeout)
     if (error.name === 'AbortError') {
+      console.error(`[API] Request timeout after ${timeout}ms: ${url}`);
       throw new TimeoutError(`Request to ${url} timed out after ${timeout}ms`);
     }
-    
+
     // Handle network errors
-    if (error.message === 'Failed to fetch' || error.message.includes('NetworkError')) {
-      throw new ConnectionError(`Could not connect to ${url}`);
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+       console.error(`[API] Network error for ${url}:`, error);
+       throw new ConnectionError(`Could not connect to ${url}. Check network or server status.`);
     }
-    
-    // Rethrow API errors
+
+    // Rethrow API errors (UnauthorizedError, ForbiddenError, etc.)
     if (error instanceof ApiError) {
       throw error;
     }
-    
+
     // Handle other errors
     if (!effectiveSuppressErrors) {
-      console.error('API request error:', error);
+      console.error(`[API] Unexpected request error for ${url}:`, error);
     }
-    throw new ApiError(error.message || 'Unknown error occurred', 500);
+    // Throw a generic ApiError for unexpected issues
+    throw new ApiError(error.message || 'Unknown error occurred during API request', 500);
   }
 };
 
 /**
  * Handle error responses from the API
  * @param {Response} response - The fetch response object
+ * @param {string} endpoint - The original endpoint requested
  * @param {boolean} suppressErrors - Whether to suppress error logging
  * @throws {ApiError} - Different types of API errors based on status code
  */
-async function handleErrorResponse(response, suppressErrors = false) {
+async function handleErrorResponse(response, endpoint, suppressErrors = false) {
   let errorMessage = `Request failed with status ${response.status}`;
   let errorData = null;
-  
+
   // Try to parse error response body
   try {
     const contentType = response.headers.get('content-type');
     if (contentType && contentType.includes('application/json')) {
       errorData = await response.json();
-      if (errorData.message) {
+      if (errorData && typeof errorData.message === 'string') {
         errorMessage = errorData.message;
+      } else if (errorData && typeof errorData.error === 'string') {
+         errorMessage = errorData.error; // Handle cases where error is in 'error' field
       }
     } else {
       const text = await response.text();
       if (text) {
-        errorMessage = text;
+        errorMessage = text; // Use text response if not JSON
       }
     }
   } catch (err) {
     // Ignore error parsing errors, use default message
-    console.warn('Could not parse error response', err);
+    console.warn(`[API] Could not parse error response body for ${endpoint}`, err);
   }
-  
+
   // Log error unless suppressed
   if (!suppressErrors) {
-    console.log(`\n ${response.status} (${response.statusText}) Response:`, errorData || errorMessage);
+     console.error(`[API] Error response for ${endpoint}: Status ${response.status}, Message: ${errorMessage}`, errorData || '');
   }
-  
+
   // Throw appropriate error based on status code
   switch (response.status) {
     case 401:
-      // Check if this is a token expiration or authentication required error
-      if (errorMessage.includes('expired') || errorMessage.includes('Invalid token')) {
-        // Clear auth state on token expiration
-        localStorage.removeItem('token');
-        localStorage.removeItem('userId');
-        localStorage.removeItem('userEmail');
-        localStorage.removeItem('user');
-        // Also set isAuthenticated cookie to false
-        document.cookie = "isAuthenticated=false; path=/";
-        throw new UnauthorizedError('Your session has expired. Please log in again.');
-      } else {
-        // Try to refresh authentication state
-        const cookies = getCookies();
-        if (cookies.isAuthenticated === 'true') {
-          // If cookie says we're authenticated but API says we're not,
-          // there might be a cookie issue. Update the cookie.
-          document.cookie = "isAuthenticated=false; path=/";
-        }
-        throw new UnauthorizedError(
-          errorMessage || 'Authentication required. Please ensure you are logged in.'
-        );
-      }
+      // A 401 means the request was not authenticated.
+      // This could be due to missing/invalid cookie or token.
+      // We should trigger a state where the app knows it's unauthenticated.
+      // Clearing client-side cookies here might be premature if it was a temporary issue,
+      // but it helps prevent loops based on stale `isAuthenticated` cookie.
+      // Let AuthContext handle the logout/state clearing.
+      console.warn(`[API] Unauthorized (401) received for ${endpoint}. Auth state might be invalid.`);
+      throw new UnauthorizedError(errorMessage || 'Authentication required. Please log in.');
     case 403:
-      throw new ForbiddenError(errorMessage || 'You do not have permission to access this resource.');
+      throw new ForbiddenError(errorMessage || 'Forbidden: You do not have permission to access this resource.');
     case 404:
-      throw new NotFoundError(errorMessage || 'The requested resource was not found.');
+      throw new NotFoundError(errorMessage || `Resource not found at ${endpoint}.`);
     default:
-      throw new ApiError(errorMessage, response.status);
+      // Include status in the generic ApiError message
+      throw new ApiError(`${errorMessage} (Status: ${response.status})`, response.status);
   }
 }
 
 // Export TimeoutError class
 export class TimeoutError extends ApiError {
   constructor(message = 'Request timed out') {
-    super(message, 0);
+    super(message, 408); // Use 408 status code for timeout
     this.name = 'TimeoutError';
   }
 }
+
+/**
+ * Extracts authentication token from a response
+ * @param {Response} response - The fetch Response object 
+ * @returns {string|null} - The token or null if not found
+ */
+export const extractAuthToken = (response) => {
+  if (!response || !response.headers) {
+    return null;
+  }
+  
+  // Try various possible auth header names
+  const token = 
+    response.headers.get('x-auth-token') || 
+    response.headers.get('X-Auth-Token') || 
+    response.headers.get('authorization') ||
+    response.headers.get('Authorization');
+    
+  if (token) {
+    const cleanToken = token.startsWith('Bearer ') ? token.substring(7) : token;
+    localStorage.setItem('token', cleanToken);
+    console.log('[API] Saved authentication token from response headers');
+    return cleanToken;
+  }
+  
+  return null;
+};
 
 export default apiClient;

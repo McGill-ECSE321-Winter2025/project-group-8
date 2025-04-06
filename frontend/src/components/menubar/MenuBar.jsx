@@ -16,7 +16,7 @@ import {
 export default function MenuBar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, logout, loading } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -236,9 +236,9 @@ export default function MenuBar() {
           {/* Logout Button (only if logged in) */}
           {isAuthenticated && (
             <div className="flex items-center gap-2 pl-3 border-l border-gray-200">
-              {userName && (
+              {user?.username && (
                 <span className="text-sm text-gray-700 font-medium">
-                  Hi, {userName} 👋
+                  Hi, {user.username} 👋
                 </span>
               )}
               <Button

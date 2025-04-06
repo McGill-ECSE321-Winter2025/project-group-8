@@ -23,7 +23,7 @@ export const getAllEvents = async () => {
   try {
     const events = await apiClient("/events", { 
       method: "GET",
-      skipPrefix: true
+      skipPrefix: false
     });
     return events;
   } catch (error) {
@@ -48,7 +48,7 @@ export const getEventById = async (eventId) => {
   try {
     const event = await apiClient(`/events/${eventId}`, {
       method: "GET",
-      skipPrefix: true
+      skipPrefix: false
     });
     return event;
   } catch (error) {
@@ -81,7 +81,7 @@ export const registerForEvent = async (eventId) => {
       method: "POST",
       body: JSON.stringify(payload), // Ensure body is stringified if apiClient doesn't do it implicitly
                                      // (Though our current apiClient does stringify)
-      skipPrefix: true
+      skipPrefix: false
     });
     return registration; // Return the created registration object
   } catch (error) {
@@ -126,7 +126,7 @@ export const createEvent = async (eventData) => {
     const createdEvent = await apiClient("/events", {
       method: "POST",
       body: payload,
-      skipPrefix: true
+      skipPrefix: false
     });
     return createdEvent;
   } catch (error) {
@@ -147,7 +147,7 @@ export const searchEventsByTitle = async (title) => {
   try {
     const events = await apiClient(`/events/by-title?title=${encodeURIComponent(title)}`, {
       method: "GET",
-      skipPrefix: true
+      skipPrefix: false
     });
     return events;
   } catch (error) {
@@ -173,7 +173,7 @@ export const getEventsByHostEmail = async (hostEmail) => {
     // Using the correct endpoint based on backend API
     const events = await apiClient(`/events/by-host-email?hostEmail=${encodeURIComponent(hostEmail)}`, {
       method: "GET",
-      skipPrefix: true
+      skipPrefix: false
     });
     return events;
   } catch (error) {
@@ -200,7 +200,7 @@ export const unregisterFromEvent = async (registrationId) => {
     // DELETE request to remove the registration
     const result = await apiClient(`/registrations/${registrationId}`, {
       method: "DELETE",
-      skipPrefix: true
+      skipPrefix: false
     });
     return result; // Might be empty if server returns 204 No Content
   } catch (error) {

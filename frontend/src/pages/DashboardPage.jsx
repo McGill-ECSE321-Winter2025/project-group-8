@@ -17,12 +17,8 @@ export default function DashboardPage() {
   
   // Add debug logging for the user object
   useEffect(() => {
-    console.log("[DashboardPage] User object:", user);
-    console.log("[DashboardPage] Raw gameOwner property:", user?.gameOwner);
     // Convert to boolean and log
     const isGameOwner = !!user?.gameOwner;
-    console.log("[DashboardPage] Interpreted as gameOwner:", isGameOwner);
-    console.log("[DashboardPage] Auth ready state:", authReady);
   }, [user, authReady]);
   
   // Derive userType directly from the user object when available

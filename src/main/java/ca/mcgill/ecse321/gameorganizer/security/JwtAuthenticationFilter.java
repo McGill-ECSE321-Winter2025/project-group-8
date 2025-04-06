@@ -24,7 +24,7 @@ import jakarta.servlet.http.HttpServletResponseWrapper;
 import org.springframework.security.core.Authentication;
 
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE + 10)
+// Removed @Order annotation to let Spring manage order via SecurityConfig
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     public static final String AUTH_ATTRIBUTE = "JWT_AUTHENTICATION";
@@ -149,29 +149,55 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      * @return The extracted token from the cookie/header, or null if not present
      */
     private String extractTokenFromRequest(HttpServletRequest request) {
-        // First try to get from cookie
         Cookie[] cookies = request.getCookies();
         if (cookies != null) {
+            // --- BEGIN ADDED LOGGING ---
+            log.debug("Cookies received for request {}:", request.getRequestURI());
+            boolean accessTokenFound = false;
             for (Cookie cookie : cookies) {
+                log.debug("  - Name: {}, Value: [{}], Path: {}, Domain: {}, MaxAge: {}, Secure: {}, HttpOnly: {}",
+                          cookie.getName(),
+                          (cookie.getValue() != null && cookie.getValue().length() > 15) ? cookie.getValue().substring(0, 15) + "..." : cookie.getValue(), // Log only prefix of value
+                          cookie.getPath(),
+                          cookie.getDomain(),
+                          cookie.getMaxAge(),
+                          cookie.getSecure(),
+                          cookie.isHttpOnly()); // Note: isHttpOnly might not be readable server-side depending on container/version
+            // --- END ADDED LOGGING ---
+
                 if ("accessToken".equals(cookie.getName())) {
+                    accessTokenFound = true; // Mark as found
                     String token = cookie.getValue();
                     log.debug("Found 'accessToken' cookie with value: {}",
                         (token != null && token.length() > 15) ? token.substring(0, 15) + "..." : token);
-                    return token;
+                    // return token; // Return immediately after finding - Original logic
                 }
             }
+            // --- BEGIN MODIFIED RETURN LOGIC ---
+            // Search again after logging all cookies to return the token if found
+            for (Cookie cookie : cookies) {
+                 if ("accessToken".equals(cookie.getName())) {
+                     return cookie.getValue();
+                 }
+            }
+            if (!accessTokenFound) {
+                log.debug("  'accessToken' cookie was NOT found among received cookies.");
+            }
+            // --- END MODIFIED RETURN LOGIC ---
+        } else {
+            log.debug("No cookies received for request {}.", request.getRequestURI());
         }
-        
+
         // If no cookie found, try Authorization header
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7); // Remove "Bearer " prefix
-            log.debug("Found token in Authorization header: {}", 
-                (token != null && token.length() > 15) ? token.substring(0, 15) + "..." : token);
-            return token;
-        }
-        
-        log.debug("No token found in either cookie or Authorization header");
-        return null;
+         String authHeader = request.getHeader("Authorization");
+         if (authHeader != null && authHeader.startsWith("Bearer ")) {
+             String token = authHeader.substring(7); // Remove "Bearer " prefix
+             log.debug("Found token in Authorization header: {}",
+                 (token != null && token.length() > 15) ? token.substring(0, 15) + "..." : token);
+             return token;
+         }
+
+         log.debug("No token found in either cookie or Authorization header for {}", request.getRequestURI());
+         return null;
     }
 }

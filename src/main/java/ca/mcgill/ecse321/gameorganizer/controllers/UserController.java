@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
  * Provides API endpoints for retrieving user information.
  */
 @RestController
-@RequestMapping("/users")
+@RequestMapping("/api/users")
 public class UserController {
 
     @Autowired

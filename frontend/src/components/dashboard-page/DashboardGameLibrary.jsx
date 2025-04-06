@@ -17,8 +17,6 @@ export default function DashboardGameLibrary({ userType }) {
   
   // Log user data for debugging
   useEffect(() => {
-    console.log("[DashboardGameLibrary] User object:", user);
-    console.log("[DashboardGameLibrary] userType:", userType);
   }, [user, userType]);
 
   // Function to fetch games
@@ -37,8 +35,6 @@ export default function DashboardGameLibrary({ userType }) {
     setError(null);
 
     try {
-      console.log("[DashboardGameLibrary] Fetching games for owner:", ownerEmail);
-      console.log("[DashboardGameLibrary] User is a game owner:", user.gameOwner);
       console.log("[DashboardGameLibrary] Cookie state during fetch:", {
         isAuthenticated: document.cookie.includes('isAuthenticated=true'),
         hasAccessToken: document.cookie.includes('accessToken='),
@@ -46,7 +42,6 @@ export default function DashboardGameLibrary({ userType }) {
       });
       
       const fetchedGames = await getGamesByOwner(ownerEmail);
-      console.log("[DashboardGameLibrary] Fetched games:", fetchedGames);
       setGames(fetchedGames || []); // Ensure games is always an array
     } catch (err) {
       console.error("[DashboardGameLibrary] Error details:", err);
@@ -87,8 +82,8 @@ export default function DashboardGameLibrary({ userType }) {
       <TabsContent value="games" className="space-y-6">
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold">My Games</h2>
-          {/* Only show button if userType is owner */}
-          {userType === "owner" && (
+          {/* Only show button if userType is owner (checked via prop and auth context) */}
+          {userType === "owner" && user?.gameOwner && (
             <Button onClick={() => setIsAddGameDialogOpen(true)}>Add New Game</Button>
           )}
         </div>

@@ -14,10 +14,12 @@ import GuestGameOverlay from './GuestGameOverlay';
 const withAuthRestriction = (Component, { interactive = false } = {}) => {
   // Return a new component with the same props
   return function WithAuthRestriction(props) {
-    const { isAuthenticated, authInitialized } = useAuth();
+    const { isAuthenticated, authReady } = useAuth();
     
     // If auth not initialized yet or component should be interactive, render normally
-    if (!authInitialized || interactive) {
+    // If auth not ready yet or component should be interactive, render normally
+    // We check !authReady to ensure we wait until the auth state is confirmed
+    if (!authReady || interactive) {
       return <Component {...props} />;
     }
     

@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { checkAuthStatus, getUserProfile, logoutUser } from '../service/auth-api';
+import { getGamesByOwner } from '../service/game-api'; // Import game fetching service
 import { setAuthInProgress, getCookieAuthState } from '../service/apiClient';
 
 // Create the auth context
@@ -23,6 +24,8 @@ export const AuthProvider = ({ children }) => {
   const [authReady, setAuthReady] = useState(false);
   // Error state
   const [error, setError] = useState(null);
+  const [currentUserGames, setCurrentUserGames] = useState([]); // State for user's games (game names/IDs)
+  const [currentUserGamesError, setCurrentUserGamesError] = useState(null); // State for game fetch error
   // Session expired flag
   const [isSessionExpired, setIsSessionExpired] = useState(false);
   // Remember me state
@@ -65,6 +68,25 @@ export const AuthProvider = ({ children }) => {
     }
   }, [isSessionExpired]);
 
+  // Fetch user games function
+  const fetchUserGames = useCallback(async (email) => {
+    if (!email) {
+      setCurrentUserGamesError(null); // Clear error if no email
+      return;
+    }
+    setCurrentUserGamesError(null); // Clear previous error on new attempt
+    try {
+      const gamesData = await getGamesByOwner(email);
+      const gameNames = gamesData.map(game => game.name);
+      setCurrentUserGames(gameNames);
+    } catch (err) {
+      const errorMsg = err.message || "Could not load your games for comparison.";
+      console.error("Error fetching current user games in AuthContext:", err);
+      setCurrentUserGamesError(errorMsg); // Set the error state
+      setCurrentUserGames([]); // Reset games on error
+    }
+  }, []);
+  
   // Initialize authentication state
   const initAuth = useCallback(async () => {
     try {
@@ -73,125 +95,33 @@ export const AuthProvider = ({ children }) => {
       setAuthInProgress(true); // Set auth in progress flag
       setError(null);
 
-      // First check the cookie auth state
-      const cookieAuth = getCookieAuthState();
-      console.log('Cookie auth state on init:', cookieAuth);
-      
-      // Fix inconsistent cookie state if found
-      if ((cookieAuth.isAuthenticated && !cookieAuth.hasAccessToken) || 
-          (!cookieAuth.isAuthenticated && cookieAuth.hasAccessToken)) {
-        // Attempt to repair inconsistent cookie state
-        console.log('Fixing inconsistent cookie state');
-        if (cookieAuth.isAuthenticated || cookieAuth.hasAccessToken) {
-          const cookieOptions = 'path=/; max-age=86400; SameSite=Lax'; // 24 hours
-          document.cookie = `isAuthenticated=true; ${cookieOptions}`;
-          document.cookie = `hasAccessToken=true; ${cookieOptions}`;
-        }
-      }
-      
-      // Check if user data exists in localStorage
-      const userId = localStorage.getItem('userId');
-      const userEmail = localStorage.getItem('userEmail');
-      const userJson = localStorage.getItem('user');
-      
-      // Check if we have cookies for authentication or localStorage data
-      if ((cookieAuth.isAuthenticated || cookieAuth.hasAccessToken) || (userId && userEmail && userJson)) {
-        let userData = null;
+      // Always try to verify the session with the backend using checkAuthStatus.
+      // This relies on the browser sending the HttpOnly accessToken cookie.
+      console.log('AuthContext init: Attempting to verify session with backend via checkAuthStatus...');
+      const userProfile = await checkAuthStatus(); // checkAuthStatus now returns user profile or null
+
+      if (userProfile) {
+        // Backend confirmed authentication is valid
+        console.log('AuthContext init: Session verified by backend. User:', userProfile.email);
+        setUser(userProfile);
+        setIsAuthenticated(true);
+        setIsSessionExpired(false);
+
+        // Update localStorage with potentially fresh data from the profile check
+        // This ensures localStorage is consistent even if cookies were the primary source.
+        localStorage.setItem('userId', userProfile.id);
+        localStorage.setItem('userEmail', userProfile.email);
+        localStorage.setItem('user', JSON.stringify(userProfile));
         
-        // Try to parse user data from localStorage if it exists
-        if (userJson) {
-          try {
-            userData = JSON.parse(userJson);
-          } catch (e) {
-            console.error('Error parsing user data from localStorage', e);
-            // We'll continue and fetch user data from the API if needed
-          }
-        }
-        
-        // Verify token with server
-        try {
-          const isAuth = await checkAuthStatus();
-          if (isAuth) {
-            // If we don't have userData or it's incomplete, fetch user profile
-            if (!userData || !userData.id || !userData.email) {
-              try {
-                userData = await getUserProfile();
-                
-                // Update localStorage with fresh data
-                if (userData && userData.id && userData.email) {
-                  localStorage.setItem('userId', userData.id);
-                  localStorage.setItem('userEmail', userData.email);
-                  localStorage.setItem('user', JSON.stringify(userData));
-                }
-              } catch (profileError) {
-                console.error('Error fetching user profile:', profileError);
-                // Continue with whatever user data we have
-              }
-            }
-            
-            // Token is valid, set user as authenticated
-            setUser(userData);
-            setIsAuthenticated(true);
-            setIsSessionExpired(false);
-            
-            // Check if remember me was set
-            const savedRememberMe = localStorage.getItem('rememberMe') === 'true';
-            setRememberMe(savedRememberMe);
-            
-            // If cookie auth but no local storage data, update localStorage
-            if (cookieAuth.isAuthenticated && userData && (!userId || !userEmail)) {
-              localStorage.setItem('userId', userData.id);
-              localStorage.setItem('userEmail', userData.email);
-              localStorage.setItem('user', JSON.stringify(userData));
-            }
-          } else {
-            // If server says not authenticated, clear state
-            clearAuthData();
-          }
-        } catch (error) {
-          console.error('Error checking auth status:', error);
-          // For 401 errors, clear auth
-          if (error.status === 401) {
-            clearAuthData();
-          } else if (cookieAuth.isAuthenticated && userData) {
-            // For network errors with cookie auth, keep user logged in
-            setUser(userData);
-            setIsAuthenticated(true);
-          } else {
-            // For other errors without cookie auth, clear auth
-            clearAuthData();
-          }
-        }
+        // Check rememberMe status from localStorage (set during login)
+        const savedRememberMe = localStorage.getItem('rememberMe') === 'true';
+        setRememberMe(savedRememberMe);
+
+        fetchUserGames(userProfile.email); // Fetch games for the authenticated user
       } else {
-        // No auth data in localStorage or cookies, check with server
-        try {
-          const isAuth = await checkAuthStatus();
-          
-          if (isAuth) {
-            // Fetch user profile if authenticated
-            const userProfile = await getUserProfile();
-            setUser(userProfile);
-            setIsAuthenticated(true);
-            setIsSessionExpired(false);
-
-            // Store user data in localStorage
-            if (userProfile && userProfile.id && userProfile.email) {
-              localStorage.setItem('userId', userProfile.id);
-              localStorage.setItem('userEmail', userProfile.email);
-              localStorage.setItem('user', JSON.stringify(userProfile));
-            }
-
-            // Check if remember me was set
-            const savedRememberMe = localStorage.getItem('rememberMe') === 'true';
-            setRememberMe(savedRememberMe);
-          } else {
-            // Clear authentication state
-            clearAuthData();
-          }
-        } catch (error) {
-          console.error('Error checking auth status during init:', error);
-          clearAuthData();
-        }
+        // Backend indicated no valid session (e.g., 401, error, or null response from checkAuthStatus)
+        console.log('AuthContext init: No valid session confirmed by backend.');
+        clearAuthData(); // Ensure client state reflects unauthenticated
       }
     } catch (err) {
       console.error('Error initializing auth:', err);
@@ -220,6 +150,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('user');
     // Also set the isAuthenticated cookie to false
     document.cookie = "isAuthenticated=false; path=/";
+    setCurrentUserGamesError(null); // Clear game error on clear auth
   }, []);
 
   // Initialize auth when component mounts
@@ -293,6 +224,7 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('userId', userData.id);
         localStorage.setItem('userEmail', userData.email);
         localStorage.setItem('user', JSON.stringify(userData));
+        fetchUserGames(userData.email); // Fetch games after successful login (will clear error)
       }
       
       // Save remember me preference
@@ -342,6 +274,8 @@ export const AuthProvider = ({ children }) => {
       localStorage.removeItem('userEmail');
       localStorage.removeItem('user');
       localStorage.removeItem('rememberMe');
+      setCurrentUserGames([]); // Clear games on logout
+      setCurrentUserGamesError(null); // Clear game error on logout
       
       // Add a small delay for state updates to propagate
       setTimeout(() => {
@@ -370,7 +304,9 @@ export const AuthProvider = ({ children }) => {
     rememberMe,
     setRememberMe,
     updateActivity,
-    isPublicPath
+    isPublicPath,
+    currentUserGames, // Provide games through context
+    currentUserGamesError // Provide game fetch error state
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

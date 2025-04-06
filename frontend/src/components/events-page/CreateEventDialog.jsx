@@ -8,7 +8,7 @@ import { Textarea } from "../../ui/textarea";
 import { Label } from "../../ui/label";
 import { createEvent } from "../../service/event-api.js";
 // Import searchGames API function and Loader icon
-import { searchGames, getGamesByOwner } from "../../service/game-api.js";
+import { getGamesByOwner } from "../../service/game-api.js";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext"; // Import useAuth
 
@@ -52,15 +52,12 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
 
   // Load user's games when dialog opens
   useEffect(() => {
-    console.log("[CreateEventDialog] Dialog open state changed:", open);
-    
     if (open && userEmail && lastFetchedEmailRef.current !== userEmail) {
       const loadUserGames = async () => {
         setIsLoadingUserGames(true);
         lastFetchedEmailRef.current = userEmail;
         
         try {
-          console.log("[CreateEventDialog] Loading games for user:", userEmail);
           const games = await getGamesByOwner(userEmail);
           
           if (isMountedRef.current) {

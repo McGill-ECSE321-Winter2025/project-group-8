@@ -89,8 +89,6 @@ export default function UserProfilePage() {
   }, []);
 
   useEffect(() => {
-    console.log(`[UserProfilePage] Rendering with profileEmail: ${profileEmail}, currentUser: ${!!currentUser?.email}`);
-    
     // Use profile email from URL params, or fall back to current user's email
     const emailToFetch = profileEmail || currentUser?.email;
     

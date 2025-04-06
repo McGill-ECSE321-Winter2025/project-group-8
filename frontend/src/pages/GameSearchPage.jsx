@@ -69,7 +69,6 @@ export default function GameSearchPage() {
   
   const handleSubmitRequest = (requestData) => {
     // In a real app, this would submit the request to an API
-    console.log("Game request submitted:", requestData);
     // Reset the selected instance
     setSelectedInstance(null);
   };

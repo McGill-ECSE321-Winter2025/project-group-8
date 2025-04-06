@@ -73,27 +73,19 @@ export default function EventsPage() {
     try {
       // Check if we have a user and user.email from auth context
       const userEmail = user?.email;
-      console.log("Current authenticated user email:", userEmail);
-      
       // Fetch all events unconditionally
-      console.log("Fetching all events...");
       const eventData = await getAllEvents();
-      console.log("Fetched Events Raw Data:", eventData);
-      
       // Fetch registrations only if user is authenticated and has an email
       let registrationData = [];
       if (isAuthenticated && userEmail) {
-        console.log(`Fetching registrations for user email: ${userEmail}`);
         try {
           registrationData = await getRegistrationsByEmail(userEmail);
-          console.log("Fetched Registrations Raw Data:", registrationData);
         } catch (regError) {
           console.error("Failed to fetch registrations:", regError);
           // Don't fail the whole operation, just log the error and continue with empty registrations
           registrationData = [];
         }
       } else {
-        console.log("User not authenticated or email not available - skipping registration fetch");
         if (!isAuthenticated) console.log("User is not authenticated");
         if (!userEmail) console.log("User email is not available");
       }
@@ -104,8 +96,6 @@ export default function EventsPage() {
 
       // Store the full registration data
       setUserRegistrations(registrationData || []);
-      console.log("User Registrations:", registrationData);
-
     } catch (err) {
       console.error("Failed to fetch events or registrations:", err);
       
@@ -185,7 +175,6 @@ export default function EventsPage() {
    const adaptEventData = (event) => {
     if (!event) return null;
     // Log the structure of host and featuredGame before accessing name
-    // console.log(`Adapting Event ID: ${event.eventId} - Host Object:`, event.host, "Featured Game Object:", event.featuredGame);
     return {
       id: event.eventId,
       title: event.title,
@@ -226,8 +215,9 @@ export default function EventsPage() {
         <div className="flex-grow">
         <EventSearchBar 
           onSearchStateChange={handleSearchStateChange} 
-          adaptEventData={adaptEventData} 
-        />
+          adaptEventData={adaptEventData}
+          userRegistrations={userRegistrations} // Pass registrations down
+          />
         </div>
         <div className="w-48">
           <DateFilterComponent onFilterChange={handleDateFilter} />

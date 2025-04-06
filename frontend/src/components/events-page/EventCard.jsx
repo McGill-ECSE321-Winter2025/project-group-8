@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import confetti from "canvas-confetti";
-import { registerForEvent, unregisterFromEvent } from "@/service/event-api.js";
+import { registerForEvent } from "@/service/event-api.js"; // Keep registerForEvent here
+import { unregisterFromEvent } from "@/service/registration-api.js"; // Import unregister from the correct file
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Card,
