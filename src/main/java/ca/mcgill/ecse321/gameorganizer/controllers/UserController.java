@@ -46,8 +46,8 @@ public class UserController {
             Account account = accountRepository.findByEmail(email)
                     .orElseThrow(() -> new RuntimeException("Authenticated user not found in repository: " + email));
             
-            // Create and return user summary
-            UserSummaryDto userSummary = new UserSummaryDto(account.getId(), account.getName());
+            // Create and return user summary with email
+            UserSummaryDto userSummary = new UserSummaryDto(account.getId(), account.getName(), account.getEmail());
             return ResponseEntity.ok(userSummary);
         } catch (Exception e) {
             System.err.println("Error retrieving current user: " + e.getMessage());

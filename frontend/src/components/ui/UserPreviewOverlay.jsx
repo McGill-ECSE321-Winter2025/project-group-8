@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
@@ -13,16 +13,42 @@ import { Avatar, AvatarFallback, AvatarImage } from './avatar.jsx';
 import Tag from '../common/Tag.jsx';
 import GameOwnerTag from '../common/GameOwnerTag.jsx';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, GamepadIcon, Mail } from 'lucide-react';
+import { Users, GamepadIcon, Mail, Loader2 } from 'lucide-react';
 import { formatJoinDate, formatRelativeTime } from '../lib/dateUtils.js';
+import { getGamesByOwner } from '@/service/game-api';
+import { useAuth } from '@/context/AuthContext';
 
 const UserPreviewOverlay = ({ user, isOpen, onClose }) => {
   const navigate = useNavigate();
+  const { user: currentUser } = useAuth();
+  const [currentUserGames, setCurrentUserGames] = useState([]);
+  const [isLoadingGames, setIsLoadingGames] = useState(false);
+  
+  // Fetch current user's games when needed to compare with viewed user
+  useEffect(() => {
+    async function fetchCurrentUserGames() {
+      if (!currentUser?.email || !isOpen) return;
+      
+      try {
+        setIsLoadingGames(true);
+        const gamesData = await getGamesByOwner(currentUser.email);
+        // Extract just the names from the games data
+        const gameNames = gamesData.map(game => game.name);
+        setCurrentUserGames(gameNames);
+      } catch (err) {
+        console.error("Error fetching current user games:", err);
+        setCurrentUserGames([]);
+      } finally {
+        setIsLoadingGames(false);
+      }
+    }
+    
+    fetchCurrentUserGames();
+  }, [currentUser, isOpen]);
 
   if (!user) return null;
   
-  // Example data - in a real app, this would come from your user state/context
-  const currentUserGames = ['Monopoly', 'Settlers of Catan', 'Ticket to Ride'];
+  // Find common games between current user and viewed profile
   const commonGames = user?.gamesPlayed?.filter(game => currentUserGames.includes(game)) || [];
 
   // Format join date
@@ -132,8 +158,13 @@ const UserPreviewOverlay = ({ user, isOpen, onClose }) => {
                   </div>
                 )}
 
-                {/* Common Games Section - Simplified rendering without complex animations */}
-                {commonGames.length > 0 && (
+                {/* Common Games Section - Only show if loading or if games found */}
+                {isLoadingGames ? (
+                  <div className="mb-6 flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    <span className="text-sm">Finding games in common...</span>
+                  </div>
+                ) : commonGames.length > 0 && (
                   <div className="mb-6">
                     <div className="flex items-center gap-2 mb-2">
                       <GamepadIcon className="h-4 w-4 text-primary" />

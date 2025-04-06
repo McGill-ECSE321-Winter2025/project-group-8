@@ -8,6 +8,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { getAllEvents } from "../service/event-api";
 import { getRegistrationsByEmail } from "../service/registration-api.js"; // Import registration fetcher
 import { Loader2 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext"; // Import auth context
 
 // Create card stagger animation variants (remains the same)
 const container = {
@@ -52,6 +53,7 @@ const item = {
 };
 
 export default function EventsPage() {
+  const { user, isAuthenticated } = useAuth(); // Get user from auth context
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [allEvents, setAllEvents] = useState([]); // Store all fetched events
   const [filteredEvents, setFilteredEvents] = useState([]); // Store currently filtered events
@@ -66,17 +68,34 @@ export default function EventsPage() {
   const fetchEvents = async () => {
     setIsLoading(true);
     setError(null);
-    const userEmail = localStorage.getItem("userEmail");
-
+    
     try {
-      // Fetch all events and user's registrations concurrently
-      const [eventData, registrationData] = await Promise.all([
-        getAllEvents(),
-        userEmail ? getRegistrationsByEmail(userEmail) : Promise.resolve([]) // Fetch regs only if email exists
-      ]);
-
+      // Check if we have a user and user.email from auth context
+      const userEmail = user?.email;
+      console.log("Current authenticated user email:", userEmail);
+      
+      // Fetch all events unconditionally
+      console.log("Fetching all events...");
+      const eventData = await getAllEvents();
       console.log("Fetched Events Raw Data:", eventData);
-      console.log("Fetched Registrations Raw Data:", registrationData);
+      
+      // Fetch registrations only if user is authenticated and has an email
+      let registrationData = [];
+      if (isAuthenticated && userEmail) {
+        console.log(`Fetching registrations for user email: ${userEmail}`);
+        try {
+          registrationData = await getRegistrationsByEmail(userEmail);
+          console.log("Fetched Registrations Raw Data:", registrationData);
+        } catch (regError) {
+          console.error("Failed to fetch registrations:", regError);
+          // Don't fail the whole operation, just log the error and continue with empty registrations
+          registrationData = [];
+        }
+      } else {
+        console.log("User not authenticated or email not available - skipping registration fetch");
+        if (!isAuthenticated) console.log("User is not authenticated");
+        if (!userEmail) console.log("User email is not available");
+      }
 
       setAllEvents(eventData || []);
       setFilteredEvents(eventData || []);
@@ -88,7 +107,16 @@ export default function EventsPage() {
 
     } catch (err) {
       console.error("Failed to fetch events or registrations:", err);
-      setError(err.message || "Could not load page data.");
+      
+      // Set appropriate error message
+      if (!isAuthenticated) {
+        setError("Please log in to view and register for events");
+      } else if (!user?.email) {
+        setError("User email not found. Please log in again");
+      } else {
+        setError(err.message || "Could not load page data.");
+      }
+      
       setAllEvents([]); // Clear on error
       setFilteredEvents([]);
       setDisplayedEvents([]);
@@ -97,10 +125,10 @@ export default function EventsPage() {
     }
   };
 
-  // Fetch all events on component mount
+  // Fetch all events on component mount and when auth state changes
   useEffect(() => {
     fetchEvents();
-  }, []); // Empty dependency array means run once on mount
+  }, [isAuthenticated, user]); // Re-fetch when auth state changes
 
   // Update displayed events with animation delay (remains similar)
   useEffect(() => {

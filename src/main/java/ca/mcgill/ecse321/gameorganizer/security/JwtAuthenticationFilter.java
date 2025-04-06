@@ -29,6 +29,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     public static final String AUTH_ATTRIBUTE = "JWT_AUTHENTICATION";
     
+    // Add this ThreadLocal to track authentication across filter chain
+    private static final ThreadLocal<Authentication> authenticationThreadLocal = new ThreadLocal<>();
+    
     private final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
     
     private final JwtUtil jwtUtil;
@@ -103,6 +106,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         
                         // Set authentication in context
                         SecurityContextHolder.getContext().setAuthentication(authRef[0]);
+                        
+                        // Store authentication in ThreadLocal to track changes
+                        authenticationThreadLocal.set(authRef[0]);
+                        
                         log.debug("Authentication set in SecurityContextHolder: {}", authRef[0]);
                         
                         // Store in request attributes for later use
@@ -157,8 +164,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             // Proceed with the filter chain, using our custom response wrapper
             filterChain.doFilter(request, responseWrapper);
         } finally {
+            // Check if authentication was modified
+            Authentication currentAuth = SecurityContextHolder.getContext().getAuthentication();
+            Authentication originalAuth = authenticationThreadLocal.get();
+            
+            if (originalAuth != null && currentAuth == null) {
+                log.error("Authentication was removed during filter chain execution!");
+                log.error("Original auth: {}", originalAuth);
+                
+                // Log current security filters to help debug
+                log.error("Request URI: {}", request.getRequestURI());
+                log.error("Response status: {}", responseWrapper.getStatus());
+            }
+            
             // Log security context after the filter chain (for debugging purposes)
             log.debug("Security context AFTER filter chain: {}", SecurityContextHolder.getContext());
+            
+            // Clear ThreadLocal to prevent memory leaks
+            authenticationThreadLocal.remove();
         }
     }
     

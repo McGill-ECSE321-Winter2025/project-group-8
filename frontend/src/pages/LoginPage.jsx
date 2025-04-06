@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react" // Keep useEffect for now, might need later or remove if AuthProvider handles all redirects
 import { Link, useNavigate } from "react-router-dom"
 import { useAuth } from "@/context/AuthContext"; // Import useAuth
+import { loginUser } from "@/service/auth-api"; // Import the loginUser function
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -11,7 +12,7 @@ import { GamepadIcon as GameController } from "lucide-react"
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login, user } = useAuth(); // Get login function and user state from context
+  const { login, user } = useAuth(); // Get login and user state from context
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState(""); // Use state for form inputs
   const [password, setPassword] = useState(""); // Use state for form inputs
@@ -20,7 +21,7 @@ export default function LoginPage() {
   // Redirect if already logged in (user state is populated by AuthProvider)
   useEffect(() => {
     if (user) {
-
+      console.log('LoginPage: User already logged in, redirecting to dashboard');
       navigate("/dashboard");
     }
   }, [user, navigate]);
@@ -29,53 +30,33 @@ export default function LoginPage() {
     e.preventDefault();
     setIsLoading(true);
     setError(""); // Clear previous errors
+    console.log('LoginPage: Handling form submission');
 
     try {
-      // TODO: Replace with environment variable for API URL
-      const response = await fetch("http://localhost:8080/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-        credentials: 'include', // Send and receive cookies
-      });
-
-      if (response.ok) {
-        // Backend now sets HttpOnly cookie automatically.
-        // The response body should contain the user summary.
-        const userData = await response.json();
-        
-        // Check for Authorization header that contains the JWT token
-        const authHeader = response.headers.get('Authorization');
-        let token = null;
-        
-        if (authHeader && authHeader.startsWith('Bearer ')) {
-          token = authHeader.substring(7); // Remove 'Bearer ' prefix
-        } else if (userData.token) {
-          // If token is in the response body
-          token = userData.token;
-        } else if (userData.accessToken) {
-          // Alternative name for token
-          token = userData.accessToken;
-        }
-        
-        // Pass both user data and token to login function
-        login(userData, token);
-        
-        // Test that the authentication is working
-        console.log("Login successful, redirecting to dashboard...");
-        navigate("/dashboard");
-      } else if (response.status === 401) {
+      // Use the loginUser function from auth-api
+      const { userData } = await loginUser(email, password);
+      
+      // Ensure the user data has the email (required for other parts of the app)
+      if (!userData.email) {
+        userData.email = email; // Use the email from the form if not present in response
+      }
+      
+      console.log("LoginPage: Login successful, user data:", userData);
+      
+      // Pass user data to login function (no token needed anymore)
+      await login(userData);
+      
+      // Add a small delay to ensure state updates before redirect
+      console.log("LoginPage: Login completed, redirecting to dashboard...");
+      setTimeout(() => navigate("/dashboard"), 100);
+    } catch (error) {
+      console.error("LoginPage: Error during login:", error);
+      
+      if (error.message && error.message.includes('401')) {
         setError("Invalid email or password");
       } else {
-        const errorData = await response.text(); // Or response.json() if backend sends structured errors
-        console.error("Login failed:", response.status, errorData);
-        setError(`An unexpected error occurred: ${response.status}`);
+        setError("Failed to connect to the server. Please try again later.");
       }
-    } catch (error) {
-      console.error("Error during login:", error);
-      setError("Failed to connect to the server. Please try again later.");
     } finally {
       setIsLoading(false)
     }

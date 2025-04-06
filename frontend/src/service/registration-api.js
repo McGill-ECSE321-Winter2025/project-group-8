@@ -14,7 +14,7 @@ export const getRegistrationsByEmail = async (email) => {
   }
 
   try {
-    // Use the updated backend path /registrations/user/{email}
+    // Use the correct API endpoint path
     const registrations = await apiClient(`/registrations/user/${encodeURIComponent(email)}`, {
       method: "GET"
     });

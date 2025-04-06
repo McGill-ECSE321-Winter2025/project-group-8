@@ -82,6 +82,8 @@ public class AuthenticationController {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null); // Password is missing
             }
 
+            System.out.println("Login attempt for: " + authenticationDTO.getEmail());
+
             // Create authentication token and authenticate the user
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(authenticationDTO.getEmail(), authenticationDTO.getPassword()));
@@ -98,21 +100,51 @@ public class AuthenticationController {
 
             // Generate JWT token using UserDetails and the Account object
             String jwt = jwtUtil.generateToken(userDetails, user);
+            System.out.println("JWT token generated successfully for user: " + user.getId());
 
-            // Create HttpOnly cookie
+            // Create HttpOnly cookie with improved configuration - try both methods
+            // Method 1: Using ResponseCookie (better for controlling properties)
             ResponseCookie cookie = ResponseCookie.from("accessToken", jwt)
                 .httpOnly(true)
-                .secure(true) // Set to true if using HTTPS
+                .secure(false) // Set to false for local development, true for production
                 .path("/")
-                .maxAge(3600) // e.g., 1 hour expiration, align with JWT expiration if possible
-                .sameSite("Strict") // Or "Lax" depending on requirements
+                .maxAge(24 * 3600) // 24 hours expiration (in seconds)
+                .sameSite("Lax") // Less strict for easier development
                 .build();
 
             // Add cookie to the response header
             response.addHeader("Set-Cookie", cookie.toString());
+            
+            // Add a non-HttpOnly cookie for client-side authentication status checking
+            ResponseCookie authFlagCookie = ResponseCookie.from("isAuthenticated", "true")
+                .httpOnly(false) // Not HttpOnly so JavaScript can read it
+                .secure(false) // Set to false for local development, true for production
+                .path("/")
+                .maxAge(24 * 3600) // 24 hours expiration (in seconds)
+                .sameSite("Lax")
+                .build();
+            response.addHeader("Set-Cookie", authFlagCookie.toString());
+            
+            // Method 2: Also try traditional Cookie approach as a backup
+            Cookie traditionalCookie = new Cookie("accessToken", jwt);
+            traditionalCookie.setHttpOnly(true);
+            traditionalCookie.setPath("/");
+            traditionalCookie.setMaxAge(24 * 3600); // 24 hours in seconds
+            response.addCookie(traditionalCookie);
+            
+            // Traditional non-HttpOnly auth flag cookie
+            Cookie authCookie = new Cookie("isAuthenticated", "true");
+            authCookie.setHttpOnly(false);
+            authCookie.setPath("/");
+            authCookie.setMaxAge(24 * 3600); // 24 hours in seconds
+            response.addCookie(authCookie);
+            
+            // Debug cookie setting
+            System.out.println("Setting cookie via header: " + cookie.toString());
+            System.out.println("Setting cookie via Cookie object. Name: accessToken, Value: [JWT_TOKEN_LENGTH=" + jwt.length() + "]");
 
             // Return UserSummaryDto to be consistent with test expectations
-            UserSummaryDto userSummary = new UserSummaryDto(user.getId(), user.getName());
+            UserSummaryDto userSummary = new UserSummaryDto(user.getId(), user.getName(), user.getEmail());
             return ResponseEntity.ok(userSummary);
         } catch (BadCredentialsException e) {
             // Return 401 UNAUTHORIZED when credentials are invalid
@@ -135,8 +167,50 @@ public class AuthenticationController {
      * @return a ResponseEntity indicating that the user has been logged out successfully
      */
     @PostMapping("/logout")
-    public ResponseEntity<String> logout() {
-        // With JWT, logout is handled client-side by removing the token
+    public ResponseEntity<String> logout(HttpServletResponse response) {
+        System.out.println("Logout requested");
+        
+        // Method 1: Clear the JWT cookie using ResponseCookie
+        ResponseCookie cookie = ResponseCookie.from("accessToken", "")
+            .httpOnly(true)
+            .secure(false) // Set to false for local development, true for production
+            .path("/")
+            .maxAge(0) // Expire immediately
+            .sameSite("Lax") // Less strict for easier development
+            .build();
+        
+        // Clear the isAuthenticated cookie
+        ResponseCookie authFlagCookie = ResponseCookie.from("isAuthenticated", "")
+            .httpOnly(false) // Not HttpOnly so JavaScript can read it
+            .secure(false) // Set to false for local development, true for production
+            .path("/")
+            .maxAge(0) // Expire immediately
+            .sameSite("Lax")
+            .build();
+        
+        response.addHeader("Set-Cookie", cookie.toString());
+        response.addHeader("Set-Cookie", authFlagCookie.toString());
+        System.out.println("Clearing cookie via header: " + cookie.toString());
+        
+        // Method 2: Also try traditional Cookie approach as a backup
+        Cookie traditionalCookie = new Cookie("accessToken", "");
+        traditionalCookie.setHttpOnly(true);
+        traditionalCookie.setPath("/");
+        traditionalCookie.setMaxAge(0); // Expire immediately
+        response.addCookie(traditionalCookie);
+        
+        // Clear traditional auth flag cookie
+        Cookie authCookie = new Cookie("isAuthenticated", "");
+        authCookie.setHttpOnly(false);
+        authCookie.setPath("/");
+        authCookie.setMaxAge(0); // Expire immediately
+        response.addCookie(authCookie);
+        
+        System.out.println("Clearing cookies via Cookie object");
+        
+        // Clear security context
+        SecurityContextHolder.clearContext();
+        
         return ResponseEntity.ok("Successfully logged out");
     }
 

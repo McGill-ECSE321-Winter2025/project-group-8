@@ -1,45 +1,61 @@
 import BorrowRequest from "@/components/dashboard-page/BorrowRequest.jsx";
 import {TabsContent} from "@/components/ui/tabs.jsx";
+import { useEffect, useState } from "react";
+import { getOutgoingBorrowRequests } from "@/service/dashboard-api";
+import { useAuth } from "@/context/AuthContext";
+import { Loader2 } from "lucide-react";
 
 export default function DashboardBorrowRequests() {
+  const [borrowRequests, setBorrowRequests] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const { user } = useAuth();
 
-  const dummyRequests = [
-    {
-      id: 1,
-      name: "Dragon's Dilemma",
-      requester: "Alice Nguyen",
-      date: "March 30, 2025",
-      endDate: "April 5, 2025",
-    },
-    {
-      id: 2,
-      name: "Mystic Rails",
-      requester: "Jamal Thompson",
-      date: "April 1, 2025",
-      endDate: "April 7, 2025",
-    },
-    {
-      id: 3,
-      name: "Realm of Riddles",
-      requester: "Sophie Tremblay",
-      date: "March 28, 2025",
-      endDate: "April 3, 2025",
-    },
-    {
-      id: 4,
-      name: "Cyber Syndicate",
-      requester: "Leo Chen",
-      date: "April 2, 2025",
-      endDate: "April 9, 2025",
-    },
-  ];
+  useEffect(() => {
+    async function fetchBorrowRequests() {
+      if (!user?.id) return;
+      
+      try {
+        setIsLoading(true);
+        const requests = await getOutgoingBorrowRequests(user.id);
+        setBorrowRequests(requests);
+      } catch (err) {
+        console.error("Error fetching borrow requests:", err);
+        setError("Failed to load borrow requests. Please try again later.");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchBorrowRequests();
+  }, [user]);
 
   return <TabsContent value="requests" className="space-y-6">
     <div className="flex justify-between items-center">
       <h2 className="text-2xl font-bold">My Borrow Requests</h2>
     </div>
     <div className="space-y-4">
-      {dummyRequests.map(request => <BorrowRequest key={request.id} {...request} />)}
+      {isLoading ? (
+        <div className="flex justify-center items-center py-10">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      ) : error ? (
+        <div className="text-center py-10 text-red-500">{error}</div>
+      ) : borrowRequests.length === 0 ? (
+        <div className="text-center py-10 text-muted-foreground">No borrow requests found.</div>
+      ) : (
+        borrowRequests.map(request => 
+          <BorrowRequest 
+            key={request.id} 
+            id={request.id}
+            name={request.gameName || "Unknown Game"}
+            requester={request.requesterName || user?.name || "You"}
+            date={request.requestDate}
+            endDate={request.endDate}
+            status={request.status}
+          />
+        )
+      )}
     </div>
   </TabsContent>
 }

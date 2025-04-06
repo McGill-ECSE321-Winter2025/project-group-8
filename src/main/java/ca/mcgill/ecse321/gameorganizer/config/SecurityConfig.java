@@ -21,6 +21,10 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.context.SecurityContextPersistenceFilter;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
+import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
+import org.springframework.security.web.access.ExceptionTranslationFilter;
 import java.util.Arrays;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -62,6 +66,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/events/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/users/*/games").permitAll()
                 .requestMatchers(HttpMethod.GET, "/lending-records/**").authenticated()
+                .requestMatchers(HttpMethod.GET, "/api/borrowrequests/**").authenticated()
                 .requestMatchers(HttpMethod.GET, "/borrowrequests/**").authenticated()
                 // Account management
                 .requestMatchers(HttpMethod.PUT, "/account/**").authenticated()
@@ -79,21 +84,32 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/borrowrequests/**").authenticated()
                 .requestMatchers(HttpMethod.PUT, "/borrowrequests/**").authenticated() // e.g., Accept/Reject might need owner role? Check logic.
                 .requestMatchers(HttpMethod.DELETE, "/borrowrequests/**").authenticated() // Who can delete?
+                .requestMatchers(HttpMethod.POST, "/api/borrowrequests/**").authenticated()
+                .requestMatchers(HttpMethod.PUT, "/api/borrowrequests/**").authenticated()
+                .requestMatchers(HttpMethod.DELETE, "/api/borrowrequests/**").authenticated()
                 // Lending Records - Actions likely performed by authenticated users, potentially game owners
                 .requestMatchers(HttpMethod.POST, "/lending-records/**").authenticated() // e.g., Confirm pickup/return
                 .requestMatchers(HttpMethod.PUT, "/lending-records/**").authenticated()
                 .requestMatchers(HttpMethod.DELETE, "/lending-records/**").hasRole("GAME_OWNER") // Changed from hasAnyRole("GAME_OWNER", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/lending-records/**").authenticated()
+                .requestMatchers(HttpMethod.PUT, "/api/lending-records/**").authenticated()
+                .requestMatchers(HttpMethod.DELETE, "/api/lending-records/**").hasRole("GAME_OWNER")
                 // Reviews
                 .requestMatchers("/reviews/**").authenticated()
+                .requestMatchers("/api/reviews/**").authenticated()
                 // Registrations
                 .requestMatchers("/registrations/**").authenticated()
+                .requestMatchers("/api/registrations/**").authenticated()
                 // Default deny? Or should anyRequest() be authenticated()? Let's assume authenticated for now.
                 .anyRequest().authenticated()
             )
             .csrf(csrf -> csrf.disable())
             .cors(Customizer.withDefaults())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .anonymous(Customizer.withDefaults()) // Explicitly configure anonymous filter
+            
+            // Completely disable anonymous authentication to prevent it from overriding JWT auth
+            .anonymous(anonymous -> anonymous.disable())
+            
             .exceptionHandling(handling -> handling
                 .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
             )

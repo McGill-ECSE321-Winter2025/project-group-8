@@ -8,21 +8,44 @@ import apiClient, { UnauthorizedError, ForbiddenError } from './apiClient';
  * @throws {ApiError} For other API-related errors.
  */
 export const getUserProfile = async () => {
+  console.log('getUserProfile: Attempting to fetch user profile');
   try {
-    // Assuming the backend has an endpoint like '/api/users/me' or similar
-    // that returns the current user's info based on the session cookie.
-    const userProfile = await apiClient('/api/users/me'); 
+    // Use the API endpoint for user profile with explicit credentials inclusion
+    const userProfile = await apiClient('/users/me', {
+      // Ensure credentials are included (should already be handled by apiClient but being explicit)
+      credentials: 'include'
+    }); 
+    
+    if (!userProfile) {
+      console.error('getUserProfile: Received empty response from server');
+      throw new Error('Empty user profile response');
+    }
+    
+    console.log('getUserProfile: Successfully fetched profile', userProfile);
+    
+    // Ensure critical user fields exist
+    if (!userProfile.id) {
+      console.warn('getUserProfile: User profile missing ID field', userProfile);
+    }
+    
     return userProfile;
   } catch (error) {
-    // For UnauthorizedError, we know this happens if user isn't logged in
+    // For UnauthorizedError (401), user isn't logged in or session expired
     if (error instanceof UnauthorizedError) {
+      console.log('getUserProfile: Unauthorized error (user not logged in or session expired)');
       // This is expected behavior for unauthenticated users
       // Still need to rethrow so AuthContext can handle it
       throw error;
     }
     
-    // For unexpected errors, log them
-    console.error("Error fetching user profile:", error);
+    // For unexpected errors, log them with more details
+    console.error("getUserProfile: Error fetching user profile:", {
+      name: error.name,
+      message: error.message,
+      status: error.status || 'unknown',
+      stack: error.stack
+    });
+    
     // Re-throw the error for the caller (e.g., AuthContext) to handle
     throw error; 
   }
@@ -59,15 +82,52 @@ export const getUserInfoByEmail = async (email) => {
  */
 export const logoutUser = async () => {
     try {
-      // Assuming a POST request to /auth/logout clears the cookie
-      await apiClient('/auth/logout', { method: 'POST' }); 
+      console.log("Attempting to logout user");
+      
+      // Using the API prefix for consistency
+      await apiClient('/auth/logout', { 
+        method: 'POST',
+        credentials: 'include' // Important: Include credentials to ensure cookies are sent
+      }); 
       console.log("Logout API call successful");
+      
+      // Clear any locally stored user data
+      localStorage.removeItem('boardgame_connect_user');
+      
+      // For client-side cleanup, also attempt to expire the cookie
+      document.cookie = 'accessToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+      document.cookie = 'accessToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/api;';
+      document.cookie = 'isAuthenticated=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+      document.cookie = 'isAuthenticated=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/api;';
+      
+      // Method 2: With domain
+      const domain = window.location.hostname;
+      document.cookie = `accessToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${domain};`;
+      document.cookie = `isAuthenticated=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${domain};`;
+      
+      // Method 3: For root path
+      document.cookie = 'accessToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/api;';
+      document.cookie = 'isAuthenticated=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/api;';
+      
+      console.log("Client-side cookie deletion attempted. Current cookies:", document.cookie);
     } catch (error) {
-        // Log the error but don't necessarily block frontend logout
-        console.error("Error calling logout API:", error);
-        // Depending on requirements, you might still want to proceed with frontend logout
-        // even if the backend call fails. Or re-throw if it's critical.
-        // throw error; 
+      console.error("Error calling logout API:", error);
+      
+      // Clear local storage even if the API call fails
+      localStorage.removeItem('boardgame_connect_user');
+      
+      // For client-side cleanup, also attempt to expire the cookie
+      document.cookie = 'accessToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+      document.cookie = 'accessToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/api;';
+      document.cookie = 'isAuthenticated=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+      document.cookie = 'isAuthenticated=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/api;';
+      
+      // Log current state of cookies
+      console.log("After error, current cookies:", document.cookie);
+      
+      // Depending on requirements, you might still want to proceed with frontend logout
+      // even if the backend call fails. Or re-throw if it's critical.
+      // throw error; 
     }
 };
 

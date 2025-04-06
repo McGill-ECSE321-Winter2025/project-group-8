@@ -9,7 +9,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { GameCard } from "../components/game-search-page/GameCard";
 import { GameDetailsDialog } from "../components/game-search-page/GameDetailsDialog";
 import { RequestGameDialog } from "../components/game-search-page/RequestGameDialog";
-// Removed mock data import: import { getUniqueGameNames } from "../components/game-search-page/data";
+// Removed mock data import
 import { searchGames } from "../service/game-api"; // Added API service import
 
 export default function GameSearchPage() {
@@ -28,31 +28,10 @@ export default function GameSearchPage() {
   const [selectedGame, setSelectedGame] = useState(null);
   const [selectedInstance, setSelectedInstance] = useState(null);
   
-  // Get unique games grouped by name
-  const uniqueGames = getUniqueGameNames();
-  
-  // Extract all possible categories for filters
-  const categories = [...new Set(uniqueGames.map(game => game.category))];
-  
-  // Filter games based on all criteria
-  const filteredGames = uniqueGames.filter(game => {
-    // Name filter (basic search)
-    const matchesSearch = searchTerm === "" || 
-      game.name.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    // Category filter
-    const matchesCategory = filters.category === "" || 
-      game.category === filters.category;
-    
-    // Player count filter
-    const matchesMinPlayers = filters.minPlayers === "" || 
-      game.minPlayers >= parseInt(filters.minPlayers);
-    const matchesMaxPlayers = filters.maxPlayers === "" || 
-      game.maxPlayers <= parseInt(filters.maxPlayers);
-    
-    return matchesSearch && matchesCategory && matchesMinPlayers && 
-           matchesMaxPlayers;
-  });
+  // Add missing state variables for API integration
+  const [games, setGames] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
   
   // Function to apply filters
   const applyFilters = () => {
@@ -124,10 +103,8 @@ export default function GameSearchPage() {
       Object.keys(criteria).forEach(key => (criteria[key] === undefined || criteria[key] === '') && delete criteria[key]);
 
       try {
-
         const fetchedGames = await searchGames(criteria);
         setGames(fetchedGames);
-
       } catch (err) {
         console.error("Error fetching games:", err); // Debug log
         setError(err.message || "Failed to fetch games. Please try again later.");
@@ -210,21 +187,6 @@ export default function GameSearchPage() {
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Category filter */}
-              {/* Category filter - TODO: Fetch categories dynamically or remove/disable */}
-              {/* <div>
-                <label className="block text-sm font-medium mb-1">Category</label>
-                <select
-                  value={filters.category}
-                  onChange={(e) => setFilters({...filters, category: e.target.value})}
-                  className="border border-input rounded-md px-3 py-2 bg-background w-full"
-                  disabled // Disable until categories are fetched
-                >
-                  <option value="">Any Category</option>
-                  {/* {categories.map(category => (
-                    <option key={category} value={category}>{category}</option>
-                  ))} * /}
-                </select>
-              </div> */}
                <div>
                  <label className="block text-sm font-medium mb-1">Category</label>
                  <Input
@@ -250,7 +212,7 @@ export default function GameSearchPage() {
                 <label className="block text-sm font-medium mb-1">Max Players</label>
                 <Input 
                   type="number" 
-                  min={filters.minPlayers || "1"}
+                  min="1"
                   placeholder="Any"
                   value={filters.maxPlayers}
                   onChange={(e) => setFilters({...filters, maxPlayers: e.target.value})}
@@ -259,109 +221,61 @@ export default function GameSearchPage() {
             </div>
             
             <div className="flex justify-end mt-4">
-              <Button onClick={applyFilters}>Apply Filters</Button>
+              <Button variant="default" onClick={applyFilters}>
+                Apply Filters
+              </Button>
             </div>
           </div>
         )}
         
-        {/* Applied filters display - optional */}
-        {hasActiveFilters() && (
-          <div className="flex flex-wrap gap-2 mb-6">
-            {filters.category && (
-              <span className="bg-muted px-3 py-1 rounded-full text-sm flex items-center gap-1">
-                Category: {filters.category}
-                <X 
-                  size={14} 
-                  className="cursor-pointer" 
-                  onClick={() => setFilters({...filters, category: ""})}
-                />
-              </span>
-            )}
-            {filters.minPlayers && (
-              <span className="bg-muted px-3 py-1 rounded-full text-sm flex items-center gap-1">
-                Min Players: {filters.minPlayers}
-                <X 
-                  size={14} 
-                  className="cursor-pointer" 
-                  onClick={() => setFilters({...filters, minPlayers: ""})}
-                />
-              </span>
-            )}
-            {filters.maxPlayers && (
-              <span className="bg-muted px-3 py-1 rounded-full text-sm flex items-center gap-1">
-                Max Players: {filters.maxPlayers}
-                <X 
-                  size={14} 
-                  className="cursor-pointer" 
-                  onClick={() => setFilters({...filters, maxPlayers: ""})}
-                />
-              </span>
-            )}
+        {/* Loading and error states */}
+        {isLoading && (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <span className="ml-2 text-lg">Loading games...</span>
           </div>
         )}
         
-        {/* Game display area - expands with content */}
-        <div className="flex-1 border rounded-lg">
-          <div className="flex flex-col">
-            {/* Header/Status area */}
-            <div className="py-3 px-4 border-b">
-              <p className="text-sm text-muted-foreground">
-                {isLoading
-                  ? "Loading games..."
-                  : error
-                  ? `Error: ${error}`
-                  : games.length === 0
-                  ? "No games found matching your criteria."
-                  : `Showing ${games.length} game${games.length !== 1 ? 's' : ''}`}
-              </p>
-            </div>
-
-            {/* Games content area - no scroll */}
-            <div className="p-4">
-              {isLoading ? (
-                 <div className="w-full py-24 flex items-center justify-center">
-                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                 </div>
-              ) : error ? (
-                 <div className="w-full py-24 flex items-center justify-center text-destructive">
-                   <p>Failed to load games. {error}</p>
-                 </div>
-              ) : games.length === 0 ? (
-                <div className="w-full py-24 flex items-center justify-center">
-                  <p className="text-lg text-muted-foreground">No games found. Try adjusting your search or filters.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
-                  {games.map(game => (
-                    // Use game.id which should be unique from backend
-                    <Dialog key={game.id}>
-                      <DialogTrigger asChild>
-                        <div className="h-[500px]"> {/* Increased card container height */}
-                          {/* Pass game data; ensure GameCard uses game.image */}
-                          <GameCard game={{...game, imageUrl: game.image}} showInstanceCount={false} />
-                        </div>
-                      </DialogTrigger>
-                      <GameDetailsDialog 
-                        game={game} 
-                        onRequestGame={(game, instance) => handleRequestGame(game, instance)} 
-                      />
-                    </Dialog>
-                  ))}
-                </div>
-              )}
-            </div>
+        {error && !isLoading && (
+          <div className="bg-destructive/10 p-4 rounded-lg text-destructive mb-6">
+            <p className="font-medium">{error}</p>
+            <p>Please try again or adjust your search criteria.</p>
           </div>
-        </div>
+        )}
+        
+        {/* Game results grid */}
+        {!isLoading && !error && (
+          <>
+            {games.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-lg text-muted-foreground">No games found matching your criteria.</p>
+                <p className="text-sm text-muted-foreground">Try adjusting your search or filters.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-2">
+                {games.map((game) => (
+                  <GameCard 
+                    key={game.id} 
+                    game={game} 
+                    onRequest={handleRequestGame} 
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </div>
-      
-      {/* Request Game Modal */}
-      <RequestGameDialog 
-        open={isRequestModalOpen} 
-        onOpenChange={setIsRequestModalOpen}
-        onSubmit={handleSubmitRequest}
-        game={selectedGame}
-        selectedInstance={selectedInstance}
-      />
+
+      {/* Game request dialog */}
+      {isRequestModalOpen && (
+        <RequestGameDialog
+          open={isRequestModalOpen}
+          onClose={() => setIsRequestModalOpen(false)}
+          game={selectedGame}
+          gameInstance={selectedInstance}
+          onSubmit={handleSubmitRequest}
+        />
+      )}
     </div>
   );
 }

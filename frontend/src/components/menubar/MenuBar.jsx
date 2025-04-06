@@ -10,6 +10,7 @@ import {
   MenubarMenu,
   MenubarTrigger,
 } from "@/components/ui/menubar";
+import apiClient from "@/service/apiClient"; // Import apiClient
 
 export default function MenuBar() {
   const location = useLocation();
@@ -35,10 +36,13 @@ export default function MenuBar() {
       if (!user?.id) return;
 
       // For game owners: fetch their games' requests with status updates
-      const ownerRequestsResponse = await fetch('/borrowrequests', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-      const ownerRequests = await ownerRequestsResponse.json();
+      let ownerRequests = [];
+      try {
+        ownerRequests = await apiClient(`/borrowrequests/gameOwner/${user.id}`);
+      } catch (err) {
+        console.warn("Error fetching owner requests:", err);
+        ownerRequests = [];
+      }
       
       // Filter for APPROVED or DECLINED statuses in the last 7 days
       const recentStatusChanges = ownerRequests.filter(req => {
@@ -53,10 +57,13 @@ export default function MenuBar() {
       });
 
       // If user is a requester, get their requests too
-      const requesterRequestsResponse = await fetch(`/borrowrequests/requester/${user.id}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-      const requesterRequests = await requesterRequestsResponse.json();
+      let requesterRequests = [];
+      try {
+        requesterRequests = await apiClient(`/borrowrequests/requester/${user.id}`);
+      } catch (err) {
+        console.warn("Error fetching requester requests:", err);
+        requesterRequests = [];
+      }
 
       // Combine notifications
       const allNotifications = [
