@@ -299,3 +299,44 @@ export const getBorrowRequestsByRequester = async (requesterId) => {
     throw error;
   }
 };
+
+/**
+ * Gets borrow requests by game owner ID
+ * @param {number} ownerId - The ID of the game owner
+ * @returns {Promise<Array>} List of borrow requests associated with the specified game owner
+ */
+export const getBorrowRequestsByOwner = async (ownerId) => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+        throw new Error("Authentication token not found. Please log in.");
+    }
+    if (!ownerId) {
+        throw new Error("Owner ID is required.");
+    }
+
+    const headers = {
+        "Content-Type": "application/json",
+        'Authorization': `Bearer ${token}`
+    };
+
+    try {
+        const response = await fetch(`${BORROW_REQUESTS_ENDPOINT}/owner/${ownerId}`, {
+            method: "GET",
+            headers: headers
+        });
+
+        if (!response.ok) {
+            let errorMsg = `HTTP error ${response.status}: ${response.statusText}`;
+            try {
+                const errorBody = await response.json();
+                errorMsg = errorBody.message || errorMsg;
+            } catch (e) { /* Ignore parsing error */ }
+            console.error(`Backend error fetching requests for owner #${ownerId}:`, errorMsg);
+            throw new Error(errorMsg);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error(`Failed to fetch requests for owner #${ownerId}:`, error);
+        throw error;
+    }
+};

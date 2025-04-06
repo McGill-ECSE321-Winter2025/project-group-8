@@ -24,7 +24,7 @@ export default function BorrowRequest({name, requester, date, endDate}) {
               <span className="font-medium">Requested on:</span> {date}
             </div>
             <div className="text-sm">
-              <span className="font-medium">Duration:</span> {endDate}
+              <span className="font-medium">End Date:</span> {endDate}
             </div>
           </div>
           <div className="flex gap-2 mt-4">

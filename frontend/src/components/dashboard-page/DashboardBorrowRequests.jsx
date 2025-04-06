@@ -2,13 +2,39 @@ import { useEffect, useState } from "react";
 import BorrowRequest from "@/components/dashboard-page/BorrowRequest.jsx";
 import { TabsContent } from "@/components/ui/tabs.jsx";
 import { getBorrowRequestsByRequester } from "@/service/borrow_request-api.js";
+import { getBorrowRequestsByOwner } from "@/service/borrow_request-api.js";
 import { getGameById } from "@/service/game-api.js";
 import { toast } from "sonner";
 
 export default function DashboardBorrowRequests() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const fetchOwnerRequests = async () => {
+    try {
+      const ownerId = localStorage.getItem("userId");
+      if (!ownerId) throw new Error("Owner ID not found in localStorage.");
 
+      const ownerRequests = await getBorrowRequestsByOwner(ownerId);
+
+      // Fetch game name for each request using game ID
+      const enrichedRequests = await Promise.all(
+        ownerRequests.map(async (req) => {
+          try {
+            const game = await getGameById(req.requestedGameId);
+            return { ...req, requestedGameName: game.name };
+          } catch (error) {
+            return { ...req, requestedGameName: "(Unknown Game)" };
+          }
+        })
+      );
+
+      setRequests(enrichedRequests);
+    } catch (error) {
+      toast.error("Failed to fetch borrow requests: " + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };/*
   const fetchRequests = async () => {
     try {
       const userId = localStorage.getItem("userId");
@@ -34,10 +60,10 @@ export default function DashboardBorrowRequests() {
     } finally {
       setLoading(false);
     }
-  };
+  };*/
 
   useEffect(() => {
-    fetchRequests();
+    fetchOwnerRequests();
   }, []);
 
   return (
@@ -57,7 +83,7 @@ export default function DashboardBorrowRequests() {
               key={request.id}
               id={request.id}
               name={request.requestedGameName} 
-              requester={`You (ID ${request.requesterId})`}
+              requester={request.requesterId || "(Unknown Requester)"}
               date={new Date(request.startDate).toLocaleString()}
               endDate={new Date(request.endDate).toLocaleString()}
               status={request.status}
