@@ -19,8 +19,11 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { useForm } from "react-hook-form";
+import { createBorrowRequest } from '../../service/borrow_request-api.js';
 
 export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game }) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
   const form = useForm({
     defaultValues: {
       date: '',
@@ -31,13 +34,59 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game }) => {
     }
   });
 
-  const handleSubmit = (data) => {
-    onSubmit({
-      game,
-      ...data
-    });
-    onOpenChange(false);
-    form.reset();
+  const handleSubmit = async (data) => {
+    try {
+      setIsSubmitting(true);
+      
+      // Format the date and time into a proper ISO string for startDate
+      const startDateTime = new Date(`${data.date}T${data.time}`);
+      
+      // Calculate endDate by adding duration hours to startDate
+      const endDateTime = new Date(startDateTime);
+      endDateTime.setHours(endDateTime.getHours() + parseFloat(data.duration));
+
+      const getCurrentUserId = () => {
+        return parseInt(localStorage.getItem("userId")); // Or from context/state
+      };
+      
+      // Prepare request data for the API
+      const requestData = {
+        requesterId: getCurrentUserId(), // You need to implement this
+        requestedGameId: game?.id,
+        startDate: startDateTime.toISOString(),
+        endDate: endDateTime.toISOString()
+      };
+      
+      // Call the API to create the borrow request
+      const response = await createBorrowRequest(requestData);
+      
+      // Call the parent component's onSubmit with both form data and API response
+      onSubmit({
+        game,
+        ...data,
+        requestId: response.id,
+        status: response.status
+      });
+      
+      // Show success toast
+      toast({
+        title: "Request Submitted",
+        description: `Your request to play ${game?.name} has been sent.`,
+      });
+      
+      // Close dialog and reset form
+      onOpenChange(false);
+      form.reset();
+    } catch (error) {
+      // Show error toast
+      toast({
+        title: "Request Failed",
+        description: error.message || "Failed to submit game request. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -151,7 +200,9 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game }) => {
             />
             
             <DialogFooter className="gap-2 mt-4">
-              <Button type="submit">Submit Request</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Submitting..." : "Submit Request"}
+              </Button>
               <Button 
                 type="button" 
                 variant="outline" 
@@ -159,6 +210,7 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game }) => {
                   form.reset();
                   onOpenChange(false);
                 }}
+                disabled={isSubmitting}
               >
                 Cancel
               </Button>
@@ -168,4 +220,4 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game }) => {
       </DialogContent>
     </Dialog>
   );
-}; 
+};
