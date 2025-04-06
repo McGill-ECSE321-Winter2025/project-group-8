@@ -3,15 +3,28 @@ package ca.mcgill.ecse321.gameorganizer.services;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.ResponseEntity; // Import Logger
+import org.springframework.security.authentication.AnonymousAuthenticationToken; // Import LoggerFactory
+import org.springframework.security.core.Authentication; // Import User
+import org.springframework.security.core.GrantedAuthority; // Import UserDetails
+import org.springframework.security.core.authority.SimpleGrantedAuthority; // Import UserDetailsService
+import org.springframework.security.core.context.SecurityContextHolder; // Import UsernameNotFoundException
+import org.springframework.security.core.userdetails.User; // Import PasswordEncoder
+import org.springframework.security.core.userdetails.UserDetails; // Import GrantedAuthority
+import org.springframework.security.core.userdetails.UserDetailsService; // Import SimpleGrantedAuthority
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import ca.mcgill.ecse321.gameorganizer.dto.AccountResponse;
-import ca.mcgill.ecse321.gameorganizer.dto.CreateAccountRequest;
+import ca.mcgill.ecse321.gameorganizer.dto.CreateAccountRequest; // Import UnauthedException
 import ca.mcgill.ecse321.gameorganizer.dto.EventResponse;
 import ca.mcgill.ecse321.gameorganizer.dto.UpdateAccountRequest;
+import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
@@ -30,23 +43,60 @@ import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
  * @author @dyune
  */
 @Service
-public class AccountService {
+public class AccountService implements UserDetailsService { // Implement UserDetailsService
+
+    private static final Logger log = LoggerFactory.getLogger(AccountService.class); // Add Logger
 
     private final AccountRepository accountRepository;
     private final RegistrationRepository registrationRepository;
     private final ReviewRepository reviewRepository;
     private final BorrowRequestRepository borrowRequestRepository;
+    private final PasswordEncoder passwordEncoder; // Added PasswordEncoder
+
+    // UserContext removed
 
     @Autowired
     public AccountService(
             AccountRepository accountRepository,
             RegistrationRepository registrationRepository,
             ReviewRepository reviewRepository,
-            BorrowRequestRepository borrowRequestRepository) {
+            BorrowRequestRepository borrowRequestRepository,
+            PasswordEncoder passwordEncoder) { // Inject PasswordEncoder
         this.accountRepository = accountRepository;
         this.registrationRepository = registrationRepository;
         this.reviewRepository = reviewRepository;
         this.borrowRequestRepository = borrowRequestRepository;
+        this.passwordEncoder = passwordEncoder; // Assign injected encoder
+    }
+
+    /**
+     * Loads user-specific data by username (email in this case).
+     * Required by UserDetailsService interface for Spring Security authentication.
+     *
+     * @param email The email address (used as username) of the user to load.
+     * @return UserDetails object containing user information.
+     * @throws UsernameNotFoundException if the user with the given email is not found.
+     */
+    @Override
+    @Transactional // Ensure transaction is active for lazy loading if needed
+    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
+        Account account = accountRepository.findByEmail(email)
+                .orElseThrow(() -> {
+                    log.warn("UserDetailsService: User not found with email: {}", email); // Log if not found
+                    return new UsernameNotFoundException("User not found with email: " + email);
+                });
+
+        log.info("UserDetailsService: Found user {} with email {}", account.getName(), email); // Log if found
+
+        // Define authorities (roles) - adjust as needed based on your application's roles
+        List<GrantedAuthority> authorities = new ArrayList<>();
+        authorities.add(new SimpleGrantedAuthority("ROLE_USER")); // Basic role for all users
+        if (account instanceof GameOwner) {
+            authorities.add(new SimpleGrantedAuthority("ROLE_GAME_OWNER")); // Additional role for GameOwners
+        }
+
+        // Return Spring Security User object
+        return new User(account.getEmail(), account.getPassword(), authorities);
     }
 
     /**
@@ -74,10 +124,21 @@ public class AccountService {
                 return ResponseEntity.badRequest().body("Email address already in use");
             }
 
-            // Create and save account
-            Account account = request.isGameOwner() 
-                ? new GameOwner(request.getUsername(), request.getEmail(), request.getPassword())
-                : new Account(request.getUsername(), request.getEmail(), request.getPassword());
+            // Check for existing username
+            if (accountRepository.findByName(request.getUsername()).isPresent()) {
+                return ResponseEntity.badRequest().body("Username already in use");
+            }
+
+            // Hash the password
+            String hashedPassword = passwordEncoder.encode(request.getPassword());
+
+            // Create and save account using the hashed password
+            Account account = request.isGameOwner()
+                ? new GameOwner(request.getUsername(), request.getEmail(), hashedPassword)
+                : new Account(request.getUsername(), request.getEmail(), hashedPassword);
+
+            // Log the account creation details for debugging
+            log.info("Creating account: {}, {}, isGameOwner: {}", request.getUsername(), request.getEmail(), request.isGameOwner()); // Use logger
 
             Account savedAccount = accountRepository.save(account);
 
@@ -131,6 +192,7 @@ public class AccountService {
             Event event = registration.getEventRegisteredFor();
             events.add(new EventResponse(event));
         }
+        // Logging removed
         AccountResponse response = new AccountResponse(accountName, events, isGameOwner);
         return ResponseEntity.ok(response);
     }
@@ -164,11 +226,43 @@ public class AccountService {
         String password = request.getPassword();
         String newPassword = request.getNewPassword();
 
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
+            // Use exception consistently instead of returning ResponseEntity for auth errors
+            throw new UnauthedException("User must be authenticated to update account.");
+        }
+
+        String currentUsername;
+        Object principal = authentication.getPrincipal();
+        // Assuming the principal is the email used for login, as is common with UserDetails
+        if (principal instanceof UserDetails) {
+            currentUsername = ((UserDetails) principal).getUsername();
+        } else if (principal instanceof String) {
+             currentUsername = (String) principal;
+        }
+        else {
+            // Handle unexpected principal type
+             throw new UnauthedException("Unexpected principal type in SecurityContext.");
+        }
+
+
+        Account currentUser = accountRepository.findByEmail(currentUsername).orElseThrow(
+                () -> new UnauthedException("Authenticated user '" + currentUsername + "' not found in database.") // Should ideally not happen if JWT/session is valid
+        );
+
         Account account;
         try {
             account = accountRepository.findByEmail(email).orElseThrow(
                 () -> new IllegalArgumentException("Account with email " + email + " does not exist")
             );
+
+            // Authorization Check: Ensure the authenticated user is the one being updated
+            // Use .equals() for safe comparison of IDs (handles both primitives and wrappers)
+            if (currentUser.getId() != account.getId()) {
+                 throw new UnauthedException("Access denied: You can only update your own account.");
+            }
+
+            // Password check (target account already fetched)
             if (!account.getPassword().equals(password)) {
                 throw new IllegalArgumentException("Passwords do not match");
             }

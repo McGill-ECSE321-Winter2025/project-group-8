@@ -5,13 +5,21 @@ import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
-import ca.mcgill.ecse321.gameorganizer.dto.RegistrationResponseDto;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service; // Import Transactional
+import org.springframework.transaction.annotation.Transactional; // Import Logger
 
+import ca.mcgill.ecse321.gameorganizer.dto.RegistrationResponseDto; // Import LoggerFactory
+import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException; // Import UnauthedException
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
 import ca.mcgill.ecse321.gameorganizer.models.Registration;
+import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository; // Import EventRepository
 import ca.mcgill.ecse321.gameorganizer.repositories.RegistrationRepository;
 
 /**
@@ -23,8 +31,17 @@ import ca.mcgill.ecse321.gameorganizer.repositories.RegistrationRepository;
 @Service
 public class RegistrationService {
 
+    private static final Logger log = LoggerFactory.getLogger(RegistrationService.class); // Add logger instance
+    private final RegistrationRepository registrationRepository;
+    private final AccountRepository accountRepository;
+    private final EventRepository eventRepository; // Add EventRepository field
+
     @Autowired
-    private RegistrationRepository registrationRepository;
+    public RegistrationService(RegistrationRepository registrationRepository, AccountRepository accountRepository, EventRepository eventRepository) { // Inject EventRepository
+        this.registrationRepository = registrationRepository;
+        this.accountRepository = accountRepository;
+        this.eventRepository = eventRepository; // Assign injected repository
+    }
 
     /**
      * Creates a new registration for an event.
@@ -94,9 +111,24 @@ public class RegistrationService {
         Optional<Registration> optionalRegistration = registrationRepository.findRegistrationById(id);
         if (optionalRegistration.isPresent()) {
             Registration registration = optionalRegistration.get();
+
+            // Authorization Check: Only the attendee can update their registration
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated() || authentication.getPrincipal().equals("anonymousUser")) {
+                throw new UnauthedException("User not authenticated.");
+            }
+            String userEmail = authentication.getName(); // Assuming email is the username used in UserDetails
+            Account currentUser = accountRepository.findByEmail(userEmail)
+                    .orElseThrow(() -> new UnauthedException("Authenticated user not found in database."));
+            if (currentUser == null || registration.getAttendee() == null || registration.getAttendee().getId() != currentUser.getId()) {
+                throw new UnauthedException("Access denied: You can only update your own registration.");
+            }
+            // Consider if all fields should be updatable. Maybe only cancellation (delete) is allowed?
+            // For now, allowing update as per original method signature, but restricted to the attendee.
+
             registration.setRegistrationDate(registrationDate);
-            registration.setAttendee(attendee);
-            registration.setEventRegisteredFor(eventRegisteredFor);
+            registration.setAttendee(attendee); // Should this be allowed? Could allow changing registration to someone else.
+            registration.setEventRegisteredFor(eventRegisteredFor); // Should this be allowed? Could allow changing the event.
             return registrationRepository.save(registration);
         } else {
             throw new IllegalArgumentException("Registration not found");
@@ -110,18 +142,43 @@ public class RegistrationService {
      * @param event The event associated with the registration
      * @throws IllegalArgumentException if the registration or event is not valid
      */
-    public void deleteRegistration(int id, Event event) {
-        if (!registrationRepository.existsById(id)) {
-            throw new IllegalArgumentException("Registration with the given ID does not exist.");
+    @Transactional // Add Transactional annotation
+    public void deleteRegistration(int id) {
+        Optional<Registration> optionalRegistration = registrationRepository.findRegistrationById(id);
+        if (optionalRegistration.isPresent()) {
+            Registration registration = optionalRegistration.get();
+
+            // Authorization Check: Only the attendee can delete their registration
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated() || authentication.getPrincipal().equals("anonymousUser")) {
+                throw new UnauthedException("User not authenticated.");
+            }
+            String userEmail = authentication.getName(); // Assuming email is the username used in UserDetails
+            Account currentUser = accountRepository.findByEmail(userEmail)
+                    .orElseThrow(() -> new UnauthedException("Authenticated user not found in database."));
+            if (currentUser == null || registration.getAttendee() == null || registration.getAttendee().getId() != currentUser.getId()) {
+                throw new UnauthedException("Access denied: You can only delete your own registration.");
+            }
+
+            // Decrement event participant count before deleting registration
+            Event event = registration.getEventRegisteredFor();
+            if (event != null) {
+                int currentCount = event.getCurrentNumberParticipants();
+                if (currentCount > 0) { // Prevent going below zero
+                    event.setCurrentNumberParticipants(currentCount - 1);
+                    eventRepository.save(event); // Save the updated event
+                } else {
+                    // Log a warning if count is already zero?
+                    log.warn("Attempted to decrement participant count for event {} which was already zero.", event.getId());
+                }
+            } else {
+                 log.warn("Registration with ID {} did not have an associated event.", id);
+            }
+
+            registrationRepository.deleteById(id); // Now delete the registration
+        } else {
+             throw new IllegalArgumentException("Registration not found"); // Keep consistency with update method
         }
-        if (event == null) {
-            throw new IllegalArgumentException("Event cannot be null.");
-        }
-        if (event.getCurrentNumberParticipants() <= 0) {
-            throw new IllegalArgumentException("Event participant count is already zero.");
-        }
-        event.setCurrentNumberParticipants(event.getCurrentNumberParticipants() - 1);
-        registrationRepository.deleteById(id);
     }
  
 }

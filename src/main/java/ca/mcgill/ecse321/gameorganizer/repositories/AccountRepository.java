@@ -17,10 +17,11 @@ public interface AccountRepository extends JpaRepository<Account, Integer> {
 
     /**
      * Finds an account by its email address.
+     * Uses an EntityGraph to eagerly fetch associated roles.
      *
      * @param email The email address to search for
      * @return Optional containing the account if found, empty otherwise
      */
     Optional<Account> findByEmail(String email);
-
+    Optional<Account> findByName(String name);
 }

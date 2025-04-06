@@ -5,9 +5,13 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired; // Import Authentication
+import org.springframework.http.HttpStatus; // Import SecurityContextHolder
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication; // Keep for logging context holder
+import org.springframework.security.core.context.SecurityContextHolder; // Import Principal
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,9 +34,10 @@ import ca.mcgill.ecse321.gameorganizer.services.EventService;
  * @author @Yessine-glitch
  */
 @RestController
-@RequestMapping("/api/v1/events")
+@RequestMapping("/events")
 public class EventController {
     
+    private static final Logger log = LoggerFactory.getLogger(EventController.class);
     private final EventService eventService;
     
     @Autowired
@@ -70,11 +75,31 @@ public class EventController {
      * Creates a new event.
      * 
      * @param request The event creation request
+      * @param authentication The authenticated user details
      * @return The created event
      */
     @PostMapping
-    public ResponseEntity<EventResponse> createEvent(@RequestBody CreateEventRequest request) {
-        Event event = eventService.createEvent(request);
+    public ResponseEntity<EventResponse> createEvent(@RequestBody CreateEventRequest request) { // Removed Principal parameter
+        // Get Authentication directly from SecurityContextHolder
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        log.info("SecurityContextHolder Authentication at start of createEvent: {}", authentication);
+
+        // Check if Authentication object is valid
+        if (authentication == null || !authentication.isAuthenticated() || authentication.getName() == null) {
+             log.error("Create Event: Could not retrieve valid Authentication from SecurityContextHolder. User not authenticated.");
+             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        String email = authentication.getName(); // Get email from the retrieved Authentication object
+        log.info("Attempting to create event for user: {}", email);
+
+         // Check if email is null or empty (redundant if getName() worked, but safe)
+         if (email.trim().isEmpty()) {
+             log.error("Create Event: Email extracted from Authentication is empty.");
+             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build(); // Indicate an unexpected state
+         }
+
+        Event event = eventService.createEvent(request, email);
         return ResponseEntity.status(HttpStatus.CREATED).body(new EventResponse(event));
     }
 
@@ -87,36 +112,54 @@ public class EventController {
      * @param location The new location (optional)
      * @param description The new description (optional)
      * @param maxParticipants The new maximum number of participants (optional)
+      * @param authentication The authenticated user details
      * @return The updated event
      */
     @PutMapping("/{eventId}")
-public ResponseEntity<EventResponse> updateEvent(
-        @PathVariable UUID eventId,
-        @RequestParam(required = false) String title,
-        @RequestParam(required = false) Date dateTime,
-        @RequestParam(required = false) String location,
-        @RequestParam(required = false) String description,
-        @RequestParam(required = false, defaultValue = "0") int maxParticipants) {
-    
-    try {
-        Event updatedEvent = eventService.updateEvent(
-                eventId, title, dateTime, location, description, maxParticipants);
-        return ResponseEntity.ok(new EventResponse(updatedEvent));
-    } catch (IllegalArgumentException e) {
-        return ResponseEntity.notFound().build();
+    public ResponseEntity<EventResponse> updateEvent( // Corrected signature start
+            @PathVariable UUID eventId,
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) java.sql.Date dateTime,
+ // Use explicit java.sql.Date
+            @RequestParam(required = false) String location,
+            @RequestParam(required = false) String description,
+            @RequestParam(required = false, defaultValue = "0") int maxParticipants,
+            Authentication authentication) { // Corrected signature end
+        
+        log.info("Attempting to update event {}. Authentication: {}", eventId, authentication);
+        try {
+            if (authentication == null || !authentication.isAuthenticated()) {
+                 log.error("Update Event {}: User not authenticated.", eventId);
+                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+            String email = authentication.getName(); // Get email from Authentication
+            Event updatedEvent = eventService.updateEvent(
+                   eventId, title, dateTime, location, description, maxParticipants, email);
+            return ResponseEntity.ok(new EventResponse(updatedEvent));
+        } catch (IllegalArgumentException e) {
+            // This specific catch block might become redundant with the @ExceptionHandler,
+            // but leaving it for now doesn't hurt. The handler will take precedence.
+            return ResponseEntity.notFound().build(); 
+        }
     }
-}
     
     /**
      * Deletes an event by its ID.
      * 
      * @param eventId The UUID of the event to delete
+      * @param authentication The authenticated user details
      * @return No content response
      */
     @DeleteMapping("/{eventId}")
-    public ResponseEntity<Void> deleteEvent(@PathVariable UUID eventId) {
-        eventService.deleteEvent(eventId);
-        return ResponseEntity.noContent().build();
+    public ResponseEntity<Void> deleteEvent(@PathVariable UUID eventId, Authentication authentication) {
+        log.info("Attempting to delete event {}. Authentication: {}", eventId, authentication);
+        if (authentication == null || !authentication.isAuthenticated()) {
+             log.error("Delete Event {}: User not authenticated.", eventId);
+             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+         String email = authentication.getName(); // Get email from Authentication
+        eventService.deleteEvent(eventId, email); // Service handles exceptions (NotFound, Forbidden)
+        return ResponseEntity.noContent().build(); // Controller returns 204 on success
     }
 
     /**
@@ -157,15 +200,12 @@ public ResponseEntity<EventResponse> updateEvent(
      */
     @GetMapping("/by-game-name")
     public ResponseEntity<List<EventResponse>> getEventsByGameName(@RequestParam String gameName) {
-        try {
-            List<Event> events = eventService.findEventsByGameName(gameName);
-            List<EventResponse> eventResponses = events.stream()
-                .map(EventResponse::new)
-                .collect(Collectors.toList());
-            return ResponseEntity.ok(eventResponses);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
-        }
+        // Let the exception handler manage potential IllegalArgumentException from service
+        List<Event> events = eventService.findEventsByGameName(gameName);
+        List<EventResponse> eventResponses = events.stream()
+            .map(EventResponse::new)
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(eventResponses);
     }
     
     /**
@@ -189,17 +229,15 @@ public ResponseEntity<EventResponse> updateEvent(
      * @param hostUsername The username of the host
      * @return List of events hosted by the specified user
      */
-    @GetMapping("/by-host-name")
-    public ResponseEntity<List<EventResponse>> getEventsByHostName(@RequestParam String hostUsername) {
-        try {
-            List<Event> events = eventService.findEventsByHostName(hostUsername);
-            List<EventResponse> eventResponses = events.stream()
-                .map(EventResponse::new)
-                .collect(Collectors.toList());
-            return ResponseEntity.ok(eventResponses);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
-        }
+    // Changed path and parameter name to reflect search by email
+    @GetMapping("/by-host-email")
+    public ResponseEntity<List<EventResponse>> getEventsByHostEmail(@RequestParam String hostEmail) {
+        // Let the exception handler manage potential IllegalArgumentException from service
+        List<Event> events = eventService.findEventsByHostEmail(hostEmail); // Call updated service method
+        List<EventResponse> eventResponses = events.stream()
+            .map(EventResponse::new)
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(eventResponses);
     }
     
     /**
@@ -210,15 +248,12 @@ public ResponseEntity<EventResponse> updateEvent(
      */
     @GetMapping("/by-game-min-players/{minPlayers}")
     public ResponseEntity<List<EventResponse>> getEventsByGameMinPlayers(@PathVariable int minPlayers) {
-        try {
-            List<Event> events = eventService.findEventsByGameMinPlayers(minPlayers);
-            List<EventResponse> eventResponses = events.stream()
-                .map(EventResponse::new)
-                .collect(Collectors.toList());
-            return ResponseEntity.ok(eventResponses);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
-        }
+        // Let the exception handler manage potential IllegalArgumentException from service
+        List<Event> events = eventService.findEventsByGameMinPlayers(minPlayers);
+        List<EventResponse> eventResponses = events.stream()
+            .map(EventResponse::new)
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(eventResponses);
     }
     
     /**
@@ -229,15 +264,12 @@ public ResponseEntity<EventResponse> updateEvent(
      */
     @GetMapping("/by-location")
     public ResponseEntity<List<EventResponse>> getEventsByLocation(@RequestParam String location) {
-        try {
-            List<Event> events = eventService.findEventsByLocationContaining(location);
-            List<EventResponse> eventResponses = events.stream()
-                .map(EventResponse::new)
-                .collect(Collectors.toList());
-            return ResponseEntity.ok(eventResponses);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
-        }
+        // Let the exception handler manage potential IllegalArgumentException from service
+        List<Event> events = eventService.findEventsByLocationContaining(location);
+        List<EventResponse> eventResponses = events.stream()
+            .map(EventResponse::new)
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(eventResponses);
     }
 
     /**

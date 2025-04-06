@@ -36,7 +36,7 @@ import jakarta.validation.Valid;
  * @see ca.mcgill.ecse321.gameorganizer.services.AccountService
  */
 @RestController
-@RequestMapping("/api/v1/account")
+@RequestMapping("/account")
 public class AccountController {
 
     private final AccountService accountService;

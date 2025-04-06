@@ -22,7 +22,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 
-import ca.mcgill.ecse321.gameorganizer.config.SecurityTestConfig;
+import ca.mcgill.ecse321.gameorganizer.config.SecurityConfig;
 import ca.mcgill.ecse321.gameorganizer.config.TestConfig;
 import ca.mcgill.ecse321.gameorganizer.dto.AuthenticationDTO;
 import ca.mcgill.ecse321.gameorganizer.dto.LoginResponse;
@@ -31,7 +31,7 @@ import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
-@Import({TestConfig.class, SecurityTestConfig.class})
+@Import({TestConfig.class, SecurityConfig.class})
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 
@@ -50,7 +50,7 @@ public class AuthenticationIntegrationTests {
     private PasswordEncoder passwordEncoder;
     
     private Account testAccount;
-    private static final String BASE_URL = "/api/v1/auth";
+    private static final String BASE_URL = "/auth";
     private static final String VALID_EMAIL = "test@example.com";
     private static final String VALID_USERNAME = "testuser";
     private static final String VALID_PASSWORD = "password123";

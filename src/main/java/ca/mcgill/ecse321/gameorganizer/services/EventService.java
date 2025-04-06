@@ -1,17 +1,25 @@
 package ca.mcgill.ecse321.gameorganizer.services;
 
 import java.util.Date;
-import java.util.EventObject;
 import java.util.List;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import ca.mcgill.ecse321.gameorganizer.dto.CreateEventRequest;
-import ca.mcgill.ecse321.gameorganizer.models.Event;
+import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;
+import ca.mcgill.ecse321.gameorganizer.models.Account; // Import UnauthedException
+import ca.mcgill.ecse321.gameorganizer.models.Event; // Import Account
+import ca.mcgill.ecse321.gameorganizer.models.Game; // Added missing Game import
+import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository; // Added AccountRepository import
 import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
 
@@ -32,26 +40,35 @@ public class EventService {
     @Autowired
     private GameRepository gameRepository;
 
+    // UserContext field removed
+
+    @Autowired
+    private AccountRepository accountRepository; // Inject AccountRepository
+
     /**
      * Constructs an EventService with the required repository dependency.
      *
      * @param eventRepository The repository for event data access
      */
+    // Updated constructor to inject AccountRepository instead of UserContext
     @Autowired
-    public EventService(EventRepository eventRepository) {
+    public EventService(EventRepository eventRepository, AccountRepository accountRepository, GameRepository gameRepository) {
         this.eventRepository = eventRepository;
+        this.accountRepository = accountRepository;
+        this.gameRepository = gameRepository; // Ensure GameRepository is also initialized if needed elsewhere
     }
 
-    // TODO: Associate an event to a host
     /**
      * Creates a new event in the system after validating required fields.
      *
-     * @param newEvent The event object to create
-     * @return ResponseEntity with creation confirmation message
+     * @param newEvent The DTO containing event details (excluding host).
+     * @param hostEmail The email of the account hosting the event.
+     * @return The created Event object.
      * @throws IllegalArgumentException if required fields are missing or invalid
      */
     @Transactional
-    public Event createEvent(CreateEventRequest newEvent) {
+    public Event createEvent(CreateEventRequest newEvent, String hostEmail) {
+ 
 
         if (newEvent.getTitle() == null || newEvent.getTitle().trim().isEmpty()) {
             throw new IllegalArgumentException("Event title cannot be empty");
@@ -62,12 +79,19 @@ public class EventService {
         if (newEvent.getMaxParticipants() <= 0) {
             throw new IllegalArgumentException("Maximum participants must be greater than 0");
         }
-        if (newEvent.getFeaturedGame() == null) {
-            throw new IllegalArgumentException("Featured game cannot be null");
+        // Validate featuredGame structure (at least ID must be present)
+        if (newEvent.getFeaturedGame() == null || newEvent.getFeaturedGame().getId() == 0) {
+             throw new IllegalArgumentException("Featured game ID must be provided");
         }
-        if (newEvent.getHost() == null) {
-            throw new IllegalArgumentException("Host cannot be null");
-        }
+
+        // Fetch the host account using the provided email
+        Account host = accountRepository.findByEmail(hostEmail)
+                .orElseThrow(() -> new IllegalArgumentException("Host account with email " + hostEmail + " not found."));
+
+        // Fetch the featured game using the ID from the request
+        int gameId = newEvent.getFeaturedGame().getId();
+        Game featuredGameEntity = gameRepository.findById(gameId)
+                .orElseThrow(() -> new IllegalArgumentException("Featured game with ID " + gameId + " not found."));
 
         Event e = new Event(
                 newEvent.getTitle(),
@@ -75,8 +99,8 @@ public class EventService {
                 newEvent.getLocation(),
                 newEvent.getDescription(),
                 newEvent.getMaxParticipants(),
-                newEvent.getFeaturedGame(),
-                newEvent.getHost()
+                featuredGameEntity, // Use the fetched Game entity
+                host // Use the fetched host account
         );
 
         return eventRepository.save(e);
@@ -112,8 +136,17 @@ public class EventService {
     public List<Event> getAllEvents() {
         List<Event> events = eventRepository.findAll();
 
+        // Eagerly initialize lazy-loaded associations needed for DTO conversion
         for (Event event : events) {
-            if (event.getDateTime() instanceof java.util.Date) {
+            // Accessing getters within the transaction forces initialization
+            if (event.getHost() != null) event.getHost().getName(); // Initialize host
+            if (event.getFeaturedGame() != null) event.getFeaturedGame().getName(); // Initialize game
+
+            // Also handle date conversion here as done elsewhere
+            if (event.getDateTime() instanceof java.sql.Timestamp) { // Check specifically for Timestamp if that's the issue
+                java.sql.Timestamp timestamp = (java.sql.Timestamp) event.getDateTime();
+                event.setDateTime(new java.sql.Date(timestamp.getTime()));
+            } else if (event.getDateTime() instanceof java.util.Date) { // Fallback for general util.Date
                 java.util.Date utilDate = (java.util.Date) event.getDateTime();
                 event.setDateTime(new java.sql.Date(utilDate.getTime()));
             }
@@ -122,25 +155,56 @@ public class EventService {
         return events;
     }
 
-    // TODO: Change to be callable by associated owner only
     /**
      * Updates an existing event's information.
      *
      * @param id The ID of the event to update
+.
      * @param title The new title for the event (optional)
+.
      * @param dateTime The new date and time for the event (optional)
+.
      * @param location The new location for the event (optional)
+.
      * @param description The new description for the event (optional)
+.
      * @param maxParticipants The new maximum number of participants (must be greater than 0)
-     * @return ResponseEntity with update confirmation message
+     * @param userEmail The email of the user attempting the update.
+     * @return The updated Event object.
      * @throws IllegalArgumentException if the event is not found or if maxParticipants is invalid
+.
+     * @throws ResponseStatusException if the user attempting the update is not the host (HttpStatus.FORBIDDEN).
      */
     @Transactional
     public Event updateEvent(UUID id, String title, Date dateTime,
-                            String location, String description, int maxParticipants) {
+                            String location, String description, int maxParticipants, String userEmail) {
         Event event = eventRepository.findEventById(id).orElseThrow(
                 () -> new IllegalArgumentException("Event with id " + id + " does not exist")
         );
+
+        // Authorization Check using Spring Security
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
+            throw new UnauthedException("User must be authenticated to update an event.");
+        }
+
+        String currentUsername;
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof UserDetails) {
+            currentUsername = ((UserDetails) principal).getUsername();
+        } else if (principal instanceof String) {
+            currentUsername = (String) principal;
+        } else {
+            throw new UnauthedException("Unexpected principal type in SecurityContext.");
+        }
+
+        Account currentUser = accountRepository.findByEmail(currentUsername).orElseThrow(
+                () -> new UnauthedException("Authenticated user '" + currentUsername + "' not found in database.")
+        );
+
+        if (event.getHost() == null || event.getHost().getId() != currentUser.getId()) {
+            throw new UnauthedException("Access denied: You are not the host of this event.");
+        }
 
         if (title != null && !title.trim().isEmpty()) {
             event.setTitle(title);
@@ -165,21 +229,50 @@ public class EventService {
     }
 
 
-    // TODO: Change to be callable by associated owner only
 
     /**
      * Deletes an event from the system.
      *
      * @param id The ID of the event to delete
+.
+     * @param userEmail The email of the user attempting the deletion.
      * @return ResponseEntity with deletion confirmation message
+.
      * @throws IllegalArgumentException if no event is found with the given ID
+.
+     * @throws ResponseStatusException if the user attempting the deletion is not the host (HttpStatus.FORBIDDEN).
      */
 
     @Transactional
-    public ResponseEntity<String> deleteEvent(UUID id) {
+    public ResponseEntity<String> deleteEvent(UUID id, String userEmail) {
         Event eventToDelete = eventRepository.findEventById(id).orElseThrow(
                 () -> new IllegalArgumentException("Event with id " + id + " does not exist")
         );
+
+        // Authorization Check using Spring Security
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
+            throw new UnauthedException("User must be authenticated to delete an event.");
+        }
+
+        String currentUsername;
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof UserDetails) {
+            currentUsername = ((UserDetails) principal).getUsername();
+        } else if (principal instanceof String) {
+            currentUsername = (String) principal;
+        } else {
+            throw new UnauthedException("Unexpected principal type in SecurityContext.");
+        }
+
+         Account currentUser = accountRepository.findByEmail(currentUsername).orElseThrow(
+                () -> new UnauthedException("Authenticated user '" + currentUsername + "' not found in database.")
+        );
+
+        if (eventToDelete.getHost() == null || eventToDelete.getHost().getId() != currentUser.getId()) {
+            throw new UnauthedException("Access denied: You are not the host of this event.");
+        }
+
         eventRepository.delete(eventToDelete);
         return ResponseEntity.ok("Event with id " + id + " has been deleted");
     }
@@ -276,14 +369,19 @@ public class EventService {
      * @return List of events hosted by the specified user
      */
     @Transactional
-    public List<Event> findEventsByHostName(String hostUsername) {
-        if (hostUsername == null || hostUsername.trim().isEmpty()) {
-            throw new IllegalArgumentException("Host username cannot be empty");
+    public List<Event> findEventsByHostEmail(String hostEmail) { // Renamed method and parameter
+        if (hostEmail == null || hostEmail.trim().isEmpty()) {
+            throw new IllegalArgumentException("Host email cannot be empty");
         }
 
-        List<Event> events = eventRepository.findEventByHostName(hostUsername);
+        List<Event> events = eventRepository.findEventByHostEmail(hostEmail); // Call new repository method
 
+        // Eagerly initialize lazy-loaded associations needed for DTO conversion
         for (Event event : events) {
+             // Accessing getters within the transaction forces initialization
+             if (event.getHost() != null) event.getHost().getName(); // Initialize host
+             if (event.getFeaturedGame() != null) event.getFeaturedGame().getName(); // Initialize game
+
             if (event.getDateTime() instanceof java.sql.Timestamp) {
                 java.sql.Timestamp timestamp = (java.sql.Timestamp) event.getDateTime();
                 event.setDateTime(new java.sql.Date(timestamp.getTime()));
@@ -314,7 +412,6 @@ public class EventService {
                 event.setDateTime(new java.sql.Date(timestamp.getTime()));
             }
         }
-
         return events;
     }
 

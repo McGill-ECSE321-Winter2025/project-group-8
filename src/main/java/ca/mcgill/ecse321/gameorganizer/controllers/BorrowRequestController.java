@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import ca.mcgill.ecse321.gameorganizer.models.BorrowRequestStatus;
 import ca.mcgill.ecse321.gameorganizer.dto.BorrowRequestDto;
 import ca.mcgill.ecse321.gameorganizer.dto.CreateBorrowRequestDto;
 import ca.mcgill.ecse321.gameorganizer.services.BorrowRequestService;
@@ -27,7 +28,7 @@ import ca.mcgill.ecse321.gameorganizer.services.BorrowRequestService;
  * @author Rayan Baida
  */
 @RestController
-@RequestMapping("/api/v1/borrowrequests")
+@RequestMapping("/borrowrequests")
 public class BorrowRequestController {
 
     private final BorrowRequestService borrowRequestService;
@@ -95,7 +96,13 @@ public class BorrowRequestController {
             @PathVariable int id,
             @RequestBody BorrowRequestDto requestDto) {
         try {
-            return ResponseEntity.ok(borrowRequestService.updateBorrowRequestStatus(id, requestDto.getStatus()));
+            BorrowRequestStatus status;
+            try {
+                status = BorrowRequestStatus.valueOf(requestDto.getStatus().toUpperCase());
+            } catch (IllegalArgumentException e) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid status value: " + requestDto.getStatus());
+            }
+           return ResponseEntity.ok(borrowRequestService.updateBorrowRequestStatus(id, status));
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Borrow request with ID " + id + " not found.");
         }
