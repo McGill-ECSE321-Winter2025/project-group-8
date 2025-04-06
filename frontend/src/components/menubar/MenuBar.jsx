@@ -1,15 +1,19 @@
+// Importing required modules and components for routing, UI, and user data fetching
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button.jsx";
 import { useEffect, useState } from "react";
 import { getUserInfoByEmail } from "../../service/user-api.js";
 
+// Main menu component shown on all pages
 export default function MenuBar() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Initialize state for login status and username
   const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem("token"));
   const [userName, setUserName] = useState("");
 
+  // Fetch user info whenever the route changes (e.g., after login)
   useEffect(() => {
     const fetchUserInfo = async () => {
       const token = localStorage.getItem("token");
@@ -20,7 +24,7 @@ export default function MenuBar() {
       if (token && email) {
         try {
           const user = await getUserInfoByEmail(email);
-          setUserName(user.username); // use correct key
+          setUserName(user.username); // make sure we're using the correct field from the API response
         } catch (err) {
           console.error("Failed to fetch user name:", err);
         }
@@ -30,6 +34,7 @@ export default function MenuBar() {
     fetchUserInfo();
   }, [location.pathname]);
 
+  // Handle logout: clear user data and redirect to homepage
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("userId");
@@ -40,9 +45,11 @@ export default function MenuBar() {
     navigate("/");
   };
 
+  // Render the actual menu bar, including navigation and user actions
   return (
     <header className="bg-white border-b shadow-sm">
       <div className="flex items-center justify-between py-4 px-6 md:px-10 max-w-screen-xl mx-auto">
+        {/* Logo and homepage link */}
         <Link to="/" className="flex items-center gap-2">
           <img
             src="https://www.svgrepo.com/show/83116/board-games-set.svg"
@@ -52,7 +59,9 @@ export default function MenuBar() {
           <span className="text-xl font-bold">BoardGameConnect</span>
         </Link>
 
+        {/* Right-side navigation options */}
         <div className="flex items-center gap-3">
+          {/* Links shown only when user is logged in */}
           {isLoggedIn && (
             <div className="flex items-center gap-2">
               <Link to="/dashboard">
@@ -97,6 +106,7 @@ export default function MenuBar() {
             </div>
           )}
 
+          {/* Show login/signup buttons when not logged in */}
           {!isLoggedIn && (
             <>
               <Link to="/login">
@@ -110,6 +120,7 @@ export default function MenuBar() {
             </>
           )}
 
+          {/* Show greeting and logout button when user is logged in */}
           {isLoggedIn && (
             <div className="flex items-center gap-2 pl-3 border-l border-gray-200">
               {userName && (
