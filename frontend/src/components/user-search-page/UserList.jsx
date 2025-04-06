@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import UserProfileCard from './UserProfileCard';
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from 'framer-motion';
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 // Staggered animation variants
 const containerVariants = {
@@ -27,10 +28,13 @@ const itemVariants = {
 const MemoizedUserProfileCard = memo(UserProfileCard);
 
 const UserList = ({ users = [], isLoading, error, emptyMessage = "No users found.", onUserClick }) => {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const searchQuery = searchParams.get("q");
+
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Render skeleton placeholders */}
         {[...Array(6)].map((_, index) => (
           <motion.div 
             key={index} 
@@ -82,11 +86,13 @@ const UserList = ({ users = [], isLoading, error, emptyMessage = "No users found
       animate="visible"
     >
       {users.map((user) => (
-        <motion.div key={user.id || user.email} variants={itemVariants} className="h-full">
-          <MemoizedUserProfileCard
-            user={user}
-            onClick={() => onUserClick(user)}
-          />
+        <motion.div key={user.id || user.username} variants={itemVariants} className="h-full">
+          <div onClick={() => navigate(`/profile?email=${searchQuery}`)} className="cursor-pointer">
+            <MemoizedUserProfileCard
+              user={user}
+              onClick={() => onUserClick(user)}
+            />
+          </div>
         </motion.div>
       ))}
     </motion.div>
