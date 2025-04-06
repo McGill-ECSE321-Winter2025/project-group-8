@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Dialog,
   DialogContent,
@@ -17,25 +17,80 @@ import {
 } from '../ui/form';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Textarea } from '../ui/textarea';
 import { useForm } from "react-hook-form";
 
-export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game }) => {
+export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game, selectedInstance }) => {
   const form = useForm({
     defaultValues: {
-      date: '',
-      time: '',
-      duration: '2',
-      players: game?.minPlayers || '2',
-      message: '',
+      startDate: '',
+      endDate: '',
     }
   });
+  
+  // Get today's date in YYYY-MM-DD format
+  const today = new Date().toISOString().split('T')[0];
+
+  const validateDates = (data) => {
+    // Create error object to store validation errors
+    const errors = {};
+    
+    // Validate start date is provided
+    if (!data.startDate) {
+      errors.startDate = {
+        type: "required",
+        message: "Start date is required"
+      };
+    } 
+    // Validate start date is not in the past
+    else if (new Date(data.startDate) < new Date(today)) {
+      errors.startDate = {
+        type: "min",
+        message: "Start date must be today or in the future"
+      };
+    }
+    
+    // Validate end date is provided
+    if (!data.endDate) {
+      errors.endDate = {
+        type: "required",
+        message: "End date is required"
+      };
+    } 
+    // Validate end date is not before start date
+    else if (data.startDate && new Date(data.endDate) < new Date(data.startDate)) {
+      errors.endDate = {
+        type: "min",
+        message: "End date must be on or after the start date"
+      };
+    }
+    
+    return errors;
+  };
 
   const handleSubmit = (data) => {
-    onSubmit({
+    // Perform manual validation
+    const errors = validateDates(data);
+    
+    // If there are validation errors, set them in the form
+    if (Object.keys(errors).length > 0) {
+      Object.keys(errors).forEach(field => {
+        form.setError(field, errors[field]);
+      });
+      return;
+    }
+    
+    // Convert form data to match CreateBorrowRequestDto
+    const borrowRequest = {
       game,
-      ...data
-    });
+      instance: selectedInstance,
+      startDate: data.startDate,
+      endDate: data.endDate,
+      // These fields would be set by the backend:
+      // requesterId (from authentication)
+      // requestedGameId (from selected game)
+    };
+    
+    onSubmit(borrowRequest);
     onOpenChange(false);
     form.reset();
   };
@@ -44,24 +99,32 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game }) => {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Request to Play {game?.name}</DialogTitle>
+          <DialogTitle>Request to Borrow {game?.name}</DialogTitle>
           <DialogDescription>
-            Fill out the form below to request this game for your next event
+            Fill out the form below to request to borrow this game
           </DialogDescription>
         </DialogHeader>
+        
+        {selectedInstance && (
+          <div className="bg-muted/50 p-3 rounded-md mb-4">
+            <p className="text-sm font-medium">Selected Copy:</p>
+            <p className="text-sm">Owned by {selectedInstance.owner.name}</p>
+          </div>
+        )}
         
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
-                name="date"
+                name="startDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Date</FormLabel>
+                    <FormLabel>Start Date</FormLabel>
                     <FormControl>
                       <Input
                         type="date"
+                        min={today}
                         required
                         {...field}
                       />
@@ -73,13 +136,14 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game }) => {
               
               <FormField
                 control={form.control}
-                name="time"
+                name="endDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Time</FormLabel>
+                    <FormLabel>End Date</FormLabel>
                     <FormControl>
                       <Input
-                        type="time"
+                        type="date"
+                        min={form.watch("startDate") || today}
                         required
                         {...field}
                       />
@@ -89,69 +153,11 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game }) => {
                 )}
               />
             </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="duration"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Duration (hours)</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min="0.5"
-                        step="0.5"
-                        required
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="players"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Number of Players</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min={game?.minPlayers || 1}
-                        max={game?.maxPlayers || 10}
-                        required
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-            
-            <FormField
-              control={form.control}
-              name="message"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Message to Owner</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Any special requests or information for the game owner"
-                      rows={3}
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
             
             <DialogFooter className="gap-2 mt-4">
-              <Button type="submit">Submit Request</Button>
+              <Button type="submit" disabled={!selectedInstance}>
+                {!selectedInstance ? "Select a copy first" : "Submit Request"}
+              </Button>
               <Button 
                 type="button" 
                 variant="outline" 

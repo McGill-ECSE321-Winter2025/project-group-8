@@ -26,16 +26,35 @@ export default function GameSearchPage() {
   });
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [selectedGame, setSelectedGame] = useState(null);
-  const [games, setGames] = useState([]); // State for fetched games
-  const [isLoading, setIsLoading] = useState(false); // Loading state
-  const [error, setError] = useState(null); // Error state
-
-  // Removed mock data fetching and frontend filtering
-  // const uniqueGames = getUniqueGameNames();
-  // const categories = [...new Set(uniqueGames.map(game => game.category))];
-  // const filteredGames = uniqueGames.filter(...)
-
-  // Function to apply filters (now just closes the filter panel, useEffect handles fetching)
+  const [selectedInstance, setSelectedInstance] = useState(null);
+  
+  // Get unique games grouped by name
+  const uniqueGames = getUniqueGameNames();
+  
+  // Extract all possible categories for filters
+  const categories = [...new Set(uniqueGames.map(game => game.category))];
+  
+  // Filter games based on all criteria
+  const filteredGames = uniqueGames.filter(game => {
+    // Name filter (basic search)
+    const matchesSearch = searchTerm === "" || 
+      game.name.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    // Category filter
+    const matchesCategory = filters.category === "" || 
+      game.category === filters.category;
+    
+    // Player count filter
+    const matchesMinPlayers = filters.minPlayers === "" || 
+      game.minPlayers >= parseInt(filters.minPlayers);
+    const matchesMaxPlayers = filters.maxPlayers === "" || 
+      game.maxPlayers <= parseInt(filters.maxPlayers);
+    
+    return matchesSearch && matchesCategory && matchesMinPlayers && 
+           matchesMaxPlayers;
+  });
+  
+  // Function to apply filters
   const applyFilters = () => {
     setIsFilterOpen(false);
     // Fetching is handled by useEffect when filters change
@@ -57,14 +76,17 @@ export default function GameSearchPage() {
     return Object.values(filters).some(value => value !== "");
   };
   
-  const handleRequestGame = (game) => {
+  const handleRequestGame = (game, instance) => {
     setSelectedGame(game);
+    setSelectedInstance(instance);
     setIsRequestModalOpen(true);
   };
   
   const handleSubmitRequest = (requestData) => {
     // In a real app, this would submit the request to an API
-
+    console.log("Game request submitted:", requestData);
+    // Reset the selected instance
+    setSelectedInstance(null);
   };
 
   // Effect to update search from URL parameters
@@ -321,7 +343,7 @@ export default function GameSearchPage() {
                       </DialogTrigger>
                       <GameDetailsDialog 
                         game={game} 
-                        onRequestGame={handleRequestGame} 
+                        onRequestGame={(game, instance) => handleRequestGame(game, instance)} 
                       />
                     </Dialog>
                   ))}
@@ -338,6 +360,7 @@ export default function GameSearchPage() {
         onOpenChange={setIsRequestModalOpen}
         onSubmit={handleSubmitRequest}
         game={selectedGame}
+        selectedInstance={selectedInstance}
       />
     </div>
   );
