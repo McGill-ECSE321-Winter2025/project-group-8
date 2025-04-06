@@ -161,15 +161,15 @@ public class AuthenticationServiceTest {
         Account savedAccount = accountCaptor.getValue();
         assertNotNull(savedAccount.getResetPasswordToken());
         assertNotNull(savedAccount.getResetPasswordTokenExpiry());
-        // Check expiry is roughly 15 minutes in the future (allow some leeway for test execution time)
-        LocalDateTime expectedExpiry = LocalDateTime.now().plusMinutes(15);
+        // Check expiry is roughly 30 minutes in the future (allow some leeway for test execution time)
+        LocalDateTime expectedExpiry = LocalDateTime.now().plusMinutes(30);
         LocalDateTime actualExpiry = savedAccount.getResetPasswordTokenExpiry();
         // Allow a small difference (e.g., 1 minute) due to timing
         assertEquals(expectedExpiry.getYear(), actualExpiry.getYear());
         assertEquals(expectedExpiry.getMonth(), actualExpiry.getMonth());
         assertEquals(expectedExpiry.getDayOfMonth(), actualExpiry.getDayOfMonth());
         assertEquals(expectedExpiry.getHour(), actualExpiry.getHour());
-        assertEquals(expectedExpiry.getMinute(), actualExpiry.getMinute(), "Expiry minute should be close to 15 minutes from now");
+        assertEquals(expectedExpiry.getMinute(), actualExpiry.getMinute(), "Expiry minute should be close to 30 minutes from now");
     }
 
     @Test
