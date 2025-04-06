@@ -13,35 +13,56 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { deleteEvent } from "../../service/event-api" // Import deleteEvent function
 
 export default function Event({
-                                name,
-                                date,
-                                time,
-                                location,
-                                game,
-                                participants: { current, capacity },
-                                onCancelRegistration: onCancelEvent, // Keep this if used elsewhere
-                                onRegistrationUpdate, // Add the refresh prop
-                              }) {
+  id, // Make sure we get the event ID
+  name,
+  date,
+  time,
+  location,
+  game,
+  participants: { current, capacity },
+  onCancelRegistration: onCancelEvent, // Keep this if used elsewhere
+  onRegistrationUpdate, // Add the refresh prop
+}) {
   const [open, setOpen] = useState(false)
-  // No local state needed for count here, rely on parent refresh
+  const [isDeleting, setIsDeleting] = useState(false) // Track deletion state
+  const [error, setError] = useState(null) // Track error state
 
-  const handleCancelEvent = () => {
-    // TODO: Implement actual unregistration API call using registration ID
-    console.warn("Unregistering from dashboard event card needs implementation.");
-
-    // Call the provided callback function (if it exists for other purposes)
-    if (typeof onCancelEvent === "function") {
-      onCancelEvent();
-    }
-    // Call the refresh function passed from the parent dashboard page
-    if (typeof onRegistrationUpdate === "function") {
-      onRegistrationUpdate();
+  const handleCancelEvent = async () => {
+    if (!id) {
+      setError("Event ID is missing. Cannot delete event.");
+      return;
     }
 
-    // Close the dialog
-    setOpen(false)
+    setIsDeleting(true);
+    setError(null);
+
+    try {
+      // Call the API function to delete the event
+      console.log("Deleting event with ID:", id);
+      const successMessage = await deleteEvent(id);
+      console.log("Event deleted successfully:", successMessage);
+      
+      // Call the provided callback function (if it exists for other purposes)
+      if (typeof onCancelEvent === "function") {
+        onCancelEvent();
+      }
+      
+      // Call the refresh function passed from the parent dashboard page
+      if (typeof onRegistrationUpdate === "function") {
+        onRegistrationUpdate();
+      }
+
+      // Close the dialog
+      setOpen(false);
+    } catch (error) {
+      console.error("Failed to delete event:", error);
+      setError(error.message || "Failed to delete event. Please try again.");
+    } finally {
+      setIsDeleting(false);
+    }
   }
 
   return (
@@ -87,6 +108,7 @@ export default function Event({
                     </DialogTitle>
                     <DialogDescription>
                       Are you sure you want to cancel your event? 
+                      This will notify all registered participants and remove the event from the system.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="py-4">
@@ -103,14 +125,28 @@ export default function Event({
                       <p>
                         <span className="font-medium">Location:</span> {location}
                       </p>
+                      <p>
+                        <span className="font-medium">Participants:</span> {current}/{capacity}
+                      </p>
                     </div>
+                    
+                    {/* Error message display */}
+                    {error && (
+                      <div className="mt-4 p-2 bg-red-50 text-red-600 rounded-md text-sm">
+                        {error}
+                      </div>
+                    )}
                   </div>
                   <DialogFooter>
-                    <Button variant="outline" onClick={() => setOpen(false)}>
+                    <Button variant="outline" onClick={() => setOpen(false)} disabled={isDeleting}>
                       Keep Event
                     </Button>
-                    <Button variant="destructive" onClick={handleCancelEvent}>
-                      Cancel Event
+                    <Button 
+                      variant="destructive" 
+                      onClick={handleCancelEvent} 
+                      disabled={isDeleting}
+                    >
+                      {isDeleting ? "Cancelling..." : "Cancel Event"}
                     </Button>
                   </DialogFooter>
                 </DialogContent>

@@ -274,3 +274,42 @@ export async function unregisterFromEvent(registrationId) {
   // Backend returns plain text success message
   return response.text();
 }
+
+export const deleteEvent = async (eventId) => {
+  if (!eventId) {
+    throw new Error("Event ID is required for deleteEvent");
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/events/${eventId}`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        // Add Authorization header if your app uses token-based auth
+        // "Authorization": `Bearer ${yourAuthToken}`,
+      },
+      credentials: "include" // Important if auth uses cookies
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text(); // Try to read error message from server
+      if (response.status === 401) {
+        throw new Error(errorText || "Unauthorized: Please log in to delete events.");
+      } else if (response.status === 403) {
+        throw new Error(errorText || "Forbidden: You do not have permission to delete this event.");
+      } else if (response.status === 404) {
+        throw new Error(errorText || "Event not found.");
+      } else {
+        throw new Error(errorText || `Failed to delete event. Status: ${response.status}`);
+      }
+    }
+
+    // Success: read the response body (a message string)
+    const message = await response.text();
+    return message;
+  } catch (error) {
+    console.error("Error deleting event:", error);
+    throw error; // Rethrow for caller to handle
+  }
+};
+

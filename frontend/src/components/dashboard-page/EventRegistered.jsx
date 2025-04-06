@@ -16,33 +16,36 @@ import {
 import { unregisterFromEvent } from "../../service/event-api"; // Import the API function
 
 export default function EventRegistered({
-                                name,
-                                date,
-                                time,
-                                location,
-                                game,
-                                participants: { current, capacity },
-                                onCancelRegistration, // Keep this if used elsewhere
-                                onRegistrationUpdate, // Add the refresh prop
-                                registrationId,
-                              }) {
+  name,
+  date,
+  time,
+  location,
+  game,
+  participants: { current, capacity },
+  onCancelRegistration, // Keep this if used elsewhere
+  onRegistrationUpdate, // For refreshing parent component
+  registrationId, // This prop is now properly passed from DashboardEvents
+}) {
   const [open, setOpen] = useState(false)
-  // No local state needed for count here, rely on parent refresh
 
   const handleCancelRegistration = async () => {
     try {
-      const successMessage = await unregisterFromEvent(registrationId); // Call the API function
+      // Log the registration ID being used for debugging
+      console.log("Attempting to unregister with ID:", registrationId);
+      
+      // Call the API function with the registrationId
+      const successMessage = await unregisterFromEvent(registrationId);
       console.log("Unregistration successful:", successMessage);
     } catch (error) {
       console.error("Error during unregistration:", error.message);
       alert(`Failed to unregister: ${error.message}`); // Notify the user
     }
-    console.warn("Unregistering from dashboard event card needs implementation.");
 
     // Call the provided callback function (if it exists for other purposes)
     if (typeof onCancelRegistration === "function") {
       onCancelRegistration();
     }
+    
     // Call the refresh function passed from the parent dashboard page
     if (typeof onRegistrationUpdate === "function") {
       onRegistrationUpdate();
