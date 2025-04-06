@@ -34,6 +34,7 @@ export default function MenuBar() {
     localStorage.removeItem("token");
     localStorage.removeItem("userId");
     localStorage.removeItem("userEmail");
+    localStorage.removeItem("user");
     setIsLoggedIn(false);
     setUserName("");
     navigate("/");
