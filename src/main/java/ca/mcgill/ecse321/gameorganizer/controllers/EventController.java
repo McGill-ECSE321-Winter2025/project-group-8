@@ -48,10 +48,10 @@ import java.util.Collection;
 @RestController
 @RequestMapping("/api/events")
 public class EventController {
-    
+
     private static final Logger log = LoggerFactory.getLogger(EventController.class);
     private final EventService eventService;
-    
+
     @Autowired
     public EventController(EventService eventService) {
         this.eventService = eventService;
@@ -66,10 +66,10 @@ public class EventController {
     public ResponseEntity<String> authTestEndpoint() {
         return ResponseEntity.ok("Authentication test successful.");
     }
-    
+
     /**
      * Retrieves an event by its ID.
-     * 
+     *
      * @param eventId The UUID of the event to retrieve
      * @return The event with the specified ID
      */
@@ -81,7 +81,7 @@ public class EventController {
 
     /**
      * Retrieves all events.
-     * 
+     *
      * @return List of all events
      */
     @GetMapping
@@ -92,10 +92,10 @@ public class EventController {
             .collect(Collectors.toList());
         return ResponseEntity.ok(eventResponses);
     }
-    
+
     /**
      * Creates a new event.
-     * 
+     *
      * @param request The event creation request
      * @return The created event
      */
@@ -126,7 +126,7 @@ public class EventController {
 
     /**
      * Updates an existing event.
-     * 
+     *
      * @param eventId The UUID of the event to update
      * @param title The new title (optional)
      * @param dateTime The new date and time (optional)
@@ -143,12 +143,12 @@ public class EventController {
             @RequestParam(required = false) String location,
             @RequestParam(required = false) String description,
             @RequestParam(required = false, defaultValue = "0") int maxParticipants) { // Removed HttpServletRequest
-        
+
         // Authentication and Authorization are now handled by Spring Security filters and @PreAuthorize in the service layer.
         // We can directly call the service method.
-        
+
         // The complex logic for retrieving authentication and the test bypass are removed.
-        
+
         try {
             // Call the updated service method (without userEmail)
             Event updatedEvent = eventService.updateEvent(
@@ -169,20 +169,21 @@ public class EventController {
         }
         // Other potential exceptions will also be caught by GlobalExceptionHandler
     }
-    
+
     /**
      * Deletes an event by its ID.
-     * 
+     *
      * @param eventId The UUID of the event to delete
      * @return No content response
      */
     @DeleteMapping("/{eventId}")
+    // Using HEAD's implementation with try-catch for explicit exception delegation
     public ResponseEntity<Void> deleteEvent(@PathVariable UUID eventId) { // Removed HttpServletRequest
         // Authentication and Authorization are now handled by Spring Security filters and @PreAuthorize in the service layer.
         // We can directly call the service method.
-        
+
         // The complex logic for retrieving authentication and the test bypass are removed.
-        
+
         try {
             // Call the updated service method (without userEmail)
             eventService.deleteEvent(eventId);
@@ -205,7 +206,7 @@ public class EventController {
 
     /**
      * Finds events scheduled on a specific date.
-     * 
+     *
      * @param date The date to search for
      * @return List of events on the specified date
      */
@@ -217,10 +218,10 @@ public class EventController {
             .collect(Collectors.toList());
         return ResponseEntity.ok(eventResponses);
     }
-    
+
     /**
      * Finds events featuring a specific game by the game's ID.
-     * 
+     *
      * @param gameId The ID of the featured game
      * @return List of events featuring the specified game
      */
@@ -232,10 +233,10 @@ public class EventController {
             .collect(Collectors.toList());
         return ResponseEntity.ok(eventResponses);
     }
-    
+
     /**
      * Finds events featuring a specific game by the game's name.
-     * 
+     *
      * @param gameName The name of the featured game
      * @return List of events featuring the specified game
      */
@@ -248,10 +249,10 @@ public class EventController {
             .collect(Collectors.toList());
         return ResponseEntity.ok(eventResponses);
     }
-    
+
     /**
      * Finds events hosted by a specific user by the host's ID.
-     * 
+     *
      * @param hostId The ID of the host
      * @return List of events hosted by the specified user
      */
@@ -263,10 +264,10 @@ public class EventController {
             .collect(Collectors.toList());
         return ResponseEntity.ok(eventResponses);
     }
-    
+
     /**
      * Finds events hosted by a specific user by the host's username.
-     * 
+     *
      * @param hostUsername The username of the host
      * @return List of events hosted by the specified user
      */
@@ -280,10 +281,10 @@ public class EventController {
             .collect(Collectors.toList());
         return ResponseEntity.ok(eventResponses);
     }
-    
+
     /**
      * Finds events where the featured game has a specific minimum number of players.
-     * 
+     *
      * @param minPlayers The minimum number of players for the featured game
      * @return List of events with games matching the minimum player count
      */
@@ -296,10 +297,10 @@ public class EventController {
             .collect(Collectors.toList());
         return ResponseEntity.ok(eventResponses);
     }
-    
+
     /**
      * Finds events by location, with partial matching supported.
-     * 
+     *
      * @param location The location text to search for
      * @return List of events at locations matching the search text
      */
@@ -315,7 +316,7 @@ public class EventController {
 
     /**
      * Finds events by title, with partial matching supported.
-     * 
+     *
      * @param title The title text to search for
      * @return List of events with titles matching the search text
      */

@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger; // Added Logger import
+import org.slf4j.LoggerFactory; // Added LoggerFactory import
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -22,11 +24,15 @@ import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException; // Import 
 import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
+import ca.mcgill.ecse321.gameorganizer.models.Event;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
+import ca.mcgill.ecse321.gameorganizer.models.Registration;
 import ca.mcgill.ecse321.gameorganizer.models.Review;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.RegistrationRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
 
 /**
@@ -39,16 +45,22 @@ import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
 @Service
 public class GameService {
 
+    private static final Logger logger = LoggerFactory.getLogger(GameService.class); // Added logger
+
     private GameRepository gameRepository;
     private ReviewRepository reviewRepository;
     private AccountRepository accountRepository;
+    private RegistrationRepository  registrationRepository;
+    private EventRepository eventRepository;
 
 
     @Autowired
-    public GameService(GameRepository gameRepository, ReviewRepository reviewRepository, AccountRepository accountRepository) {
+    public GameService(GameRepository gameRepository, ReviewRepository reviewRepository, AccountRepository accountRepository, RegistrationRepository registrationRepository, EventRepository eventRepository) {
         this.gameRepository = gameRepository;
         this.reviewRepository = reviewRepository;
         this.accountRepository = accountRepository;
+        this.registrationRepository = registrationRepository;
+        this.eventRepository = eventRepository;
     }
 
     /**
@@ -73,7 +85,7 @@ public class GameService {
             }
             String comment = submittedReview.getComment() != null ? submittedReview.getComment() : "";
             int gameId = submittedReview.getGameId();
-            
+
             // Validate game exists
             Game reviewedGame = gameRepository.findGameById(gameId);
             if (reviewedGame == null){
@@ -83,13 +95,13 @@ public class GameService {
             // Get reviewer from authenticated context
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             String reviewerEmail = authentication.getName();
-            
+
             // Validate reviewerId in DTO matches authenticated user
             String dtoReviewerId = submittedReview.getReviewerId();
             if (dtoReviewerId != null && !dtoReviewerId.isEmpty() && !dtoReviewerId.equals(reviewerEmail)) {
                 throw new IllegalArgumentException("Reviewer email in request does not match authenticated user");
             }
-            
+
             Account reviewer = accountRepository.findByEmail(reviewerEmail)
                     .orElseThrow(() -> new UnauthedException("Authenticated reviewer account not found in database."));
 
@@ -111,6 +123,7 @@ public class GameService {
             throw e;
         } catch (Exception e) {
              // Log unexpected errors
+             logger.error("Unexpected error submitting review: {}", e.getMessage(), e);
              throw new RuntimeException("An unexpected error occurred while submitting the review.", e);
         }
     }
@@ -122,7 +135,7 @@ public class GameService {
      * @return ResponseEntity with creation confirmation message
      * @throws IllegalArgumentException if game details are invalid
      */
-  
+
     @Transactional
     @PreAuthorize("hasAuthority('ROLE_GAME_OWNER')") // Ensure only game owners can create games
     public GameResponseDto createGame(GameCreationDto aNewGame) {
@@ -139,76 +152,75 @@ public class GameService {
             if (aNewGame.getCategory() == null){
                 throw new IllegalArgumentException("Game must have a category");
             }
-            
+
             // Get owner account
             Account ownerAccount;
             String ownerEmail;
-            
+
             // Use ownerId from DTO if provided
             String dtoOwnerId = aNewGame.getOwnerId();
-            
+
             // Get authentication from security context
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-            
+
             // DEBUG: Log authentication info
-            System.out.println("GameService.createGame: Authentication from SecurityContextHolder: " + 
+            logger.debug("GameService.createGame: Authentication from SecurityContextHolder: {}",
                 (authentication != null ? authentication.getName() : "null"));
-            
+
             if (authentication == null) {
                 throw new UnauthedException("No authentication found in security context");
             }
-            
+
             if (dtoOwnerId != null && !dtoOwnerId.isEmpty()) {
                 ownerEmail = dtoOwnerId;
-                
+
                 // DEBUG: Verify owner email matches authenticated user
                 if (!ownerEmail.equals(authentication.getName())) {
-                    System.out.println("GameService.createGame: WARNING - DTO owner email (" + ownerEmail + 
-                        ") doesn't match authenticated user (" + authentication.getName() + ")");
+                    logger.warn("GameService.createGame: WARNING - DTO owner email ({}) doesn't match authenticated user ({})",
+                        ownerEmail, authentication.getName());
                 }
-                
+
                 ownerAccount = accountRepository.findByEmail(ownerEmail)
                     .orElseThrow(() -> new UnauthedException("Owner with email " + ownerEmail + " does not exist"));
             } else {
                 // Otherwise use authenticated user
                 ownerEmail = authentication.getName();
-                System.out.println("GameService.createGame: Using authenticated user as owner: " + ownerEmail);
-                
+                logger.debug("GameService.createGame: Using authenticated user as owner: {}", ownerEmail);
+
                 ownerAccount = accountRepository.findByEmail(ownerEmail)
                     .orElseThrow(() -> new UnauthedException("Authenticated owner account not found in database."));
             }
 
             // Ensure the account is indeed a GameOwner
             if (!(ownerAccount instanceof GameOwner)) {
-                System.out.println("GameService.createGame: User is not a GameOwner: " + ownerEmail);
+                logger.warn("GameService.createGame: User is not a GameOwner: {}", ownerEmail);
                 throw new ForbiddenException("User is not a GameOwner.");
             }
-            
+
             GameOwner gameOwner = (GameOwner) ownerAccount;
-            System.out.println("GameService.createGame: Verified GameOwner status for: " + ownerEmail);
+            logger.debug("GameService.createGame: Verified GameOwner status for: {}", ownerEmail);
 
             // Create and save the game
-            Game createdGame = new Game(aNewGame.getName(), aNewGame.getMinPlayers(), aNewGame.getMaxPlayers(), 
+            Game createdGame = new Game(aNewGame.getName(), aNewGame.getMinPlayers(), aNewGame.getMaxPlayers(),
                                         aNewGame.getImage(), new Date());
             createdGame.setOwner(gameOwner);
             createdGame.setCategory(aNewGame.getCategory());
-            
+
             Game savedGame = gameRepository.save(createdGame);
-            System.out.println("GameService.createGame: Successfully created game: " + savedGame.getId() + 
-                " - " + savedGame.getName() + " for owner: " + ownerEmail);
+            logger.info("GameService.createGame: Successfully created game: {} - {} for owner: {}",
+                savedGame.getId(), savedGame.getName(), ownerEmail);
 
             return new GameResponseDto(savedGame);
 
         } catch (IllegalArgumentException | ForbiddenException | UnauthedException e) {
-            System.out.println("GameService.createGame: Error: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+            logger.error("GameService.createGame: Error: {} - {}", e.getClass().getSimpleName(), e.getMessage());
             throw e; // Re-throw these exceptions directly
         } catch (org.springframework.security.access.AccessDeniedException e) {
-            System.out.println("GameService.createGame: Access denied: " + e.getMessage());
+            logger.error("GameService.createGame: Access denied: {}", e.getMessage());
             throw new ForbiddenException("Access denied: User must have ROLE_GAME_OWNER to create a game.");
         } catch (Exception e) {
             // Log unexpected errors
-            System.out.println("GameService.createGame: Unexpected error: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("GameService.createGame: Unexpected error: {}", e.getMessage(), e);
             throw new RuntimeException("An unexpected error occurred while creating the game.", e);
         }
     }
@@ -372,7 +384,7 @@ public class GameService {
             }
 
             // Authorization handled by @PreAuthorize
-    
+
         // Validate the update data
         if (updateDto.getName() == null || updateDto.getName().trim().isEmpty()) {
             throw new IllegalArgumentException("Game name cannot be empty");
@@ -383,19 +395,19 @@ public class GameService {
         if (updateDto.getMaxPlayers() < updateDto.getMinPlayers()) {
             throw new IllegalArgumentException("Maximum players must be greater than or equal to minimum players");
         }
-    
+
         // Update only the fields you want to change
         game.setName(updateDto.getName());
         game.setMinPlayers(updateDto.getMinPlayers());
         game.setMaxPlayers(updateDto.getMaxPlayers());
         game.setImage(updateDto.getImage());
-    
+
         // Save the updated game
             gameRepository.save(game);
-        
+
             // Return the updated game as DTO
             return new GameResponseDto(game);
-            
+
         } catch (IllegalArgumentException | ResourceNotFoundException e) {
             throw e; // Re-throw validation/not found errors
         } catch (org.springframework.security.access.AccessDeniedException e) {
@@ -405,10 +417,21 @@ public class GameService {
              throw e;
         } catch (Exception e) {
              // Log unexpected errors
+             logger.error("Unexpected error updating game {}: {}", id, e.getMessage(), e);
              throw new RuntimeException("An unexpected error occurred while updating the game.", e);
         }
     }
 
+    /**
+     * Deletes a game and its associated events and registrations.
+     *
+     * @param id The ID of the game to delete.
+     * @return ResponseEntity indicating success or failure.
+     * @throws ResourceNotFoundException If the game with the specified ID does not exist.
+     * @throws ForbiddenException If the authenticated user is not the owner of the game.
+     * @throws UnauthedException If the user is not authenticated.
+     * @throws RuntimeException For any other unexpected errors during deletion.
+     */
     @Transactional
     @PreAuthorize("@gameService.isOwnerOfGame(#id, authentication.principal.username)")
     public ResponseEntity<String> deleteGame(int id) {
@@ -420,19 +443,42 @@ public class GameService {
 
             // Authorization handled by @PreAuthorize
 
+            // --- Cascade Delete Logic from origin/dev-Yessine-D3 ---
+            logger.info("Deleting game {}. Finding associated events...", id);
+            List<Event> events = eventRepository.findEventByFeaturedGameId(id);
+            logger.info("Found {} associated events for game {}.", events.size(), id);
+
+            // Step 2: For each event, delete all registrations
+            for (Event event : events) {
+                logger.info("Deleting registrations for event {}...", event.getId());
+                registrationRepository.deleteAllByEventRegisteredForId(event.getId()); // Delete all registrations associated with the event
+                logger.info("Deleted registrations for event {}.", event.getId());
+            }
+
+            // Step 3: Delete all associated events
+            if (!events.isEmpty()) {
+                logger.info("Deleting {} associated events for game {}...", events.size(), id);
+                eventRepository.deleteAll(events);
+                logger.info("Deleted associated events for game {}.", id);
+            }
+            // --- End Cascade Delete Logic ---
+
+            // Step 4: Delete the game itself
+            logger.info("Deleting game {}...", id);
             gameRepository.delete(gameToDelete);
-            return ResponseEntity.ok("Game with ID " + id + " has been deleted");
-            
+            logger.info("Successfully deleted game {}.", id);
+            return ResponseEntity.ok("Game with ID " + id + " and its associated events/registrations have been deleted");
+
         } catch (ResourceNotFoundException e) {
             throw e; // Re-throw not found error
         } catch (org.springframework.security.access.AccessDeniedException e) {
              throw new ForbiddenException("Access denied: You are not the owner of this game.");
-        } catch (UnauthedException e) {
-             // Handle case where authenticated user somehow isn't in DB
+        } catch (UnauthedException e) { // Although PreAuthorize should handle this, keep for safety
              throw e;
         } catch (Exception e) {
-             // Log unexpected errors
-             throw new RuntimeException("An unexpected error occurred while deleting the game.", e);
+             // Log unexpected errors during cascade or final delete
+             logger.error("Unexpected error deleting game {}: {}", id, e.getMessage(), e);
+             throw new RuntimeException("An unexpected error occurred while deleting the game and its associations.", e);
         }
     }
 
@@ -586,7 +632,7 @@ public class GameService {
             if (reviewDto.getRating() < 1 || reviewDto.getRating() > 5) {
                 throw new IllegalArgumentException("Rating must be between 1 and 5");
             }
-            
+
             // First check if review exists
             Review review = reviewRepository.findReviewById(id)
                     .orElseThrow(() -> new ResourceNotFoundException("Review with id " + id + " not found"));
@@ -604,11 +650,12 @@ public class GameService {
             // (Add any other field updates as necessary)
             reviewRepository.save(review);
             return new ReviewResponseDto(review);
-            
+
         } catch (IllegalArgumentException | ResourceNotFoundException | ForbiddenException | UnauthedException e) {
             throw e; // Re-throw these directly
         } catch (Exception e) {
              // Log unexpected errors
+             logger.error("Unexpected error updating review {}: {}", id, e.getMessage(), e);
              throw new RuntimeException("An unexpected error occurred while updating the review.", e);
         }
     }
@@ -636,11 +683,12 @@ public class GameService {
 
             reviewRepository.delete(review);
             return ResponseEntity.ok("Review deleted successfully");
-            
+
         } catch (ResourceNotFoundException | ForbiddenException | UnauthedException e) {
-            throw e; // Re-throw these directly 
+            throw e; // Re-throw these directly
         } catch (Exception e) {
              // Log unexpected errors
+             logger.error("Unexpected error deleting review {}: {}", id, e.getMessage(), e);
              throw new RuntimeException("An unexpected error occurred while deleting the review.", e);
         }
     }
@@ -651,44 +699,44 @@ public class GameService {
     @Transactional
     public List<Game> searchGames(GameSearchCriteria criteria) {
         List<Game> games = getAllGames();
-        
+
         // Apply filters based on criteria
         if (criteria.getName() != null && !criteria.getName().trim().isEmpty()) {
             games = games.stream()
                     .filter(game -> game.getName().toLowerCase().contains(criteria.getName().toLowerCase()))
                     .collect(Collectors.toList());
         }
-        
+
         if (criteria.getMinPlayers() != null) {
             games = games.stream()
                     .filter(game -> game.getMinPlayers() >= criteria.getMinPlayers())
                     .collect(Collectors.toList());
         }
-        
+
         if (criteria.getMaxPlayers() != null) {
             games = games.stream()
                     .filter(game -> game.getMaxPlayers() <= criteria.getMaxPlayers())
                     .collect(Collectors.toList());
         }
-        
+
         if (criteria.getCategory() != null && !criteria.getCategory().trim().isEmpty()) {
             games = games.stream()
                     .filter(game -> game.getCategory().equalsIgnoreCase(criteria.getCategory()))
                     .collect(Collectors.toList());
         }
-        
+
         if (criteria.getMinRating() != null) {
             games = games.stream()
                     .filter(game -> getAverageRatingForGame(game.getId()) >= criteria.getMinRating())
                     .collect(Collectors.toList());
         }
-        
+
         if (criteria.getAvailable() != null) {
             games = games.stream()
                     .filter(game -> isGameAvailable(game.getId()) == criteria.getAvailable())
                     .collect(Collectors.toList());
         }
-        
+
         if (criteria.getOwnerId() != null && !criteria.getOwnerId().trim().isEmpty()) {
             Account owner = accountRepository.findByEmail(criteria.getOwnerId())
                     .orElseThrow(() -> new IllegalArgumentException("Owner not found"));
@@ -698,7 +746,7 @@ public class GameService {
                         .collect(Collectors.toList());
             }
         }
-        
+
         // Apply sorting if specified
         if (criteria.getSort() != null && !criteria.getSort().trim().isEmpty()) {
             boolean ascending = "asc".equalsIgnoreCase(criteria.getOrder());
@@ -722,7 +770,7 @@ public class GameService {
                     })
                     .collect(Collectors.toList());
         }
-        
+
         return games;
     }
 
@@ -736,7 +784,7 @@ public class GameService {
             if (game == null) {
                 throw new ResourceNotFoundException("Game with ID " + gameId + " does not exist");
             }
-            
+
             Account user = accountRepository.findByEmail(username).orElse(null);
             if (user == null) {
                 return false; // Cannot determine ownership
@@ -752,6 +800,7 @@ public class GameService {
             throw e;
         } catch (Exception e) {
             // Log error
+            logger.error("Error during isOwnerOfGame check for game {}: {}", gameId, e.getMessage(), e);
             return false; // Deny on error
         }
     }
@@ -766,12 +815,12 @@ public class GameService {
             if (review == null) {
                 throw new ResourceNotFoundException("Review with ID " + reviewId + " does not exist");
             }
-            
+
             Account user = accountRepository.findByEmail(username).orElse(null);
             if (user == null) {
                 return false; // Cannot determine reviewer
             }
-            
+
             if (review.getReviewer() == null) {
                 return false; // Review has no reviewer
             }
@@ -782,6 +831,7 @@ public class GameService {
             throw e;
         } catch (Exception e) {
             // Log error
+            logger.error("Error during isReviewer check for review {}: {}", reviewId, e.getMessage(), e);
             return false; // Deny on error
         }
     }

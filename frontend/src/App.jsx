@@ -16,6 +16,7 @@ import ProtectedRoute from "./components/common/ProtectedRoute.jsx"; // Import P
 import PublicRoute from "./components/common/PublicRoute.jsx"; // Import PublicRoute for public pages with auth elements
 import SessionExpirationHandler from "./components/common/SessionExpirationHandler.jsx";
 import { AuthProvider } from "./context/AuthContext.jsx";
+import { Toaster } from 'sonner'; // Added from origin/dev-Yessine-D3
 
 function App() {
   return (
@@ -30,7 +31,7 @@ function App() {
           <Route path="/register"       element={<RegistrationPage />}/>
           <Route path="/forgot-password" element={<ForgotPasswordPage />}/>
           <Route path="/reset-password" element={<ResetPasswordPage />}/>
-          
+
           {/* Public Routes with Auth Restrictions - Can be viewed by anyone, but with restricted interaction */}
           <Route path="/games"          element={<PublicRoute><GameSearchPage /></PublicRoute>}/>
 
@@ -40,6 +41,7 @@ function App() {
           <Route path="/user-search"    element={<ProtectedRoute><UserSearchPage /></ProtectedRoute>}/>
           <Route path="/dashboard/*"    element={<ProtectedRoute><DashboardPage /></ProtectedRoute>}/>
         </Routes>
+        <Toaster position="top-right" richColors expand={true} /> {/* Added from origin/dev-Yessine-D3 */}
       </div>
     </AuthProvider>
   )

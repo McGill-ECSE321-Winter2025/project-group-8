@@ -55,4 +55,6 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
     List<Event> findEventByHostId(int hostId);
     List<Event> findEventByHostName(String hostUsername); // Keep for potential future use?
     List<Event> findEventByHostEmail(String hostEmail); // Add method to find by host email
+
+    void deleteAllByFeaturedGameId(int gameId); // Delete all events associated with a specific game ID
 }

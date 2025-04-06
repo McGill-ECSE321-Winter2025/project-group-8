@@ -6,7 +6,7 @@
  */
 
 // Define API_BASE_URL centrally (or import if moved)
-const API_BASE_URL = "http://localhost:8080/";
+// const API_BASE_URL = "http://localhost:8080/"; // Not needed if using apiClient exclusively
 
 import apiClient from './apiClient'; // Import the centralized API client
 
@@ -21,9 +21,9 @@ import apiClient from './apiClient'; // Import the centralized API client
  */
 export const getAllEvents = async () => {
   try {
-    const events = await apiClient("/events", { 
+    const events = await apiClient("/events", {
       method: "GET",
-      skipPrefix: false
+      skipPrefix: false // Assuming /api/events
     });
     return events;
   } catch (error) {
@@ -48,7 +48,7 @@ export const getEventById = async (eventId) => {
   try {
     const event = await apiClient(`/events/${eventId}`, {
       method: "GET",
-      skipPrefix: false
+      skipPrefix: false // Assuming /api/events/:id
     });
     return event;
   } catch (error) {
@@ -70,18 +70,16 @@ export const registerForEvent = async (eventId) => {
   if (!eventId) throw new Error("Event ID is required.");
 
   // Payload might only need the eventId if backend identifies user from cookie.
-  // Adjust if backend still requires attendeeId explicitly.
   const payload = {
-    eventId: eventId 
+    eventId: eventId
     // attendeeId might not be needed if derived from session on backend
   };
 
   try {
     const registration = await apiClient("/registrations", {
       method: "POST",
-      body: JSON.stringify(payload), // Ensure body is stringified if apiClient doesn't do it implicitly
-                                     // (Though our current apiClient does stringify)
-      skipPrefix: false
+      body: payload, // apiClient handles stringification
+      skipPrefix: false // Assuming /api/registrations
     });
     return registration; // Return the created registration object
   } catch (error) {
@@ -111,11 +109,9 @@ export const createEvent = async (eventData) => {
   }
 
   // Construct the payload according to backend DTO expectations
-  // Host is determined by the backend via token/cookie
   const payload = {
     title: eventData.title,
-    // Assuming backend expects full dateTime string or handles parsing YYYY-MM-DD
-    dateTime: eventData.dateTime, 
+    dateTime: eventData.dateTime,
     location: eventData.location,
     description: eventData.description,
     maxParticipants: parseInt(eventData.maxParticipants, 10),
@@ -126,7 +122,7 @@ export const createEvent = async (eventData) => {
     const createdEvent = await apiClient("/events", {
       method: "POST",
       body: payload,
-      skipPrefix: false
+      skipPrefix: false // Assuming /api/events
     });
     return createdEvent;
   } catch (error) {
@@ -147,7 +143,7 @@ export const searchEventsByTitle = async (title) => {
   try {
     const events = await apiClient(`/events/by-title?title=${encodeURIComponent(title)}`, {
       method: "GET",
-      skipPrefix: false
+      skipPrefix: false // Assuming /api/events/by-title
     });
     return events;
   } catch (error) {
@@ -173,7 +169,7 @@ export const getEventsByHostEmail = async (hostEmail) => {
     // Using the correct endpoint based on backend API
     const events = await apiClient(`/events/by-host-email?hostEmail=${encodeURIComponent(hostEmail)}`, {
       method: "GET",
-      skipPrefix: false
+      skipPrefix: false // Assuming /api/events/by-host-email
     });
     return events;
   } catch (error) {
@@ -195,16 +191,48 @@ export const unregisterFromEvent = async (registrationId) => {
   if (!registrationId) {
     throw new Error("Registration ID is required to unregister from an event");
   }
-  
+
   try {
-    // DELETE request to remove the registration
+    // DELETE request to remove the registration using apiClient
     const result = await apiClient(`/registrations/${registrationId}`, {
       method: "DELETE",
-      skipPrefix: false
+      skipPrefix: false // Assuming /api/registrations/:id
     });
     return result; // Might be empty if server returns 204 No Content
   } catch (error) {
     console.error(`Failed to unregister from event (registration ${registrationId}):`, error);
     throw error; // Re-throw the specific error from apiClient
+  }
+};
+
+/**
+ * Deletes an event by its ID.
+ * Requires authentication. Host/Admin privileges likely checked by backend.
+ * @param {string|number} eventId - The ID of the event to delete.
+ * @returns {Promise<object|string|null>} A promise resolving to success message or null.
+ * @throws {UnauthorizedError} If not authenticated.
+ * @throws {ForbiddenError} If not allowed to delete.
+ * @throws {ApiError} For other errors.
+ */
+export const deleteEvent = async (eventId) => {
+  if (!eventId) {
+    throw new Error("Event ID is required for deleteEvent");
+  }
+
+  try {
+    // Use apiClient for consistency
+    const result = await apiClient(`/events/${eventId}`, {
+      method: "DELETE",
+      skipPrefix: false // Assuming /api/events/:id
+      // apiClient handles authentication automatically
+    });
+    // apiClient might return null or parsed JSON depending on response
+    // If backend sends a text message, apiClient might need adjustment or we handle it here
+    // For now, just return whatever apiClient gives back on success
+    return result;
+  } catch (error) {
+    console.error(`Error deleting event ${eventId}:`, error);
+    // apiClient throws specific error types (UnauthorizedError, ForbiddenError, ApiError)
+    throw error; // Re-throw for caller to handle
   }
 };

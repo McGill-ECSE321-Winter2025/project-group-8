@@ -14,7 +14,7 @@ export default function DashboardGameLibrary({ userType }) {
   const [games, setGames] = useState([]); // State for fetched games
   const [isLoading, setIsLoading] = useState(true); // Keep loading state for fetch operation
   const [error, setError] = useState(null);
-  
+
   // Log user data for debugging
   useEffect(() => {
   }, [user, userType]);
@@ -28,9 +28,9 @@ export default function DashboardGameLibrary({ userType }) {
       setGames([]);
       return;
     }
-    
+
     const ownerEmail = user.email; // Get email from context user object
-    
+
     setIsLoading(true);
     setError(null);
 
@@ -40,12 +40,12 @@ export default function DashboardGameLibrary({ userType }) {
         hasAccessToken: document.cookie.includes('accessToken='),
         allCookies: document.cookie
       });
-      
+
       const fetchedGames = await getGamesByOwner(ownerEmail);
       setGames(fetchedGames || []); // Ensure games is always an array
     } catch (err) {
       console.error("[DashboardGameLibrary] Error details:", err);
-      
+
       if (err instanceof UnauthorizedError) {
         console.warn("[DashboardGameLibrary] Unauthorized access fetching games. Logging out.", err);
         logout(); // Call logout function on 401
@@ -122,7 +122,10 @@ export default function DashboardGameLibrary({ userType }) {
                 key={game.id}
                 id={game.id}
                 name={game.name}
-                imageSrc={game.image || "/placeholder.svg?height=300&width=400"} // Use game image or placeholder
+                // Use imageSrc logic from origin/dev-Yessine-D3
+                imageSrc={game.image || "https://upload.wikimedia.org/wikipedia/commons/1/14/No_Image_Available.jpg.svg?height=300&width=400"}
+                // Pass the full game object as well (from origin/dev-Yessine-D3)
+                game={game}
               />
             ))}
           </div>

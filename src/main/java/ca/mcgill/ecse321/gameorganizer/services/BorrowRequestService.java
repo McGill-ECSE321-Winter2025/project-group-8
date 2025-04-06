@@ -420,4 +420,31 @@ public class BorrowRequestService {
             return false; // Deny on error
         }
     }
+
+    /**
+     * Finds all borrow requests associated with a specific game owner by their ID.
+     *
+     * @param ownerId The ID of the game owner
+     * @return List of borrow request DTOs associated with the specified game owner
+     */
+    @Transactional
+    public List<BorrowRequestDto> getBorrowRequestsByOwnerId(int ownerId) {
+        List<BorrowRequest> borrowRequests = borrowRequestRepository.findBorrowRequestsByOwnerId(ownerId);
+
+        return borrowRequests.stream()
+                .map(request -> {
+                    Integer requesterId = (request.getRequester() != null) ? request.getRequester().getId() : null;
+                    Integer gameId = (request.getRequestedGame() != null) ? request.getRequestedGame().getId() : null;
+                    return new BorrowRequestDto(
+                            request.getId(),
+                            requesterId,
+                            gameId,
+                            request.getStartDate(),
+                            request.getEndDate(),
+                            request.getStatus().name(),
+                            request.getRequestDate()
+                    );
+                })
+                .collect(Collectors.toList());
+    }
 }

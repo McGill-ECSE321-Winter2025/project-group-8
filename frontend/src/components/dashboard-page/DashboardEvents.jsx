@@ -1,15 +1,16 @@
 import { useState, useEffect, useCallback } from "react";
 import { TabsContent } from "@/components/ui/tabs.jsx";
 import { Button } from "@/components/ui/button.jsx";
+// Imports kept from HEAD
 import { EventCard } from "../events-page/EventCard.jsx"; // Use EventCard for consistency
 import CreateEventDialog from "../events-page/CreateEventDialog.jsx"; // Import dialog
-import { getEventsByHostEmail } from "../../service/event-api.js"; // Removed getEventById
+import { getEventsByHostEmail } from "../../service/event-api.js";
 import { getRegistrationsByEmail } from "../../service/registration-api.js"; // Import attended events fetcher
 import { UnauthorizedError } from "@/service/apiClient"; // Import UnauthorizedError
 import { useAuth } from "@/context/AuthContext"; // Import useAuth
 import { Loader2 } from "lucide-react"; // Import loader
 
-export default function DashboardEvents({ userType }) { // Accept userType prop
+export default function DashboardEvents({ userType }) {
   const [hostedEvents, setHostedEvents] = useState([]);
   const [attendedRegistrations, setAttendedRegistrations] = useState([]); // Store full registration objects
   const [isLoading, setIsLoading] = useState(true);
@@ -43,16 +44,16 @@ export default function DashboardEvents({ userType }) { // Accept userType prop
     try {
       // Fetch hosted events only if the user is an owner
       let hosted = [];
-      if (userType === "owner") {
+      if (userType === "owner" && user?.gameOwner) { // Check gameOwner status from context
         hosted = await getEventsByHostEmail(userEmail);
         setHostedEvents(hosted || []);
       } else {
         setHostedEvents([]); // Clear if not owner
       }
 
-      // Fetch registrations (attended events)
+      // Fetch registrations (attended events) - Using HEAD's logic
       const response = await getRegistrationsByEmail(userEmail);
-      
+
       // Ensure registrations is an array
       const registrations = Array.isArray(response) ? response : [];
       console.log("[DashboardEvents] Full Registrations:", registrations); // Log the full data
@@ -90,7 +91,7 @@ export default function DashboardEvents({ userType }) { // Accept userType prop
         fetchDashboardEvents();
       }
     }, 300);
-    
+
     return () => clearTimeout(timer);
   }, [userType, user, fetchDashboardEvents, authReady, isAuthenticated]);
 
@@ -99,28 +100,27 @@ export default function DashboardEvents({ userType }) { // Accept userType prop
     fetchDashboardEvents(); // Re-fetch events after adding a new one
   }, [fetchDashboardEvents]);
 
-  // Helper to adapt backend event DTO to what the child Event component expects
-  // Helper to adapt backend event DTO to what EventCard expects
-  const adaptEventData = (event) => {
+  // Helper to adapt backend event DTO to what EventCard expects (Combined)
+  const adaptEventData = (event, registrationId = null) => { // Accept optional registrationId
      if (!event) return null;
      return {
       id: event.eventId, // Use eventId from backend DTO
       title: event.title,
       dateTime: event.dateTime, // Pass raw date/time; formatting done in EventCard
       location: event.location || 'N/A',
-      hostName: event.host?.name || 'Unknown Host', // Use host object if available
+      hostName: event.host?.name || 'Unknown Host', // Use host object if available (from origin)
       game: event.featuredGame?.name || 'Unknown Game', // Use featuredGame object
       currentNumberParticipants: event.currentNumberParticipants,
       maxParticipants: event.maxParticipants,
       featuredGameImage: event.featuredGame?.image || "https://placehold.co/400x300/e9e9e9/1d1d1d?text=No+Image",
-      participants: {
+      participants: { // Kept from HEAD's structure
         current: event.currentNumberParticipants ?? 0,
         capacity: event.maxParticipants ?? 0,
       },
       description: event.description || '',
+      registrationId: registrationId, // Add registrationId if provided (from origin logic)
     };
   };
-
 
   return (
     <>
@@ -143,7 +143,6 @@ export default function DashboardEvents({ userType }) { // Accept userType prop
           </div>
         ) : (
           <div className="space-y-8">
-            {/* Events Hosting Section (only if owner) */}
             {/* Events Hosting Section (only if owner - checked via prop and auth context) */}
             {userType === "owner" && user?.gameOwner && (
               <div>
@@ -151,11 +150,8 @@ export default function DashboardEvents({ userType }) { // Accept userType prop
                  {hostedEvents.length > 0 ? (
                    <div className="space-y-4">
                      {hostedEvents.map(event => {
-                        const adapted = adaptEventData(event);
-                        // TODO: Adapt hosted events for EventCard if needed, or keep using Event.jsx?
-                        // For now, assuming Event.jsx is still used for hosted events, but needs adapting
-                        // This part is outside the scope of unregistering attended events.
-                        // Let's adapt hosted events too for consistency, assuming Event.jsx is removed/replaced.
+                        const adapted = adaptEventData(event); // Adapt hosted event
+                        // Render EventCard for hosted events
                         return adapted ? <EventCard key={`hosted-${adapted.id}`} event={adapted} onRegistrationUpdate={fetchDashboardEvents} isCurrentUserRegistered={false} /> : null;
                      })}
                    </div>
@@ -165,7 +161,7 @@ export default function DashboardEvents({ userType }) { // Accept userType prop
               </div>
             )}
 
-            {/* Events Attending Section */}
+            {/* Events Attending Section - Using HEAD's logic */}
             <div>
               <h3 className="text-xl font-semibold mb-4">Attending</h3>
                  {attendedRegistrations.length > 0 ? (
@@ -173,7 +169,8 @@ export default function DashboardEvents({ userType }) { // Accept userType prop
                      {attendedRegistrations.map(registration => {
                        const event = registration.event; // Get the event object from registration
                        const registrationId = registration.id; // Get the registration ID
-                       const adaptedEvent = adaptEventData(event); // Adapt the event data
+                       // Adapt the event data, passing the registrationId
+                       const adaptedEvent = adaptEventData(event, registrationId);
                        if (!adaptedEvent) return null; // Skip if event data is invalid
 
                        // Render EventCard for attended events

@@ -40,7 +40,7 @@ export default function AddGameDialog({ open, onOpenChange, onGameAdded }) {
         onGameAdded(result); // Notify parent component if needed
       }
     } catch (error) {
-      const errorMsg = error.message || "Failed to add game. Please try again.";
+      const errorMsg = "Failed to add game. Game name must be unique.";
       setSubmitError(errorMsg);
       toast.error(errorMsg);
     } finally {

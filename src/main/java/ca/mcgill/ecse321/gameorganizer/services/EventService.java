@@ -4,6 +4,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
+import org.slf4j.Logger; // Added Logger import
+import org.slf4j.LoggerFactory; // Added LoggerFactory import
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
@@ -24,7 +26,7 @@ import ca.mcgill.ecse321.gameorganizer.models.Game; // Added missing Game import
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository; // Added AccountRepository import
 import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
-
+import ca.mcgill.ecse321.gameorganizer.repositories.RegistrationRepository;
 
 
 /**
@@ -37,6 +39,8 @@ import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
 @Service
 public class EventService {
 
+    private static final Logger logger = LoggerFactory.getLogger(EventService.class); // Added logger
+
     private final EventRepository eventRepository;
 
     @Autowired
@@ -47,6 +51,9 @@ public class EventService {
     @Autowired
     private AccountRepository accountRepository; // Inject AccountRepository
 
+    @Autowired
+    private RegistrationRepository registrationRepository; // Inject RegistrationRepository
+
     /**
      * Constructs an EventService with the required repository dependency.
      *
@@ -54,17 +61,17 @@ public class EventService {
      */
     // Updated constructor to inject AccountRepository instead of UserContext
     @Autowired
-    public EventService(EventRepository eventRepository, AccountRepository accountRepository, GameRepository gameRepository) {
+    public EventService(EventRepository eventRepository, AccountRepository accountRepository, GameRepository gameRepository, RegistrationRepository registrationRepository) { // Added RegistrationRepository
         this.eventRepository = eventRepository;
         this.accountRepository = accountRepository;
         this.gameRepository = gameRepository; // Ensure GameRepository is also initialized if needed elsewhere
+        this.registrationRepository = registrationRepository; // Initialize RegistrationRepository
     }
 
     /**
      * Creates a new event in the system after validating required fields.
      *
      * @param newEvent The DTO containing event details (excluding host).
-     * @param hostEmail The email of the account hosting the event.
      * @return The created Event object.
      * @throws IllegalArgumentException if required fields are missing or invalid
      */
@@ -72,18 +79,18 @@ public class EventService {
     @Transactional
     public Event createEvent(CreateEventRequest newEvent) { // Removed hostEmail parameter
         // Removed debug line referencing hostEmail
-        System.out.println("DEBUG SERVICE: newEvent.getTitle()=" + newEvent.getTitle());
-        System.out.println("DEBUG SERVICE: newEvent.getDateTime()=" + newEvent.getDateTime());
-        System.out.println("DEBUG SERVICE: newEvent.getMaxParticipants()=" + newEvent.getMaxParticipants());
-        System.out.println("DEBUG SERVICE: newEvent.getFeaturedGame()=" + 
-                (newEvent.getFeaturedGame() != null ? 
+        logger.debug("DEBUG SERVICE: newEvent.getTitle()={}", newEvent.getTitle());
+        logger.debug("DEBUG SERVICE: newEvent.getDateTime()={}", newEvent.getDateTime());
+        logger.debug("DEBUG SERVICE: newEvent.getMaxParticipants()={}", newEvent.getMaxParticipants());
+        logger.debug("DEBUG SERVICE: newEvent.getFeaturedGame()={}",
+                (newEvent.getFeaturedGame() != null ?
                 "id=" + newEvent.getFeaturedGame().getId() + ", name=" + newEvent.getFeaturedGame().getName() : "null"));
-        
+
         if (newEvent.getHost() != null) {
-            System.out.println("DEBUG SERVICE: newEvent.getHost()=" + 
-                "id=" + newEvent.getHost().getId() + ", email=" + newEvent.getHost().getEmail());
+            logger.debug("DEBUG SERVICE: newEvent.getHost()=id={}, email={}",
+                newEvent.getHost().getId(), newEvent.getHost().getEmail());
         } else {
-            System.out.println("DEBUG SERVICE: newEvent.getHost()=null");
+            logger.debug("DEBUG SERVICE: newEvent.getHost()=null");
         }
 
         if (newEvent.getTitle() == null || newEvent.getTitle().trim().isEmpty()) {
@@ -119,9 +126,9 @@ public class EventService {
                 host // Use the fetched host account
         );
 
-        System.out.println("DEBUG SERVICE: Created event object, saving to repository");
+        logger.debug("DEBUG SERVICE: Created event object, saving to repository");
         Event savedEvent = eventRepository.save(e);
-        System.out.println("DEBUG SERVICE: Saved event with ID: " + savedEvent.getId());
+        logger.debug("DEBUG SERVICE: Saved event with ID: {}", savedEvent.getId());
     return savedEvent;
     } // End of createEvent method
 
@@ -146,7 +153,7 @@ public class EventService {
             return event.getHost().getId() == user.getId();
         } catch (Exception e) {
             // Log error maybe
-            System.err.println("Error during isHost check: " + e.getMessage());
+            logger.error("Error during isHost check for event {}: {}", eventId, e.getMessage());
             return false; // Deny access on error
         }
     }
@@ -203,26 +210,19 @@ public class EventService {
     /**
      * Updates an existing event's information.
      *
-     * @param id The ID of the event to update
-.
-     * @param title The new title for the event (optional)
-.
-     * @param dateTime The new date and time for the event (optional)
-.
-     * @param location The new location for the event (optional)
-.
-     * @param description The new description for the event (optional)
-.
-     * @param maxParticipants The new maximum number of participants (must be greater than 0)
-     * @param userEmail The email of the user attempting the update.
+     * @param id The ID of the event to update.
+     * @param title The new title for the event (optional).
+     * @param dateTime The new date and time for the event (optional).
+     * @param location The new location for the event (optional).
+     * @param description The new description for the event (optional).
+     * @param maxParticipants The new maximum number of participants (must be greater than 0).
      * @return The updated Event object.
-     * @throws IllegalArgumentException if the event is not found or if maxParticipants is invalid
-.
-     * @throws ResponseStatusException if the user attempting the update is not the host (HttpStatus.FORBIDDEN).
+     * @throws IllegalArgumentException if the event is not found or if maxParticipants is invalid.
+     * @throws ForbiddenException if the user attempting the update is not the host.
      */
     @Transactional
     @PreAuthorize("@eventService.isHost(#id, authentication.principal.username)")
-    public Event updateEvent(UUID id, String title, Date dateTime,
+    public Event updateEvent(UUID id, String title, java.sql.Date dateTime, // Corrected type
                             String location, String description, int maxParticipants) { // Removed userEmail parameter
         try {
             Event event = eventRepository.findEventById(id).orElseThrow(
@@ -249,14 +249,14 @@ public class EventService {
             } else if (maxParticipants == 0) {
                  // If defaultValue was used in controller (0), don't update unless explicitly needed.
                  // Or, decide if 0 should reset/clear it, or be ignored. Let's ignore 0 for now.
-                 System.out.println("DEBUG SERVICE: Ignoring maxParticipants=0 update.");
+                 logger.debug("DEBUG SERVICE: Ignoring maxParticipants=0 update.");
             } else {
                  // If negative value somehow passed, throw error.
                  throw new IllegalArgumentException("Maximum participants must be positive.");
             }
 
 
-            System.out.println("DEBUG SERVICE: Saving updated event with ID: " + event.getId());
+            logger.debug("DEBUG SERVICE: Saving updated event with ID: {}", event.getId());
             return eventRepository.save(event);
         } catch (IllegalArgumentException e) {
              // Re-throw specific exceptions if needed, or let GlobalExceptionHandler handle them
@@ -270,21 +270,15 @@ public class EventService {
 
 
     /**
-     * Deletes an event from the system.
+     * Deletes an event from the system. Also deletes associated registrations.
      *
-     * @param id The ID of the event to delete
-.
-     * @param userEmail The email of the user attempting the deletion.
-     * @return ResponseEntity with deletion confirmation message
-.
-     * @throws IllegalArgumentException if no event is found with the given ID
-.
-     * @throws ResponseStatusException if the user attempting the deletion is not the host (HttpStatus.FORBIDDEN).
+     * @param id The ID of the event to delete.
+     * @throws IllegalArgumentException if no event is found with the given ID.
+     * @throws ForbiddenException if the user attempting the deletion is not the host.
      */
-
     @Transactional
     @PreAuthorize("@eventService.isHost(#id, authentication.principal.username)")
-    public ResponseEntity<String> deleteEvent(UUID id) { // Removed userEmail parameter
+    public void deleteEvent(UUID id) { // Changed return type to void
          try {
             Event eventToDelete = eventRepository.findEventById(id).orElseThrow(
                     () -> new IllegalArgumentException("Event with id " + id + " does not exist")
@@ -292,9 +286,14 @@ public class EventService {
 
             // Authorization is handled by @PreAuthorize
 
-            System.out.println("DEBUG SERVICE: Deleting event with ID: " + id);
+            // Delete associated registrations first (from origin/dev-Yessine-D3)
+            logger.info("Deleting registrations associated with event ID: {}", id);
+            registrationRepository.deleteAllByEventRegisteredForId(id); // Use injected repository
+
+            logger.info("DEBUG SERVICE: Deleting event with ID: {}", id);
             eventRepository.delete(eventToDelete);
-            return ResponseEntity.ok("Event with id " + id + " has been deleted");
+            // No explicit return needed for void
+
         } catch (IllegalArgumentException e) {
              // Re-throw specific exceptions if needed, or let GlobalExceptionHandler handle them
              throw e;
@@ -302,6 +301,7 @@ public class EventService {
             // Catch potential AccessDeniedException from @PreAuthorize and convert to ForbiddenException
             throw new ForbiddenException("Access denied: You are not the host of this event.");
        }
+       // Other runtime exceptions will propagate
     }
 
     /**
