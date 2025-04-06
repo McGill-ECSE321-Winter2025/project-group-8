@@ -1,8 +1,8 @@
 import {TabsContent} from "@/components/ui/tabs.jsx";
 import LendingRecord from "@/components/dashboard-page/LendingRecord.jsx";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { getLendingHistory } from "@/service/dashboard-api";
-import { UnauthorizedError } from "@/service/apiClient"; // Import UnauthorizedError
+import { UnauthorizedError, getCookieAuthState } from "@/service/apiClient"; // Import getCookieAuthState
 import { useAuth } from "@/context/AuthContext";
 import { Loader2 } from "lucide-react";
 
@@ -10,75 +10,84 @@ export default function DashboardLendingRecord() {
   const [lendingRecords, setLendingRecords] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const { user, isSessionExpired, handleSessionExpired, logout } = useAuth();
-  const [retryCount, setRetryCount] = useState(0);
-  const MAX_RETRIES = 2; // Reduced from 3 to minimize unnecessary retries
+  const [fetchAttempted, setFetchAttempted] = useState(false);
+  const [retryCount, setRetryCount] = useState(0); // Track retry attempts
+  const { user, isAuthenticated, authReady } = useAuth();
 
-  useEffect(() => {
-    async function fetchLendingRecords() {
-      if (!user?.id) return;
-      
-      // Don't attempt to fetch if session is known to be expired
-      if (isSessionExpired) {
-        setIsLoading(false);
-        return;
-      }
-      
-      try {
-        setIsLoading(true);
-        const records = await getLendingHistory(user.id, true); // true indicates user is the owner
-        setLendingRecords(records);
-        // Reset retry count on success
-        setRetryCount(0);
-      } catch (err) {
-        if (err instanceof UnauthorizedError) {
-          console.warn(`Unauthorized access fetching lending records (attempt ${retryCount + 1}/${MAX_RETRIES}).`, err);
-          
-          // Check if it's a session expired error
-          if (err.message === 'Session expired') {
-            // Notify the auth context about the session expiration
-            handleSessionExpired();
-            setIsLoading(false);
-            return;
-          }
-          
-          // Implement retry logic before logging out
-          if (retryCount < MAX_RETRIES - 1) {
-            console.log(`Retrying in 1 second... (attempt ${retryCount + 1}/${MAX_RETRIES})`);
-            setRetryCount(prevCount => prevCount + 1);
-            
-            // Schedule a retry after 1 second
-            setTimeout(() => {
-              fetchLendingRecords();
-            }, 1000);
-            return; // Exit to avoid setting loading to false
-          } else {
-            // Max retries reached, now logout
-            console.warn(`Max retries (${MAX_RETRIES}) reached. Logging out.`);
-            logout();
-          }
-        } else {
-          console.error("Error fetching lending records:", err);
-          setError("Failed to load lending records. Please try again later.");
-        }
-      } finally {
-        // Only set loading to false if we're not retrying
-        if (retryCount >= MAX_RETRIES - 1 || !error) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    fetchLendingRecords();
-  }, [user, isSessionExpired, handleSessionExpired]);
-
-  // Effect to handle session expiration state changes
-  useEffect(() => {
-    if (isSessionExpired) {
+  // Use useCallback to memoize the fetchLendingRecords function
+  const fetchLendingRecords = useCallback(async () => {
+    if (!user?.id || !isAuthenticated || !authReady) {
+      if (!isLoading) return; // Don't update state if not loading
       setIsLoading(false);
-      setError("Your session has expired. Please log in again.");
+      return;
     }
-  }, [isSessionExpired]);
+    
+    // Prevent excessive retries
+    if (fetchAttempted && !isLoading && retryCount >= 3) {
+      console.log(`Maximum retry count (${retryCount}) reached for lending records fetch`);
+      return;
+    }
+    
+    try {
+      setIsLoading(true);
+      setFetchAttempted(true);
+      console.log(`Fetching lending records for user: ${user.id}, attempt ${retryCount + 1}`);
+      
+      // Log cookie state before fetching
+      const cookieState = getCookieAuthState();
+      console.log('Cookie auth state before lending records fetch:', cookieState);
+      
+      // Wait longer for each retry
+      const delay = retryCount * 500 + 300; // 300ms, 800ms, 1300ms
+      await new Promise(resolve => setTimeout(resolve, delay));
+      
+      const records = await getLendingHistory(user.id, true); // true indicates user is the owner
+      setLendingRecords(records);
+      setError(null); // Clear any previous errors
+      setRetryCount(0); // Reset retry count on success
+    } catch (err) {
+      console.error("Error fetching lending records:", err);
+      if (err instanceof UnauthorizedError) {
+        setError("Authentication error. Please try logging in again.");
+        
+        // Only retry a limited number of times
+        if (retryCount < 3) {
+          console.log(`Auth error, will retry (${retryCount + 1}/3)...`);
+          setRetryCount(prevCount => prevCount + 1);
+          
+          // Schedule retry after a delay
+          setTimeout(() => {
+            fetchLendingRecords();
+          }, 1000 * (retryCount + 1)); // Increasing backoff: 1s, 2s, 3s
+        }
+      } else {
+        setError("Failed to load lending records. Please try again later.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user, isAuthenticated, authReady, isLoading, fetchAttempted, retryCount]);
+
+  // Reset fetch attempted when auth state changes
+  useEffect(() => {
+    if (authReady && isAuthenticated && user?.id) {
+      setFetchAttempted(false);
+      setRetryCount(0); // Reset retry count when auth state changes
+    }
+  }, [authReady, isAuthenticated, user]);
+
+  // Initial fetch when component mounts or user/auth state changes
+  useEffect(() => {
+    // Add a delay before attempting to fetch to ensure auth is fully established
+    const timer = setTimeout(() => {
+      // Only fetch when authReady is true
+      if (authReady && isAuthenticated && user?.id) {
+        fetchLendingRecords();
+      }
+    }, 1500); // Increase delay to 1.5 seconds
+    
+    return () => clearTimeout(timer);
+  }, [fetchLendingRecords, authReady, isAuthenticated, user]);
 
   return <TabsContent value="borrowing" className="space-y-6">
     <div className="flex justify-between items-center">
@@ -89,10 +98,11 @@ export default function DashboardLendingRecord() {
         <div className="flex justify-center items-center py-10">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
-      ) : isSessionExpired ? (
-        <div className="text-center py-10 text-red-500">Your session has expired. Please log in again.</div>
       ) : error ? (
-        <div className="text-center py-10 text-red-500">{error}</div>
+        <div className="text-center py-10 text-red-500">
+          {error}
+          {retryCount > 0 && <div className="mt-2 text-sm">Retrying... ({retryCount}/3)</div>}
+        </div>
       ) : lendingRecords.length === 0 ? (
         <div className="text-center py-10 text-muted-foreground">No lending records found.</div>
       ) : (

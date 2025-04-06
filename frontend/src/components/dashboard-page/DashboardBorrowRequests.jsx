@@ -1,6 +1,6 @@
 import BorrowRequest from "@/components/dashboard-page/BorrowRequest.jsx";
 import {TabsContent} from "@/components/ui/tabs.jsx";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { getOutgoingBorrowRequests } from "@/service/dashboard-api";
 import { UnauthorizedError } from "@/service/apiClient"; // Import UnauthorizedError
 import { useAuth } from "@/context/AuthContext";
@@ -10,75 +10,61 @@ export default function DashboardBorrowRequests() {
   const [borrowRequests, setBorrowRequests] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const { user, isSessionExpired, handleSessionExpired, logout } = useAuth();
-  const [retryCount, setRetryCount] = useState(0);
-  const MAX_RETRIES = 2; // Reduced from 3 to minimize unnecessary retries
+  const [fetchAttempted, setFetchAttempted] = useState(false);
+  const { user, isAuthenticated, authReady } = useAuth();
 
-  useEffect(() => {
-    async function fetchBorrowRequests() {
-      if (!user?.id) return;
-      
-      // Don't attempt to fetch if session is known to be expired
-      if (isSessionExpired) {
-        setIsLoading(false);
-        return;
-      }
-      
-      try {
-        setIsLoading(true);
-        const requests = await getOutgoingBorrowRequests(user.id);
-        setBorrowRequests(requests);
-        // Reset retry count on success
-        setRetryCount(0);
-      } catch (err) {
-        if (err instanceof UnauthorizedError) {
-          console.warn(`Unauthorized access fetching borrow requests (attempt ${retryCount + 1}/${MAX_RETRIES}).`, err);
-          
-          // Check if it's a session expired error
-          if (err.message === 'Session expired') {
-            // Notify the auth context about the session expiration
-            handleSessionExpired();
-            setIsLoading(false);
-            return;
-          }
-          
-          // Implement retry logic before logging out
-          if (retryCount < MAX_RETRIES - 1) {
-            console.log(`Retrying in 1 second... (attempt ${retryCount + 1}/${MAX_RETRIES})`);
-            setRetryCount(prevCount => prevCount + 1);
-            
-            // Schedule a retry after 1 second
-            setTimeout(() => {
-              fetchBorrowRequests();
-            }, 1000);
-            return; // Exit to avoid setting loading to false
-          } else {
-            // Max retries reached, now logout
-            console.warn(`Max retries (${MAX_RETRIES}) reached. Logging out.`);
-            logout();
-          }
-        } else {
-          console.error("Error fetching borrow requests:", err);
-          setError("Failed to load borrow requests. Please try again later.");
-        }
-      } finally {
-        // Only set loading to false if we're not retrying
-        if (retryCount >= MAX_RETRIES - 1 || !error) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    fetchBorrowRequests();
-  }, [user, isSessionExpired, handleSessionExpired]);
-
-  // Effect to handle session expiration state changes
-  useEffect(() => {
-    if (isSessionExpired) {
+  // Use useCallback to memoize the fetchBorrowRequests function
+  const fetchBorrowRequests = useCallback(async () => {
+    if (!user?.id || !isAuthenticated || !authReady) {
+      if (!isLoading) return; // Don't update state if not loading
       setIsLoading(false);
-      setError("Your session has expired. Please log in again.");
+      return;
     }
-  }, [isSessionExpired]);
+    
+    // Prevent excessive retries
+    if (fetchAttempted && !isLoading) return;
+    
+    try {
+      setIsLoading(true);
+      setFetchAttempted(true);
+      console.log(`Fetching borrow requests for user: ${user.id}`);
+      
+      // Wait a bit to ensure auth is fully established
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      const requests = await getOutgoingBorrowRequests(user.id);
+      setBorrowRequests(requests);
+      setError(null); // Clear any previous errors
+    } catch (err) {
+      console.error("Error fetching borrow requests:", err);
+      if (err instanceof UnauthorizedError) {
+        setError("Authentication error. Please try logging in again.");
+      } else {
+        setError("Failed to load borrow requests. Please try again later.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user, isAuthenticated, authReady, isLoading, fetchAttempted]);
+
+  // Reset fetch attempted when auth state changes
+  useEffect(() => {
+    if (authReady && isAuthenticated && user?.id) {
+      setFetchAttempted(false);
+    }
+  }, [authReady, isAuthenticated, user]);
+
+  // Initial fetch when component mounts or user/auth state changes
+  useEffect(() => {
+    // Add a delay before attempting to fetch to ensure auth is fully established
+    const timer = setTimeout(() => {
+      if (authReady && isAuthenticated && user?.id) {
+        fetchBorrowRequests();
+      }
+    }, 1000); // Increase delay to 1 second
+    
+    return () => clearTimeout(timer);
+  }, [fetchBorrowRequests, authReady, isAuthenticated, user]);
 
   return <TabsContent value="requests" className="space-y-6">
     <div className="flex justify-between items-center">
@@ -89,8 +75,6 @@ export default function DashboardBorrowRequests() {
         <div className="flex justify-center items-center py-10">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
-      ) : isSessionExpired ? (
-        <div className="text-center py-10 text-red-500">Your session has expired. Please log in again.</div>
       ) : error ? (
         <div className="text-center py-10 text-red-500">{error}</div>
       ) : borrowRequests.length === 0 ? (

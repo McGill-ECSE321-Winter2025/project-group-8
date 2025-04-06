@@ -25,7 +25,10 @@ export const searchGames = async (criteria) => {
 
   try {
     // Use apiClient - it handles credentials automatically if needed
-    const games = await apiClient(endpoint, { method: "GET" });
+    const games = await apiClient(endpoint, { 
+      method: "GET",
+      skipPrefix: true // Skip the /api prefix
+    });
     return games;
   } catch (error) {
     console.error("Failed to fetch games:", error);
@@ -63,6 +66,7 @@ export const createGame = async (gameData) => {
     const createdGame = await apiClient("/games", {
       method: "POST",
       body: payload,
+      skipPrefix: true // Skip the /api prefix
     });
     
     console.log("createGame: Successfully created game:", createdGame);

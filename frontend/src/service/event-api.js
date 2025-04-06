@@ -21,7 +21,10 @@ import apiClient from './apiClient'; // Import the centralized API client
  */
 export const getAllEvents = async () => {
   try {
-    const events = await apiClient("/events", { method: "GET" });
+    const events = await apiClient("/events", { 
+      method: "GET",
+      skipPrefix: true
+    });
     return events;
   } catch (error) {
     console.error("Failed to fetch events:", error);
@@ -45,6 +48,7 @@ export const getEventById = async (eventId) => {
   try {
     const event = await apiClient(`/events/${eventId}`, {
       method: "GET",
+      skipPrefix: true
     });
     return event;
   } catch (error) {
@@ -77,6 +81,7 @@ export const registerForEvent = async (eventId) => {
       method: "POST",
       body: JSON.stringify(payload), // Ensure body is stringified if apiClient doesn't do it implicitly
                                      // (Though our current apiClient does stringify)
+      skipPrefix: true
     });
     return registration; // Return the created registration object
   } catch (error) {
@@ -120,7 +125,8 @@ export const createEvent = async (eventData) => {
   try {
     const createdEvent = await apiClient("/events", {
       method: "POST",
-      body: payload, 
+      body: payload,
+      skipPrefix: true
     });
     return createdEvent;
   } catch (error) {
@@ -141,6 +147,7 @@ export const searchEventsByTitle = async (title) => {
   try {
     const events = await apiClient(`/events/by-title?title=${encodeURIComponent(title)}`, {
       method: "GET",
+      skipPrefix: true
     });
     return events;
   } catch (error) {
@@ -192,7 +199,8 @@ export const unregisterFromEvent = async (registrationId) => {
   try {
     // DELETE request to remove the registration
     const result = await apiClient(`/registrations/${registrationId}`, {
-      method: "DELETE"
+      method: "DELETE",
+      skipPrefix: true
     });
     return result; // Might be empty if server returns 204 No Content
   } catch (error) {

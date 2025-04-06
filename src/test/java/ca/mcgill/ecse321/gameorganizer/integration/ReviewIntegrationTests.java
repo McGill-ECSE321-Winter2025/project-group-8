@@ -42,6 +42,9 @@ import ca.mcgill.ecse321.gameorganizer.models.Review;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.LendingRecordRepository;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK) // Use MOCK environment
 @ActiveProfiles("test")
@@ -75,6 +78,15 @@ public class ReviewIntegrationTests {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private BorrowRequestRepository borrowRequestRepository;
+
+    @Autowired
+    private EventRepository eventRepository;
+
+    @Autowired
+    private LendingRecordRepository lendingRecordRepository;
+
     private Account testReviewer;
     private Game testGame;
     private Review testReview;
@@ -96,9 +108,7 @@ public class ReviewIntegrationTests {
     @BeforeEach
     public void setup() {
         // Clean repositories first - order matters due to foreign key constraints
-        reviewRepository.deleteAll();
-        gameRepository.deleteAll(); 
-        accountRepository.deleteAll();
+        cleanupRepositories();
 
         // Create test reviewer with unique email
         String reviewerEmail = TEST_REVIEWER_EMAIL;
@@ -130,12 +140,37 @@ public class ReviewIntegrationTests {
     }
 
     @AfterEach
-    public void cleanupAndClearToken() {
-        // Delete entities in the correct order to respect foreign key constraints
+    public void cleanup() {
+        // Clean up after each test
+        cleanupRepositories();
+    }
+    
+    /**
+     * Helper method to clean up repositories in the correct order
+     * to respect foreign key constraints
+     */
+    private void cleanupRepositories() {
         System.out.println("Cleaning up test data...");
         // First delete reviews
         reviewRepository.deleteAll();
         System.out.println("Deleted all reviews");
+        
+        // Delete other entities that might reference Game
+        try {
+            // Delete borrow requests first as they reference Game
+            borrowRequestRepository.deleteAll();
+            System.out.println("Deleted all borrow requests");
+            
+            // Delete events as they reference Game
+            eventRepository.deleteAll();
+            System.out.println("Deleted all events");
+            
+            // Delete lending records as they reference BorrowRequest and GameOwner
+            lendingRecordRepository.deleteAll();
+            System.out.println("Deleted all lending records");
+        } catch (Exception e) {
+            System.out.println("Warning during cleanup of related entities: " + e.getMessage());
+        }
         
         // Then delete games
         gameRepository.deleteAll();
@@ -144,8 +179,6 @@ public class ReviewIntegrationTests {
         // Finally delete accounts (including GameOwner)
         accountRepository.deleteAll();
         System.out.println("Deleted all accounts");
-        
-        // No token to clear
     }
 
     // ============================================================

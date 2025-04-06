@@ -137,8 +137,28 @@ public class LendingRecordController {
      * @return ResponseEntity containing lending records for the owner
      */
     @GetMapping("/owner/{ownerId}")
-    public ResponseEntity<List<LendingRecordResponseDto>> getLendingHistoryByOwner(@PathVariable int ownerId) {
+    public ResponseEntity<List<LendingRecordResponseDto>> getLendingHistoryByOwner(
+            @PathVariable int ownerId,
+            @RequestParam(required = false) Integer userId) {
+
         try {
+            // Log the request
+            System.out.println("Fetching lending records for owner ID: " + ownerId);
+            
+            // Log authentication information
+            try {
+                var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+                if (authentication != null) {
+                    System.out.println("Auth principal: " + authentication.getPrincipal());
+                    System.out.println("Auth authorities: " + authentication.getAuthorities());
+                    System.out.println("Auth name: " + authentication.getName());
+                } else {
+                    System.out.println("No authentication found in SecurityContextHolder");
+                }
+            } catch (Exception e) {
+                System.out.println("Error accessing authentication: " + e.getMessage());
+            }
+            
             GameOwner owner = (GameOwner) accountService.getAccountById(ownerId);
             List<LendingRecord> records = lendingRecordService.getLendingRecordsByOwner(owner);
             
@@ -146,9 +166,15 @@ public class LendingRecordController {
                     .map(this::convertToResponseDto)
                     .collect(Collectors.toList());
             
+            System.out.println("Found " + recordDtos.size() + " lending records for owner ID: " + ownerId);
             return ResponseEntity.ok(recordDtos);
         } catch (IllegalArgumentException e) {
+            System.out.println("Error retrieving lending records for owner: " + e.getMessage());
             return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            System.out.println("Unexpected error retrieving lending records: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
@@ -231,8 +257,28 @@ public class LendingRecordController {
      * @return ResponseEntity containing lending records for the borrower
      */
     @GetMapping("/borrower/{borrowerId}")
-    public ResponseEntity<List<LendingRecordResponseDto>> getLendingRecordsByBorrower(@PathVariable int borrowerId) {
+    public ResponseEntity<List<LendingRecordResponseDto>> getLendingRecordsByBorrower(
+            @PathVariable int borrowerId,
+            @RequestParam(required = false) Integer userId) {
+            
         try {
+            // Log the request
+            System.out.println("Fetching lending records for borrower ID: " + borrowerId);
+            
+            // Log authentication information
+            try {
+                var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+                if (authentication != null) {
+                    System.out.println("Auth principal: " + authentication.getPrincipal());
+                    System.out.println("Auth authorities: " + authentication.getAuthorities());
+                    System.out.println("Auth name: " + authentication.getName());
+                } else {
+                    System.out.println("No authentication found in SecurityContextHolder");
+                }
+            } catch (Exception e) {
+                System.out.println("Error accessing authentication: " + e.getMessage());
+            }
+            
             Account borrower = accountService.getAccountById(borrowerId);
             List<LendingRecord> records = lendingRecordService.getLendingRecordsByBorrower(borrower);
             
@@ -240,9 +286,15 @@ public class LendingRecordController {
                     .map(this::convertToResponseDto)
                     .collect(Collectors.toList());
             
+            System.out.println("Found " + recordDtos.size() + " lending records for borrower ID: " + borrowerId);
             return ResponseEntity.ok(recordDtos);
         } catch (IllegalArgumentException e) {
+            System.out.println("Error retrieving lending records for borrower: " + e.getMessage());
             return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            System.out.println("Unexpected error retrieving lending records: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 

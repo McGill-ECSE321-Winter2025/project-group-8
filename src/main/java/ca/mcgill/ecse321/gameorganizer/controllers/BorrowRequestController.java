@@ -13,8 +13,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequestStatus;
 import ca.mcgill.ecse321.gameorganizer.dto.request.BorrowRequestDto;
@@ -31,7 +34,7 @@ import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException; // Import
  * @author Rayan Baida
  */
 @RestController
-@RequestMapping("/api/borrowrequests")
+@RequestMapping("/borrowrequests")
 public class BorrowRequestController {
 
     private final BorrowRequestService borrowRequestService;
@@ -164,11 +167,36 @@ public class BorrowRequestController {
      * @return A list of borrow requests for the specified requester.
      */
     @GetMapping("/requester/{requesterId}")
-    public ResponseEntity<List<BorrowRequestDto>> getBorrowRequestsByRequester(@PathVariable int requesterId) {
-        List<BorrowRequestDto> filteredRequests = borrowRequestService.getAllBorrowRequests().stream()
-                .filter(request -> request.getRequesterId() == requesterId)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(filteredRequests);
+    public ResponseEntity<List<BorrowRequestDto>> getBorrowRequestsByRequester(
+            @PathVariable int requesterId,
+            @RequestParam(required = false) Integer userId) {
+        
+        // Log authentication information
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null) {
+            System.out.println("Auth principal: " + auth.getPrincipal());
+            System.out.println("Auth authorities: " + auth.getAuthorities());
+            System.out.println("Auth details: " + auth.getDetails());
+            System.out.println("Auth name: " + auth.getName());
+        } else {
+            System.out.println("No authentication found in SecurityContextHolder");
+        }
+        
+        // Log parameters
+        System.out.println("Fetching borrow requests for requesterId: " + requesterId + ", userId param: " + userId);
+        
+        try {
+            List<BorrowRequestDto> filteredRequests = borrowRequestService.getAllBorrowRequests().stream()
+                    .filter(request -> request.getRequesterId() == requesterId)
+                    .collect(Collectors.toList());
+            
+            System.out.println("Found " + filteredRequests.size() + " requests for requester " + requesterId);
+            return ResponseEntity.ok(filteredRequests);
+        } catch (Exception e) {
+            System.err.println("Error retrieving borrow requests for requester: " + e.getMessage());
+            e.printStackTrace();
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error retrieving borrow requests: " + e.getMessage());
+        }
     }
     
     /**
@@ -178,7 +206,19 @@ public class BorrowRequestController {
      * @return A list of borrow requests for the games owned by the specified game owner.
      */
     @GetMapping("/gameOwner/{gameOwnerId}")
-    public ResponseEntity<List<BorrowRequestDto>> getBorrowRequestsByGameOwner(@PathVariable int gameOwnerId) {
+    public ResponseEntity<List<BorrowRequestDto>> getBorrowRequestsByGameOwner(
+            @PathVariable int gameOwnerId,
+            @RequestParam(required = false) Integer userId) {
+            
+        // Log authentication information
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null) {
+            System.out.println("Auth principal: " + auth.getPrincipal());
+            System.out.println("Auth authorities: " + auth.getAuthorities());
+        } else {
+            System.out.println("No authentication found in SecurityContextHolder");
+        }
+        
         try {
             // For now, return an empty list until proper implementation
             List<BorrowRequestDto> ownerRequests = borrowRequestService.getAllBorrowRequests().stream()

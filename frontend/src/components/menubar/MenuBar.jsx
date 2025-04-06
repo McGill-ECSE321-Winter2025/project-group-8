@@ -3,45 +3,29 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button.jsx";
 import { useEffect, useState } from "react";
 import { getUserInfoByEmail } from "../../service/user-api.js";
+import { useAuth } from "../../context/AuthContext.jsx";
 
 // Main menu component shown on all pages
 export default function MenuBar() {
   const location = useLocation();
   const navigate = useNavigate();
-
-  // Initialize state for login status and username
-  const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem("token"));
+  
+  // Use the auth context instead of managing state locally
+  const { user, isAuthenticated, logout, loading } = useAuth();
   const [userName, setUserName] = useState("");
 
-  // Fetch user info whenever the route changes (e.g., after login)
+  // Update username when user or auth state changes
   useEffect(() => {
-    const fetchUserInfo = async () => {
-      const token = localStorage.getItem("token");
-      const email = localStorage.getItem("userEmail");
+    if (isAuthenticated && user) {
+      setUserName(user.name || user.username || user.email || "");
+    } else {
+      setUserName("");
+    }
+  }, [user, isAuthenticated]);
 
-      setIsLoggedIn(!!token);
-
-      if (token && email) {
-        try {
-          const user = await getUserInfoByEmail(email);
-          setUserName(user.username); // make sure we're using the correct field from the API response
-        } catch (err) {
-          console.error("Failed to fetch user name:", err);
-        }
-      }
-    };
-
-    fetchUserInfo();
-  }, [location.pathname]);
-
-  // Handle logout: clear user data and redirect to homepage
+  // Handle logout: use auth context logout function
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("userId");
-    localStorage.removeItem("userEmail");
-    localStorage.removeItem("user");
-    setIsLoggedIn(false);
-    setUserName("");
+    logout();
     navigate("/");
   };
 
@@ -62,7 +46,7 @@ export default function MenuBar() {
         {/* Right-side navigation options */}
         <div className="flex items-center gap-3">
           {/* Links shown only when user is logged in */}
-          {isLoggedIn && (
+          {isAuthenticated && (
             <div className="flex items-center gap-2">
               <Link to="/dashboard">
                 <Button
@@ -107,7 +91,7 @@ export default function MenuBar() {
           )}
 
           {/* Show login/signup buttons when not logged in */}
-          {!isLoggedIn && (
+          {!isAuthenticated && !loading && (
             <>
               <Link to="/login">
                 <Button variant="outline" className="text-sm px-4">
@@ -121,7 +105,7 @@ export default function MenuBar() {
           )}
 
           {/* Show greeting and logout button when user is logged in */}
-          {isLoggedIn && (
+          {isAuthenticated && (
             <div className="flex items-center gap-2 pl-3 border-l border-gray-200">
               {userName && (
                 <span className="text-sm text-gray-700 font-medium">

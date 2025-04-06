@@ -12,8 +12,8 @@ import { useAuth } from "@/context/AuthContext"; // Import useAuth
 import { Loader2 } from "lucide-react"; // Import loader
 
 export default function DashboardPage() {
-  // Get user and loading state from AuthContext
-  const { user, loading: authLoading } = useAuth();
+  // Get user, loading, and authReady states from AuthContext
+  const { user, loading: authLoading, authReady } = useAuth();
   
   // Add debug logging for the user object
   useEffect(() => {
@@ -22,7 +22,8 @@ export default function DashboardPage() {
     // Convert to boolean and log
     const isGameOwner = !!user?.gameOwner;
     console.log("[DashboardPage] Interpreted as gameOwner:", isGameOwner);
-  }, [user]);
+    console.log("[DashboardPage] Auth ready state:", authReady);
+  }, [user, authReady]);
   
   // Derive userType directly from the user object when available
   // Make sure to convert gameOwner property to boolean with !!
@@ -31,11 +32,16 @@ export default function DashboardPage() {
   // Error state can be simplified or removed if ProtectedRoute handles redirects
   const [error, setError] = useState(null); // Keep for potential non-auth errors? Or remove.
 
-  // Loading state
-  if (authLoading) {
+  // Loading state - also check if auth is ready
+  if (authLoading || !authReady) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-100px)]"> {/* Adjust height as needed */}
-        <Loader2 className="h-16 w-16 animate-spin text-muted-foreground" />
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-16 w-16 animate-spin text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            {!authReady ? "Preparing your dashboard..." : "Loading..."}
+          </p>
+        </div>
       </div>
     );
   }
@@ -52,7 +58,7 @@ export default function DashboardPage() {
      );
   }
   
-  // If we reach here, authLoading is false and user exists.
+  // If we reach here, authLoading is false, authReady is true, and user exists.
 
   // Render dashboard once data is loaded
   return (

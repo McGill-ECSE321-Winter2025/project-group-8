@@ -132,7 +132,7 @@ public class AuthenticationController {
                 .secure(false) // false for local HTTP development; set true for HTTPS
                 .path("/")
                 .maxAge(cookieMaxAge)
-                .sameSite("Lax") // Explicitly set SameSite=Lax
+                .sameSite("Lax") // Changed from Strict to Lax for better cross-site functionality
                 .build();
             response.addHeader(HttpHeaders.SET_COOKIE, accessTokenCookie.toString());
             logger.debug("Added accessToken cookie using ResponseCookie. MaxAge: {}, SameSite: Lax", cookieMaxAge);
@@ -144,7 +144,7 @@ public class AuthenticationController {
                 .secure(false) // false for local HTTP development; set true for HTTPS
                 .path("/")
                 .maxAge(cookieMaxAge)
-                .sameSite("Lax") // Explicitly set SameSite=Lax
+                .sameSite("Lax") // Changed from Strict to Lax for better cross-site functionality
                 .build();
             response.addHeader(HttpHeaders.SET_COOKIE, isAuthenticatedCookie.toString());
             logger.debug("Added isAuthenticated cookie using ResponseCookie. MaxAge: {}, SameSite: Lax", cookieMaxAge);
@@ -185,7 +185,7 @@ public class AuthenticationController {
             .secure(false) // Match setting during creation
             .path("/")
             .maxAge(0) // Expire immediately
-            .sameSite("Lax") // Match setting during creation
+            .sameSite("Lax") // Changed from Strict to Lax to match login settings
             .build();
         response.addHeader(HttpHeaders.SET_COOKIE, clearAccessTokenCookie.toString());
         System.out.println("Clearing accessToken cookie via ResponseCookie");
@@ -196,7 +196,7 @@ public class AuthenticationController {
             .secure(false) // Match setting during creation
             .path("/")
             .maxAge(0) // Expire immediately
-            .sameSite("Lax") // Match setting during creation
+            .sameSite("Lax") // Changed from Strict to Lax to match login settings
             .build();
         response.addHeader(HttpHeaders.SET_COOKIE, clearIsAuthenticatedCookie.toString());
         System.out.println("Clearing isAuthenticated cookie via ResponseCookie");

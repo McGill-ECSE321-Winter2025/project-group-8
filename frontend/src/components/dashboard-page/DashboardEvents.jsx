@@ -15,23 +15,25 @@ export default function DashboardEvents({ userType }) { // Accept userType prop
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
-  const MAX_RETRIES = 2;
-  const { user, isSessionExpired, handleSessionExpired } = useAuth(); // Get auth context functions
+  const { user, isAuthenticated, authReady } = useAuth(); // Get auth context with authReady
+  const [apiCallAttempted, setApiCallAttempted] = useState(false);
 
   // Function to fetch both hosted and attended events - memoized to prevent infinite loops
   const fetchDashboardEvents = useCallback(async () => {
-    console.log("[DashboardEvents] Fetching events for user:", user?.email);
-    
-    // Don't attempt to fetch if session is known to be expired
-    if (isSessionExpired) {
+    // Don't try to fetch if we're not authenticated or auth isn't ready
+    if (!user?.email || !isAuthenticated || !authReady) {
+      if (!isLoading) return; // Don't update state if not loading
       setIsLoading(false);
-      setError("Your session has expired. Please log in again.");
       return;
     }
-    
+
+    // Don't refetch if we already tried and no auth state has changed
+    if (apiCallAttempted && !isLoading) return;
+
+    console.log("[DashboardEvents] Fetching events for user:", user?.email, "Auth ready:", authReady);
     setIsLoading(true);
     setError(null);
+    setApiCallAttempted(true);
     const userEmail = user?.email;
 
     if (!userEmail) {
@@ -76,9 +78,6 @@ export default function DashboardEvents({ userType }) { // Accept userType prop
         .map(result => result.value);
       setAttendedEvents(attended || []);
 
-      // Reset retry counter on success
-      setRetryCount(0);
-
       // Log any errors from fetching individual attended events
       attendedEventResults
          .filter(result => result.status === 'rejected')
@@ -87,52 +86,38 @@ export default function DashboardEvents({ userType }) { // Accept userType prop
     } catch (err) {
       // This will catch errors from fetching hosted events or registrations list
       if (err instanceof UnauthorizedError) {
-        console.warn(`Unauthorized access fetching dashboard events (attempt ${retryCount + 1}/${MAX_RETRIES}).`, err);
-        
-        // Check if it's a session expired error
-        if (err.message === 'Session expired') {
-          // Use handleSessionExpired instead of direct logout
-          // Only notify about session expiration if we've tried a few times
-          if (retryCount >= MAX_RETRIES - 1) {
-            handleSessionExpired();
-          } else {
-            // Try again with a delay
-            setRetryCount(prevCount => prevCount + 1);
-            setTimeout(() => {
-              fetchDashboardEvents();
-            }, 1000);
-            return; // Exit to avoid setting loading to false
-          }
-        }
+        console.error("Unauthorized error fetching dashboard events:", err);
+        setError("Authentication error. Please try logging in again.");
       } else {
         console.error("Failed to fetch dashboard events data:", err);
         setError(err.message || "Could not load events.");
-        setHostedEvents([]);
-        setAttendedEvents([]);
       }
+      setHostedEvents([]);
+      setAttendedEvents([]);
     } finally {
-      // Only set loading to false if we're not retrying
-      if (retryCount >= MAX_RETRIES - 1 || !error) {
-        setIsLoading(false);
-      }
+      setIsLoading(false);
     }
-  }, [userType, user?.email, handleSessionExpired, retryCount, isSessionExpired]);
+  }, [userType, user, isAuthenticated, authReady, isLoading, apiCallAttempted]);
+
+  // Reset API call attempted when auth state changes
+  useEffect(() => {
+    if (authReady && isAuthenticated && user?.email) {
+      setApiCallAttempted(false);
+    }
+  }, [authReady, isAuthenticated, user]);
 
   // Fetch events on component mount and when userType or user changes
   useEffect(() => {
-    console.log("[DashboardEvents] useEffect triggered, user:", !!user);
-    if (user) {
-      fetchDashboardEvents();
-    }
-  }, [userType, user, fetchDashboardEvents]);
-
-  // Effect to handle session expiration state changes
-  useEffect(() => {
-    if (isSessionExpired) {
-      setIsLoading(false);
-      setError("Your session has expired. Please log in again.");
-    }
-  }, [isSessionExpired]);
+    console.log("[DashboardEvents] useEffect triggered, authReady:", authReady, "isAuthenticated:", isAuthenticated);
+    // Add a small delay to ensure auth state is fully updated
+    const timer = setTimeout(() => {
+      if (authReady && isAuthenticated && user?.email) {
+        fetchDashboardEvents();
+      }
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [userType, user, fetchDashboardEvents, authReady, isAuthenticated]);
 
   // Function to handle event creation success (passed to dialog)
   const handleEventAdded = useCallback(() => {
