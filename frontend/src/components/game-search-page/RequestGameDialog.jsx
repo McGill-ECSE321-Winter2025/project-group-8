@@ -71,7 +71,17 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game }) => {
       onOpenChange(false);
       form.reset();
     } catch (error) {
-      toast.error(error.message || "Failed to submit borrow request.");
+      let message = error.message || "Failed to submit borrow request.";
+
+      if (message.toLowerCase().includes("own game")) {
+        message = "You cannot borrow a game that you own.";
+      } else if (message.toLowerCase().includes("not found")) {
+        message = "The game or user could not be found.";
+      } else if (message.toLowerCase().includes("400")) {
+        message = "The request could not be processed. Please check the details and try again.";
+      }
+
+      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }
