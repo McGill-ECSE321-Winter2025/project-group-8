@@ -1,26 +1,45 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button.jsx";
 import { useEffect, useState } from "react";
+import { getUserInfoByEmail } from "../../service/user-api.js";
+
 
 export default function MenuBar() {
   const location = useLocation();
   const navigate = useNavigate();
-  // Use isLoggedIn state based on token presence
+
   const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem("token"));
+  const [userName, setUserName] = useState("");
 
-  // Update login status whenever the URL path changes
   useEffect(() => {
-    // Directly check the token presence when the location changes
-    setIsLoggedIn(!!localStorage.getItem("token"));
-  }, [location.pathname]); // Add location.pathname as a dependency
+    const fetchUserInfo = async () => {
+      const token = localStorage.getItem("token");
+      const email = localStorage.getItem("userEmail");
 
+      setIsLoggedIn(!!token);
+
+      if (token && email) {
+        try {
+          const user = await getUserInfoByEmail(email);
+          console.log("Fetched user info from MenuBar:", user);
+          setUserName(user.username); 
+        } catch (err) {
+          console.error("Failed to fetch user name:", err);
+        }
+        
+      }
+    };
+
+    fetchUserInfo();
+  }, [location.pathname]);
 
   const handleLogout = () => {
-    // Remove token and userId on logout
     localStorage.removeItem("token");
     localStorage.removeItem("userId");
-    setIsLoggedIn(false); // Update state immediately
-    navigate("/"); // Redirect to landing page
+    localStorage.removeItem("userEmail");
+    setIsLoggedIn(false);
+    setUserName("");
+    navigate("/");
   };
 
   const isLandingPage = location.pathname === "/";
@@ -38,28 +57,24 @@ export default function MenuBar() {
         </Link>
 
         <div className="flex items-center gap-3">
-          {/* Navigation Buttons (only for logged in users) */}
-          {isLoggedIn && ( // Check isLoggedIn state
+          {isLoggedIn && (
             <div className="flex items-center gap-2">
-              {/* Link to Dashboard instead of Games? */}
               <Link to="/dashboard">
                 <Button variant="ghost" className="text-sm font-semibold">Dashboard</Button>
               </Link>
               <Link to="/events">
                 <Button variant="ghost" className="text-sm font-semibold">Events</Button>
               </Link>
-               <Link to="/games">
-                 <Button variant="ghost" className="text-sm font-semibold">Game Search</Button>
-               </Link>
-               {/* Add Link to User Search Page */}
-               <Link to="/user-search">
-                 <Button variant="ghost" className="text-sm font-semibold">Users</Button>
-               </Link>
+              <Link to="/games">
+                <Button variant="ghost" className="text-sm font-semibold">Game Search</Button>
+              </Link>
+              <Link to="/user-search">
+                <Button variant="ghost" className="text-sm font-semibold">Users</Button>
+              </Link>
             </div>
           )}
 
-          {/* Login / Sign Up (only if not logged in) */}
-          {!isLoggedIn && ( // Check isLoggedIn state
+          {!isLoggedIn && (
             <>
               <Link to="/login">
                 <Button variant="outline" className="text-sm px-4">Login</Button>
@@ -70,11 +85,11 @@ export default function MenuBar() {
             </>
           )}
 
-          {/* Logout Button (only if logged in) */}
-          {isLoggedIn && ( // Check isLoggedIn state
+          {isLoggedIn && (
             <div className="flex items-center gap-2 pl-3 border-l border-gray-200">
-              {/* Removed user name display for simplicity for now */}
-              {/* <span className="text-sm text-gray-700 font-medium">Hi, {user.name}</span> */}
+              {userName && (
+                <span className="text-sm text-gray-700 font-medium">Hi, {userName} 👋</span>
+              )}
               <Button
                 onClick={handleLogout}
                 variant="outline"
