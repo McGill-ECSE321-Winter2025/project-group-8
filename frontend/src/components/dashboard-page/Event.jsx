@@ -25,6 +25,7 @@ export default function Event({
   participants: { current, capacity },
   onCancelRegistration: onCancelEvent, // Keep this if used elsewhere
   onRegistrationUpdate, // Add the refresh prop
+  gameImage,
 }) {
   const [open, setOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false) // Track deletion state
@@ -71,7 +72,11 @@ export default function Event({
         <div className="flex flex-col md:flex-row gap-4">
           <div className="md:w-1/4">
             <div className="aspect-square bg-muted rounded-lg flex items-center justify-center">
-              <Calendar className="h-12 w-12 text-muted-foreground" />
+            <img
+                src={gameImage}
+                alt={`${game} image`}
+                className="h-full w-full object-cover rounded-lg"
+              />
             </div>
           </div>
           <div className="flex-1">

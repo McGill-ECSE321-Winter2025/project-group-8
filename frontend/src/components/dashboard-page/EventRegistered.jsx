@@ -25,6 +25,7 @@ export default function EventRegistered({
   onCancelRegistration, // Keep this if used elsewhere
   onRegistrationUpdate, // For refreshing parent component
   registrationId, // This prop is now properly passed from DashboardEvents
+  gameImage,
 }) {
   const [open, setOpen] = useState(false)
 
@@ -61,7 +62,11 @@ export default function EventRegistered({
         <div className="flex flex-col md:flex-row gap-4">
           <div className="md:w-1/4">
             <div className="aspect-square bg-muted rounded-lg flex items-center justify-center">
-              <Calendar className="h-12 w-12 text-muted-foreground" />
+              <img
+                src={gameImage}
+                alt={`${game} image`}
+                className="h-full w-full object-cover rounded-lg"
+              />
             </div>
           </div>
           <div className="flex-1">

@@ -101,6 +101,7 @@ export default function DashboardEvents({ userType }) {
       time: event.dateTime ? new Date(event.dateTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'N/A',
       location: event.location || 'N/A',
       game: event.featuredGame?.name || 'N/A',
+      gameImage: event.featuredGame?.image || "https://placehold.co/400x300/e9e9e9/1d1d1d?text=No+Image",
       participants: {
         current: event.currentNumberParticipants ?? 0,
         capacity: event.maxParticipants ?? 0,
