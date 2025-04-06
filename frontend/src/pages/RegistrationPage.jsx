@@ -24,10 +24,10 @@ export default function RegistrationPage() {
   // Redirect if already logged in
   useEffect(() => {
     if (user) {
-
       navigate("/dashboard");
     }
   }, [user, navigate]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
@@ -45,16 +45,12 @@ export default function RegistrationPage() {
           username: `${firstName} ${lastName}`, // Use state variables
           email,
           password,
-          gameOwner: accountType === "owner",
+          gameOwner: accountType === "owner", // Ensure this properly evaluates based on accountType
         }),
         credentials: 'include', // <<< Send cookies if needed by backend for registration step? Maybe not.
       });
 
-
-
       if (registrationResponse.ok) {
-
-
         // Step 2: Log the user in - Backend should automatically set HttpOnly cookie
         // TODO: Replace with environment variable for API URL
         const loginResponse = await fetch("http://localhost:8080/auth/login", {
@@ -69,7 +65,6 @@ export default function RegistrationPage() {
         if (loginResponse.ok) {
           // Backend sets cookie, response body contains user summary
           const userData = await loginResponse.json();
-
 
           login(userData); // Update global auth state
 
@@ -121,7 +116,7 @@ export default function RegistrationPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="your.email@example.com" required value={email} onChange={(e) => setEmail(e.target.value)} />
+              <Input id="email" type="email" placeholder="our.email@example.com" required value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
@@ -130,7 +125,6 @@ export default function RegistrationPage() {
             <div className="space-y-2">
               <Label>Account type</Label>
               <RadioGroup
-                defaultValue="player"
                 value={accountType}
                 onValueChange={setAccountType}
                 className="flex flex-col space-y-1"
