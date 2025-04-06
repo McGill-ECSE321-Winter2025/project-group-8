@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button.jsx";
 import { useEffect, useState } from "react";
 import { getUserInfoByEmail } from "../../service/user-api.js";
 
-
 export default function MenuBar() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -21,12 +20,10 @@ export default function MenuBar() {
       if (token && email) {
         try {
           const user = await getUserInfoByEmail(email);
-          console.log("Fetched user info from MenuBar:", user);
-          setUserName(user.username); 
+          setUserName(user.username); // use correct key
         } catch (err) {
           console.error("Failed to fetch user name:", err);
         }
-        
       }
     };
 
@@ -41,8 +38,6 @@ export default function MenuBar() {
     setUserName("");
     navigate("/");
   };
-
-  const isLandingPage = location.pathname === "/";
 
   return (
     <header className="bg-white border-b shadow-sm">
@@ -60,16 +55,43 @@ export default function MenuBar() {
           {isLoggedIn && (
             <div className="flex items-center gap-2">
               <Link to="/dashboard">
-                <Button variant="ghost" className="text-sm font-semibold">Dashboard</Button>
+                <Button
+                  variant="ghost"
+                  className="text-sm font-semibold"
+                  title="Go to your main dashboard"
+                >
+                  Dashboard
+                </Button>
               </Link>
+
               <Link to="/events">
-                <Button variant="ghost" className="text-sm font-semibold">Events</Button>
+                <Button
+                  variant="ghost"
+                  className="text-sm font-semibold"
+                  title="View and manage events"
+                >
+                  Events
+                </Button>
               </Link>
+
               <Link to="/games">
-                <Button variant="ghost" className="text-sm font-semibold">Game Search</Button>
+                <Button
+                  variant="ghost"
+                  className="text-sm font-semibold"
+                  title="Find and explore games"
+                >
+                  Game Search
+                </Button>
               </Link>
+
               <Link to="/user-search">
-                <Button variant="ghost" className="text-sm font-semibold">Users</Button>
+                <Button
+                  variant="ghost"
+                  className="text-sm font-semibold"
+                  title="Browse and view other users"
+                >
+                  Users
+                </Button>
               </Link>
             </div>
           )}
@@ -77,7 +99,9 @@ export default function MenuBar() {
           {!isLoggedIn && (
             <>
               <Link to="/login">
-                <Button variant="outline" className="text-sm px-4">Login</Button>
+                <Button variant="outline" className="text-sm px-4">
+                  Login
+                </Button>
               </Link>
               <Link to="/register">
                 <Button className="text-sm px-4">Sign Up</Button>
@@ -88,7 +112,9 @@ export default function MenuBar() {
           {isLoggedIn && (
             <div className="flex items-center gap-2 pl-3 border-l border-gray-200">
               {userName && (
-                <span className="text-sm text-gray-700 font-medium">Hi, {userName} 👋</span>
+                <span className="text-sm text-gray-700 font-medium">
+                  Hi, {userName} 👋
+                </span>
               )}
               <Button
                 onClick={handleLogout}
