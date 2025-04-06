@@ -175,6 +175,37 @@ export async function deleteGame(id) {
   }
 }
 
+/**
+ * Fetches a single game by its ID.
+ * @param {number} id - Game ID
+ * @returns {Promise<object>} Game object
+ */
+export const getGameById = async (id) => {
+  const token = localStorage.getItem("token");
+
+  const headers = {
+    "Content-Type": "application/json",
+  };
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`http://localhost:8080/api/v1/games/${id}`, {
+    method: "GET",
+    headers,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(
+      `Failed to fetch game #${id}: ${response.status} ${response.statusText}\n${errorText}`
+    );
+  }
+
+  return await response.json();
+};
+
 
 
 // Add other game-related API functions here as needed

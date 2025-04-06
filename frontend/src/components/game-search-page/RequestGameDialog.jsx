@@ -20,10 +20,11 @@ import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { useForm } from "react-hook-form";
 import { createBorrowRequest } from '../../service/borrow_request-api.js';
+import { toast } from 'sonner'; 
 
 export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   const form = useForm({
     defaultValues: {
       date: '',
@@ -37,53 +38,40 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game }) => {
   const handleSubmit = async (data) => {
     try {
       setIsSubmitting(true);
-      
-      // Format the date and time into a proper ISO string for startDate
+
       const startDateTime = new Date(`${data.date}T${data.time}`);
-      
-      // Calculate endDate by adding duration hours to startDate
       const endDateTime = new Date(startDateTime);
       endDateTime.setHours(endDateTime.getHours() + parseFloat(data.duration));
 
       const getCurrentUserId = () => {
-        return parseInt(localStorage.getItem("userId")); // Or from context/state
+        const id = localStorage.getItem("userId");
+        if (!id) throw new Error("User not logged in.");
+        return parseInt(id);
       };
-      
-      // Prepare request data for the API
+
       const requestData = {
-        requesterId: getCurrentUserId(), // You need to implement this
+        requesterId: getCurrentUserId(),
         requestedGameId: game?.id,
-        startDate: startDateTime.toISOString(),
-        endDate: endDateTime.toISOString()
+        startDate: startDateTime.getTime(),
+        endDate: endDateTime.getTime()
       };
-      
-      // Call the API to create the borrow request
+
       const response = await createBorrowRequest(requestData);
-      
-      // Call the parent component's onSubmit with both form data and API response
-      onSubmit({
+      console.log("Borrow request created:", response);
+
+      onSubmit?.({
         game,
         ...data,
         requestId: response.id,
         status: response.status
       });
-      
-      // Show success toast
-      toast({
-        title: "Request Submitted",
-        description: `Your request to play ${game?.name} has been sent.`,
-      });
-      
-      // Close dialog and reset form
+
+      toast.success(`Request to play ${game?.name} was successfully sent! 🎉`);
+
       onOpenChange(false);
       form.reset();
     } catch (error) {
-      // Show error toast
-      toast({
-        title: "Request Failed",
-        description: error.message || "Failed to submit game request. Please try again.",
-        variant: "destructive",
-      });
+      toast.error(error.message || "Failed to submit borrow request.");
     } finally {
       setIsSubmitting(false);
     }
@@ -98,7 +86,7 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game }) => {
             Fill out the form below to request this game for your next event
           </DialogDescription>
         </DialogHeader>
-        
+
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -109,17 +97,12 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game }) => {
                   <FormItem>
                     <FormLabel>Date</FormLabel>
                     <FormControl>
-                      <Input
-                        type="date"
-                        required
-                        {...field}
-                      />
+                      <Input type="date" required {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              
               <FormField
                 control={form.control}
                 name="time"
@@ -127,18 +110,14 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game }) => {
                   <FormItem>
                     <FormLabel>Time</FormLabel>
                     <FormControl>
-                      <Input
-                        type="time"
-                        required
-                        {...field}
-                      />
+                      <Input type="time" required {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -147,19 +126,12 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game }) => {
                   <FormItem>
                     <FormLabel>Duration (hours)</FormLabel>
                     <FormControl>
-                      <Input
-                        type="number"
-                        min="0.5"
-                        step="0.5"
-                        required
-                        {...field}
-                      />
+                      <Input type="number" min="0.5" step="0.5" required {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              
               <FormField
                 control={form.control}
                 name="players"
@@ -180,7 +152,7 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game }) => {
                 )}
               />
             </div>
-            
+
             <FormField
               control={form.control}
               name="message"
@@ -198,14 +170,14 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game }) => {
                 </FormItem>
               )}
             />
-            
+
             <DialogFooter className="gap-2 mt-4">
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Submitting..." : "Submit Request"}
+                {isSubmitting ? "Submitting..." : "Create Borrow Request"}
               </Button>
-              <Button 
-                type="button" 
-                variant="outline" 
+              <Button
+                type="button"
+                variant="outline"
                 onClick={() => {
                   form.reset();
                   onOpenChange(false);
