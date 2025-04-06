@@ -2,7 +2,7 @@
 
 ## Project Introduction
 
-At McGill University, as part of ECSE 321, we are developing an application for board game enthusiasts. The objective of this application is to enable the lending and borrowing of board games, the creation and joining of events, and connecting with other board game enthusiasts. The project report for deliverable 2 can be found [here](https://github.com/McGill-ECSE321-Winter2025/project-group-8/wiki/Project-Report-2)
+At McGill University, as part of ECSE 321, we are developing an application for board game enthusiasts. The objective of this application is to enable the lending and borrowing of board games, the creation and joining of events, and connecting with other board game enthusiasts. The project report for deliverable 3 can be found [here](https://github.com/McGill-ECSE321-Winter2025/project-group-8/wiki/Project-Report-3)
 
 ## Database Configuration
 - port: 5433
