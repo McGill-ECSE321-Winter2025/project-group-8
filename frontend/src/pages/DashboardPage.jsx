@@ -85,9 +85,7 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <nav className="flex flex-col gap-2 pt-4">
-                  <Routes>
-                    <Route path="profile" element={<SideMenuBar userType={userType}/>} />
-                  </Routes>
+                  <SideMenuBar userType={userType}/>
                 </nav>
               </CardContent>
             </Card>

@@ -14,27 +14,44 @@ import {
 import { Input } from "@/components/ui/input.jsx"
 import { Label } from "@/components/ui/label.jsx"
 import { Settings, User, KeyRound } from "lucide-react"
+import {updateUsernamePassword} from "@/service/update-account-info.js";
 
 export default function SideMenuBar({ userType }) {
   const [open, setOpen] = useState(false)
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
+  const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
 
-  function handleSubmit(e){
+  async function handleSubmit(e){
     e.preventDefault()
 
-    if (password && password !== confirmPassword) {
+    if (newPassword && newPassword !== confirmPassword) {
       alert("Passwords don't match")
       return
     }
 
-    console.log("Updating account with:", { username, password })
+    console.log("Updating account with:", { username, password, email: localStorage.getItem("userEmail") })
 
     setOpen(false)
     setUsername("")
     setPassword("")
+    setNewPassword("")
     setConfirmPassword("")
+
+    try {
+      console.log(typeof localStorage.getItem("userEmail"))
+      const response = await updateUsernamePassword(
+        {
+          email: localStorage.getItem("userEmail"),
+          username: username,
+          password: password,
+          newPassword: newPassword,
+        }
+      )
+    } catch (error) {
+      console.error(error)
+    }
   }
 
   return (
@@ -62,7 +79,7 @@ export default function SideMenuBar({ userType }) {
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
                 <Label htmlFor="username">
-                  <User className="h-4 w-4 inline mr-2" />
+                  <User className="h-4 w-4 inline mr-2"/>
                   Username
                 </Label>
                 <Input
@@ -75,17 +92,32 @@ export default function SideMenuBar({ userType }) {
 
               <div className="grid gap-2">
                 <Label htmlFor="password">
-                  <KeyRound className="h-4 w-4 inline mr-2" />
-                  New Password
+                  <KeyRound className="h-4 w-4 inline mr-2"/>
+                  Password
                 </Label>
                 <Input
                   id="password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="password">
+                  <KeyRound className="h-4 w-4 inline mr-2"/>
+                  New Password
+                </Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="Enter new password"
                 />
-                <p className="text-xs text-muted-foreground">Leave blank if you don't want to change your password</p>
+                <p className="text-xs text-muted-foreground">Leave this field blank if you don't want to change your
+                  password</p>
               </div>
 
               {password && (
@@ -113,4 +145,3 @@ export default function SideMenuBar({ userType }) {
     </>
   )
 }
-
