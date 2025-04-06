@@ -155,6 +155,27 @@ export const getGamesByOwner = async (ownerEmail) => {
   }
 };
 
+export async function deleteGame(id) {
+  try {
+    const response = await fetch(`http://localhost:8080/api/v1/games/${id}`, {
+      method: "DELETE",
+    });
+
+    if (response.ok) {
+      console.log(`Game with ID ${id} deleted successfully.`);
+      return true; // Indicate success
+    } else {
+      const errorData = await response.json();
+      console.error("Failed to delete game:", errorData);
+      return false; // Indicate failure
+    }
+  } catch (error) {
+    console.error("Error deleting game:", error);
+    return false; // Indicate failure
+  }
+}
+
+
 
 // Add other game-related API functions here as needed
 // e.g., getGameById, updateGame, deleteGame, getGameReviews, submitReview etc.

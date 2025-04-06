@@ -13,27 +13,35 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { unregisterFromEvent } from "../../service/event-api"; // Import the API function
 
-export default function Event({
+export default function EventRegistered({
                                 name,
                                 date,
                                 time,
                                 location,
                                 game,
                                 participants: { current, capacity },
-                                onCancelRegistration: onCancelEvent, // Keep this if used elsewhere
+                                onCancelRegistration, // Keep this if used elsewhere
                                 onRegistrationUpdate, // Add the refresh prop
+                                registrationId,
                               }) {
   const [open, setOpen] = useState(false)
   // No local state needed for count here, rely on parent refresh
 
-  const handleCancelEvent = () => {
-    // TODO: Implement actual unregistration API call using registration ID
+  const handleCancelRegistration = async () => {
+    try {
+      const successMessage = await unregisterFromEvent(registrationId); // Call the API function
+      console.log("Unregistration successful:", successMessage);
+    } catch (error) {
+      console.error("Error during unregistration:", error.message);
+      alert(`Failed to unregister: ${error.message}`); // Notify the user
+    }
     console.warn("Unregistering from dashboard event card needs implementation.");
 
     // Call the provided callback function (if it exists for other purposes)
-    if (typeof onCancelEvent === "function") {
-      onCancelEvent();
+    if (typeof onCancelRegistration === "function") {
+      onCancelRegistration();
     }
     // Call the refresh function passed from the parent dashboard page
     if (typeof onRegistrationUpdate === "function") {
@@ -76,17 +84,17 @@ export default function Event({
               <Dialog open={open} onOpenChange={setOpen}>
                 <DialogTrigger asChild>
                   <Button variant="destructive" size="sm">
-                    Cancel Event
+                    Cancel Registration
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-[425px]">
                   <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                       <AlertCircle className="h-5 w-5 text-destructive" />
-                      Cancel Event
+                      Cancel Registration
                     </DialogTitle>
                     <DialogDescription>
-                      Are you sure you want to cancel your event? 
+                      Are you sure you want to cancel your registration? 
                     </DialogDescription>
                   </DialogHeader>
                   <div className="py-4">
@@ -107,10 +115,10 @@ export default function Event({
                   </div>
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setOpen(false)}>
-                      Keep Event
+                      Keep Registration
                     </Button>
-                    <Button variant="destructive" onClick={handleCancelEvent}>
-                      Cancel Event
+                    <Button variant="destructive" onClick={handleCancelRegistration}>
+                      Cancel Registration
                     </Button>
                   </DialogFooter>
                 </DialogContent>

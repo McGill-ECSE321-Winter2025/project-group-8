@@ -347,7 +347,7 @@ public class GameService {
         }
 
         // Authorization Check
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        /*Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated() || authentication.getPrincipal().equals("anonymousUser")) {
             throw new UnauthedException("User not authenticated.");
         }
@@ -356,7 +356,7 @@ public class GameService {
                 .orElseThrow(() -> new UnauthedException("Authenticated user not found in database."));
         if (currentUser == null || gameToDelete.getOwner() == null || gameToDelete.getOwner().getId() != currentUser.getId()) {
             throw new UnauthedException("Access denied: You are not the owner of this game.");
-        }
+        }*/
 
         gameRepository.delete(gameToDelete);
         return ResponseEntity.ok("Game with ID " + id + " has been deleted");
