@@ -3,8 +3,6 @@ package ca.mcgill.ecse321.gameorganizer.integration;
 import org.springframework.http.MediaType;
 import static org.junit.jupiter.api.Assertions.*;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import ca.mcgill.ecse321.gameorganizer.dto.AuthenticationDTO;
-import ca.mcgill.ecse321.gameorganizer.dto.LoginResponse;
 import java.sql.Date;
 import java.util.List;
 import java.util.UUID;
@@ -24,20 +22,12 @@ import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc; // Import AutoConfigureMockMvc
-import org.springframework.context.annotation.Import;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.ContextConfiguration;
 import ca.mcgill.ecse321.gameorganizer.TestJwtConfig;
 
-import ca.mcgill.ecse321.gameorganizer.dto.GameCreationDto;
-import ca.mcgill.ecse321.gameorganizer.dto.GameResponseDto;
-import ca.mcgill.ecse321.gameorganizer.dto.ReviewResponseDto;
-import ca.mcgill.ecse321.gameorganizer.dto.ReviewSubmissionDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.GameCreationDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.ReviewSubmissionDto;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 

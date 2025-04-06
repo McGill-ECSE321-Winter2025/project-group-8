@@ -1,4 +1,4 @@
-package ca.mcgill.ecse321.gameorganizer.dto;
+package ca.mcgill.ecse321.gameorganizer.dto.response;
 
 import java.util.Date;
 import ca.mcgill.ecse321.gameorganizer.models.Game;

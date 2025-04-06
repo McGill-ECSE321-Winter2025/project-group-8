@@ -1,8 +1,5 @@
 package ca.mcgill.ecse321.gameorganizer.controllers;
 
-import ca.mcgill.ecse321.gameorganizer.dto.LendingHistoryFilterDto;
-import ca.mcgill.ecse321.gameorganizer.dto.LendingRecordResponseDto;
-import ca.mcgill.ecse321.gameorganizer.dto.UpdateLendingRecordStatusDto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -11,8 +8,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.ControllerAdvice;
 
 import ca.mcgill.ecse321.gameorganizer.models.LendingRecord;
 import ca.mcgill.ecse321.gameorganizer.models.LendingRecord.LendingStatus;
@@ -20,6 +15,9 @@ import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.services.LendingRecordService;
 import ca.mcgill.ecse321.gameorganizer.services.AccountService;
+import ca.mcgill.ecse321.gameorganizer.dto.request.LendingHistoryFilterDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.UpdateLendingRecordStatusDto;
+import ca.mcgill.ecse321.gameorganizer.dto.response.LendingRecordResponseDto;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException; // Import
 import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.InvalidOperationException;

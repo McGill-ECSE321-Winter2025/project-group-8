@@ -13,11 +13,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.access.prepost.PreAuthorize; // Import PreAuthorize
 
-import ca.mcgill.ecse321.gameorganizer.dto.GameCreationDto;
-import ca.mcgill.ecse321.gameorganizer.dto.GameResponseDto;
-import ca.mcgill.ecse321.gameorganizer.dto.GameSearchCriteria;
-import ca.mcgill.ecse321.gameorganizer.dto.ReviewResponseDto;
-import ca.mcgill.ecse321.gameorganizer.dto.ReviewSubmissionDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.GameCreationDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.GameSearchCriteria;
+import ca.mcgill.ecse321.gameorganizer.dto.request.ReviewSubmissionDto;
+import ca.mcgill.ecse321.gameorganizer.dto.response.GameResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dto.response.ReviewResponseDto;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException; // Import ForbiddenException
 import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;

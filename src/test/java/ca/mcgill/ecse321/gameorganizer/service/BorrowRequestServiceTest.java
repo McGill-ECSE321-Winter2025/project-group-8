@@ -36,8 +36,8 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 
-import ca.mcgill.ecse321.gameorganizer.dto.BorrowRequestDto;
-import ca.mcgill.ecse321.gameorganizer.dto.CreateBorrowRequestDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.BorrowRequestDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.CreateBorrowRequestDto;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequestStatus;

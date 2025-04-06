@@ -25,6 +25,7 @@ import org.springframework.security.web.context.SecurityContextPersistenceFilter
 import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 import org.springframework.security.web.access.ExceptionTranslationFilter;
+import org.springframework.security.web.context.NullSecurityContextRepository;
 import java.util.Arrays;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -38,8 +39,6 @@ import ca.mcgill.ecse321.gameorganizer.security.JwtAuthenticationFilter;
 public class SecurityConfig {
 
     static {
-        // Use InheritableThreadLocal to ensure SecurityContext propagation across threads
-        System.setProperty(SecurityContextHolder.SYSTEM_PROPERTY, SecurityContextHolder.MODE_INHERITABLETHREADLOCAL);
     }
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
@@ -106,6 +105,9 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .cors(Customizer.withDefaults())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .securityContext(context -> context
+                .securityContextRepository(new NullSecurityContextRepository())
+            )
             
             // Completely disable anonymous authentication to prevent it from overriding JWT auth
             .anonymous(anonymous -> anonymous.disable())

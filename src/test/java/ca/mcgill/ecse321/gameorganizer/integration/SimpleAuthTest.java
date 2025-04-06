@@ -1,8 +1,8 @@
 package ca.mcgill.ecse321.gameorganizer.integration;
 
-import ca.mcgill.ecse321.gameorganizer.dto.AuthenticationDTO;
-import ca.mcgill.ecse321.gameorganizer.dto.LoginResponse;
-import ca.mcgill.ecse321.gameorganizer.dto.UserSummaryDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.AuthenticationDTO;
+import ca.mcgill.ecse321.gameorganizer.dto.request.CreateEventRequest;
+import ca.mcgill.ecse321.gameorganizer.dto.response.UserSummaryDto;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import java.util.List;
@@ -175,8 +175,7 @@ public class SimpleAuthTest {
         authenticateUser(testUser.getEmail());
         
         // Create event request directly using service
-        ca.mcgill.ecse321.gameorganizer.dto.CreateEventRequest request = 
-            new ca.mcgill.ecse321.gameorganizer.dto.CreateEventRequest();
+        CreateEventRequest request = new CreateEventRequest();
         request.setTitle("New Event");
         request.setDateTime(new java.sql.Date(System.currentTimeMillis()));
         request.setLocation("New Location");
@@ -268,8 +267,7 @@ public class SimpleAuthTest {
         System.out.println("Game created successfully: " + testGame.getId());
         
         // Create event request directly
-        ca.mcgill.ecse321.gameorganizer.dto.CreateEventRequest createRequest = 
-            new ca.mcgill.ecse321.gameorganizer.dto.CreateEventRequest();
+        CreateEventRequest createRequest = new CreateEventRequest();
         createRequest.setTitle("New Event");
         createRequest.setDateTime(new java.sql.Date(System.currentTimeMillis()));
         createRequest.setLocation("New Location");

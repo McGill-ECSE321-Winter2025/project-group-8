@@ -9,9 +9,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import ca.mcgill.ecse321.gameorganizer.dto.AuthenticationDTO;
-import ca.mcgill.ecse321.gameorganizer.dto.PasswordResetDto;
-import ca.mcgill.ecse321.gameorganizer.dto.PasswordResetRequestDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.AuthenticationDTO;
+import ca.mcgill.ecse321.gameorganizer.dto.request.PasswordResetDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.PasswordResetRequestDto;
 import ca.mcgill.ecse321.gameorganizer.exceptions.EmailNotFoundException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.InvalidCredentialsException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.InvalidPasswordException;

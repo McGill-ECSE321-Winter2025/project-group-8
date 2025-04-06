@@ -11,8 +11,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import ca.mcgill.ecse321.gameorganizer.dto.CreateAccountRequest;
-import ca.mcgill.ecse321.gameorganizer.dto.UpdateAccountRequest;
+import ca.mcgill.ecse321.gameorganizer.dto.request.CreateAccountRequest;
+import ca.mcgill.ecse321.gameorganizer.dto.request.UpdateAccountRequest;
 import ca.mcgill.ecse321.gameorganizer.services.AccountService;
 import jakarta.validation.Valid;
 

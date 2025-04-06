@@ -14,8 +14,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.access.prepost.PreAuthorize; // Import PreAuthorize
 
-import ca.mcgill.ecse321.gameorganizer.dto.BorrowRequestDto;
-import ca.mcgill.ecse321.gameorganizer.dto.CreateBorrowRequestDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.BorrowRequestDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.CreateBorrowRequestDto;
 import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException;
 // UserContext import removed

@@ -1,4 +1,4 @@
-package ca.mcgill.ecse321.gameorganizer.dto;
+package ca.mcgill.ecse321.gameorganizer.dto.request;
 
 public class GameSearchCriteria {
     private String name;

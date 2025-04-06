@@ -1,4 +1,4 @@
-package ca.mcgill.ecse321.gameorganizer.dto;
+package ca.mcgill.ecse321.gameorganizer.dto.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

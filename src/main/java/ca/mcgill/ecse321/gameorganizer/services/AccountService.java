@@ -24,10 +24,10 @@ import org.springframework.security.crypto.password.PasswordEncoder; // Import P
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.access.prepost.PreAuthorize; // Import PreAuthorize
 
-import ca.mcgill.ecse321.gameorganizer.dto.AccountResponse;
-import ca.mcgill.ecse321.gameorganizer.dto.CreateAccountRequest;
-import ca.mcgill.ecse321.gameorganizer.dto.EventResponse;
-import ca.mcgill.ecse321.gameorganizer.dto.UpdateAccountRequest;
+import ca.mcgill.ecse321.gameorganizer.dto.response.AccountResponse;
+import ca.mcgill.ecse321.gameorganizer.dto.request.CreateAccountRequest;
+import ca.mcgill.ecse321.gameorganizer.dto.response.EventResponse;
+import ca.mcgill.ecse321.gameorganizer.dto.request.UpdateAccountRequest;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException; // Import ForbiddenException
 import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;
 import ca.mcgill.ecse321.gameorganizer.models.Account;

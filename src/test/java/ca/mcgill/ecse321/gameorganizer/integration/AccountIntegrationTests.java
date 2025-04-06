@@ -26,8 +26,8 @@ import org.springframework.test.context.ActiveProfiles;
 // Import test configurations
 import ca.mcgill.ecse321.gameorganizer.TestJwtConfig;
 
-import ca.mcgill.ecse321.gameorganizer.dto.CreateAccountRequest;
-import ca.mcgill.ecse321.gameorganizer.dto.UpdateAccountRequest;
+import ca.mcgill.ecse321.gameorganizer.dto.request.CreateAccountRequest;
+import ca.mcgill.ecse321.gameorganizer.dto.request.UpdateAccountRequest;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;

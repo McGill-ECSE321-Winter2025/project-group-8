@@ -6,8 +6,12 @@ import java.util.Date;
 
 import org.junit.jupiter.api.Test;
 
-import ca.mcgill.ecse321.gameorganizer.dto.LendingRecordResponseDto.GameInfo;
-import ca.mcgill.ecse321.gameorganizer.dto.LendingRecordResponseDto.UserInfo;
+import ca.mcgill.ecse321.gameorganizer.dto.request.LendingHistoryFilterDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.UpdateLendingRecordStatusDto;
+import ca.mcgill.ecse321.gameorganizer.dto.response.LendingRecordDto;
+import ca.mcgill.ecse321.gameorganizer.dto.response.LendingRecordResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dto.response.LendingRecordResponseDto.GameInfo;
+import ca.mcgill.ecse321.gameorganizer.dto.response.LendingRecordResponseDto.UserInfo;
 
 /**
  * Test class for the LendingRecord DTOs.

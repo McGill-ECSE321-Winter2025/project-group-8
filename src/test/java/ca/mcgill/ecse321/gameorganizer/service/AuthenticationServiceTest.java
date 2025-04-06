@@ -10,8 +10,8 @@ import static org.junit.jupiter.api.Assertions.assertNull; // Added for checking
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import static org.mockito.ArgumentMatchers.any;
-import ca.mcgill.ecse321.gameorganizer.dto.PasswordResetDto;
-import ca.mcgill.ecse321.gameorganizer.dto.PasswordResetRequestDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.PasswordResetDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.PasswordResetRequestDto;
 import ca.mcgill.ecse321.gameorganizer.exceptions.InvalidTokenException;
 import org.mockito.ArgumentCaptor;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -25,7 +25,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ContextConfiguration;
 
 import ca.mcgill.ecse321.gameorganizer.TestJwtConfig;
-import ca.mcgill.ecse321.gameorganizer.dto.AuthenticationDTO;
+import ca.mcgill.ecse321.gameorganizer.dto.request.AuthenticationDTO;
 import ca.mcgill.ecse321.gameorganizer.exceptions.EmailNotFoundException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.InvalidCredentialsException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.InvalidPasswordException;

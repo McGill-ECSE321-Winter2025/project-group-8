@@ -8,16 +8,16 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import ca.mcgill.ecse321.gameorganizer.dto.GameCreationDto;
-import ca.mcgill.ecse321.gameorganizer.dto.GameResponseDto;
-import ca.mcgill.ecse321.gameorganizer.dto.GameSearchCriteria;
-import ca.mcgill.ecse321.gameorganizer.dto.ReviewResponseDto;
-import ca.mcgill.ecse321.gameorganizer.dto.ReviewSubmissionDto;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.services.AccountService;
 import ca.mcgill.ecse321.gameorganizer.services.GameService;
+import ca.mcgill.ecse321.gameorganizer.dto.request.GameCreationDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.GameSearchCriteria;
+import ca.mcgill.ecse321.gameorganizer.dto.request.ReviewSubmissionDto;
+import ca.mcgill.ecse321.gameorganizer.dto.response.GameResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dto.response.ReviewResponseDto;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException; // Import
 import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException; // Import
 import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException; // Import

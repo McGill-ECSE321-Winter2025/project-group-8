@@ -16,7 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.access.prepost.PreAuthorize; // Import PreAuthorize
 
-import ca.mcgill.ecse321.gameorganizer.dto.LendingHistoryFilterDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.LendingHistoryFilterDto;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException; // Import ForbiddenException
 import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;

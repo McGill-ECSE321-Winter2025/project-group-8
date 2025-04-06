@@ -46,7 +46,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import java.util.Collections;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository; // Import AccountRepository
 
-import ca.mcgill.ecse321.gameorganizer.dto.LendingHistoryFilterDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.LendingHistoryFilterDto;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;

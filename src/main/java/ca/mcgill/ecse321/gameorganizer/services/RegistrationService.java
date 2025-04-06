@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.access.prepost.PreAuthorize;
 
-import ca.mcgill.ecse321.gameorganizer.dto.RegistrationResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dto.response.RegistrationResponseDto;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;

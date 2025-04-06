@@ -34,9 +34,9 @@ import java.util.Collections;
 import org.springframework.test.context.ContextConfiguration;
 
 import ca.mcgill.ecse321.gameorganizer.TestJwtConfig;
-import ca.mcgill.ecse321.gameorganizer.dto.GameCreationDto;
-import ca.mcgill.ecse321.gameorganizer.dto.GameResponseDto;
-import ca.mcgill.ecse321.gameorganizer.dto.ReviewSubmissionDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.GameCreationDto;
+import ca.mcgill.ecse321.gameorganizer.dto.response.GameResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.ReviewSubmissionDto;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;

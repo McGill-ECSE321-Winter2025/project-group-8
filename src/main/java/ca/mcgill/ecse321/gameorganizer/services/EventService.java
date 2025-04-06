@@ -16,7 +16,7 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.security.access.prepost.PreAuthorize; // Import PreAuthorize
 import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException; // Import ForbiddenException
 
-import ca.mcgill.ecse321.gameorganizer.dto.CreateEventRequest;
+import ca.mcgill.ecse321.gameorganizer.dto.request.CreateEventRequest;
 import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;
 import ca.mcgill.ecse321.gameorganizer.models.Account; // Import UnauthedException
 import ca.mcgill.ecse321.gameorganizer.models.Event; // Import Account

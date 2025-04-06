@@ -17,8 +17,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-import ca.mcgill.ecse321.gameorganizer.dto.RegistrationRequestDto;
-import ca.mcgill.ecse321.gameorganizer.dto.RegistrationResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.RegistrationRequestDto;
+import ca.mcgill.ecse321.gameorganizer.dto.response.RegistrationResponseDto;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;

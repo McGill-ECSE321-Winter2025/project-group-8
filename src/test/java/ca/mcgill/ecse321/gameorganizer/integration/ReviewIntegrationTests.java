@@ -33,8 +33,7 @@ import org.junit.jupiter.api.BeforeAll;
 
 // Removed TestRestTemplate, @LocalServerPort, @Import, HttpEntity, HttpHeaders imports
 
-import ca.mcgill.ecse321.gameorganizer.dto.ReviewResponseDto;
-import ca.mcgill.ecse321.gameorganizer.dto.ReviewSubmissionDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.ReviewSubmissionDto;
 // Removed TestConfig and SecurityConfig imports
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Game;

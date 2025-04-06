@@ -32,7 +32,7 @@ import org.springframework.test.context.ContextConfiguration;
 
 // Removed TestRestTemplate, @LocalServerPort, @Import, HttpEntity, HttpHeaders, HttpMethod, ResponseEntity imports
 
-import ca.mcgill.ecse321.gameorganizer.dto.CreateEventRequest;
+import ca.mcgill.ecse321.gameorganizer.dto.request.CreateEventRequest;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.TestJwtConfig;

@@ -17,8 +17,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequestStatus;
-import ca.mcgill.ecse321.gameorganizer.dto.BorrowRequestDto;
-import ca.mcgill.ecse321.gameorganizer.dto.CreateBorrowRequestDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.BorrowRequestDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.CreateBorrowRequestDto;
 import ca.mcgill.ecse321.gameorganizer.services.BorrowRequestService;
 import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException; // Import

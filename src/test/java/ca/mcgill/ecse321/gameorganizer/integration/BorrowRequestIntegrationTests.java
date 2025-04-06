@@ -35,8 +35,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 // Removed TestRestTemplate, @LocalServerPort, HttpEntity, HttpHeaders, HttpMethod, ResponseEntity imports
 // Removed TestConfig, SecurityConfig imports
 
-import ca.mcgill.ecse321.gameorganizer.dto.BorrowRequestDto;
-import ca.mcgill.ecse321.gameorganizer.dto.CreateBorrowRequestDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.BorrowRequestDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.CreateBorrowRequestDto;
 // Removed JwtAuthenticationResponse, AuthenticationDTO imports
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;

@@ -1,4 +1,4 @@
-package ca.mcgill.ecse321.gameorganizer.dto;
+package ca.mcgill.ecse321.gameorganizer.dto.response;
 
 public class GameSummaryDto {
     private int id; // Changed type from Integer to int

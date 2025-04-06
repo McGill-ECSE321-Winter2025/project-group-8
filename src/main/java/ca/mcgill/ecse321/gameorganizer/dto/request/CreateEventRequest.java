@@ -1,9 +1,8 @@
-package ca.mcgill.ecse321.gameorganizer.dto.requests;
+package ca.mcgill.ecse321.gameorganizer.dto.request;
 
 import java.sql.Date;
 
 import ca.mcgill.ecse321.gameorganizer.models.Account;
-import ca.mcgill.ecse321.gameorganizer.models.Event;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import lombok.Data;
 
@@ -16,4 +15,11 @@ public class CreateEventRequest {
     private int maxParticipants;
     private Game featuredGame;
     private Account host;
+    public void setDateTime(java.util.Date date) {
+        if (date == null) {
+            this.dateTime = null;
+        } else {
+            this.dateTime = new java.sql.Date(date.getTime());
+        }
+    }
 }

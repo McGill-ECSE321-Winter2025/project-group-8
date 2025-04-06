@@ -20,11 +20,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.core.env.Environment;
 
-import ca.mcgill.ecse321.gameorganizer.dto.AuthenticationDTO;
+import ca.mcgill.ecse321.gameorganizer.dto.request.AuthenticationDTO;
 // import ca.mcgill.ecse321.gameorganizer.dto.JwtAuthenticationResponse; // No longer returning JWT in body
-import ca.mcgill.ecse321.gameorganizer.dto.UserSummaryDto; // Import UserSummaryDto
-import ca.mcgill.ecse321.gameorganizer.dto.PasswordResetDto;
-import ca.mcgill.ecse321.gameorganizer.dto.PasswordResetRequestDto;
+import ca.mcgill.ecse321.gameorganizer.dto.response.UserSummaryDto; // Import UserSummaryDto
+import ca.mcgill.ecse321.gameorganizer.dto.request.PasswordResetDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.PasswordResetRequestDto;
 import ca.mcgill.ecse321.gameorganizer.exceptions.EmailNotFoundException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.InvalidPasswordException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.InvalidTokenException;
@@ -32,7 +32,6 @@ import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.security.JwtUtil;
 import ca.mcgill.ecse321.gameorganizer.services.AuthenticationService;
-import ca.mcgill.ecse321.gameorganizer.dto.LoginResponse;
 
 import java.util.Arrays;
 
@@ -109,7 +108,7 @@ public class AuthenticationController {
                 .secure(false) // Set to false for local development, true for production
                 .path("/")
                 .maxAge(24 * 3600) // 24 hours expiration (in seconds)
-                .sameSite("Lax") // Less strict for easier development
+                .sameSite("Strict") // Align with integration test requirements
                 .build();
 
             // Add cookie to the response header
@@ -125,24 +124,9 @@ public class AuthenticationController {
                 .build();
             response.addHeader("Set-Cookie", authFlagCookie.toString());
             
-            // Method 2: Also try traditional Cookie approach as a backup
-            Cookie traditionalCookie = new Cookie("accessToken", jwt);
-            traditionalCookie.setHttpOnly(true);
-            traditionalCookie.setPath("/");
-            traditionalCookie.setMaxAge(24 * 3600); // 24 hours in seconds
-            response.addCookie(traditionalCookie);
-            
-            // Traditional non-HttpOnly auth flag cookie
-            Cookie authCookie = new Cookie("isAuthenticated", "true");
-            authCookie.setHttpOnly(false);
-            authCookie.setPath("/");
-            authCookie.setMaxAge(24 * 3600); // 24 hours in seconds
-            response.addCookie(authCookie);
-            
             // Debug cookie setting
-            System.out.println("Setting cookie via header: " + cookie.toString());
-            System.out.println("Setting cookie via Cookie object. Name: accessToken, Value: [JWT_TOKEN_LENGTH=" + jwt.length() + "]");
-
+            System.out.println("Setting accessToken cookie via header: " + cookie.toString());
+            System.out.println("Setting isAuthenticated cookie via header: " + authFlagCookie.toString());
             // Return UserSummaryDto to be consistent with test expectations
             UserSummaryDto userSummary = new UserSummaryDto(user.getId(), user.getName(), user.getEmail());
             return ResponseEntity.ok(userSummary);

@@ -30,9 +30,9 @@ import org.springframework.test.context.ContextConfiguration;
 import ca.mcgill.ecse321.gameorganizer.TestJwtConfig;
 
 // DTOs and Models
-import ca.mcgill.ecse321.gameorganizer.dto.LendingHistoryFilterDto;
-import ca.mcgill.ecse321.gameorganizer.dto.LendingRecordResponseDto; // Keep if needed for response mapping
-import ca.mcgill.ecse321.gameorganizer.dto.UpdateLendingRecordStatusDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.LendingHistoryFilterDto;
+import ca.mcgill.ecse321.gameorganizer.dto.response.LendingRecordResponseDto; // Keep if needed for response mapping
+import ca.mcgill.ecse321.gameorganizer.dto.request.UpdateLendingRecordStatusDto;
 import ca.mcgill.ecse321.gameorganizer.models.LendingRecord;
 import ca.mcgill.ecse321.gameorganizer.models.LendingRecord.LendingStatus;
 import ca.mcgill.ecse321.gameorganizer.models.Account;

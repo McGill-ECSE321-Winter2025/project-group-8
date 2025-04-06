@@ -24,8 +24,8 @@ import org.springframework.test.context.ActiveProfiles;
 
 import ca.mcgill.ecse321.gameorganizer.config.SecurityConfig;
 import ca.mcgill.ecse321.gameorganizer.config.TestConfig;
-import ca.mcgill.ecse321.gameorganizer.dto.AuthenticationDTO;
-import ca.mcgill.ecse321.gameorganizer.dto.UserSummaryDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.AuthenticationDTO;
+import ca.mcgill.ecse321.gameorganizer.dto.response.UserSummaryDto;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 

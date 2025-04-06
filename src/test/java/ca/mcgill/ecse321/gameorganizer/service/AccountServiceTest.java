@@ -32,9 +32,9 @@ import java.util.Collections;
 import org.springframework.test.context.ContextConfiguration;
 
 import ca.mcgill.ecse321.gameorganizer.TestJwtConfig;
-import ca.mcgill.ecse321.gameorganizer.dto.AccountResponse;
-import ca.mcgill.ecse321.gameorganizer.dto.CreateAccountRequest;
-import ca.mcgill.ecse321.gameorganizer.dto.UpdateAccountRequest;
+import ca.mcgill.ecse321.gameorganizer.dto.response.AccountResponse;
+import ca.mcgill.ecse321.gameorganizer.dto.request.CreateAccountRequest;
+import ca.mcgill.ecse321.gameorganizer.dto.request.UpdateAccountRequest;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
@@ -83,11 +83,11 @@ public class AccountServiceTest {
     public void setup() {
     testAccount = new Account(VALID_USERNAME, VALID_EMAIL, VALID_PASSWORD);
     testAccount.setId(1);
-    testAccount.setName(VALID_USERNAME); // Ensure the name is set
+    // The constructor Account(username, email, password) should handle setting the name.
 
     testGameOwner = new GameOwner(VALID_USERNAME, VALID_EMAIL, VALID_PASSWORD);
     testGameOwner.setId(2);
-    testGameOwner.setName(VALID_USERNAME); // Ensure the name is set
+    // The constructor GameOwner(username, email, password) should handle setting the name.
 
     createAccountRequest = new CreateAccountRequest(VALID_EMAIL, VALID_USERNAME, VALID_PASSWORD, false);
 
