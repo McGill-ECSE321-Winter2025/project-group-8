@@ -1,31 +1,37 @@
 import { Button } from "@/components/ui/button.jsx";
 import { Card, CardContent } from "@/components/ui/card.jsx";
-import { useState } from "react";
 import { updateBorrowRequestStatusById } from "../../service/borrow_request-api.js";
 
-export default function BorrowRequest({ id, name, requester, date, endDate, status: initialStatus = "PENDING" }) {
-  // Initialize state with the status prop value
-  const [status, setStatus] = useState(initialStatus);
-
+export default function BorrowRequest({
+  id,
+  name,
+  requester,
+  date,
+  endDate,
+  status,
+  onStatusChange
+}) {
   const handleAccept = async () => {
-    // Only allow action if status is still PENDING
     if (status !== "PENDING") return;
     
     try {
       await updateBorrowRequestStatusById(id, "APPROVED");
-      setStatus("APPROVED");
+      if (onStatusChange) {
+        onStatusChange(id, "APPROVED");
+      }
     } catch (error) {
       console.error("Failed to update status:", error);
     }
   };
 
   const handleDecline = async () => {
-    // Only allow action if status is still PENDING
     if (status !== "PENDING") return;
     
     try {
       await updateBorrowRequestStatusById(id, "DECLINED");
-      setStatus("DECLINED");
+      if (onStatusChange) {
+        onStatusChange(id, "DECLINED");
+      }
     } catch (error) {
       console.error("Failed to update status:", error);
     }
@@ -44,7 +50,6 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
     }
   };
 
-  // Only show action buttons if status is still PENDING
   const isPending = status === "PENDING";
 
   return (
@@ -55,10 +60,10 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
             <div className="aspect-square bg-muted rounded-lg flex items-center justify-center"></div>
           </div>
           <div className="flex-1">
-            <div className="flex justify-between">
+            <div className="flex justify-between items-center">
               <h3 className="text-xl font-semibold">Request for "{name}"</h3>
               <div
-                className={`px-4 py-1 mr-4 rounded-full text-xs ${getStatusClass()}`}
+                className={`px-4 py-1 rounded-full text-xs min-w-20 text-center ${getStatusClass()}`}
               >
                 {status}
               </div>
