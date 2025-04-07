@@ -2,42 +2,45 @@ package ca.mcgill.ecse321.gameorganizer.services;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.Map;
 
 import org.slf4j.Logger; // Added Logger import
 import org.slf4j.LoggerFactory; // Added LoggerFactory import
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.security.access.prepost.PreAuthorize; // Import PreAuthorize
+import org.springframework.transaction.annotation.Transactional; // Import PreAuthorize
 
 import ca.mcgill.ecse321.gameorganizer.dto.request.GameCreationDto;
 import ca.mcgill.ecse321.gameorganizer.dto.request.GameSearchCriteria;
 import ca.mcgill.ecse321.gameorganizer.dto.request.ReviewSubmissionDto;
-import ca.mcgill.ecse321.gameorganizer.dto.response.GameResponseDto;
 import ca.mcgill.ecse321.gameorganizer.dto.response.GameInstanceResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dto.response.GameResponseDto;
 import ca.mcgill.ecse321.gameorganizer.dto.response.ReviewResponseDto;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException; // Import ForbiddenException
 import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
+import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest; // Import added
 import ca.mcgill.ecse321.gameorganizer.models.Event;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
+import ca.mcgill.ecse321.gameorganizer.models.GameInstance;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
-import ca.mcgill.ecse321.gameorganizer.models.Registration;
+import ca.mcgill.ecse321.gameorganizer.models.LendingRecord; // Import added
 import ca.mcgill.ecse321.gameorganizer.models.Review;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository; // Import added
 import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.GameInstanceRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.LendingRecordRepository; // Import added
 import ca.mcgill.ecse321.gameorganizer.repositories.RegistrationRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
-import ca.mcgill.ecse321.gameorganizer.repositories.GameInstanceRepository;
-import ca.mcgill.ecse321.gameorganizer.models.GameInstance;
 
 /**
  * Service class that handles business logic for game management operations.
@@ -57,16 +60,20 @@ public class GameService {
     private RegistrationRepository  registrationRepository;
     private EventRepository eventRepository;
     private GameInstanceRepository gameInstanceRepository;
+    private BorrowRequestRepository borrowRequestRepository;
+    private LendingRecordRepository lendingRecordRepository; // Added field
 
 
     @Autowired
-    public GameService(GameRepository gameRepository, ReviewRepository reviewRepository, AccountRepository accountRepository, RegistrationRepository registrationRepository, EventRepository eventRepository, GameInstanceRepository gameInstanceRepository) {
+    public GameService(GameRepository gameRepository, ReviewRepository reviewRepository, AccountRepository accountRepository, RegistrationRepository registrationRepository, EventRepository eventRepository, GameInstanceRepository gameInstanceRepository, BorrowRequestRepository borrowRequestRepository, LendingRecordRepository lendingRecordRepository) { // Added parameter
         this.gameRepository = gameRepository;
         this.reviewRepository = reviewRepository;
         this.accountRepository = accountRepository;
         this.registrationRepository = registrationRepository;
         this.eventRepository = eventRepository;
         this.gameInstanceRepository = gameInstanceRepository;
+        this.borrowRequestRepository = borrowRequestRepository;
+        this.lendingRecordRepository = lendingRecordRepository; // Added assignment
     }
 
     /**
@@ -507,11 +514,44 @@ public class GameService {
             }
             // --- End Cascade Delete Logic ---
 
-            // Step 4: Delete the game itself
+            // Step 4: Delete associated LendingRecords and BorrowRequests
+            logger.info("Finding associated borrow requests for game {}...", id);
+            List<BorrowRequest> borrowRequestsToDelete = borrowRequestRepository.findByRequestedGame(gameToDelete);
+            if (!borrowRequestsToDelete.isEmpty()) {
+                logger.info("Found {} associated borrow requests. Checking for linked lending records...", borrowRequestsToDelete.size(), id);
+                // Delete associated LendingRecords first
+                for (BorrowRequest br : borrowRequestsToDelete) {
+                    Optional<LendingRecord> lendingRecordOpt = lendingRecordRepository.findByRequest(br);
+                    if (lendingRecordOpt.isPresent()) {
+                        logger.info("Deleting lending record {} linked to borrow request {}...", lendingRecordOpt.get().getId(), br.getId());
+                        lendingRecordRepository.delete(lendingRecordOpt.get());
+                        logger.info("Deleted lending record {}.", lendingRecordOpt.get().getId());
+                    }
+                }
+                // Now delete the BorrowRequests
+                logger.info("Deleting {} associated borrow requests for game {}...", borrowRequestsToDelete.size(), id);
+                borrowRequestRepository.deleteAll(borrowRequestsToDelete);
+                logger.info("Deleted associated borrow requests for game {}.", id);
+            } else {
+                logger.info("No associated borrow requests found for game {}.", id);
+            }
+
+            // Step 5: Delete associated GameInstances
+            logger.info("Finding associated game instances for game {}...", id);
+            List<GameInstance> instancesToDelete = gameInstanceRepository.findByGame(gameToDelete);
+            if (!instancesToDelete.isEmpty()) {
+                logger.info("Deleting {} associated game instances for game {}...", instancesToDelete.size(), id);
+                gameInstanceRepository.deleteAll(instancesToDelete);
+                logger.info("Deleted associated game instances for game {}.", id);
+            } else {
+                logger.info("No associated game instances found for game {}.", id);
+            }
+
+            // Step 6: Delete the game itself
             logger.info("Deleting game {}...", id);
             gameRepository.delete(gameToDelete);
             logger.info("Successfully deleted game {}.", id);
-            return ResponseEntity.ok("Game with ID " + id + " and its associated events/registrations have been deleted");
+            return ResponseEntity.ok("Game with ID " + id + ", its instances, lending records, borrow requests, and associated events/registrations have been deleted"); // Updated message again
 
         } catch (ResourceNotFoundException e) {
             throw e; // Re-throw not found error
