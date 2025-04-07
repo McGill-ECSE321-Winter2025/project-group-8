@@ -43,7 +43,7 @@ public class LendingRecordController {
 
     @Autowired
     private LendingRecordService lendingRecordService;
-    
+
     @Autowired
     private AccountService accountService;
     

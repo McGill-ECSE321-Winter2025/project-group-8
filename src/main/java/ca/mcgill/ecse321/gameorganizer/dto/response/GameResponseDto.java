@@ -7,6 +7,7 @@ import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 /**
  * Data Transfer Object for Game responses in the API
  */
+
 public class GameResponseDto {
     private int id;
     private String name;

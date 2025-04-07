@@ -119,7 +119,7 @@ public class LendingRecordService {
             
             for (GameInstance instance : instances) {
                 if (instance.isAvailable()) {
-                    instance.setAvailable(false);
+                    // instance.setAvailable(false);
                     gameInstanceRepository.save(instance);
                     instanceFound = true;
                     log.info("Game instance ID: {} for game '{}' marked as unavailable due to lending", 
