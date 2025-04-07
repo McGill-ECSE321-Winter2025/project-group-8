@@ -30,7 +30,6 @@ export default function MenuBar() {
         }
       }
     };
-
     fetchUserInfo();
   }, [location.pathname]);
 
@@ -48,7 +47,7 @@ export default function MenuBar() {
   // Render the actual menu bar, including navigation and user actions
   return (
     <header className="bg-white border-b shadow-sm">
-      <div className="flex items-center justify-between py-4 px-6 md:px-10 max-w-screen-xl mx-auto">
+      <div className="flex items-center justify-between py-4 max-w-screen-xl mx-auto">
         {/* Logo and homepage link */}
         <Link to="/" className="flex items-center gap-2">
           <img
@@ -124,7 +123,7 @@ export default function MenuBar() {
           {isLoggedIn && (
             <div className="flex items-center gap-2 pl-3 border-l border-gray-200">
               {userName && (
-                <span className="text-sm text-gray-700 font-medium">
+                <span className="text-sm text-gray-700 font-medium mx-2">
                   Hi, {userName} 👋
                 </span>
               )}

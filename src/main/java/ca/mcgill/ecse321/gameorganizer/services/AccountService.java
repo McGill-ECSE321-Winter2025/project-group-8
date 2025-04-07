@@ -3,6 +3,8 @@ package ca.mcgill.ecse321.gameorganizer.services;
 import java.util.ArrayList;
 import java.util.List;
 
+import ca.mcgill.ecse321.gameorganizer.models.*;
+import ca.mcgill.ecse321.gameorganizer.repositories.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,16 +27,6 @@ import ca.mcgill.ecse321.gameorganizer.dto.CreateAccountRequest; // Import Unaut
 import ca.mcgill.ecse321.gameorganizer.dto.EventResponse;
 import ca.mcgill.ecse321.gameorganizer.dto.UpdateAccountRequest;
 import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;
-import ca.mcgill.ecse321.gameorganizer.models.Account;
-import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
-import ca.mcgill.ecse321.gameorganizer.models.Event;
-import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
-import ca.mcgill.ecse321.gameorganizer.models.Registration;
-import ca.mcgill.ecse321.gameorganizer.models.Review;
-import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
-import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;
-import ca.mcgill.ecse321.gameorganizer.repositories.RegistrationRepository;
-import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
 
 /**
  * Service class that handles business logic for account management operations.
@@ -52,6 +44,7 @@ public class AccountService implements UserDetailsService { // Implement UserDet
     private final ReviewRepository reviewRepository;
     private final BorrowRequestRepository borrowRequestRepository;
     private final PasswordEncoder passwordEncoder; // Added PasswordEncoder
+    private final LendingRecordRepository lendingRecordRepository;
 
     // UserContext removed
 
@@ -61,12 +54,13 @@ public class AccountService implements UserDetailsService { // Implement UserDet
             RegistrationRepository registrationRepository,
             ReviewRepository reviewRepository,
             BorrowRequestRepository borrowRequestRepository,
-            PasswordEncoder passwordEncoder) { // Inject PasswordEncoder
+            PasswordEncoder passwordEncoder, LendingRecordRepository lendingRecordRepository) { // Inject PasswordEncoder
         this.accountRepository = accountRepository;
         this.registrationRepository = registrationRepository;
         this.reviewRepository = reviewRepository;
         this.borrowRequestRepository = borrowRequestRepository;
         this.passwordEncoder = passwordEncoder; // Assign injected encoder
+        this.lendingRecordRepository = lendingRecordRepository;
     }
 
     /**
@@ -226,44 +220,13 @@ public class AccountService implements UserDetailsService { // Implement UserDet
         String password = request.getPassword();
         String newPassword = request.getNewPassword();
 
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
-            // Use exception consistently instead of returning ResponseEntity for auth errors
-            throw new UnauthedException("User must be authenticated to update account.");
-        }
-
-        String currentUsername;
-        Object principal = authentication.getPrincipal();
-        // Assuming the principal is the email used for login, as is common with UserDetails
-        if (principal instanceof UserDetails) {
-            currentUsername = ((UserDetails) principal).getUsername();
-        } else if (principal instanceof String) {
-             currentUsername = (String) principal;
-        }
-        else {
-            // Handle unexpected principal type
-             throw new UnauthedException("Unexpected principal type in SecurityContext.");
-        }
-
-
-        Account currentUser = accountRepository.findByEmail(currentUsername).orElseThrow(
-                () -> new UnauthedException("Authenticated user '" + currentUsername + "' not found in database.") // Should ideally not happen if JWT/session is valid
-        );
-
         Account account;
         try {
             account = accountRepository.findByEmail(email).orElseThrow(
                 () -> new IllegalArgumentException("Account with email " + email + " does not exist")
             );
-
-            // Authorization Check: Ensure the authenticated user is the one being updated
-            // Use .equals() for safe comparison of IDs (handles both primitives and wrappers)
-            if (currentUser.getId() != account.getId()) {
-                 throw new UnauthedException("Access denied: You can only update your own account.");
-            }
-
             // Password check (target account already fetched)
-            if (!account.getPassword().equals(password)) {
+            if (!passwordEncoder.matches(password, account.getPassword())) {
                 throw new IllegalArgumentException("Passwords do not match");
             }
         } catch (IllegalArgumentException e){
@@ -272,7 +235,7 @@ public class AccountService implements UserDetailsService { // Implement UserDet
         // Update using setName() since the domain model uses "name" for the username.
         account.setName(newUsername);
         if (newPassword != null && !newPassword.isEmpty()) {
-            account.setPassword(newPassword);
+            account.setPassword(passwordEncoder.encode(newPassword));
         }
         accountRepository.save(account);
         return ResponseEntity.ok("Account updated successfully");
@@ -307,33 +270,68 @@ public class AccountService implements UserDetailsService { // Implement UserDet
         Account account;
         try {
             account = getAccountByEmail(email);
-        }
-        catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body("Bad request: no such account exists.");
         }
+
         if (account instanceof GameOwner) {
             return ResponseEntity.badRequest().body("Bad request: account already a game owner.");
         }
-        // Retrieve the username from getName(); if null, fallback to email.
+
+        // Get all related entities
+        List<Registration> registrations = registrationRepository.findRegistrationByAttendeeEmail(account.getEmail());
+        List<BorrowRequest> borrowRequests = borrowRequestRepository.findBorrowRequestsByRequesterEmail(account.getEmail());
+        List<Review> reviews = reviewRepository.findReviewsByReviewerEmail(account.getEmail());
+
+        // Set all associations to null
+        for (Registration registration : registrations) {
+            registration.setAttendee(null);
+            registrationRepository.save(registration);
+        }
+
+        for (BorrowRequest borrowRequest : borrowRequests) {
+            borrowRequest.setRequester(null);
+            borrowRequestRepository.save(borrowRequest);
+        }
+
+        for (Review review : reviews) {
+            review.setReviewer(null);
+            reviewRepository.save(review);
+        }
+
+        accountRepository.flush();
+
+        // Create new GameOwner
         String accountName = account.getName();
         if (accountName == null || accountName.trim().isEmpty()) {
             accountName = account.getEmail();
         }
-        GameOwner gameOwner = new GameOwner(accountName, account.getEmail(), account.getPassword());
+
+        // Delete old account before creating new one
         accountRepository.delete(account);
-        accountRepository.save(gameOwner);
-        List<Registration> registrations = registrationRepository.findRegistrationByAttendeeName(accountName);
+        accountRepository.flush();
+
+        // Create and save new GameOwner
+        GameOwner gameOwner = new GameOwner(accountName, account.getEmail(), account.getPassword());
+        gameOwner = accountRepository.save(gameOwner);
+        accountRepository.flush();
+
+        // Update all relationships with the new GameOwner
         for (Registration registration : registrations) {
             registration.setAttendee(gameOwner);
+            registrationRepository.save(registration);
         }
-        List<BorrowRequest> borrowRequests = borrowRequestRepository.findBorrowRequestsByRequesterName(accountName);
+
         for (BorrowRequest borrowRequest : borrowRequests) {
             borrowRequest.setRequester(gameOwner);
+            borrowRequestRepository.save(borrowRequest);
         }
-        List<Review> reviews = reviewRepository.findReviewsByReviewerName(accountName);
+
         for (Review review : reviews) {
             review.setReviewer(gameOwner);
+            reviewRepository.save(review);
         }
+
         return ResponseEntity.ok("Account updated to GameOwner successfully");
     }
 }

@@ -37,8 +37,6 @@ export default function LoginPage() {
         localStorage.setItem("userId", data.userId); // Use field name from JwtAuthenticationResponse
         localStorage.setItem("token", data.token);
         localStorage.setItem("userEmail", data.email); // Store email
-      
-
 
         // Redirect to dashboard
         navigate("/dashboard/profile")

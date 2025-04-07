@@ -75,4 +75,6 @@ public interface BorrowRequestRepository extends JpaRepository<BorrowRequest, In
      * @return List of borrow requests made by the specified requester
      */
     List<BorrowRequest> findByRequester(Account requester);
+
+    List<BorrowRequest> findBorrowRequestsByRequesterEmail(String email);
 }
