@@ -23,6 +23,7 @@ export default function SideMenuBar({ userType }) { // userType prop might becom
   const [open, setOpen] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isUpgrading, setIsUpgrading] = useState(false);
   const [upgradeError, setUpgradeError] = useState(null);
@@ -35,7 +36,7 @@ export default function SideMenuBar({ userType }) { // userType prop might becom
     e.preventDefault();
     setSettingsError(null);
 
-    if (password && password !== confirmPassword) {
+    if (newPassword && newPassword !== confirmPassword) {
       // alert("Passwords don't match"); // Replace alert with better feedback
       setSettingsError("Passwords don't match");
       // toast.error("Passwords don't match");
@@ -45,12 +46,14 @@ export default function SideMenuBar({ userType }) { // userType prop might becom
     setIsSavingSettings(true);
 
     const updateData = {};
+    updateData.email = localStorage.getItem("userEmail");
     if (username.trim()) {
       updateData.username = username.trim();
     }
-    if (password) {
+    updateData.password = password;
+    if (newPassword) {
       // Add password validation if needed (e.g., minimum length)
-      updateData.password = password;
+      updateData.newPassword = newPassword;
     }
 
     if (Object.keys(updateData).length === 0) {
@@ -142,7 +145,7 @@ export default function SideMenuBar({ userType }) { // userType prop might becom
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
                 <Label htmlFor="username">
-                  <User className="h-4 w-4 inline mr-2" />
+                  <User className="h-4 w-4 inline mr-2"/>
                   Username
                 </Label>
                 <Input
@@ -154,15 +157,28 @@ export default function SideMenuBar({ userType }) { // userType prop might becom
               </div>
 
               <div className="grid gap-2">
+                <Label htmlFor="username">
+                  <KeyRound className="h-4 w-4 inline mr-2"/>
+                  Password
+                </Label>
+                <Input
+                  id="username"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter new username"
+                />
+              </div>
+
+              <div className="grid gap-2">
                 <Label htmlFor="password">
-                  <KeyRound className="h-4 w-4 inline mr-2" />
+                  <KeyRound className="h-4 w-4 inline mr-2"/>
                   New Password
                 </Label>
                 <Input
                   id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="Enter new password"
                 />
                 <p className="text-xs text-muted-foreground">Leave blank if you don't want to change your password</p>
@@ -173,7 +189,6 @@ export default function SideMenuBar({ userType }) { // userType prop might becom
                   <Label htmlFor="confirmPassword">Confirm Password</Label>
                   <Input
                     id="confirmPassword"
-                    type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Confirm new password"

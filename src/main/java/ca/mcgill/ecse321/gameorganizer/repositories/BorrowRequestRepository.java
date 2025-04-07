@@ -109,4 +109,6 @@ public interface BorrowRequestRepository extends JpaRepository<BorrowRequest, In
         @Param("gameId") int gameId,
         @Param("startDate") Date startDate,
         @Param("endDate") Date endDate);
+
+    List<BorrowRequest> findBorrowRequestsByRequesterEmail(String email);
 }

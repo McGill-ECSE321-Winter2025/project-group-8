@@ -205,7 +205,6 @@ public class AccountService {
      * @return ResponseEntity with update confirmation message or failure message
      */
     @Transactional
-    @PreAuthorize("#request.email == authentication.principal.username") // Ensure user updates their own account
     public ResponseEntity<String> updateAccount(UpdateAccountRequest request) {
         String email = request.getEmail();
         String newUsername = request.getUsername();
@@ -278,41 +277,72 @@ public class AccountService {
      * @note If there is any issue during runtime, changes are rolled back
      */
     @Transactional
-    @PreAuthorize("#email == authentication.principal.username") // Ensure user upgrades their own account
     public ResponseEntity<String> upgradeUserToGameOwner(String email) {
         Account account;
         try {
             account = getAccountByEmail(email);
         } catch (IllegalArgumentException e) {
-            // Consider logging the exception e
             return ResponseEntity.badRequest().body("Bad request: no such account exists.");
-        } catch (org.springframework.security.access.AccessDeniedException e) {
-             // Catch potential AccessDeniedException from @PreAuthorize and convert to ForbiddenException
-             throw new ForbiddenException("Access denied: You can only upgrade your own account.");
         }
+
         if (account instanceof GameOwner) {
             return ResponseEntity.badRequest().body("Bad request: account already a game owner.");
         }
-        // Retrieve the username from getName(); if null, fallback to email.
+
+        // Get all related entities
+        List<Registration> registrations = registrationRepository.findRegistrationByAttendeeEmail(account.getEmail());
+        List<BorrowRequest> borrowRequests = borrowRequestRepository.findBorrowRequestsByRequesterEmail(account.getEmail());
+        List<Review> reviews = reviewRepository.findReviewsByReviewerEmail(account.getEmail());
+
+        // Set all associations to null
+        for (Registration registration : registrations) {
+            registration.setAttendee(null);
+            registrationRepository.save(registration);
+        }
+
+        for (BorrowRequest borrowRequest : borrowRequests) {
+            borrowRequest.setRequester(null);
+            borrowRequestRepository.save(borrowRequest);
+        }
+
+        for (Review review : reviews) {
+            review.setReviewer(null);
+            reviewRepository.save(review);
+        }
+
+        accountRepository.flush();
+
+        // Create new GameOwner
         String accountName = account.getName();
         if (accountName == null || accountName.trim().isEmpty()) {
             accountName = account.getEmail();
         }
-        GameOwner gameOwner = new GameOwner(accountName, account.getEmail(), account.getPassword());
+
+        // Delete old account before creating new one
         accountRepository.delete(account);
-        accountRepository.save(gameOwner);
-        List<Registration> registrations = registrationRepository.findRegistrationByAttendeeName(accountName);
+        accountRepository.flush();
+
+        // Create and save new GameOwner
+        GameOwner gameOwner = new GameOwner(accountName, account.getEmail(), account.getPassword());
+        gameOwner = accountRepository.save(gameOwner);
+        accountRepository.flush();
+
+        // Update all relationships with the new GameOwner
         for (Registration registration : registrations) {
             registration.setAttendee(gameOwner);
+            registrationRepository.save(registration);
         }
-        List<BorrowRequest> borrowRequests = borrowRequestRepository.findBorrowRequestsByRequesterName(accountName);
+
         for (BorrowRequest borrowRequest : borrowRequests) {
             borrowRequest.setRequester(gameOwner);
+            borrowRequestRepository.save(borrowRequest);
         }
-        List<Review> reviews = reviewRepository.findReviewsByReviewerName(accountName);
+
         for (Review review : reviews) {
             review.setReviewer(gameOwner);
+            reviewRepository.save(review);
         }
+
         return ResponseEntity.ok("Account updated to GameOwner successfully");
     }
 }
