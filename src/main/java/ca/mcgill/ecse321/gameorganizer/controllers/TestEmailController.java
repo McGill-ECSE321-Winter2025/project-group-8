@@ -1,7 +1,6 @@
 package ca.mcgill.ecse321.gameorganizer.controllers;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -30,11 +29,8 @@ public class TestEmailController {
     @Autowired
     private EmailService emailService;
 
-    @Autowired(required = false)
+    @Autowired
     private GmailApiService gmailApiService;
-    
-    @Value("${use.gmail.api:false}")
-    private boolean useGmailApi;
 
     /**
      * Test endpoint to send a test email.
@@ -73,20 +69,9 @@ public class TestEmailController {
         
         try {
             // Add environment variables (but hide sensitive data)
-            report.append("EMAIL_USERNAME: ")
-                  .append(System.getProperty("EMAIL_USERNAME") != null ? "[CONFIGURED]" : "[NOT CONFIGURED]")
-                  .append("\n");
-                  
-            report.append("EMAIL_PASSWORD: ")
-                  .append(System.getProperty("EMAIL_PASSWORD") != null ? "[CONFIGURED]" : "[NOT CONFIGURED]")
-                  .append("\n");
-                  
-            report.append("Use Gmail API: ")
-                  .append(useGmailApi)
-                  .append("\n");
-            
-            report.append("Gmail API Service: ")
-                  .append(gmailApiService != null ? "[AVAILABLE]" : "[NOT AVAILABLE]")
+            String mailPassword = System.getenv("MAIL_PASSWORD");
+            report.append("MAIL_PASSWORD environment variable: ")
+                  .append(mailPassword != null ? "[CONFIGURED]" : "[NOT CONFIGURED]")
                   .append("\n");
             
             // Add more diagnostic info as needed
@@ -106,11 +91,6 @@ public class TestEmailController {
      */
     @PostMapping("/test-gmail-api")
     public ResponseEntity<String> testGmailApi(@RequestParam String email) {
-        if (gmailApiService == null) {
-            return ResponseEntity.badRequest()
-                    .body("Gmail API service is not available. Make sure 'use.gmail.api' is set to 'true' in application.properties.");
-        }
-        
         try {
             // Generate a fake token for testing
             String testToken = "test-token-" + System.currentTimeMillis();
