@@ -78,7 +78,7 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game }) => {
       } else if (message.toLowerCase().includes("not found")) {
         message = "The game or user could not be found.";
       } else if (message.toLowerCase().includes("400")) {
-        message = "The request could not be processed. Please check the details and try again.";
+        message = "The request could not be processed. The game is not available at these dates. Note that you cannot borrow a game that you own";
       }
 
       toast.error(message);
