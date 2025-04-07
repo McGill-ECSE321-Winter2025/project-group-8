@@ -334,4 +334,28 @@ public class AccountService implements UserDetailsService { // Implement UserDet
 
         return ResponseEntity.ok("Account updated to GameOwner successfully");
     }
+    /**
+     * Retrieves an account by its unique identifier.
+     *
+     * @param id The ID of the account to retrieve
+     * @return ResponseEntity with the account details or an error message if not found
+     */
+    @Transactional
+    public ResponseEntity<?> getAccountDetailsById(int id) {
+        return accountRepository.findById(id)
+                .map(account -> ResponseEntity.ok(new AccountResponse(
+                        account.getName(),
+                        registrationRepository.findRegistrationByAttendeeName(account.getName())
+                                .stream()
+                                .map(registration -> new EventResponse(registration.getEventRegisteredFor()))
+                                .toList(),
+                        account instanceof GameOwner
+                )))
+                .orElse(ResponseEntity.badRequest().body(new AccountResponse(
+                        "Account with ID " + id + " does not exist",
+                        new ArrayList<>(),
+                        false
+                )));
+    }
+    
 }

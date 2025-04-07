@@ -41,3 +41,42 @@ export const getUserInfoByEmail = async (email) => {
   }
 };
 
+/**
+ * Fetches user account information by ID.
+ * Requires authentication.
+ * @param {number|string} userId - The user ID to fetch
+ * @returns {Promise<Object>} - The user account data
+ */
+export const getUserById = async (userId) => {
+  const token = localStorage.getItem("token");
+  if (!token) {
+    throw new Error("Authentication token not found. Please log in.");
+  }
+  if (!userId) {
+    throw new Error("User ID is required to fetch account info.");
+  }
+
+  const headers = {
+    "Content-Type": "application/json",
+    'Authorization': `Bearer ${token}`
+  };
+
+  const url = `${API_BASE_URL}/account/id/${userId}`;
+
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: headers,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to fetch user: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    return response.json();
+  } catch (error) {
+    console.error("Error fetching user data:", error);
+    throw error; // Re-throw for the component to handle
+  }
+};

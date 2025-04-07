@@ -135,4 +135,19 @@ public class AccountController {
     public ResponseEntity<?> getAccount(@PathVariable String email) {
         return accountService.getAccountInfoByEmail(email);
     }
+
+    /**
+     * Retrieves account information by its unique identifier.
+     * <p>
+     * Endpoint: <code>GET /account/id/{id}</code>
+     * </p>
+     *
+     * @param id the unique identifier of the account to retrieve, provided as a path variable
+     * @return a {@code ResponseEntity<?>} containing an {@code AccountResponse} DTO with account details
+     *         if found or an error message if no account with the provided ID exists
+     */
+    @GetMapping("/id/{id}")
+    public ResponseEntity<?> getAccountById(@PathVariable int id) {
+        return accountService.getAccountDetailsById(id);
+    }
 }

@@ -3,6 +3,7 @@ import BorrowRequest from "@/components/dashboard-page/BorrowRequest.jsx";
 import { TabsContent } from "@/components/ui/tabs.jsx";
 import { getBorrowRequestsByOwner } from "@/service/borrow_request-api.js";
 import { getGameById } from "@/service/game-api.js";
+import { getUserById } from "@/service/user-api.js"; // Import this function
 import { toast } from "sonner";
 
 export default function DashboardBorrowRequests() {
@@ -16,14 +17,28 @@ export default function DashboardBorrowRequests() {
       
       const ownerRequests = await getBorrowRequestsByOwner(ownerId);
       
-      // Fetch game name for each request using game ID
+      // Fetch game name AND requester name for each request
       const enrichedRequests = await Promise.all(
         ownerRequests.map(async (req) => {
           try {
+            // Fetch game information
             const game = await getGameById(req.requestedGameId);
-            return { ...req, requestedGameName: game.name };
+            
+            // Fetch requester information
+            const requester = await getUserById(req.requesterId);
+            const requesterName = requester ? requester.username : "(Unknown User)";
+            
+            return { 
+              ...req, 
+              requestedGameName: game.name,
+              requesterName: requesterName  // Add requester name to the request object
+            };
           } catch (error) {
-            return { ...req, requestedGameName: "(Unknown Game)" };
+            return { 
+              ...req, 
+              requestedGameName: "(Unknown Game)",
+              requesterName: "(Unknown User)" 
+            };
           }
         })
       );
@@ -70,7 +85,7 @@ export default function DashboardBorrowRequests() {
               key={request.id}
               id={request.id}
               name={request.requestedGameName}
-              requester={request.requesterId || "(Unknown Requester)"}
+              requester={request.requesterName} // Use requesterName instead of requesterId
               date={new Date(request.startDate).toLocaleString()}
               endDate={new Date(request.endDate).toLocaleString()}
               status={request.status}
