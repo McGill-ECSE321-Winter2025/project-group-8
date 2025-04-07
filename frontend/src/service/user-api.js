@@ -12,46 +12,35 @@ export const getUserProfile = async () => {
 };
 
 /**
- * Fetches account information for a given email.
- * @param {string} email - The email of the user
- * @returns {Promise<object>} Account information
- * @throws {UnauthorizedError} If the user is not authenticated
- * @throws {ForbiddenError} If the user doesn't have permission
- * @throws {ApiError} For other API errors (e.g., not found)
+ * Fetches user information by email
+ * @param {string} email - The email of the user to retrieve
+ * @returns {Promise<Object>} - The user information
  */
-export const getUserInfoByEmail = async (email) => {
-  if (!email) {
-    throw new Error("Email is required to fetch account info");
-  }
-
-  // Log the request attempt for debugging
-  console.log(`Fetching user info for email: ${email}`);
-
+export async function getUserInfoByEmail(email) {
   try {
-    const response = await apiClient(`/users/search/${encodeURIComponent(email)}`, {
-      skipPrefix: false
-    });
-    
-    // Debug log to see what's being returned from the API
-    console.log("User info received:", response);
-    if (response.events) {
-      console.log("Events data sample:", response.events[0]);
+    if (!email) {
+      throw new Error("Email is required");
     }
     
+    // Use the correct API endpoint based on the backend controller
+    const response = await apiClient(`/api/account/${email}`, {
+      method: 'GET',
+    });
+
+    // If response is not what we expect, throw an error
+    if (!response || (response.error && !response.username)) {
+      throw new Error(response.error || "Invalid response from server");
+    }
+
     return response;
   } catch (error) {
-    // Log the error for debugging purposes
     console.error(`Error fetching user info for ${email}:`, error);
-    
-    // Propagate specific error types for better error handling
-    if (error.status === 404) {
-      throw new NotFoundError(`User with email ${email} not found`);
-    }
-    
-    // Rethrow other errors for caller to handle
-    throw error;
+    // Format the error appropriately
+    const formattedError = new Error(`User with email ${email} not found`);
+    formattedError.name = "NotFoundError";
+    throw formattedError;
   }
-};
+}
 
 /**
  * Logs out the current user
