@@ -86,4 +86,5 @@ public interface BorrowRequestRepository extends JpaRepository<BorrowRequest, In
      */
     @Query("SELECT br FROM BorrowRequest br WHERE br.requestedGame.owner.id = :ownerId")
     List<BorrowRequest> findBorrowRequestsByOwnerId(@Param("ownerId") int ownerId);
+
 }

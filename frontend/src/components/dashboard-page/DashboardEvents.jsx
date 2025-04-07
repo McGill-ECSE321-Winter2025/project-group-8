@@ -9,6 +9,7 @@ import { getRegistrationsByEmail } from "../../service/registration-api.js";
 import { Loader2 } from "lucide-react";
 
 export default function DashboardEvents({ userType }) {
+
   const [hostedEvents, setHostedEvents] = useState([]);
   const [attendedEvents, setAttendedEvents] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
