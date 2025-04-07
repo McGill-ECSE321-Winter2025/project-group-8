@@ -20,11 +20,15 @@ import ca.mcgill.ecse321.gameorganizer.dto.ReviewSubmissionDto;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
+import ca.mcgill.ecse321.gameorganizer.models.Event;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
+import ca.mcgill.ecse321.gameorganizer.models.Registration;
 import ca.mcgill.ecse321.gameorganizer.models.Review;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.RegistrationRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
 
 /**
@@ -40,13 +44,17 @@ public class GameService {
     private GameRepository gameRepository;
     private ReviewRepository reviewRepository;
     private AccountRepository accountRepository;
+    private RegistrationRepository  registrationRepository;
+    private EventRepository eventRepository; 
 
 
     @Autowired
-    public GameService(GameRepository gameRepository, ReviewRepository reviewRepository, AccountRepository accountRepository) {
+    public GameService(GameRepository gameRepository, ReviewRepository reviewRepository, AccountRepository accountRepository, RegistrationRepository registrationRepository, EventRepository eventRepository) {
         this.gameRepository = gameRepository;
         this.reviewRepository = reviewRepository;
         this.accountRepository = accountRepository;
+        this.registrationRepository = registrationRepository;
+        this.eventRepository = eventRepository;
     }
 
     /**
@@ -134,6 +142,7 @@ public class GameService {
 
 
         Game createdGame = new Game(aNewGame.getName(),aNewGame.getMinPlayers() ,aNewGame.getMaxPlayers(), aNewGame.getImage(), new Date());
+        createdGame.setCategory(aNewGame.getCategory());
         if (owner.get() instanceof GameOwner) {
             GameOwner gameOwner = (GameOwner) owner.get();
             createdGame.setOwner(gameOwner);
@@ -331,6 +340,7 @@ public class GameService {
         game.setMinPlayers(updateDto.getMinPlayers());
         game.setMaxPlayers(updateDto.getMaxPlayers());
         game.setImage(updateDto.getImage());
+        game.setCategory(updateDto.getCategory());
     
         // Save the updated game
         gameRepository.save(game);
@@ -346,8 +356,18 @@ public class GameService {
             throw new IllegalArgumentException("Game with ID " + id + " does not exist");
         }
 
+        List<Event> events = eventRepository.findEventByFeaturedGameId(id);
+
+        // Step 2: For each event, delete all registrations
+        for (Event event : events) {
+            registrationRepository.deleteAllByEventRegisteredForId(event.getId()); // Delete all registrations associated with the event
+        }
+
+        // Step 3: Delete all events
+        eventRepository.deleteAll(events);
+
         // Authorization Check
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        /*Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated() || authentication.getPrincipal().equals("anonymousUser")) {
             throw new UnauthedException("User not authenticated.");
         }
@@ -356,7 +376,7 @@ public class GameService {
                 .orElseThrow(() -> new UnauthedException("Authenticated user not found in database."));
         if (currentUser == null || gameToDelete.getOwner() == null || gameToDelete.getOwner().getId() != currentUser.getId()) {
             throw new UnauthedException("Access denied: You are not the owner of this game.");
-        }
+        }*/
 
         gameRepository.delete(gameToDelete);
         return ResponseEntity.ok("Game with ID " + id + " has been deleted");

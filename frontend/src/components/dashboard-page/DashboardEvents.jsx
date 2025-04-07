@@ -1,13 +1,15 @@
 import { useState, useEffect } from "react";
 import { TabsContent } from "@/components/ui/tabs.jsx";
 import { Button } from "@/components/ui/button.jsx";
-import Event from "./Event.jsx"; // Assuming this component displays event details
-import CreateEventDialog from "../events-page/CreateEventDialog.jsx"; // Import dialog
-import { getEventsByHostEmail, getEventById } from "@/service/event-api.js"; // Import event fetchers
-import { getRegistrationsByEmail } from "@/service/registration-api.js"; // Import attended events fetcher
-import { Loader2 } from "lucide-react"; // Import loader
+import Event from "./Event.jsx";
+import EventRegistrated from "./EventRegistered.jsx"; 
+import CreateEventDialog from "../events-page/CreateEventDialog.jsx";
+import { getEventsByHostEmail, getEventById } from "../../service/event-api.js";
+import { getRegistrationsByEmail } from "../../service/registration-api.js";
+import { Loader2 } from "lucide-react";
 
-export default function DashboardEvents({ userType }) { // Accept userType prop
+export default function DashboardEvents({ userType }) {
+
   const [hostedEvents, setHostedEvents] = useState([]);
   const [attendedEvents, setAttendedEvents] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -38,7 +40,12 @@ export default function DashboardEvents({ userType }) { // Accept userType prop
 
       // Fetch registrations (attended events)
       const registrations = await getRegistrationsByEmail(userEmail);
-      // Removed duplicated line below
+      
+      // Create a mapping of eventId to registrationId
+      const registrationMap = {};
+      registrations.forEach(reg => {
+        registrationMap[reg.eventId] = reg.id; // Store registration ID by event ID
+      });
 
       // Get event IDs from registrations
       const eventIds = registrations.map(reg => reg.eventId).filter(Boolean);
@@ -49,7 +56,14 @@ export default function DashboardEvents({ userType }) { // Accept userType prop
 
       const attended = attendedEventResults
         .filter(result => result.status === 'fulfilled' && result.value)
-        .map(result => result.value);
+        .map(result => {
+          const event = result.value;
+          // Attach the registrationId to each event
+          return {
+            ...event,
+            registrationId: registrationMap[event.eventId]
+          };
+        });
       setAttendedEvents(attended || []);
 
       // Log any errors from fetching individual attended events
@@ -79,26 +93,26 @@ export default function DashboardEvents({ userType }) { // Accept userType prop
   };
 
   // Helper to adapt backend event DTO to what the child Event component expects
-  // TODO: Verify props expected by the ./Event.jsx component
   const adaptEventData = (event) => {
-     if (!event) return null;
-     return {
-       id: event.eventId, // Assuming EventResponse DTO has eventId
-       name: event.title,
-       date: event.dateTime ? new Date(event.dateTime).toLocaleDateString() : 'N/A', // Format date
-       time: event.dateTime ? new Date(event.dateTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'N/A', // Format time
-       location: event.location || 'N/A',
-       game: event.featuredGame?.name || 'N/A', // Safely access nested name
-       participants: {
-         current: event.currentNumberParticipants ?? 0, // Use nullish coalescing
-         capacity: event.maxParticipants ?? 0,
-       },
-       // Add other props if Event component needs them (e.g., description, host name)
-       hostName: event.host?.name || 'Unknown',
-       description: event.description || '',
-     };
+    if (!event) return null;
+    return {
+      id: event.eventId,
+      name: event.title,
+      date: event.dateTime ? new Date(event.dateTime).toLocaleDateString() : 'N/A',
+      time: event.dateTime ? new Date(event.dateTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'N/A',
+      location: event.location || 'N/A',
+      game: event.featuredGame?.name || 'N/A',
+      gameImage: event.featuredGame?.image || "https://placehold.co/400x300/e9e9e9/1d1d1d?text=No+Image",
+      participants: {
+        current: event.currentNumberParticipants ?? 0,
+        capacity: event.maxParticipants ?? 0,
+      },
+      hostName: event.host?.name || 'Unknown',
+      description: event.description || '',
+      // Include the registrationId directly from the event object
+      registrationId: event.registrationId || null,
+    };
   };
-
 
   return (
     <>
@@ -146,8 +160,14 @@ export default function DashboardEvents({ userType }) { // Accept userType prop
                    <div className="space-y-4">
                      {attendedEvents.map(event => {
                         const adapted = adaptEventData(event);
-                         // Pass the refresh function down to the Event component
-                        return adapted ? <Event key={`attended-${adapted.id}`} {...adapted} onRegistrationUpdate={fetchDashboardEvents} /> : null;
+                        // Pass the refresh function down to the EventRegistrated component
+                        return adapted ? (
+                          <EventRegistrated 
+                            key={`attended-${adapted.id}`} 
+                            {...adapted} 
+                            onRegistrationUpdate={fetchDashboardEvents} 
+                          />
+                        ) : null;
                      })}
                    </div>
               ) : (

@@ -11,6 +11,7 @@ import UserSearchPage from "./pages/UserSearchPage.jsx";
 import DashboardPage from "./pages/DashboardPage.jsx";
 import MenuBar from "./components/menubar/MenuBar.jsx";
 import ProtectedRoute from "./components/common/ProtectedRoute.jsx"; // Import ProtectedRoute
+import { Toaster } from 'sonner';
 
 function App() {
   return (
@@ -29,6 +30,7 @@ function App() {
           <Route path="/user-search"    element={<ProtectedRoute><UserSearchPage /></ProtectedRoute>}/> {/* Protected user search too */}
           <Route path="/dashboard/profile"    element={<ProtectedRoute><DashboardPage /></ProtectedRoute>}/>
         </Routes>
+        <Toaster position="top-right" richColors expand={true} />
     </div>
   )
 }

@@ -1,7 +1,6 @@
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -10,75 +9,81 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
-import { Trash2 } from "lucide-react"
+} from "@/components/ui/dialog";
+import { Trash2 } from "lucide-react";
+import { deleteGame } from "../../service/game-api.js";
+import { motion, AnimatePresence } from "framer-motion";
+import ModifyGameDialog from "./ModifyGameDialog.jsx";
 
-export default function Game({ name, date, isAvailable }) {
-  const [open, setOpen] = useState(false)
+export default function Game({ name, date, isAvailable, imageSrc, game, onDeleteSuccess }) {
+  const [open, setOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleDelete = () => {
-    // Add your delete logic here
-    console.log(`Deleting game: ${name}`)
-    setOpen(false)
-  }
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    const success = await deleteGame(game.id);
+    if (success) {
+      setOpen(false);
+      if (onDeleteSuccess) {
+        onDeleteSuccess(game.id);
+      }
+    } else {
+      setIsDeleting(false);
+    }
+  };
 
   return (
-    <>
-      <Card className="min-w-[260px]">
-        <CardContent className="p-0">
-          <div className="aspect-[4/3] relative">
-            <img
-              src="/placeholder.svg?height=300&width=400"
-              alt={name || "Game cover"}
-              className="object-cover w-full h-full rounded-t-lg"
-            />
-          </div>
-          <div className="p-4">
-            <h3 className="font-semibold text-lg">{name}</h3>
-            <p className="text-sm text-muted-foreground">Added on {date}</p>
-            <div className="flex justify-between items-center mt-4">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">Status:</span>
-                <Badge
-                  variant="outline"
-                  className={
-                    isAvailable
-                      ? "bg-green-600 text-white hover:bg-green-700"
-                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                  }
-                >
-                  {isAvailable ? "Available" : "Unavailable"}
-                </Badge>
-              </div>
-              <Dialog open={open} onOpenChange={setOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    Remove
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px]">
-                  <DialogHeader>
-                    <DialogTitle>Delete Game</DialogTitle>
-                    <DialogDescription>
-                      Are you sure you want to delete "{name}"? This action cannot be undone.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <DialogFooter className="mt-4">
-                    <Button variant="outline" onClick={() => setOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button variant="destructive" onClick={handleDelete}>
+    <AnimatePresence>
+      {!isDeleting && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20, transition: { duration: 0.2 } }}
+          key={game.id}
+          className="mb-4"
+        >
+          <Card>
+            <CardContent className="flex flex-col items-start p-4 space-y-2">
+              <img src={imageSrc} alt={name} className="w-32 h-32 object-cover rounded" />
+              <h3 className="text-lg font-semibold">{name}</h3>
+
+              <div className="w-full flex flex-col gap-2">
+                <ModifyGameDialog
+                  game={game}
+                  onUpdateSuccess={(updatedGame) => {
+                    Object.assign(game, updatedGame);
+                    if (onDeleteSuccess) onDeleteSuccess(game.id);
+                  }}
+                />
+                <Dialog open={open} onOpenChange={setOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="w-full" variant="destructive">
                       <Trash2 className="mr-2 h-4 w-4" />
                       Delete
                     </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </>
-  )
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Delete Game</DialogTitle>
+                      <DialogDescription>
+                        Are you sure you want to delete <strong>{name}</strong>?
+                      </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button variant="destructive" onClick={handleDelete}>
+                        Confirm
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 }
-

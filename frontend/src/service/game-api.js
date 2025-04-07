@@ -155,6 +155,93 @@ export const getGamesByOwner = async (ownerEmail) => {
   }
 };
 
+export async function deleteGame(id) {
+  try {
+    const response = await fetch(`http://localhost:8080/api/v1/games/${id}`, {
+      method: "DELETE",
+    });
+
+    if (response.ok) {
+      console.log(`Game with ID ${id} deleted successfully.`);
+      return true; // Indicate success
+    } else {
+      const errorData = await response.json();
+      console.error("Failed to delete game:", errorData);
+      return false; // Indicate failure
+    }
+  } catch (error) {
+    console.error("Error deleting game:", error);
+    return false; // Indicate failure
+  }
+}
+
+/**
+ * Fetches a single game by its ID.
+ * @param {number} id - Game ID
+ * @returns {Promise<object>} Game object
+ */
+export const getGameById = async (id) => {
+  const token = localStorage.getItem("token");
+
+  const headers = {
+    "Content-Type": "application/json",
+  };
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`http://localhost:8080/api/v1/games/${id}`, {
+    method: "GET",
+    headers,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(
+      `Failed to fetch game #${id}: ${response.status} ${response.statusText}\n${errorText}`
+    );
+  }
+
+  return await response.json();
+};
+
+
+export async function updateGame(id, gameDto) {
+  try {
+    const token = localStorage.getItem("token");
+    const headers = {
+      "Content-Type": "application/json",
+    };
+
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${API_BASE_URL}/games/${id}`, {
+      method: "PUT",
+      headers: headers,
+      body: JSON.stringify(gameDto),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error("Backend error:", response.status, text);
+      return null;
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error updating game:", error);
+    return null;
+  }
+}
+
+
+
+
+
+
 
 // Add other game-related API functions here as needed
 // e.g., getGameById, updateGame, deleteGame, getGameReviews, submitReview etc.
