@@ -3,6 +3,7 @@ import { TabsContent } from "@/components/ui/tabs.jsx";
 import { Button } from "@/components/ui/button.jsx";
 // Imports kept from HEAD
 import { EventCard } from "../events-page/EventCard.jsx"; // Use EventCard for consistency
+import Event from "./Event.jsx"; // Import the Event component
 import CreateEventDialog from "../events-page/CreateEventDialog.jsx"; // Import dialog
 import { getEventsByHostEmail } from "../../service/event-api.js";
 import { getRegistrationsByEmail } from "../../service/registration-api.js"; // Import attended events fetcher
@@ -18,9 +19,10 @@ export default function DashboardEvents({ userType }) {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const { user, isAuthenticated, authReady } = useAuth(); // Get auth context with authReady
   const [apiCallAttempted, setApiCallAttempted] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0); // Simpler refresh key
 
   // Function to fetch both hosted and attended events - memoized to prevent infinite loops
-  const fetchDashboardEvents = useCallback(async (forceRefresh = false) => {
+  const fetchDashboardEvents = useCallback(async () => {
     // Don't try to fetch if we're not authenticated or auth isn't ready
     if (!user?.email || !isAuthenticated || !authReady) {
       if (!isLoading) return; // Don't update state if not loading
@@ -28,8 +30,9 @@ export default function DashboardEvents({ userType }) {
       return;
     }
 
-    // Don't refetch if we already tried and no auth state has changed, unless forced
-    if (!forceRefresh && apiCallAttempted && !isLoading) return;
+    // Don't refetch if we already tried and no auth state has changed
+    if (apiCallAttempted && !isLoading) return;
+    
     setIsLoading(true);
     setError(null);
     setApiCallAttempted(true);
@@ -49,16 +52,6 @@ export default function DashboardEvents({ userType }) {
           console.log(`[DashboardEvents] Fetching events hosted by ${userEmail}`);
           hosted = await getEventsByHostEmail(userEmail);
           console.log(`[DashboardEvents] Retrieved ${hosted.length} hosted events`);
-          
-          // Debug log to show the structure of the first event (if exists)
-          if (hosted.length > 0) {
-            console.log('[DashboardEvents] First hosted event structure:', {
-              id: hosted[0].id || hosted[0].eventId,
-              title: hosted[0].title,
-              featuredGame: hosted[0].featuredGame, // Log the entire game object
-              gameImagePath: hosted[0].featuredGame?.image || 'null', // Log the image path specifically
-            });
-          }
           
           // Ensure hosted is an array
           hosted = Array.isArray(hosted) ? hosted : [];
@@ -119,17 +112,19 @@ export default function DashboardEvents({ userType }) {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [userType, user, fetchDashboardEvents, authReady, isAuthenticated]);
+  }, [userType, user, fetchDashboardEvents, authReady, isAuthenticated, refreshKey]);
+
+  // Simple refresh function that won't cause infinite loops
+  const handleRefresh = useCallback(() => {
+    console.log("[DashboardEvents] Manual refresh triggered");
+    setApiCallAttempted(false); // Reset API call attempt flag
+    setRefreshKey(prev => prev + 1); // Increment refresh key to trigger useEffect
+  }, []);
 
   // Function to handle event creation success (passed to dialog)
   const handleEventAdded = useCallback(() => {
-    fetchDashboardEvents(true); // Re-fetch events after adding a new one, force refresh
-  }, [fetchDashboardEvents]);
-
-  // Function specifically for registration updates that forces a refresh
-  const handleRegistrationUpdate = useCallback(() => {
-    fetchDashboardEvents(true); // Force refresh when registration changes
-  }, [fetchDashboardEvents]);
+    handleRefresh(); // Use our new refresh function
+  }, [handleRefresh]);
 
   /**
    * Format event data for consistent use in EventCard
@@ -162,7 +157,7 @@ export default function DashboardEvents({ userType }) {
       null;
 
     return {
-      id: id || event.id, // Ensure there's an ID
+      id: id || event.eventId, // Ensure there's an ID
       title: title || event.title || event.name || "Untitled Event",
       dateTime: dateTime || event.dateTime,
       location: location || event.location,
@@ -182,6 +177,29 @@ export default function DashboardEvents({ userType }) {
       description: description || event.description || '',
       registrationId: registrationId, // Add registrationId if provided (from origin logic)
     };
+  };
+
+  // Function to format date and time for Event component
+  const formatDateAndTime = (dateTimeString) => {
+    if (!dateTimeString) return { date: "Unknown", time: "Unknown" };
+    
+    try {
+      const dateTime = new Date(dateTimeString);
+      const date = dateTime.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      const time = dateTime.toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit'
+      });
+      
+      return { date, time };
+    } catch (error) {
+      console.error("Error formatting date/time:", error);
+      return { date: "Unknown", time: "Unknown" };
+    }
   };
 
   return (
@@ -213,8 +231,27 @@ export default function DashboardEvents({ userType }) {
                    <div className="space-y-4">
                      {hostedEvents.map((event, index) => {
                         const adapted = adaptEventData(event); // Adapt hosted event
-                        // Render EventCard for hosted events
-                        return adapted ? <EventCard key={`hosted-${adapted.id || index}`} event={adapted} onRegistrationUpdate={handleRegistrationUpdate} isCurrentUserRegistered={false} /> : null;
+                        if (!adapted) return null;
+                        
+                        // Format the date and time
+                        const { date, time } = formatDateAndTime(adapted.dateTime);
+                        
+                        // Use the Event component for hosted events
+                        return (
+                          <Event
+                            key={`hosted-${adapted.id || index}`}
+                            id={adapted.id}
+                            name={adapted.title}
+                            date={date}
+                            time={time}
+                            location={adapted.location}
+                            game={adapted.game}
+                            participants={adapted.participants}
+                            onCancelRegistration={handleRefresh} // Pass our simple refresh function
+                            onRegistrationUpdate={handleRefresh} // For consistency, use the same function
+                            gameImage={adapted.featuredGameImage}
+                          />
+                        );
                      })}
                    </div>
                 ) : (
@@ -240,7 +277,7 @@ export default function DashboardEvents({ userType }) {
                          <EventCard
                            key={`attended-${adaptedEvent.id || index}`}
                            event={adaptedEvent}
-                           onRegistrationUpdate={handleRegistrationUpdate} // Use the force refresh function
+                           onRegistrationUpdate={handleRefresh} // Use our simple refresh function
                            isCurrentUserRegistered={true} // Always true for this list
                            registrationId={registrationId} // Pass the specific registration ID
                          />
