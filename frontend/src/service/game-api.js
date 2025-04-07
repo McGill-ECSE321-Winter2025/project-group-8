@@ -362,9 +362,9 @@ export const deleteGame = async (gameId) => {
 };
 
 /**
- * Updates a game instance with new information
- * @param {number} instanceId - ID of the game instance to update
- * @param {object} data - Updated instance data (condition, location, available)
+ * Updates a game instance
+ * @param {number} instanceId - ID of the instance to update
+ * @param {object} data - Updated instance data
  * @returns {Promise<Object>} - Updated instance data
  */
 export const updateGameInstance = async (instanceId, data) => {
@@ -376,9 +376,8 @@ export const updateGameInstance = async (instanceId, data) => {
     throw new Error("Game ID is required to update game instance.");
   }
   
-  // Use the same pattern as createGameInstance and getGameInstances
   const endpoint = `/games/${data.gameId}/instances/${instanceId}`;
-  console.log(`updateGameInstance: Using endpoint ${endpoint}`);
+  console.log(`updateGameInstance: Updating instance ${instanceId}:`, data);
   
   try {
     const response = await apiClient(endpoint, { 
@@ -465,6 +464,34 @@ export const updateGame = async (gameId, gameData) => {
     return updatedGame;
   } catch (error) {
     console.error(`updateGame: Failed to update game ${gameId}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Deletes a game instance by its ID. Requires authentication.
+ * @param {number} gameId - The ID of the game.
+ * @param {number} instanceId - The ID of the instance to delete.
+ * @returns {Promise<void>} A promise that resolves when the instance is deleted.
+ * @throws {UnauthorizedError} If the user is not authenticated.
+ * @throws {ForbiddenError} If the user is not allowed to delete the instance (e.g., not the owner).
+ * @throws {ApiError} For other API-related errors.
+ */
+export const deleteGameInstance = async (gameId, instanceId) => {
+  if (!gameId || !instanceId) {
+    throw new Error("Game ID and Instance ID are required to delete the instance.");
+  }
+  const endpoint = `/games/${gameId}/instances/${instanceId}`;
+  console.log("deleteGameInstance: Attempting to delete instance:", instanceId);
+
+  try {
+    await apiClient(endpoint, {
+      method: "DELETE",
+      skipPrefix: false
+    });
+    console.log(`deleteGameInstance: Successfully deleted instance ${instanceId}`);
+  } catch (error) {
+    console.error(`deleteGameInstance: Failed to delete instance ${instanceId}:`, error);
     throw error;
   }
 };

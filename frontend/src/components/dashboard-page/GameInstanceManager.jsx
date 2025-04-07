@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Edit, Plus, Check, X, Trash2 } from "lucide-react";
-import { getGameInstances, updateGameInstance, createGameInstance, deleteGame } from "@/service/game-api.js";
+import { getGameInstances, updateGameInstance, createGameInstance, deleteGameInstance } from "@/service/game-api.js";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import {
@@ -15,6 +15,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Form,
   FormControl,
@@ -33,6 +43,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { useForm } from "react-hook-form";
+import { Switch } from "@/components/ui/switch";
 
 export default function GameInstanceManager({ gameId, gameName, refreshGames }) {
   const [instances, setInstances] = useState([]);
@@ -41,13 +52,16 @@ export default function GameInstanceManager({ gameId, gameName, refreshGames }) 
   const [editingInstance, setEditingInstance] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
+  const [instanceToDelete, setInstanceToDelete] = useState(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [hasNoInstances, setHasNoInstances] = useState(false);
   const { user } = useAuth();
 
   const editForm = useForm({
     defaultValues: {
+      name: "",
       condition: "",
       location: "",
       available: true,
@@ -56,6 +70,7 @@ export default function GameInstanceManager({ gameId, gameName, refreshGames }) 
 
   const addForm = useForm({
     defaultValues: {
+      name: "",
       condition: "Excellent",
       location: "Home",
     }
@@ -75,6 +90,14 @@ export default function GameInstanceManager({ gameId, gameName, refreshGames }) 
         instance.owner && instance.owner.id === user?.id
       );
       setInstances(userInstances);
+      
+      // If no instances remain, set state and trigger refresh to remove game from dashboard
+      if (userInstances.length === 0) {
+        setHasNoInstances(true);
+        if (refreshGames) {
+          refreshGames();
+        }
+      }
     } catch (err) {
       console.error(`Failed to fetch instances for game ${gameId}:`, err);
       setError("Failed to load game copies");
@@ -82,7 +105,7 @@ export default function GameInstanceManager({ gameId, gameName, refreshGames }) 
     } finally {
       setIsLoading(false);
     }
-  }, [gameId, user?.id]);
+  }, [gameId, user?.id, refreshGames]);
 
   useEffect(() => {
     fetchInstances();
@@ -92,6 +115,7 @@ export default function GameInstanceManager({ gameId, gameName, refreshGames }) 
   const handleEditClick = (instance) => {
     setEditingInstance(instance);
     editForm.reset({
+      name: instance.name || "",
       condition: instance.condition || "",
       location: instance.location || "",
       available: instance.available
@@ -105,10 +129,15 @@ export default function GameInstanceManager({ gameId, gameName, refreshGames }) 
     
     setIsLoading(true);
     try {
-      await updateGameInstance(editingInstance.id, {
-        ...data,
+      const updateData = {
+        name: data.name || null,
+        condition: data.condition,
+        location: data.location,
+        available: data.available,
         gameId: gameId
-      });
+      };
+      
+      await updateGameInstance(editingInstance.id, updateData);
       
       toast.success("Game copy updated successfully");
       await fetchInstances();
@@ -125,11 +154,16 @@ export default function GameInstanceManager({ gameId, gameName, refreshGames }) 
   const handleAddInstance = async (data) => {
     setIsLoading(true);
     try {
-      await createGameInstance(gameId, {
-        ...data,
+      const instanceData = {
+        name: data.name || null,
+        condition: data.condition,
+        location: data.location,
+        available: true,
         gameId: gameId,
         ownerId: user?.id
-      });
+      };
+      
+      await createGameInstance(gameId, instanceData);
       
       toast.success("New game copy added successfully");
       await fetchInstances();
@@ -143,31 +177,44 @@ export default function GameInstanceManager({ gameId, gameName, refreshGames }) 
     }
   };
 
-  // Handle deleting a game
-  const handleDeleteGame = async () => {
-    if (!gameId) {
-      console.error("Game ID is missing!");
-      setDeleteError("Cannot delete game: ID missing.");
-      return;
-    }
-
+  // Handle deleting an instance
+  const handleDeleteInstance = async () => {
+    if (!instanceToDelete) return;
+    
     setIsDeleting(true);
     setDeleteError(null);
 
     try {
-      await deleteGame(gameId);
-      toast.success(`Game "${gameName}" deleted successfully`);
-      setIsDeleteModalOpen(false);
-      if (refreshGames) {
-        refreshGames(); // Refresh the list in the parent component
+      await deleteGameInstance(gameId, instanceToDelete.id);
+      toast.success("Game copy deleted successfully");
+      
+      // Check if this was the last instance
+      if (instances.length === 1) {
+        setHasNoInstances(true);
+        setIsDeleteDialogOpen(false);
+        setInstanceToDelete(null);
+        // Force refresh parent
+        if (refreshGames) {
+          refreshGames();
+        }
+      } else {
+        await fetchInstances();
+        setIsDeleteDialogOpen(false);
+        setInstanceToDelete(null);
       }
     } catch (err) {
-      console.error(`Failed to delete game "${gameName}" (ID: ${gameId}):`, err);
-      setDeleteError(err.message || `Failed to delete ${gameName}. Please try again.`);
-      toast.error(`Failed to delete ${gameName}`);
+      console.error("Failed to delete game instance:", err);
+      setDeleteError(err.message || "Failed to delete game copy. Please try again.");
+      toast.error("Failed to delete game copy");
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  // Handle opening delete confirmation dialog
+  const handleDeleteClick = (instance) => {
+    setInstanceToDelete(instance);
+    setIsDeleteDialogOpen(true);
   };
 
   // Condition options
@@ -178,6 +225,11 @@ export default function GameInstanceManager({ gameId, gameName, refreshGames }) 
     { value: "Fair", label: "Fair" },
     { value: "Poor", label: "Poor" }
   ];
+
+  // If no instances remain, don't render anything
+  if (hasNoInstances) {
+    return null;
+  }
 
   return (
     <div className="space-y-4">
@@ -195,142 +247,117 @@ export default function GameInstanceManager({ gameId, gameName, refreshGames }) 
         <>
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-medium">Your Copies of {gameName}</h3>
-            <div className="flex gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => {
-                  addForm.reset({
-                    condition: "Excellent",
-                    location: "Home"
-                  });
-                  setIsAddModalOpen(true);
-                }}
-                className="flex items-center gap-1"
-              >
-                <Plus className="h-4 w-4" />
-                Add Copy
-              </Button>
-              <Button 
-                variant="destructive" 
-                size="sm" 
-                onClick={() => setIsDeleteModalOpen(true)}
-                className="flex items-center gap-1"
-              >
-                <Trash2 className="h-4 w-4" />
-                Delete Game
-              </Button>
-            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => {
+                addForm.reset({
+                  name: "",
+                  condition: "Excellent",
+                  location: "Home"
+                });
+                setIsAddModalOpen(true);
+              }}
+              className="flex items-center gap-1"
+            >
+              <Plus className="h-4 w-4" />
+              Add Copy
+            </Button>
           </div>
 
-          {instances.length === 0 ? (
-            <div className="text-center text-muted-foreground py-6">
-              You don't have any copies of this game yet.
-            </div>
-          ) : (
-            <div className="grid gap-4">
-              {instances.map(instance => (
-                <Card key={instance.id} className="overflow-hidden">
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h4 className="font-medium">{gameName} (Copy #{instance.id})</h4>
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-2 text-sm">
-                          <div>
-                            <span className="font-medium text-muted-foreground">Condition:</span>{" "}
-                            {instance.condition || "Not specified"}
-                          </div>
-                          <div>
-                            <span className="font-medium text-muted-foreground">Location:</span>{" "}
-                            {instance.location || "Not specified"}
-                          </div>
-                          <div>
-                            <span className="font-medium text-muted-foreground">Acquired:</span>{" "}
-                            {new Date(instance.acquiredDate).toLocaleDateString()}
-                          </div>
-                          <div>
-                            <span className="font-medium text-muted-foreground">Status:</span>{" "}
-                            <Badge variant={instance.available ? "positive" : "destructive"}>
-                              {instance.available ? "Available" : "Unavailable"}
-                            </Badge>
-                          </div>
-                        </div>
-                      </div>
+          <div className="grid gap-4">
+            {instances.map((instance) => (
+              <Card key={`instance-${instance.id}`}>
+                <CardContent className="p-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h4 className="font-medium">{instance.name || "Unnamed Copy"}</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Condition: {instance.condition}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Location: {instance.location}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Status: {instance.available ? "Available" : "Not Available"}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
                       <Button
                         variant="ghost"
-                        size="sm"
+                        size="icon"
                         onClick={() => handleEditClick(instance)}
-                        className="ml-4"
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteClick(instance)}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </>
       )}
 
       {/* Edit Instance Dialog */}
-      <Dialog 
-        open={isEditModalOpen} 
-        onOpenChange={(open) => {
-          if (!open) {
-            // First blur any active element to ensure proper focus management
-            if (document.activeElement instanceof HTMLElement) {
-              document.activeElement.blur();
-            }
-            // Short timeout to ensure focus is removed before dialog close
-            setTimeout(() => setIsEditModalOpen(false), 10);
-          } else {
-            setIsEditModalOpen(open);
-          }
-        }}
-      >
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Edit Game Copy</DialogTitle>
             <DialogDescription>
-              Update the details of your game copy.
+              Edit the details of your copy of {gameName}.
             </DialogDescription>
           </DialogHeader>
-          
           <Form {...editForm}>
             <form onSubmit={editForm.handleSubmit(handleUpdateInstance)} className="space-y-4">
+              <FormField
+                control={editForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Copy Name (Optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter a name for this copy" {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      Give this copy a unique name to help you identify it
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={editForm.control}
                 name="condition"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Condition</FormLabel>
-                    <Select 
-                      onValueChange={field.onChange} 
-                      defaultValue={field.value} 
-                      value={field.value}
-                    >
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select condition" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {conditionOptions.map(option => (
+                        {conditionOptions.map((option) => (
                           <SelectItem key={option.value} value={option.value}>
                             {option.label}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    <FormDescription>
-                      The physical condition of your game copy.
-                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-
               <FormField
                 control={editForm.control}
                 name="location"
@@ -338,50 +365,45 @@ export default function GameInstanceManager({ gameId, gameName, refreshGames }) 
                   <FormItem>
                     <FormLabel>Location</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., Home, Office" {...field} />
+                      <Input placeholder="Enter location" {...field} />
                     </FormControl>
-                    <FormDescription>
-                      Where you keep this game copy.
-                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-
               <FormField
                 control={editForm.control}
                 name="available"
                 render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                     <div className="space-y-0.5">
-                      <FormLabel>Available for borrowing</FormLabel>
+                      <FormLabel className="text-base">Available</FormLabel>
                       <FormDescription>
-                        Make this copy available to other players.
+                        Whether this copy is available for borrowing
                       </FormDescription>
                     </div>
                     <FormControl>
-                      <div 
-                        onClick={() => editForm.setValue('available', !field.value)}
-                        className={`cursor-pointer flex items-center justify-center h-8 w-8 rounded-full ${field.value ? 'bg-green-100' : 'bg-red-100'}`}
-                      >
-                        {field.value ? (
-                          <Check className="h-5 w-5 text-green-600" />
-                        ) : (
-                          <X className="h-5 w-5 text-red-600" />
-                        )}
-                      </div>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
                     </FormControl>
                   </FormItem>
                 )}
               />
-
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsEditModalOpen(false)}>
-                  Cancel
-                </Button>
                 <Button type="submit" disabled={isLoading}>
-                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Save Changes
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="mr-2 h-4 w-4" />
+                      Save Changes
+                    </>
+                  )}
                 </Button>
               </DialogFooter>
             </form>
@@ -390,62 +412,56 @@ export default function GameInstanceManager({ gameId, gameName, refreshGames }) 
       </Dialog>
 
       {/* Add Instance Dialog */}
-      <Dialog 
-        open={isAddModalOpen} 
-        onOpenChange={(open) => {
-          if (!open) {
-            // First blur any active element to ensure proper focus management
-            if (document.activeElement instanceof HTMLElement) {
-              document.activeElement.blur();
-            }
-            // Short timeout to ensure focus is removed before dialog close
-            setTimeout(() => setIsAddModalOpen(false), 10);
-          } else {
-            setIsAddModalOpen(open);
-          }
-        }}
-      >
+      <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Add New Game Copy</DialogTitle>
             <DialogDescription>
-              Register a new copy of {gameName} to your collection.
+              Add a new copy of {gameName} to your collection.
             </DialogDescription>
           </DialogHeader>
-          
           <Form {...addForm}>
             <form onSubmit={addForm.handleSubmit(handleAddInstance)} className="space-y-4">
+              <FormField
+                control={addForm.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Copy Name (Optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter a name for this copy" {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      Give this copy a unique name to help you identify it
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={addForm.control}
                 name="condition"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Condition</FormLabel>
-                    <Select 
-                      onValueChange={field.onChange} 
-                      defaultValue={field.value}
-                    >
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select condition" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {conditionOptions.map(option => (
+                        {conditionOptions.map((option) => (
                           <SelectItem key={option.value} value={option.value}>
                             {option.label}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    <FormDescription>
-                      The physical condition of your game copy.
-                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-
               <FormField
                 control={addForm.control}
                 name="location"
@@ -453,23 +469,25 @@ export default function GameInstanceManager({ gameId, gameName, refreshGames }) 
                   <FormItem>
                     <FormLabel>Location</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., Home, Office" {...field} />
+                      <Input placeholder="Enter location" {...field} />
                     </FormControl>
-                    <FormDescription>
-                      Where you keep this game copy.
-                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>
-                  Cancel
-                </Button>
                 <Button type="submit" disabled={isLoading}>
-                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Add Copy
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Adding...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Copy
+                    </>
+                  )}
                 </Button>
               </DialogFooter>
             </form>
@@ -477,47 +495,38 @@ export default function GameInstanceManager({ gameId, gameName, refreshGames }) 
         </DialogContent>
       </Dialog>
 
-      {/* Delete Game Dialog */}
-      <Dialog 
-        open={isDeleteModalOpen} 
-        onOpenChange={(open) => {
-          if (!open) {
-            // First blur any active element to ensure proper focus management
-            if (document.activeElement instanceof HTMLElement) {
-              document.activeElement.blur();
-            }
-            // Short timeout to ensure focus is removed before dialog close
-            setTimeout(() => setIsDeleteModalOpen(false), 10);
-          } else {
-            setIsDeleteModalOpen(open);
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Delete Game</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete "{gameName}"? This action cannot be undone and will remove all copies of this game.
+      {/* Delete Instance Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Game Copy</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this copy of {gameName}? This action cannot be undone.
               {deleteError && <p className="text-red-500 text-sm mt-2">{deleteError}</p>}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)} disabled={isDeleting}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleDeleteGame} disabled={isDeleting}>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteInstance}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
               {isDeleting ? (
-                <>Deleting...</>
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
               ) : (
                 <>
                   <Trash2 className="mr-2 h-4 w-4" />
                   Delete
                 </>
               )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 } 

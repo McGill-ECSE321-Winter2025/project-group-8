@@ -13,6 +13,7 @@ public class GameInstanceResponseDto {
     private String condition;
     private boolean available;
     private String location;
+    private String name;
     private Date acquiredDate;
     private AccountDto owner;
 
@@ -26,7 +27,7 @@ public class GameInstanceResponseDto {
      * Constructor with all fields for creating DTOs programmatically
      */
     public GameInstanceResponseDto(int id, int gameId, String gameName, String condition, 
-                                  boolean available, String location, Date acquiredDate, 
+                                  boolean available, String location, String name, Date acquiredDate, 
                                   AccountDto owner) {
         this.id = id;
         this.gameId = gameId;
@@ -34,6 +35,7 @@ public class GameInstanceResponseDto {
         this.condition = condition;
         this.available = available;
         this.location = location;
+        this.name = name;
         this.acquiredDate = acquiredDate;
         this.owner = owner;
     }
@@ -85,6 +87,14 @@ public class GameInstanceResponseDto {
 
     public void setLocation(String location) {
         this.location = location;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
     }
 
     public Date getAcquiredDate() {

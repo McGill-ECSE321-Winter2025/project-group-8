@@ -43,6 +43,9 @@ public class GameInstance {
     /** Physical location or address where the game is stored */
     private String location;
 
+    /** Optional name for this copy of the game */
+    private String name;
+
     /** Date when this copy was acquired */
     private Date acquiredDate;
 
@@ -53,12 +56,14 @@ public class GameInstance {
      * @param owner The owner of this copy
      * @param condition The physical condition of the copy
      * @param location The location where the copy is stored
+     * @param name Optional name for this copy
      */
-    public GameInstance(Game game, GameOwner owner, String condition, String location) {
+    public GameInstance(Game game, GameOwner owner, String condition, String location, String name) {
         this.game = game;
         this.owner = owner;
         this.condition = condition;
         this.location = location;
+        this.name = name;
         this.available = true;
         this.acquiredDate = new Date();
     }

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"; // Adjusted path
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"; // Adjusted path
 import { Button } from "@/components/ui/button"; // Adjusted path
 import { Input } from "@/components/ui/input"; // Adjusted path
 import { Label } from "@/components/ui/label"; // Adjusted path
@@ -60,9 +60,12 @@ export default function AddGameDialog({ open, onOpenChange, onGameAdded }) {
         if (!isOpen) handleCancel();
         else onOpenChange(true);
     }}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold">Add New Game</DialogTitle>
+          <DialogTitle>Add New Game</DialogTitle>
+          <DialogDescription>
+            Fill in the details below to add a new game to your library.
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={onSubmit} className="space-y-4 py-4">

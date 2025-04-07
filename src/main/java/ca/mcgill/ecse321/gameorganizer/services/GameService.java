@@ -170,129 +170,44 @@ public class GameService {
 
     @Transactional
     @PreAuthorize("hasAuthority('ROLE_GAME_OWNER')") // Ensure only game owners can create games
-    public GameResponseDto createGame(GameCreationDto aNewGame) {
-        try {
-            if (aNewGame.getName() == null || aNewGame.getName().trim().isEmpty()) {
-                throw new IllegalArgumentException("Game name cannot be empty");
-            }
-            if (aNewGame.getMinPlayers() < 1) {
-                throw new IllegalArgumentException("Minimum players must be at least 1");
-            }
-            if (aNewGame.getMaxPlayers() < aNewGame.getMinPlayers()) {
-                throw new IllegalArgumentException("Maximum players must be greater than or equal to minimum players");
-            }
-            if (aNewGame.getCategory() == null){
-                throw new IllegalArgumentException("Game must have a category");
-            }
-            
-            // Validate instance information
-            if (aNewGame.getCondition() == null || aNewGame.getCondition().trim().isEmpty()) {
-                // Set default condition if not provided
-                aNewGame.setCondition("Excellent");
-            }
-            
-            if (aNewGame.getLocation() == null || aNewGame.getLocation().trim().isEmpty()) {
-                // Set default location if not provided
-                aNewGame.setLocation("Home");
-            }
-
-            // Get owner account
-            Account ownerAccount;
-            String ownerEmail;
-
-            // Use ownerId from DTO if provided
-            String dtoOwnerId = aNewGame.getOwnerId();
-
-            // Get authentication from security context
-            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-
-            // DEBUG: Log authentication info
-            logger.debug("GameService.createGame: Authentication from SecurityContextHolder: {}",
-                (authentication != null ? authentication.getName() : "null"));
-
-            if (authentication == null) {
-                throw new UnauthedException("No authentication found in security context");
-            }
-
-            if (dtoOwnerId != null && !dtoOwnerId.isEmpty()) {
-                ownerEmail = dtoOwnerId;
-
-                // DEBUG: Verify owner email matches authenticated user
-                if (!ownerEmail.equals(authentication.getName())) {
-                    logger.warn("GameService.createGame: WARNING - DTO owner email ({}) doesn't match authenticated user ({})",
-                        ownerEmail, authentication.getName());
-                }
-
-                ownerAccount = accountRepository.findByEmail(ownerEmail)
-                    .orElseThrow(() -> new UnauthedException("Owner with email " + ownerEmail + " does not exist"));
-            } else {
-                // Otherwise use authenticated user
-                ownerEmail = authentication.getName();
-                logger.debug("GameService.createGame: Using authenticated user as owner: {}", ownerEmail);
-
-                ownerAccount = accountRepository.findByEmail(ownerEmail)
-                    .orElseThrow(() -> new UnauthedException("Authenticated owner account not found in database."));
-            }
-
-            // Ensure the account is indeed a GameOwner
-            if (!(ownerAccount instanceof GameOwner)) {
-                logger.warn("GameService.createGame: User is not a GameOwner: {}", ownerEmail);
-                throw new ForbiddenException("User is not a GameOwner.");
-            }
-
-            GameOwner gameOwner = (GameOwner) ownerAccount;
-            logger.debug("GameService.createGame: Verified GameOwner status for: {}", ownerEmail);
-
-            // Check if a game with the same name already exists
-            List<Game> existingGames = gameRepository.findByName(aNewGame.getName());
-            Game game;
-            
-            if (existingGames.isEmpty()) {
-                // No game with this name exists - create a new game and its first instance
-                logger.info("GameService.createGame: Creating new game: {}", aNewGame.getName());
-                
-                // Create and save the game
-                game = new Game(aNewGame.getName(), aNewGame.getMinPlayers(), aNewGame.getMaxPlayers(),
-                                aNewGame.getImage(), new Date());
-                game.setOwner(gameOwner);
-                game.setCategory(aNewGame.getCategory());
-                
-                game = gameRepository.save(game);
-                logger.info("GameService.createGame: Successfully created game: {} - {} for owner: {}",
-                    game.getId(), game.getName(), ownerEmail);
-            } else {
-                // Game with this name already exists - use the existing game for the new instance
-                game = existingGames.get(0);
-                logger.info("GameService.createGame: Using existing game: {} - {} for new instance",
-                    game.getId(), game.getName());
-            }
-            
-            // Create a new GameInstance
-            GameInstance gameInstance = new GameInstance(
-                game, 
-                gameOwner, 
-                aNewGame.getCondition(), 
-                aNewGame.getLocation()
-            );
-            
-            GameInstance savedInstance = gameInstanceRepository.save(gameInstance);
-            logger.info("GameService.createGame: Created new game instance: {} for game: {}",
-                savedInstance.getId(), game.getName());
-
-            // Return the game details
-            return new GameResponseDto(game);
-
-        } catch (IllegalArgumentException | ForbiddenException | UnauthedException e) {
-            logger.error("GameService.createGame: Error: {} - {}", e.getClass().getSimpleName(), e.getMessage());
-            throw e; // Re-throw these exceptions directly
-        } catch (org.springframework.security.access.AccessDeniedException e) {
-            logger.error("GameService.createGame: Access denied: {}", e.getMessage());
-            throw new ForbiddenException("Access denied: User must have ROLE_GAME_OWNER to create a game.");
-        } catch (Exception e) {
-            // Log unexpected errors
-            logger.error("GameService.createGame: Unexpected error: {}", e.getMessage(), e);
-            throw new RuntimeException("An unexpected error occurred while creating the game.", e);
+    public GameResponseDto createGame(GameCreationDto gameDto) {
+        // Validate input
+        if (gameDto == null || gameDto.getName() == null || gameDto.getName().trim().isEmpty()) {
+            throw new IllegalArgumentException("Game name cannot be empty");
         }
+
+        // Get the owner
+        Account ownerAccount = accountRepository.findByEmail(gameDto.getOwnerId())
+            .orElseThrow(() -> new IllegalArgumentException("Owner not found"));
+        
+        if (!(ownerAccount instanceof GameOwner)) {
+            throw new IllegalArgumentException("Account must be a GameOwner to create games");
+        }
+        
+        GameOwner owner = (GameOwner) ownerAccount;
+
+        // Create the game
+        Game game = new Game(
+            gameDto.getName(),
+            gameDto.getMinPlayers(),
+            gameDto.getMaxPlayers(),
+            gameDto.getImage(),
+            new Date()
+        );
+        game.setOwner(owner);
+        game = gameRepository.save(game);
+
+        // Create the initial game instance
+        GameInstance gameInstance = new GameInstance(
+            game,
+            owner,
+            gameDto.getCondition(),
+            gameDto.getLocation(),
+            gameDto.getInstanceName() // Pass the instance name
+        );
+        gameInstanceRepository.save(gameInstance);
+
+        return new GameResponseDto(game);
     }
 
     /**
@@ -672,6 +587,7 @@ public class GameService {
                 dto.setAvailable(instance.isAvailable());
                 dto.setLocation(instance.getLocation());
                 dto.setAcquiredDate(instance.getAcquiredDate());
+                dto.setName(instance.getName());
                 
                 if (instance.getOwner() != null) {
                     GameInstanceResponseDto.AccountDto ownerDto = 
@@ -740,6 +656,10 @@ public class GameService {
             instance.setLocation("Home"); // Default
         }
         
+        if (instanceData.containsKey("name") && instanceData.get("name") != null) {
+            instance.setName((String) instanceData.get("name"));
+        }
+        
         if (instanceData.containsKey("available") && instanceData.get("available") != null) {
             instance.setAvailable((Boolean) instanceData.get("available"));
         } else {
@@ -758,6 +678,7 @@ public class GameService {
         dto.setAvailable(instance.isAvailable());
         dto.setLocation(instance.getLocation());
         dto.setAcquiredDate(instance.getAcquiredDate());
+        dto.setName(instance.getName());
         
         GameInstanceResponseDto.AccountDto ownerDto = new GameInstanceResponseDto.AccountDto(
             owner.getId(),
@@ -1107,6 +1028,10 @@ public class GameService {
             instance.setLocation((String) instanceData.get("location"));
         }
         
+        if (instanceData.containsKey("name") && instanceData.get("name") != null) {
+            instance.setName((String) instanceData.get("name"));
+        }
+        
         if (instanceData.containsKey("available") && instanceData.get("available") != null) {
             instance.setAvailable((Boolean) instanceData.get("available"));
         }
@@ -1123,6 +1048,7 @@ public class GameService {
         dto.setAvailable(instance.isAvailable());
         dto.setLocation(instance.getLocation());
         dto.setAcquiredDate(instance.getAcquiredDate());
+        dto.setName(instance.getName());
         
         if (instance.getOwner() != null) {
             GameInstanceResponseDto.AccountDto ownerDto = 
@@ -1135,6 +1061,34 @@ public class GameService {
         }
         
         return dto;
+    }
+
+    /**
+     * Deletes a specific game instance
+     * 
+     * @param instanceId ID of the instance to delete
+     * @throws ResourceNotFoundException if the instance doesn't exist
+     * @throws ForbiddenException if the user is not the owner of the instance
+     * @throws UnauthedException if the user is not authenticated
+     */
+    @Transactional
+    @PreAuthorize("isAuthenticated()")
+    public void deleteGameInstance(int instanceId) {
+        // Find the instance
+        GameInstance instance = gameInstanceRepository.findById(instanceId)
+            .orElseThrow(() -> new ResourceNotFoundException("Game instance with ID " + instanceId + " not found"));
+        
+        // Check authorization - only owner can delete
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+        
+        if (instance.getOwner() == null || !instance.getOwner().getEmail().equals(username)) {
+            throw new ForbiddenException("You can only delete your own game instances");
+        }
+        
+        // Delete the instance
+        gameInstanceRepository.delete(instance);
+        logger.info("Successfully deleted game instance {}.", instanceId);
     }
 
 }

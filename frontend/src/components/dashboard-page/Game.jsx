@@ -29,56 +29,54 @@ export default function Game({ game, refreshGames }) {
 
   // JSX structure using Framer Motion from origin/dev-Yessine-D3
   return (
-    <AnimatePresence>
-      {/* Render only if not actively being deleted via animation state */}
-      {/* Note: isDeleting state now controls button, not the whole card visibility */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20, transition: { duration: 0.2 } }}
-        key={gameId} // Unique key for animation
-      >
-        <Card 
-          className="min-w-[260px] cursor-pointer hover:shadow-md transition-shadow duration-200"
-          onClick={() => setShowInstances(true)} // Open instances dialog on click
+    <>
+      <AnimatePresence>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20, transition: { duration: 0.2 } }}
+          key={`game-card-${gameId}`}
         >
-          <CardContent className="p-0">
-            <div className="aspect-[4/3] relative">
-              <img
-                src={imageSrc}
-                alt={gameName}
-                className="object-cover w-full h-full rounded-t-lg"
-              />
-            </div>
-            <div className="p-4">
-              {/* Simplified display like HEAD */}
-              <h3 className="font-semibold text-lg">{gameName}</h3>
-              <div className="flex justify-between items-center mt-4 gap-2">
-                <Button variant="outline" size="sm" className="flex gap-1" onClick={(e) => {
-                  e.stopPropagation(); // Prevent opening the instances dialog
-                  setShowInstances(true);
-                }}>
-                  <Package className="h-4 w-4" />
-                  Manage Copies
-                </Button>
-                <Button variant="outline" size="sm" className="flex gap-1" onClick={(e) => {
-                  e.stopPropagation(); // Prevent opening the instances dialog
-                  setShowModifyGame(true);
-                }}>
-                  <Edit className="h-4 w-4" />
-                  Modify Game
-                </Button>
+          <Card 
+            className="min-w-[260px] cursor-pointer hover:shadow-md transition-shadow duration-200"
+            onClick={() => setShowInstances(true)}
+          >
+            <CardContent className="p-0">
+              <div className="aspect-[4/3] relative">
+                <img
+                  src={imageSrc}
+                  alt={gameName}
+                  className="object-cover w-full h-full rounded-t-lg"
+                />
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+              <div className="p-4">
+                <h3 className="font-semibold text-lg">{gameName}</h3>
+                <div className="flex justify-between items-center mt-4 gap-2">
+                  <Button variant="outline" size="sm" className="flex gap-1" onClick={(e) => {
+                    e.stopPropagation();
+                    setShowInstances(true);
+                  }}>
+                    <Package className="h-4 w-4" />
+                    Manage Copies
+                  </Button>
+                  <Button variant="outline" size="sm" className="flex gap-1" onClick={(e) => {
+                    e.stopPropagation();
+                    setShowModifyGame(true);
+                  }}>
+                    <Edit className="h-4 w-4" />
+                    Modify Game
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </AnimatePresence>
       
       {/* Game Instances Dialog */}
       <Dialog 
         open={showInstances} 
         onOpenChange={(openState) => {
-          // When closing, first blur any active element to ensure proper focus management
           if (!openState && document.activeElement instanceof HTMLElement) {
             document.activeElement.blur();
           }
@@ -114,6 +112,6 @@ export default function Game({ game, refreshGames }) {
         onGameModified={refreshGames}
         gameId={gameId}
       />
-    </AnimatePresence>
+    </>
   );
 }

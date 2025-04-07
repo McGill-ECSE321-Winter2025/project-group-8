@@ -5,7 +5,7 @@ import Game from "./Game.jsx";
 import { TabsContent } from "@/components/ui/tabs.jsx";
 import AddGameDialog from "./AddGameDialog.jsx"; // Import the dialog
 import { Loader2 } from "lucide-react"; // Import Loader icon
-import { getGamesByOwner } from "../../service/game-api.js"; // Import the service function
+import { getGamesByOwner, getGameInstances } from "../../service/game-api.js"; // Import the service function
 import { UnauthorizedError } from "@/service/apiClient"; // Import UnauthorizedError
 
 export default function DashboardGameLibrary({ userType }) {
@@ -42,7 +42,35 @@ export default function DashboardGameLibrary({ userType }) {
       });
 
       const fetchedGames = await getGamesByOwner(ownerEmail);
-      setGames(fetchedGames || []); // Ensure games is always an array
+      
+      // Filter out games with no instances
+      const gamesWithInstances = await Promise.all(
+        fetchedGames.map(async (game) => {
+          try {
+            const instances = await getGameInstances(game.id);
+            // Only keep instances owned by current user
+            const userInstances = instances.filter(instance => 
+              instance.owner && instance.owner.id === user?.id
+            );
+            return { 
+              ...game, 
+              instances: userInstances,
+              hasUserInstances: userInstances.length > 0 
+            };
+          } catch (error) {
+            console.error(`Error fetching instances for game ${game.id}:`, error);
+            return { 
+              ...game, 
+              instances: [],
+              hasUserInstances: false 
+            };
+          }
+        })
+      );
+      
+      // Filter to only show games where the user has at least one instance
+      const filteredGames = gamesWithInstances.filter(game => game.hasUserInstances);
+      setGames(filteredGames || []); // Ensure games is always an array
     } catch (err) {
       console.error("[DashboardGameLibrary] Error details:", err);
 
@@ -57,7 +85,7 @@ export default function DashboardGameLibrary({ userType }) {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.email, logout]); // Add logout to dependencies
+  }, [user?.email, user?.id, logout]); // Add user?.id to dependencies
 
   // Fetch games when the component mounts or when the user object changes (specifically the email)
   useEffect(() => {

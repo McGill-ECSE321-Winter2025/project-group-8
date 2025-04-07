@@ -311,4 +311,27 @@ public class GameController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
         }
     }
+
+    /**
+     * Deletes a specific game instance
+     * 
+     * @param id ID of the game
+     * @param instanceId ID of the instance to delete
+     * @return Success message
+     */
+    @DeleteMapping("/{id}/instances/{instanceId}")
+    public ResponseEntity<String> deleteGameInstance(
+            @PathVariable int id,
+            @PathVariable int instanceId) {
+        try {
+            service.deleteGameInstance(instanceId);
+            return ResponseEntity.ok("Game instance deleted successfully");
+        } catch (ResourceNotFoundException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        } catch (ForbiddenException | UnauthedException e) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, e.getMessage());
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
+    }
 }

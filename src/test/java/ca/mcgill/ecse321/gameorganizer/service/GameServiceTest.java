@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
+import java.util.HashMap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -36,6 +38,7 @@ import org.springframework.test.context.ContextConfiguration;
 import ca.mcgill.ecse321.gameorganizer.TestJwtConfig;
 import ca.mcgill.ecse321.gameorganizer.dto.request.GameCreationDto;
 import ca.mcgill.ecse321.gameorganizer.dto.response.GameResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dto.response.GameInstanceResponseDto;
 import ca.mcgill.ecse321.gameorganizer.dto.request.ReviewSubmissionDto;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
@@ -99,11 +102,13 @@ public class GameServiceTest {
             gameDto.setImage(VALID_IMAGE);
             gameDto.setMinPlayers(VALID_MIN_PLAYERS);
             gameDto.setMaxPlayers(VALID_MAX_PLAYERS);
+            gameDto.setCondition("Excellent");
+            gameDto.setLocation("Home");
+            gameDto.setInstanceName("My Special Copy");
 
             Game savedGame = new Game(VALID_GAME_NAME, VALID_MIN_PLAYERS, VALID_MAX_PLAYERS, VALID_IMAGE, new Date());
             savedGame.setOwner(owner);
-            GameInstance savedGameInstance = new GameInstance();
-            savedGameInstance.setGame(savedGame);
+            GameInstance savedGameInstance = new GameInstance(savedGame, owner, "Excellent", "Home", "My Special Copy");
 
             when(accountRepository.findByEmail(VALID_OWNER_EMAIL)).thenReturn(Optional.of(owner));
             when(gameRepository.save(any(Game.class))).thenReturn(savedGame);
@@ -564,6 +569,95 @@ public class GameServiceTest {
             assertEquals(200, response.getStatusCodeValue());
             assertEquals("Game with ID " + VALID_GAME_ID + " has been deleted", response.getBody());
             verify(gameRepository).delete(game); // Verify delete was called with the game object
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
+    public void testCreateGameInstanceWithName() {
+        // Setup SecurityContext for authenticated user
+        GameOwner owner = new GameOwner("Test Owner", VALID_OWNER_EMAIL, "password");
+        Authentication auth = new UsernamePasswordAuthenticationToken(VALID_OWNER_EMAIL, "password", 
+            Collections.singletonList(new SimpleGrantedAuthority("ROLE_GAME_OWNER")));
+        SecurityContext securityContext = new SecurityContextImpl();
+        securityContext.setAuthentication(auth);
+        SecurityContextHolder.setContext(securityContext);
+
+        try {
+            // Setup
+            Game game = new Game(VALID_GAME_NAME, VALID_MIN_PLAYERS, VALID_MAX_PLAYERS, VALID_IMAGE, new Date());
+            game.setOwner(owner);
+            Map<String, Object> instanceData = new HashMap<>();
+            instanceData.put("gameId", VALID_GAME_ID);
+            instanceData.put("condition", "Excellent");
+            instanceData.put("location", "Home");
+            instanceData.put("name", "Special Edition Copy");
+            instanceData.put("available", true);
+
+            GameInstance savedInstance = new GameInstance(game, owner, "Excellent", "Home", "Special Edition Copy");
+
+            when(gameRepository.findGameById(VALID_GAME_ID)).thenReturn(game);
+            when(accountRepository.findByEmail(VALID_OWNER_EMAIL)).thenReturn(Optional.of(owner));
+            when(gameInstanceRepository.save(any(GameInstance.class))).thenReturn(savedInstance);
+
+            // Test
+            GameInstanceResponseDto response = gameService.createGameInstance(instanceData);
+
+            // Verify
+            assertNotNull(response);
+            assertEquals("Special Edition Copy", response.getName());
+            assertEquals("Excellent", response.getCondition());
+            assertEquals("Home", response.getLocation());
+            assertTrue(response.isAvailable());
+            verify(gameRepository).findGameById(VALID_GAME_ID);
+            verify(accountRepository).findByEmail(VALID_OWNER_EMAIL);
+            verify(gameInstanceRepository).save(any(GameInstance.class));
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
+    public void testUpdateGameInstanceWithName() {
+        // Setup SecurityContext for authenticated user
+        GameOwner owner = new GameOwner("Test Owner", VALID_OWNER_EMAIL, "password");
+        Authentication auth = new UsernamePasswordAuthenticationToken(VALID_OWNER_EMAIL, "password", 
+            Collections.singletonList(new SimpleGrantedAuthority("ROLE_GAME_OWNER")));
+        SecurityContext securityContext = new SecurityContextImpl();
+        securityContext.setAuthentication(auth);
+        SecurityContextHolder.setContext(securityContext);
+
+        try {
+            // Setup
+            Game game = new Game(VALID_GAME_NAME, VALID_MIN_PLAYERS, VALID_MAX_PLAYERS, VALID_IMAGE, new Date());
+            game.setOwner(owner);
+            GameInstance existingInstance = new GameInstance(game, owner, "Good", "Home", "Old Name");
+            existingInstance.setId(1);
+
+            Map<String, Object> updateData = new HashMap<>();
+            updateData.put("name", "Updated Name");
+            updateData.put("condition", "Excellent");
+            updateData.put("location", "New Location");
+            updateData.put("available", true);
+
+            GameInstance updatedInstance = new GameInstance(game, owner, "Excellent", "New Location", "Updated Name");
+            updatedInstance.setId(1);
+
+            when(gameInstanceRepository.findById(1)).thenReturn(Optional.of(existingInstance));
+            when(gameInstanceRepository.save(any(GameInstance.class))).thenReturn(updatedInstance);
+
+            // Test
+            GameInstanceResponseDto response = gameService.updateGameInstance(1, updateData);
+
+            // Verify
+            assertNotNull(response);
+            assertEquals("Updated Name", response.getName());
+            assertEquals("Excellent", response.getCondition());
+            assertEquals("New Location", response.getLocation());
+            assertTrue(response.isAvailable());
+            verify(gameInstanceRepository).findById(1);
+            verify(gameInstanceRepository).save(any(GameInstance.class));
         } finally {
             SecurityContextHolder.clearContext();
         }

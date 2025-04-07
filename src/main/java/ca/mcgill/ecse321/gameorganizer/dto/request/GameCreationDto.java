@@ -14,6 +14,7 @@ public class GameCreationDto {
     // Instance-specific fields
     private String condition;
     private String location;
+    private String instanceName; // Optional name for the game instance
 
     // Default constructor
     public GameCreationDto() {
@@ -95,5 +96,13 @@ public class GameCreationDto {
 
     public void setLocation(String location) {
         this.location = location;
+    }
+
+    public String getInstanceName() {
+        return instanceName;
+    }
+
+    public void setInstanceName(String instanceName) {
+        this.instanceName = instanceName;
     }
 }
