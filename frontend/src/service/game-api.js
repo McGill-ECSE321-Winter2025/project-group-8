@@ -164,36 +164,30 @@ export const getGamesByOwner = async (ownerEmail) => {
   }
 };
 
-// Removed duplicate/older deleteGame function
 /**
  * Fetches a single game by its ID.
  * @param {number} id - Game ID
  * @returns {Promise<object>} Game object
  */
 export const getGameById = async (id) => {
-  const token = localStorage.getItem("token");
-
-  const headers = {
-    "Content-Type": "application/json",
-  };
-
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+  if (!id) {
+    throw new Error("Game ID is required.");
   }
-
-  const response = await fetch(`http://localhost:8080/api/games/${id}`, {
-    method: "GET",
-    headers,
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `Failed to fetch game #${id}: ${response.status} ${response.statusText}\n${errorText}`
-    );
+  
+  const endpoint = `/games/${id}`;
+  console.log(`getGameById: Fetching game with ID ${id}`);
+  
+  try {
+    const game = await apiClient(endpoint, { 
+      method: "GET",
+      skipPrefix: false // Use /api prefix
+    });
+    console.log(`getGameById: Successfully fetched game ${id}:`, game);
+    return game;
+  } catch (error) {
+    console.error(`getGameById: Failed to fetch game ${id}:`, error);
+    throw error;
   }
-
-  return await response.json();
 };
 
 /**

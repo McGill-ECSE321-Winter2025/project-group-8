@@ -1,7 +1,7 @@
 // Importing required modules and components for routing, UI, and user data fetching
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button.jsx";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import apiClient from "@/service/apiClient"; // Import apiClient
 import { BellIcon, User } from "lucide-react"; // Added User icon
@@ -15,6 +15,7 @@ import {
   MenubarMenu,
   MenubarTrigger,
 } from "@/components/ui/menubar"; // Kept Menubar imports
+import { getGameById } from "@/service/game-api.js"; // Import function to fetch game details
 
 // Main menu component shown on all pages
 export default function MenuBar() {
@@ -23,6 +24,17 @@ export default function MenuBar() {
   const { user, isAuthenticated, logout, loading } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+
+  // Helper function to get read notification IDs from localStorage
+  const getReadNotifications = useCallback(() => {
+    const readNotificationsStr = localStorage.getItem('readNotifications');
+    return readNotificationsStr ? JSON.parse(readNotificationsStr) : [];
+  }, []);
+
+  // Helper function to save read notification IDs to localStorage
+  const saveReadNotifications = useCallback((notificationIds) => {
+    localStorage.setItem('readNotifications', JSON.stringify(notificationIds));
+  }, []);
 
   // Fetch notifications when user is authenticated
   useEffect(() => {
@@ -47,16 +59,14 @@ export default function MenuBar() {
         skipPrefix: false // Assuming endpoint is /api/borrowrequests
       });
       
-      // Filter for APPROVED or DECLINED statuses in the last 7 days
-      const recentStatusChanges = ownerRequests.filter(req => {
-        // Check if status is APPROVED or DECLINED
-        if (req.status !== 'APPROVED' && req.status !== 'DECLINED') return false;
-        
-        // Check if updated within last 7 days (assuming updateDate exists or use requestDate)
-        const updateDate = new Date(req.updateDate || req.requestDate);
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        return updateDate > sevenDaysAgo;
+      // Debug the response to see what data we're getting
+      console.log('Borrow requests (owner):', ownerRequests);
+      
+      // For game owners: we'll only show PENDING requests that need their attention
+      // Since owners don't need to be notified about actions they took themselves
+      const pendingRequests = ownerRequests.filter(req => {
+        // Only include PENDING requests that need owner's attention
+        return req.status === 'PENDING';
       });
 
       // If user is a requester, get their requests too using apiClient
@@ -65,25 +75,113 @@ export default function MenuBar() {
         requiresAuth: true,
         skipPrefix: false // Assuming endpoint is /api/borrowrequests/requester/{id}
       });
+      
+      // Debug the response to see what data we're getting
+      console.log('Borrow requests (requester):', requesterRequests);
 
-      // Combine notifications
+      // For requesters: we'll only show recently APPROVED or DECLINED requests
+      const recentStatusChanges = requesterRequests.filter(req => {
+        // Only include APPROVED or DECLINED statuses
+        if (req.status !== 'APPROVED' && req.status !== 'DECLINED') return false;
+        
+        // Only include recent status changes (last 7 days)
+        const updateDate = new Date(req.updateDate || req.requestDate);
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        return updateDate > sevenDaysAgo;
+      });
+
+      // Create a set to track all game IDs we need to fetch
+      const gameIds = new Set();
+      
+      // Track game IDs from pending owner requests
+      pendingRequests.forEach(req => {
+        // Use requestedGameId which is the field in the DTO
+        if (req.requestedGameId) gameIds.add(req.requestedGameId);
+      });
+      
+      // Track game IDs from requester requests with status changes
+      recentStatusChanges.forEach(req => {
+        // Use requestedGameId which is the field in the DTO
+        if (req.requestedGameId) gameIds.add(req.requestedGameId);
+      });
+      
+      // Fetch game details for all IDs
+      const gameDetailsMap = {};
+      await Promise.all([...gameIds].map(async (gameId) => {
+        try {
+          const gameDetails = await getGameById(gameId);
+          gameDetailsMap[gameId] = gameDetails;
+        } catch (err) {
+          console.error(`Failed to fetch game details for ID ${gameId}:`, err);
+        }
+      }));
+
+      // Get already read notification IDs from localStorage
+      const readNotificationIds = getReadNotifications();
+
+      // Combine notifications with game names and mark previously read notifications
       const allNotifications = [
-        ...recentStatusChanges.map(req => ({
-          id: `owner-${req.id}`,
-          message: `Request for game #${req.gameId} was ${req.status.toLowerCase()}`,
-          status: req.status,
-          date: new Date(req.updateDate || req.requestDate),
-          read: false
-        })),
-        ...requesterRequests
-          .filter(req => req.status === 'APPROVED' || req.status === 'DECLINED')
-          .map(req => ({
-            id: `requester-${req.id}`,
-            message: `Your request for game #${req.gameId} was ${req.status.toLowerCase()}`,
+        ...pendingRequests.map(req => {
+          // For owners: Show notifications about pending requests that need action
+          let gameName = null;
+          
+          // Try multiple possible sources for game name
+          if (req.gameName) {
+            gameName = req.gameName;
+          } 
+          else if (req.game && req.game.name) {
+            gameName = req.game.name;
+          }
+          else if (req.requestedGameId && gameDetailsMap[req.requestedGameId]?.name) {
+            gameName = gameDetailsMap[req.requestedGameId].name;
+          }
+          else if (req.requestedGame && req.requestedGame.name) {
+            gameName = req.requestedGame.name;
+          }
+          else {
+            gameName = "Unknown Game";
+          }
+          
+          const notificationId = `owner-${req.id}`;
+          return {
+            id: notificationId,
+            message: `New request for game ${gameName} needs your attention`,
+            status: req.status,
+            date: new Date(req.requestDate),
+            read: readNotificationIds.includes(notificationId) // Check if already read
+          };
+        }),
+        ...recentStatusChanges.map(req => {
+          // For requesters: Show notifications about status changes to their requests
+          let gameName = null;
+          
+          // Try multiple possible sources for game name
+          if (req.gameName) {
+            gameName = req.gameName;
+          } 
+          else if (req.game && req.game.name) {
+            gameName = req.game.name;
+          }
+          else if (req.requestedGameId && gameDetailsMap[req.requestedGameId]?.name) {
+            gameName = gameDetailsMap[req.requestedGameId].name;
+          }
+          else if (req.requestedGame && req.requestedGame.name) {
+            gameName = req.requestedGame.name;
+          }
+          else {
+            gameName = "Unknown Game";
+          }
+          
+          const notificationId = `requester-${req.id}`;
+          return {
+            id: notificationId,
+            message: `Your request for game ${gameName} was ${req.status.toLowerCase()}`,
             status: req.status,
             date: new Date(req.updateDate || req.requestDate),
-            read: false
-          }))
+            read: readNotificationIds.includes(notificationId) // Check if already read
+          };
+        })
       ];
 
       // Sort by date (newest first)
@@ -98,8 +196,30 @@ export default function MenuBar() {
 
   // Mark all notifications as read
   const markAllAsRead = () => {
-    setNotifications(notifications.map(n => ({...n, read: true})));
+    // Update notification state
+    const updatedNotifications = notifications.map(n => ({...n, read: true}));
+    setNotifications(updatedNotifications);
     setUnreadCount(0);
+    
+    // Save all notification IDs as read to localStorage
+    const notificationIds = notifications.map(n => n.id);
+    saveReadNotifications([...getReadNotifications(), ...notificationIds]);
+  };
+
+  // Mark a single notification as read
+  const markAsRead = (notificationId) => {
+    // Update notification state
+    const updatedNotifications = notifications.map(n => 
+      n.id === notificationId ? {...n, read: true} : n
+    );
+    setNotifications(updatedNotifications);
+    setUnreadCount(updatedNotifications.filter(n => !n.read).length);
+    
+    // Save notification ID as read to localStorage
+    const readNotificationIds = getReadNotifications();
+    if (!readNotificationIds.includes(notificationId)) {
+      saveReadNotifications([...readNotificationIds, notificationId]);
+    }
   };
 
   const handleLogout = async () => {
@@ -218,10 +338,12 @@ export default function MenuBar() {
                         <MenubarItem 
                           key={notification.id} 
                           className={`px-3 py-2 cursor-default ${notification.read ? 'bg-white' : 'bg-blue-50'}`}
+                          onClick={() => markAsRead(notification.id)}
                         >
                           <div className="flex items-start gap-2">
                             <div className={`w-2 h-2 mt-1.5 rounded-full flex-shrink-0 ${
-                              notification.status === 'APPROVED' ? 'bg-green-500' : 'bg-red-500'
+                              notification.status === 'APPROVED' ? 'bg-green-500' : 
+                              notification.status === 'DECLINED' ? 'bg-red-500' : 'bg-blue-500'
                             }`}/>
                             <div className="flex-1">
                               <p className="text-sm">{notification.message}</p>
