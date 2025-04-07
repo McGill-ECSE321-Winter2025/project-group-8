@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.core.GrantedAuthority;
@@ -130,5 +131,44 @@ public class UserController {
             sb.append(cookie.getName()).append("=").append(value).append("; ");
         }
         return sb.toString();
+    }
+
+    /**
+     * Search for a user by exact email address.
+     * 
+     * @param email The email to search for
+     * @return UserSummaryDto containing user information if found
+     */
+    @GetMapping("/search/{email}")
+    public ResponseEntity<?> searchUserByEmail(@PathVariable String email) {
+        try {
+            // Find account by email
+            Account account = accountRepository.findByEmail(email)
+                    .orElseThrow(() -> new IllegalArgumentException("User with email " + email + " does not exist"));
+            
+            // Check if the account is a GameOwner
+            boolean isGameOwner = account instanceof GameOwner;
+            
+            // Create and return user summary with details
+            UserSummaryDto userSummary = new UserSummaryDto(
+                account.getId(), 
+                account.getName(), 
+                account.getEmail(), 
+                isGameOwner
+            );
+            
+            return ResponseEntity
+                    .ok()
+                    .header("Content-Type", "application/json")
+                    .body(userSummary);
+        } catch (IllegalArgumentException e) {
+            // User not found
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body("User not found: " + e.getMessage());
+        } catch (Exception e) {
+            // Other errors
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error searching for user: " + e.getMessage());
+        }
     }
 } 

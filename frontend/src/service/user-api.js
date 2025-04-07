@@ -1,4 +1,4 @@
-import apiClient, { UnauthorizedError, ForbiddenError } from './apiClient';
+import apiClient, { UnauthorizedError, ForbiddenError, NotFoundError } from './apiClient';
 
 /**
  * Fetches the profile information of the currently logged-in user.
@@ -17,16 +17,32 @@ export const getUserProfile = async () => {
  * @returns {Promise<object>} Account information
  * @throws {UnauthorizedError} If the user is not authenticated
  * @throws {ForbiddenError} If the user doesn't have permission
+ * @throws {ApiError} For other API errors (e.g., not found)
  */
 export const getUserInfoByEmail = async (email) => {
   if (!email) {
     throw new Error("Email is required to fetch account info");
   }
 
-  return apiClient(`/users/search/${encodeURIComponent(email)}`, {
-    skipPrefix: false
-  });
+  // Log the request attempt for debugging
+  console.log(`Fetching user info for email: ${email}`);
 
+  try {
+    return await apiClient(`/users/search/${encodeURIComponent(email)}`, {
+      skipPrefix: false
+    });
+  } catch (error) {
+    // Log the error for debugging purposes
+    console.error(`Error fetching user info for ${email}:`, error);
+    
+    // Propagate specific error types for better error handling
+    if (error.status === 404) {
+      throw new NotFoundError(`User with email ${email} not found`);
+    }
+    
+    // Rethrow other errors for caller to handle
+    throw error;
+  }
 };
 
 /**
