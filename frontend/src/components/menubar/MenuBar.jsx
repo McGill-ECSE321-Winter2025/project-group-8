@@ -15,6 +15,7 @@ import {
   MenubarTrigger,
 } from "@/components/ui/menubar"; // Kept Menubar imports
 import { getGameById } from "@/service/game-api.js"; // Import function to fetch game details
+import white_logo from '../../assets/logo/white-logo.svg'; // Import logo image
 
 // Main menu component shown on all pages
 export default function MenuBar() {
@@ -260,17 +261,19 @@ export default function MenuBar() {
   return (
     <header className="bg-white dark:bg-sidebar border-b shadow-sm dark:border-sidebar-border">
       <div className="flex items-center justify-between py-4 px-6 md:px-10 max-w-screen-xl mx-auto">
-        {/* Logo and homepage link */}
-        <Link to="/" className="flex items-center gap-2">
-          <img
-            src="https://www.svgrepo.com/show/83116/board-games-set.svg"
-            alt="Board Games Icon"
-            className="w-10 h-10"
-          />
-          <span className="text-xl font-bold dark:text-sidebar-foreground">BoardGameConnect</span>
-        </Link>
+        
+          <Link to="/" className="flex items-center gap-2">
+            <img
+              src={isDarkMode 
+                ? white_logo
+                : "https://www.svgrepo.com/show/83116/board-games-set.svg"}
+              alt="Board Games Icon"
+              className="w-10 h-10"
+            />
+            <span className="text-xl font-bold dark:text-sidebar-foreground">BoardGameConnect</span>
+          </Link>
 
-        {/* Right-side navigation options */}
+          {/* Right-side navigation options */}
         <div className="flex items-center gap-3">
           {/* Links shown only when user is logged in */}
           {isAuthenticated && (
