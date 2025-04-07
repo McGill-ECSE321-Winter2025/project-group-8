@@ -120,32 +120,42 @@ public class AuthenticationController {
             // Determine cookie expiration based on rememberMe flag
             int cookieMaxAge = authenticationDTO.isRememberMe() 
                 ? 30 * 24 * 3600  // 30 days in seconds (if rememberMe is true)
-                : 24 * 3600;      // 24 hours in seconds (default)
+                : -1;      // Session cookie (expires when browser closes)
                 
             System.out.println("Setting cookie max age to: " + cookieMaxAge + " seconds. Remember me: " + authenticationDTO.isRememberMe());
 
             // --- Use ResponseCookie for setting cookies with SameSite ---
 
             // Create HttpOnly cookie for the JWT using ResponseCookie
-            ResponseCookie accessTokenCookie = ResponseCookie.from("accessToken", jwt)
+            ResponseCookie.ResponseCookieBuilder accessTokenBuilder = ResponseCookie.from("accessToken", jwt)
                 .httpOnly(true)
                 .secure(false) // false for local HTTP development; set true for HTTPS
                 .path("/")
-                .maxAge(cookieMaxAge)
-                .sameSite("Lax") // Changed from Strict to Lax for better cross-site functionality
-                .build();
+                .sameSite("Lax"); // Changed from Strict to Lax for better cross-site functionality
+                
+            // Apply maxAge only if rememberMe is true
+            if (authenticationDTO.isRememberMe()) {
+                accessTokenBuilder.maxAge(cookieMaxAge);
+            } // otherwise it's a session cookie (expires when browser closes)
+
+            ResponseCookie accessTokenCookie = accessTokenBuilder.build();
             response.addHeader(HttpHeaders.SET_COOKIE, accessTokenCookie.toString());
             logger.debug("Added accessToken cookie using ResponseCookie. MaxAge: {}, SameSite: Lax", cookieMaxAge);
             logger.debug("Generated JWT for accessToken (start): {}...", jwt.substring(0, Math.min(jwt.length(), 20)));
 
             // Create non-HttpOnly cookie for client-side authentication status checking using ResponseCookie
-            ResponseCookie isAuthenticatedCookie = ResponseCookie.from("isAuthenticated", "true")
+            ResponseCookie.ResponseCookieBuilder isAuthenticatedBuilder = ResponseCookie.from("isAuthenticated", "true")
                 .httpOnly(false) // Allow JS access
                 .secure(false) // false for local HTTP development; set true for HTTPS
                 .path("/")
-                .maxAge(cookieMaxAge)
-                .sameSite("Lax") // Changed from Strict to Lax for better cross-site functionality
-                .build();
+                .sameSite("Lax"); // Changed from Strict to Lax for better cross-site functionality
+                
+            // Apply maxAge only if rememberMe is true
+            if (authenticationDTO.isRememberMe()) {
+                isAuthenticatedBuilder.maxAge(cookieMaxAge);
+            } // otherwise it's a session cookie (expires when browser closes)
+
+            ResponseCookie isAuthenticatedCookie = isAuthenticatedBuilder.build();
             response.addHeader(HttpHeaders.SET_COOKIE, isAuthenticatedCookie.toString());
             logger.debug("Added isAuthenticated cookie using ResponseCookie. MaxAge: {}, SameSite: Lax", cookieMaxAge);
 

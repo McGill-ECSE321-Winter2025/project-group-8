@@ -17,7 +17,10 @@ import { Alert, AlertDescription } from "../components/ui/alert";
 const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(() => {
+    // Initialize from localStorage if available, default to false
+    return localStorage.getItem('rememberMe') === 'true';
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   
@@ -36,6 +39,15 @@ const LoginPage = () => {
     }
   }, [isAuthenticated, navigate, redirectTo]);
   
+  // Handle checkbox change specifically (to ensure boolean conversion)
+  const handleRememberMeChange = (checked) => {
+    const boolValue = Boolean(checked);
+    console.log('Setting rememberMe to:', boolValue);
+    setRememberMe(boolValue);
+    // Store in localStorage for persistence across page reloads
+    localStorage.setItem('rememberMe', boolValue ? 'true' : 'false');
+  };
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -48,7 +60,9 @@ const LoginPage = () => {
       setIsLoading(true);
       setError('');
       
-      // Call the login API
+      console.log('Login: Using rememberMe value:', rememberMe);
+      
+      // Call the login API with explicit rememberMe value
       const userData = await loginUser(email, password, rememberMe);
       
       // Update activity timestamp
@@ -129,7 +143,7 @@ const LoginPage = () => {
               <Checkbox 
                 id="rememberMe" 
                 checked={rememberMe}
-                onCheckedChange={setRememberMe}
+                onCheckedChange={handleRememberMeChange}
                 disabled={isLoading}
               />
               <Label htmlFor="rememberMe" className="text-sm font-medium leading-none cursor-pointer">

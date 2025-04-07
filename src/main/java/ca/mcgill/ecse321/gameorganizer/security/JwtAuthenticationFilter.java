@@ -22,6 +22,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpServletResponseWrapper;
 import org.springframework.security.core.Authentication;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
+import java.util.Date;
 
 @Component
 // Removed @Order annotation to let Spring manage order via SecurityConfig
@@ -45,101 +48,136 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-        log.debug("Processing request: {} {}", request.getMethod(), request.getRequestURI());
-        
-        // Log the security context before we make any changes
-        log.debug("Security context BEFORE filter: {}", SecurityContextHolder.getContext());
-        log.debug("Security thread before filter: {}", Thread.currentThread().getName());
-        
-        // Extract and validate token
-        String token = extractTokenFromRequest(request);
-        log.debug("Extracted token: {}", token != null ? token.substring(0, Math.min(token.length(), 10)) + "..." : "null");
-        
-        // Make authentication final to fix linter error
-        final Authentication[] authRef = {null};
-        
-        if (token != null) {
-            try {
-                // No need to check for "Bearer " prefix when reading from cookie
-                // if (token.startsWith("Bearer ")) {
-                //     token = token.substring(7).trim();
-                //     log.debug("Removed 'Bearer ' prefix from token");
-                // }
-                
-                // Check if token is empty after trimming
-                if (token.isEmpty()) {
-                    log.warn("Token is empty after removing 'Bearer ' prefix");
-                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                    return;
-                }
-                
-                // Extract username from token
-                String username = jwtUtil.extractUsername(token);
-                log.debug("Extracted username from token: {}", username);
-
-                // If we have a username and no existing authentication
-                if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                    log.debug("Loading UserDetails for email: {}", username);
-                    UserDetails userDetails;
-                    try {
-                        userDetails = userDetailsService.loadUserByUsername(username);
-                        log.debug("Successfully loaded UserDetails for: {}", username);
-                    } catch (Exception e) {
-                        log.error("Failed to load user details for token validation: {}", e.getMessage(), e);
-                        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                        return;
-                    }
-
-                    // If token is valid
-                    if (jwtUtil.validateToken(token, userDetails.getUsername())) {
-                        log.debug("JWT token is valid for user: {}", username);
-                        
-                        authRef[0] = new UsernamePasswordAuthenticationToken(
-                                userDetails, null, userDetails.getAuthorities());
-                        
-                        // Add details from request
-                        ((UsernamePasswordAuthenticationToken) authRef[0])
-                            .setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                        
-                        // Set authentication in context
-                        SecurityContextHolder.getContext().setAuthentication(authRef[0]);
-                        
-                        log.debug("Authentication set in SecurityContextHolder: {}", authRef[0]);
-                        
-                        // Store in request attributes for later use
-                        request.setAttribute(AUTH_ATTRIBUTE, authRef[0]);
-                        
-                        // Log security context after setting auth
-                        log.debug("Security context AFTER filter: {}", SecurityContextHolder.getContext());
-                        log.debug("SecurityContextHolder strategy: {}", SecurityContextHolder.getContextHolderStrategy().getClass().getName());
-                    } else {
-                        log.warn("Token validation failed for user: {}", username);
-                        if (request.getRequestURI().contains("/account/")) {
-                            log.warn("Failed token validation on account endpoint: {}", request.getRequestURI());
-                            log.warn("Account access denied. Token: {}", token.substring(0, Math.min(token.length(), 20)) + "...");
-                        }
-                    }
-                } else {
-                    // Log why we didn't set authentication
-                    if (username == null) {
-                        log.warn("No username extracted from token");
-                    } else if (SecurityContextHolder.getContext().getAuthentication() != null) {
-                        log.warn("Authentication already exists in security context: {}", 
-                            SecurityContextHolder.getContext().getAuthentication());
-                    }
-                }
-            } catch (Exception e) {
-                log.error("Error processing JWT token: {}", e.getMessage(), e);
+        // Debug log cookies received in the request
+        Cookie[] cookies = request.getCookies();
+        if (cookies != null) {
+            log.debug("{} cookies received", cookies.length);
+            for (Cookie cookie : cookies) {
+                log.debug("Cookie: name={}, value={}, path={}, domain={}, maxAge={}",
+                    cookie.getName(), cookie.getValue(), cookie.getPath(), cookie.getDomain(), cookie.getMaxAge());
             }
-        } else if (request.getRequestURI().contains("/account/") && request.getMethod().equals("GET")) {
-            log.warn("No token provided for authenticated account endpoint: {}", request.getRequestURI());
+        } else {
+            log.debug("No cookies received in request");
         }
         
-        // Proceed with the filter chain using the original response
-        filterChain.doFilter(request, response);
+        // Debug log headers including X-Remember-Me for all requests
+        String rememberMeHeader = request.getHeader("X-Remember-Me");
+        boolean rememberMe = "true".equalsIgnoreCase(rememberMeHeader);
+        log.debug("X-Remember-Me header: {}", rememberMeHeader);
+        
+        // Log security context before any changes
+        Authentication existingAuth = SecurityContextHolder.getContext().getAuthentication();
+        log.debug("Security context before processing: {}", existingAuth);
 
-        // Log security context after the filter chain (for debugging purposes)
-        log.debug("Security context AFTER filter chain: {}", SecurityContextHolder.getContext());
+        // Extract token from cookies
+        String token = null;
+        if (cookies != null) {
+            for (Cookie cookie : cookies) {
+                if ("accessToken".equals(cookie.getName())) {
+                    token = cookie.getValue();
+                    log.debug("Found accessToken cookie with value length: {}", token.length());
+                    break;
+                }
+            }
+        }
+
+        // Token not found in cookies, try to get from Authorization header as fallback
+        if (token == null) {
+            String bearerToken = request.getHeader("Authorization");
+            if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
+                token = bearerToken.substring(7);
+                log.debug("Found token in Authorization header with length: {}", token.length());
+            }
+        }
+
+        // Log the extracted token for debugging
+        if (token != null) {
+            log.debug("Extracted token (first 10 chars): {}", token.substring(0, Math.min(10, token.length())));
+        } else {
+            log.debug("No token extracted from request");
+        }
+
+        try {
+            if (token != null) {
+                // Extract username from token
+                String username = jwtUtil.extractUsername(token);
+                
+                // Validate token with the extracted username
+                if (username != null && jwtUtil.validateToken(token, username)) {
+                    UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+                    
+                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                            userDetails, null, userDetails.getAuthorities());
+                    
+                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    
+                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                    
+                    log.debug("Authentication successful. User: {}", userDetails.getUsername());
+                    
+                    // Check if token needs refresh - for example if it's nearing expiration
+                    // Check if token is expired or about to expire (within 15 minutes)
+                    Date expiration = jwtUtil.extractExpiration(token);
+                    boolean needsRefresh = expiration != null && 
+                        (expiration.getTime() - System.currentTimeMillis() < 15 * 60 * 1000);
+                    
+                    if (needsRefresh) {
+                        log.debug("Token needs refresh. Generating new token.");
+                        
+                        // In a real implementation, you would use your userRepository to get the Account entity
+                        // For this fix, we'll assume Account is not needed (or fetch it based on the username)
+                        String refreshedToken = jwtUtil.generateToken(userDetails, null);
+                        
+                        // Determine cookie max age based on rememberMe flag
+                        int cookieMaxAge = rememberMe 
+                            ? 30 * 24 * 3600  // 30 days in seconds (if rememberMe is true)
+                            : -1;      // Session cookie (expires when browser closes)
+                        
+                        log.debug("Setting refreshed token cookie with maxAge: {}, rememberMe: {}", 
+                                cookieMaxAge, rememberMe);
+                        
+                        // Create the accessToken cookie
+                        ResponseCookie.ResponseCookieBuilder accessTokenBuilder = ResponseCookie.from("accessToken", refreshedToken)
+                            .httpOnly(true)  // Not accessible via JavaScript
+                            .secure(false)   // For dev - set to true in production with HTTPS
+                            .path("/")
+                            .sameSite("Lax"); // Sent with same-site requests and when navigating to site
+                        
+                        // Apply maxAge only if rememberMe is true
+                        if (rememberMe) {
+                            accessTokenBuilder.maxAge(cookieMaxAge);
+                        } // otherwise it's a session cookie
+                        
+                        ResponseCookie accessTokenCookie = accessTokenBuilder.build();
+                        
+                        // Create the isAuthenticated cookie (for frontend to know auth state)
+                        ResponseCookie.ResponseCookieBuilder isAuthenticatedBuilder = ResponseCookie.from("isAuthenticated", "true")
+                            .httpOnly(false) // Allow JS access
+                            .secure(false)   // For dev - set to true in production with HTTPS
+                            .path("/")
+                            .sameSite("Lax"); // Use Lax for better browser compatibility
+                        
+                        // Apply maxAge only if rememberMe is true
+                        if (rememberMe) {
+                            isAuthenticatedBuilder.maxAge(cookieMaxAge);
+                        } // otherwise it's a session cookie
+                        
+                        ResponseCookie isAuthenticatedCookie = isAuthenticatedBuilder.build();
+                        
+                        // Add cookies to response
+                        response.addHeader(HttpHeaders.SET_COOKIE, accessTokenCookie.toString());
+                        response.addHeader(HttpHeaders.SET_COOKIE, isAuthenticatedCookie.toString());
+                        
+                        log.debug("Token refreshed and set in cookies");
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error validating JWT token: {}", e.getMessage());
+            // Don't set auth on error, but let request continue
+        }
+
+        filterChain.doFilter(request, response);
     }
     
     /**
@@ -150,54 +188,66 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      */
     private String extractTokenFromRequest(HttpServletRequest request) {
         Cookie[] cookies = request.getCookies();
+        String requestUrl = request.getRequestURI();
+        
+        log.debug("Extracting token for request: {}", requestUrl);
+        
         if (cookies != null) {
             // --- BEGIN ADDED LOGGING ---
             log.debug("Cookies received for request {}:", request.getRequestURI());
             boolean accessTokenFound = false;
+            String accessTokenValue = null;
+            
+            // First pass: log all cookies
             for (Cookie cookie : cookies) {
-                log.debug("  - Name: {}, Value: [{}], Path: {}, Domain: {}, MaxAge: {}, Secure: {}, HttpOnly: {}",
+                log.debug("  - Name: {}, Value length: {}, Path: {}, Domain: {}, MaxAge: {}, Secure: {}, HttpOnly: {}",
                           cookie.getName(),
-                          (cookie.getValue() != null && cookie.getValue().length() > 15) ? cookie.getValue().substring(0, 15) + "..." : cookie.getValue(), // Log only prefix of value
+                          cookie.getValue() != null ? cookie.getValue().length() : 0,
                           cookie.getPath(),
                           cookie.getDomain(),
                           cookie.getMaxAge(),
                           cookie.getSecure(),
-                          cookie.isHttpOnly()); // Note: isHttpOnly might not be readable server-side depending on container/version
-            // --- END ADDED LOGGING ---
+                          cookie.isHttpOnly());
 
                 if ("accessToken".equals(cookie.getName())) {
-                    accessTokenFound = true; // Mark as found
-                    String token = cookie.getValue();
-                    log.debug("Found 'accessToken' cookie with value: {}",
-                        (token != null && token.length() > 15) ? token.substring(0, 15) + "..." : token);
-                    // return token; // Return immediately after finding - Original logic
+                    accessTokenFound = true;
+                    accessTokenValue = cookie.getValue();
+                    log.debug("Found 'accessToken' cookie with value length: {}",
+                        accessTokenValue != null ? accessTokenValue.length() : 0);
                 }
             }
-            // --- BEGIN MODIFIED RETURN LOGIC ---
-            // Search again after logging all cookies to return the token if found
-            for (Cookie cookie : cookies) {
-                 if ("accessToken".equals(cookie.getName())) {
-                     return cookie.getValue();
-                 }
-            }
+            
+            // Return the token if found
+            if (accessTokenFound && accessTokenValue != null && !accessTokenValue.isEmpty()) {
+                log.debug("Using accessToken from cookie for authentication on path: {}", requestUrl);
+                return accessTokenValue;
+            } 
+            
             if (!accessTokenFound) {
-                log.debug("  'accessToken' cookie was NOT found among received cookies.");
+                log.debug("No 'accessToken' cookie found among {} cookies for request: {}", 
+                    cookies.length, requestUrl);
+            } else if (accessTokenValue == null || accessTokenValue.isEmpty()) {
+                log.debug("Found 'accessToken' cookie but value is empty for request: {}", requestUrl);
             }
-            // --- END MODIFIED RETURN LOGIC ---
         } else {
-            log.debug("No cookies received for request {}.", request.getRequestURI());
+            log.debug("No cookies received for request: {}", requestUrl);
         }
 
         // If no cookie found, try Authorization header
-         String authHeader = request.getHeader("Authorization");
-         if (authHeader != null && authHeader.startsWith("Bearer ")) {
-             String token = authHeader.substring(7); // Remove "Bearer " prefix
-             log.debug("Found token in Authorization header: {}",
-                 (token != null && token.length() > 15) ? token.substring(0, 15) + "..." : token);
-             return token;
-         }
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String token = authHeader.substring(7); // Remove "Bearer " prefix
+            if (token != null && !token.isEmpty()) {
+                log.debug("Using token from Authorization header for request: {}", requestUrl);
+                return token;
+            } else {
+                log.debug("Found Authorization header but token is empty for request: {}", requestUrl);
+            }
+        } else {
+            log.debug("No Authorization header found for request: {}", requestUrl);
+        }
 
-         log.debug("No token found in either cookie or Authorization header for {}", request.getRequestURI());
-         return null;
+        log.debug("No authentication token found in either cookie or header for request: {}", requestUrl);
+        return null;
     }
 }

@@ -9,6 +9,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import ca.mcgill.ecse321.gameorganizer.dto.response.UserSummaryDto;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
@@ -25,11 +29,13 @@ import java.util.stream.Collectors;
  * Provides API endpoints for retrieving user information.
  */
 @RestController
-@RequestMapping("/api/users")
+@RequestMapping("/users")
 public class UserController {
 
     @Autowired
     private AccountRepository accountRepository;
+    
+    private static final Logger logger = LoggerFactory.getLogger(UserController.class);
 
     /**
      * Get the profile of the currently authenticated user.
@@ -41,6 +47,9 @@ public class UserController {
         // Log request details for debugging
         System.out.println("UserController: /users/me request received");
         System.out.println("UserController: Request cookies: " + formatCookies(request));
+        
+        // Check if the request has X-Remember-Me header
+        boolean rememberMe = "true".equalsIgnoreCase(request.getHeader("X-Remember-Me"));
         
         // Get authentication from security context
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -54,6 +63,7 @@ public class UserController {
                     .map(GrantedAuthority::getAuthority)
                     .collect(Collectors.joining(", ")));
             System.out.println("UserController: Authentication is authenticated: " + authentication.isAuthenticated());
+            System.out.println("UserController: Remember Me header: " + rememberMe);
         } else {
             System.out.println("UserController: Authentication is null in SecurityContextHolder");
         }
@@ -62,11 +72,15 @@ public class UserController {
             authentication.getName().equals("anonymousUser")) {
             System.out.println("UserController: User is not authenticated or anonymous");
             
-            // Set isAuthenticated cookie to false to reflect the actual state
-            Cookie isAuthCookie = new Cookie("isAuthenticated", "false");
-            isAuthCookie.setPath("/");
-            isAuthCookie.setMaxAge(0); // Expire immediately
-            response.addCookie(isAuthCookie);
+            // Clear isAuthenticated cookie using ResponseCookie for better browser compatibility
+            ResponseCookie clearIsAuthenticatedCookie = ResponseCookie.from("isAuthenticated", "false")
+                .httpOnly(false) // Allow JS access
+                .secure(false) // false for local dev
+                .path("/")
+                .maxAge(0) // Expire immediately
+                .sameSite("Lax") // Use Lax for better functionality
+                .build();
+            response.addHeader(HttpHeaders.SET_COOKIE, clearIsAuthenticatedCookie.toString());
             
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
@@ -90,11 +104,28 @@ public class UserController {
             System.out.println("UserController: Found user: " + userSummary.getId() + ", " + userSummary.getName() + 
                               ", " + userSummary.getEmail() + ", isGameOwner: " + userSummary.isGameOwner());
             
-            // Set or refresh the isAuthenticated cookie to ensure frontend state consistency
-            Cookie isAuthCookie = new Cookie("isAuthenticated", "true");
-            isAuthCookie.setPath("/");
-            isAuthCookie.setMaxAge(24 * 3600); // 24 hours 
-            response.addCookie(isAuthCookie);
+            // Set cookie maxAge based on rememberMe flag
+            int cookieMaxAge = rememberMe 
+                ? 30 * 24 * 3600  // 30 days in seconds (if rememberMe is true)
+                : -1;      // Session cookie (expires when browser closes)
+                
+            System.out.println("UserController: Setting isAuthenticated cookie max age to: " + cookieMaxAge + 
+                " seconds. Remember me: " + rememberMe);
+            
+            // Set or refresh the isAuthenticated cookie using ResponseCookie for better browser compatibility
+            ResponseCookie.ResponseCookieBuilder isAuthenticatedBuilder = ResponseCookie.from("isAuthenticated", "true")
+                .httpOnly(false) // Allow JS access
+                .secure(false) // false for local dev
+                .path("/")
+                .sameSite("Lax"); // Use Lax for better functionality
+                
+            // Apply maxAge only if rememberMe is true
+            if (rememberMe) {
+                isAuthenticatedBuilder.maxAge(cookieMaxAge);
+            } // otherwise it's a session cookie (expires when browser closes)
+            
+            ResponseCookie isAuthenticatedCookie = isAuthenticatedBuilder.build();
+            response.addHeader(HttpHeaders.SET_COOKIE, isAuthenticatedCookie.toString());
             
             // Return with explicit content type
             return ResponseEntity
@@ -105,11 +136,15 @@ public class UserController {
             System.err.println("UserController: Error retrieving current user: " + e.getMessage());
             e.printStackTrace();
             
-            // Set isAuthenticated cookie to false on error
-            Cookie isAuthCookie = new Cookie("isAuthenticated", "false");
-            isAuthCookie.setPath("/");
-            isAuthCookie.setMaxAge(0); // Expire immediately
-            response.addCookie(isAuthCookie);
+            // Clear isAuthenticated cookie using ResponseCookie
+            ResponseCookie clearIsAuthenticatedCookie = ResponseCookie.from("isAuthenticated", "false")
+                .httpOnly(false) // Allow JS access
+                .secure(false) // false for local dev
+                .path("/")
+                .maxAge(0) // Expire immediately
+                .sameSite("Lax") // Use Lax for better functionality
+                .build();
+            response.addHeader(HttpHeaders.SET_COOKIE, clearIsAuthenticatedCookie.toString());
             
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
