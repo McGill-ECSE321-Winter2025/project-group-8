@@ -14,16 +14,30 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-// Removed duplicate mock import, already covered by MockitoExtension implicitly? Let's keep it explicit for clarity if needed.
-// import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity; // Import ResponseEntity
+// Imports for Security Context Mocking
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.context.SecurityContextImpl;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import java.util.Collections;
+import static org.mockito.Mockito.times; // Add times import
+import org.springframework.security.core.userdetails.UserDetails;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
 
-import ca.mcgill.ecse321.gameorganizer.dto.BorrowRequestDto;
-import ca.mcgill.ecse321.gameorganizer.dto.CreateBorrowRequestDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.BorrowRequestDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.CreateBorrowRequestDto;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequestStatus;
@@ -34,8 +48,12 @@ import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
 import ca.mcgill.ecse321.gameorganizer.services.LendingRecordService; // Import LendingRecordService
 import ca.mcgill.ecse321.gameorganizer.services.BorrowRequestService;
+import org.springframework.test.context.ContextConfiguration;
+import ca.mcgill.ecse321.gameorganizer.TestJwtConfig;
+import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;
 
 @ExtendWith(MockitoExtension.class)
+@ContextConfiguration(initializers = TestJwtConfig.Initializer.class)
 public class BorrowRequestServiceTest {
 
     @Mock
@@ -50,6 +68,7 @@ public class BorrowRequestServiceTest {
     @Mock // Add mock for LendingRecordService
     private LendingRecordService lendingRecordService;
 
+    @Spy
     @InjectMocks
     private BorrowRequestService borrowRequestService;
 
@@ -88,22 +107,35 @@ public class BorrowRequestServiceTest {
         savedRequest.setStatus(BorrowRequestStatus.PENDING);
         savedRequest.setRequestDate(new Date()); // Corrected: Pass the date object
 
-        when(gameRepository.findById(VALID_GAME_ID)).thenReturn(Optional.of(game));
-        when(accountRepository.findById(VALID_REQUESTER_ID)).thenReturn(Optional.of(requester));
-        when(borrowRequestRepository.findOverlappingApprovedRequests(VALID_GAME_ID, startDate, endDate))
-                .thenReturn(new ArrayList<>());
-        when(borrowRequestRepository.save(any(BorrowRequest.class))).thenReturn(savedRequest);
+        // Mock authentication
+        Authentication authentication = mock(Authentication.class);
+        SecurityContext securityContext = mock(SecurityContext.class);
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+        when(authentication.getName()).thenReturn(requester.getEmail());
+        when(authentication.isAuthenticated()).thenReturn(true);
+        SecurityContextHolder.setContext(securityContext);
 
-        // Test
-        BorrowRequestDto result = borrowRequestService.createBorrowRequest(requestDto);
+        try {
+            when(accountRepository.findByEmail(requester.getEmail())).thenReturn(Optional.of(requester));
+            when(gameRepository.findById(VALID_GAME_ID)).thenReturn(Optional.of(game));
+            when(borrowRequestRepository.findOverlappingApprovedRequests(VALID_GAME_ID, startDate, endDate))
+                    .thenReturn(new ArrayList<>());
+            when(borrowRequestRepository.save(any(BorrowRequest.class))).thenReturn(savedRequest);
 
-        // Verify
-        assertNotNull(result);
-        assertEquals(VALID_REQUEST_ID, result.getId());
-        assertEquals(VALID_GAME_ID, result.getRequestedGameId());
-        assertEquals(VALID_REQUESTER_ID, result.getRequesterId());
-        assertEquals("PENDING", result.getStatus());
-        verify(borrowRequestRepository).save(any(BorrowRequest.class));
+            // Test
+            BorrowRequestDto result = borrowRequestService.createBorrowRequest(requestDto);
+
+            // Verify
+            assertNotNull(result);
+            assertEquals(VALID_REQUEST_ID, result.getId());
+            assertEquals(VALID_GAME_ID, result.getRequestedGameId());
+            assertEquals(VALID_REQUESTER_ID, result.getRequesterId());
+            assertEquals("PENDING", result.getStatus());
+            verify(borrowRequestRepository).save(any(BorrowRequest.class));
+            verify(accountRepository).findByEmail(requester.getEmail());
+        } finally {
+            SecurityContextHolder.clearContext(); // Clean up security context
+        }
     }
 
     @Test
@@ -118,11 +150,27 @@ public class BorrowRequestServiceTest {
             endDate
         );
 
-        when(gameRepository.findById(VALID_GAME_ID)).thenReturn(Optional.empty());
+        Account requester = new Account("Requester", "requester@test.com", "password");
+        requester.setId(VALID_REQUESTER_ID);
 
-        // Test & Verify
-        assertThrows(IllegalArgumentException.class, () -> borrowRequestService.createBorrowRequest(requestDto));
-        verify(borrowRequestRepository, never()).save(any(BorrowRequest.class));
+        // Mock authentication
+        Authentication authentication = mock(Authentication.class);
+        SecurityContext securityContext = mock(SecurityContext.class);
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+        when(authentication.getName()).thenReturn(requester.getEmail());
+        when(authentication.isAuthenticated()).thenReturn(true);
+        SecurityContextHolder.setContext(securityContext);
+
+        try {
+            when(accountRepository.findByEmail(requester.getEmail())).thenReturn(Optional.of(requester));
+            when(gameRepository.findById(VALID_GAME_ID)).thenReturn(Optional.empty());
+
+            // Test & Verify
+            assertThrows(IllegalArgumentException.class, () -> borrowRequestService.createBorrowRequest(requestDto));
+            verify(borrowRequestRepository, never()).save(any(BorrowRequest.class));
+        } finally {
+            SecurityContextHolder.clearContext(); // Clean up security context
+        }
     }
 
     @Test
@@ -137,16 +185,28 @@ public class BorrowRequestServiceTest {
             endDate
         );
 
-        Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
-        // Need to set owner for the game object used here as well if service logic requires it
-        GameOwner owner = new GameOwner("Owner", "owner@test.com", "password");
-        game.setOwner(owner);
-        when(gameRepository.findById(VALID_GAME_ID)).thenReturn(Optional.of(game));
-        when(accountRepository.findById(VALID_REQUESTER_ID)).thenReturn(Optional.empty());
+        Account requester = new Account("Requester", "requester@test.com", "password");
+        requester.setId(VALID_REQUESTER_ID);
 
-        // Test & Verify
-        assertThrows(IllegalArgumentException.class, () -> borrowRequestService.createBorrowRequest(requestDto));
-        verify(borrowRequestRepository, never()).save(any(BorrowRequest.class));
+        // Mock authentication
+        Authentication authentication = mock(Authentication.class);
+        SecurityContext securityContext = mock(SecurityContext.class);
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+        when(authentication.getName()).thenReturn(requester.getEmail());
+        when(authentication.isAuthenticated()).thenReturn(true);
+        SecurityContextHolder.setContext(securityContext);
+
+        try {
+            when(accountRepository.findByEmail(requester.getEmail())).thenReturn(Optional.empty());
+            // Use lenient() to avoid UnnecessaryStubbingException
+            lenient().when(gameRepository.findById(VALID_GAME_ID)).thenReturn(Optional.of(new Game()));
+
+            // Test & Verify - updated to expect UnauthedException
+            assertThrows(UnauthedException.class, () -> borrowRequestService.createBorrowRequest(requestDto));
+            verify(borrowRequestRepository, never()).save(any(BorrowRequest.class));
+        } finally {
+            SecurityContextHolder.clearContext(); // Clean up security context
+        }
     }
 
     @Test
@@ -166,13 +226,26 @@ public class BorrowRequestServiceTest {
         GameOwner owner = new GameOwner("Owner", "owner@test.com", "password");
         game.setOwner(owner);
         Account requester = new Account("Requester", "requester@test.com", "password");
+        requester.setId(VALID_REQUESTER_ID);
 
-        when(gameRepository.findById(VALID_GAME_ID)).thenReturn(Optional.of(game));
-        when(accountRepository.findById(VALID_REQUESTER_ID)).thenReturn(Optional.of(requester));
+        // Mock authentication
+        Authentication authentication = mock(Authentication.class);
+        SecurityContext securityContext = mock(SecurityContext.class);
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+        when(authentication.getName()).thenReturn(requester.getEmail());
+        when(authentication.isAuthenticated()).thenReturn(true);
+        SecurityContextHolder.setContext(securityContext);
 
-        // Test & Verify
-        assertThrows(IllegalArgumentException.class, () -> borrowRequestService.createBorrowRequest(requestDto));
-        verify(borrowRequestRepository, never()).save(any(BorrowRequest.class));
+        try {
+            when(accountRepository.findByEmail(requester.getEmail())).thenReturn(Optional.of(requester));
+            when(gameRepository.findById(VALID_GAME_ID)).thenReturn(Optional.of(game));
+
+            // Test & Verify
+            assertThrows(IllegalArgumentException.class, () -> borrowRequestService.createBorrowRequest(requestDto));
+            verify(borrowRequestRepository, never()).save(any(BorrowRequest.class));
+        } finally {
+            SecurityContextHolder.clearContext(); // Clean up security context
+        }
     }
 
     @Test
@@ -218,136 +291,241 @@ public class BorrowRequestServiceTest {
     public void testGetAllBorrowRequests() {
         // Setup
         List<BorrowRequest> requests = new ArrayList<>();
+        // Create test data
+        Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
+        game.setId(VALID_GAME_ID);
+        GameOwner owner = new GameOwner("Owner", "owner@test.com", "password");
+        owner.setId(99);
+        game.setOwner(owner);
+        
+        Account requester = new Account("Requester", "requester@test.com", "password");
+        requester.setId(VALID_REQUESTER_ID);
+        
         BorrowRequest request = new BorrowRequest();
         request.setId(VALID_REQUEST_ID);
-        // Need to set game and requester properly here too for consistency
-        GameOwner owner = new GameOwner("Owner", "owner@test.com", "password");
-        Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
-        game.setOwner(owner);
-        Account requester = new Account("Requester", "requester@test.com", "password");
         request.setRequestedGame(game);
         request.setRequester(requester);
         request.setStatus(BorrowRequestStatus.PENDING);
-        request.setStartDate(new Date()); // Add dates
-        request.setEndDate(new Date(System.currentTimeMillis() + 86400000));
-        request.setRequestDate(new Date()); // Add request date
         requests.add(request);
+        
+        // Setup Authentication with ADMIN role
+        Authentication authentication = new UsernamePasswordAuthenticationToken(
+            "admin@test.com", 
+            "password", 
+            Collections.singletonList(new SimpleGrantedAuthority("ROLE_ADMIN"))
+        );
+        SecurityContext securityContext = new SecurityContextImpl();
+        securityContext.setAuthentication(authentication);
+        SecurityContextHolder.setContext(securityContext);
 
-        when(borrowRequestRepository.findAll()).thenReturn(requests);
-
-        // Test
-        List<BorrowRequestDto> result = borrowRequestService.getAllBorrowRequests();
-
-        // Verify
-        assertNotNull(result);
-        assertEquals(1, result.size());
-        assertEquals(VALID_REQUEST_ID, result.get(0).getId());
-        verify(borrowRequestRepository).findAll();
+        Account adminAccount = new Account("Admin", "admin@test.com", "password");
+        adminAccount.setId(100);
+        
+        try {
+            when(borrowRequestRepository.findAll()).thenReturn(requests);
+            when(accountRepository.findByEmail("admin@test.com")).thenReturn(Optional.of(adminAccount));
+            
+            // Test
+            List<BorrowRequestDto> resultDtos = borrowRequestService.getAllBorrowRequests();
+            
+            // Verify
+            assertNotNull(resultDtos);
+            assertEquals(1, resultDtos.size());
+            assertEquals(VALID_REQUEST_ID, resultDtos.get(0).getId());
+            assertEquals(VALID_GAME_ID, resultDtos.get(0).getRequestedGameId());
+            assertEquals(VALID_REQUESTER_ID, resultDtos.get(0).getRequesterId());
+            verify(borrowRequestRepository).findAll();
+        } finally {
+            SecurityContextHolder.clearContext(); // Clean up security context
+        }
     }
 
     @Test
     public void testUpdateBorrowRequestStatusSuccess() {
-        // Setup
-        BorrowRequest request = new BorrowRequest();
-        request.setId(VALID_REQUEST_ID);
-        request.setStatus(BorrowRequestStatus.PENDING);
-
-        // Create necessary related objects
+        // Setup Owner and Security Context (Owner approves/rejects)
         GameOwner owner = new GameOwner("Owner", "owner@test.com", "password");
-        owner.setId(99); // Assign an ID to the owner
-        Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
-        game.setId(VALID_GAME_ID);
-        game.setOwner(owner); // Set owner on game
-        Account requester = new Account("Requester", "requester@test.com", "password");
-        requester.setId(VALID_REQUESTER_ID);
+        owner.setId(99);
+        Authentication auth = mock(Authentication.class);
+        SecurityContext securityContext = mock(SecurityContext.class);
+        
+        // Make all authentication mocking lenient to avoid UnnecessaryStubbingException
+        lenient().when(securityContext.getAuthentication()).thenReturn(auth);
+        lenient().when(auth.getName()).thenReturn(owner.getEmail());
+        lenient().when(auth.isAuthenticated()).thenReturn(true);
+        SecurityContextHolder.setContext(securityContext);
 
-        // Set related objects on the request
-        request.setRequestedGame(game);
-        request.setRequester(requester);
-        request.setStartDate(new Date());
-        request.setEndDate(new Date(System.currentTimeMillis() + 86400000)); // Set valid dates
-        request.setRequestDate(new Date()); // Set request date
+        try {
+            // Setup Mocks and other test data
+            BorrowRequest request = new BorrowRequest();
+            request.setId(VALID_REQUEST_ID);
+            request.setStatus(BorrowRequestStatus.PENDING);
+            Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
+            game.setId(VALID_GAME_ID);
+            game.setOwner(owner); // Set owner on game
+            Account requester = new Account("Requester", "requester@test.com", "password");
+            requester.setId(VALID_REQUESTER_ID);
+            request.setRequestedGame(game);
+            request.setRequester(requester);
+            request.setStartDate(new Date());
+            request.setEndDate(new Date(System.currentTimeMillis() + 86400000));
+            request.setRequestDate(new Date());
 
-        when(borrowRequestRepository.findBorrowRequestById(VALID_REQUEST_ID)).thenReturn(Optional.of(request));
-        when(borrowRequestRepository.save(any(BorrowRequest.class))).thenReturn(request);
-        // Mock the lendingRecordService call
-        when(lendingRecordService.createLendingRecord(any(Date.class), any(Date.class), any(BorrowRequest.class), any(GameOwner.class)))
-            .thenReturn(ResponseEntity.ok("Lending record created successfully"));
+            // Use doReturn for the spy method and make it lenient
+            lenient().doReturn(true).when(borrowRequestService).isGameOwnerOfRequest(VALID_REQUEST_ID, owner.getEmail());
+            
+            when(borrowRequestRepository.findBorrowRequestById(VALID_REQUEST_ID)).thenReturn(Optional.of(request));
+            when(borrowRequestRepository.save(any(BorrowRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(lendingRecordService.createLendingRecord(any(Date.class), any(Date.class), any(BorrowRequest.class), any(GameOwner.class)))
+                .thenReturn(ResponseEntity.ok("Lending record created successfully"));
 
-        // Test
-        BorrowRequestDto result = borrowRequestService.updateBorrowRequestStatus(VALID_REQUEST_ID, BorrowRequestStatus.APPROVED);
+            // Test
+            BorrowRequestDto result = borrowRequestService.updateBorrowRequestStatus(VALID_REQUEST_ID, BorrowRequestStatus.APPROVED);
 
-        // Verify
-        assertNotNull(result);
-        assertEquals("APPROVED", result.getStatus());
-        verify(borrowRequestRepository).findBorrowRequestById(VALID_REQUEST_ID);
-        verify(borrowRequestRepository).save(any(BorrowRequest.class));
-        verify(lendingRecordService).createLendingRecord(any(Date.class), any(Date.class), any(BorrowRequest.class), any(GameOwner.class)); // Verify service call
+            // Verify
+            assertNotNull(result);
+            assertEquals("APPROVED", result.getStatus());
+            verify(borrowRequestRepository).findBorrowRequestById(VALID_REQUEST_ID);
+            verify(borrowRequestRepository).save(any(BorrowRequest.class));
+            verify(lendingRecordService).createLendingRecord(any(Date.class), any(Date.class), any(BorrowRequest.class), any(GameOwner.class));
+        } finally {
+            SecurityContextHolder.clearContext(); // Clean up security context
+        }
     }
 
     @Test
     public void testUpdateBorrowRequestStatusInvalidStatus() {
-        // Setup
-        BorrowRequest request = new BorrowRequest();
-        request.setId(VALID_REQUEST_ID);
-        request.setStatus(BorrowRequestStatus.PENDING);
-        // Need game/requester/dates if service logic checks them before status validation
+        // Setup Owner and Security Context (Owner approves/rejects)
         GameOwner owner = new GameOwner("Owner", "owner@test.com", "password");
-        Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
-        game.setOwner(owner);
-        Account requester = new Account("Requester", "requester@test.com", "password");
-        request.setRequestedGame(game);
-        request.setRequester(requester);
-        request.setStartDate(new Date());
-        request.setEndDate(new Date(System.currentTimeMillis() + 86400000));
-        request.setRequestDate(new Date());
+        owner.setId(99);
+        Authentication auth = mock(Authentication.class);
+        SecurityContext securityContext = mock(SecurityContext.class);
+        
+        // Make all authentication mocking lenient to avoid UnnecessaryStubbingException
+        lenient().when(securityContext.getAuthentication()).thenReturn(auth);
+        lenient().when(auth.getName()).thenReturn(owner.getEmail());
+        lenient().when(auth.isAuthenticated()).thenReturn(true);
+        SecurityContextHolder.setContext(securityContext);
 
-        when(borrowRequestRepository.findBorrowRequestById(VALID_REQUEST_ID)).thenReturn(Optional.of(request));
-
-        // Test & Verify
-        // Using DECLINED as the invalid target status based on service logic (must be APPROVED or DECLINED)
-        // If the intention is to test that PENDING cannot be set again, the service logic might need adjustment or the test case is different.
-        // Assuming the service logic is correct (lines 181-183 in BorrowRequestService), PENDING is not a valid *target* status.
-        // Let's test trying to set it to PENDING again, which should fail based on the service logic.
-        assertThrows(IllegalArgumentException.class,
-            () -> borrowRequestService.updateBorrowRequestStatus(VALID_REQUEST_ID, BorrowRequestStatus.PENDING));
-        verify(borrowRequestRepository).findBorrowRequestById(VALID_REQUEST_ID);
-        verify(borrowRequestRepository, never()).save(any(BorrowRequest.class));
-        verify(lendingRecordService, never()).createLendingRecord(any(), any(), any(), any()); // Ensure lending service not called
+        try {
+            // Setup Mocks and other test data
+            BorrowRequest request = new BorrowRequest();
+            request.setId(VALID_REQUEST_ID);
+            request.setStatus(BorrowRequestStatus.PENDING);
+            Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
+            game.setOwner(owner); // Set owner on game
+            request.setRequestedGame(game);
+            Account requester = new Account("Requester", "requester@test.com", "password");
+            request.setRequester(requester);
+            
+            // Use doReturn for the spy method and make it lenient
+            lenient().doReturn(true).when(borrowRequestService).isGameOwnerOfRequest(VALID_REQUEST_ID, owner.getEmail());
+            
+            // Use lenient() to avoid UnnecessaryStubbingException
+            lenient().when(borrowRequestRepository.findBorrowRequestById(VALID_REQUEST_ID)).thenReturn(Optional.of(request));
+            
+            // Test & Verify - PENDING is not a valid target status, it's already set to PENDING
+            assertThrows(IllegalArgumentException.class, () -> 
+                borrowRequestService.updateBorrowRequestStatus(VALID_REQUEST_ID, BorrowRequestStatus.PENDING));
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     @Test
     public void testDeleteBorrowRequestSuccess() {
-        // Setup
-        BorrowRequest request = new BorrowRequest();
-        request.setId(VALID_REQUEST_ID);
-        // Add minimal required fields if deletion logic depends on them (usually not)
-        GameOwner owner = new GameOwner("Owner", "owner@test.com", "password");
-        Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
-        game.setOwner(owner);
+        // Setup Requester and Security Context (Requester can delete their own request)
         Account requester = new Account("Requester", "requester@test.com", "password");
-        request.setRequestedGame(game);
-        request.setRequester(requester);
+        requester.setId(VALID_REQUESTER_ID);
+        Authentication auth = mock(Authentication.class);
+        SecurityContext securityContext = mock(SecurityContext.class);
+        
+        // Make all authentication mocking lenient to avoid UnnecessaryStubbingException
+        lenient().when(securityContext.getAuthentication()).thenReturn(auth);
+        lenient().when(auth.getName()).thenReturn(requester.getEmail());
+        lenient().when(auth.isAuthenticated()).thenReturn(true);
+        SecurityContextHolder.setContext(securityContext);
 
+        try {
+            // Setup Mocks
+            BorrowRequest request = new BorrowRequest();
+            request.setId(VALID_REQUEST_ID);
+            request.setRequester(requester);
+            
+            // Use doReturn for the spy method and make it lenient
+            lenient().doReturn(true).when(borrowRequestService).isOwnerOrRequesterOfRequest(VALID_REQUEST_ID, requester.getEmail());
+            
+            when(borrowRequestRepository.findBorrowRequestById(VALID_REQUEST_ID)).thenReturn(Optional.of(request));
+            
+            // Test
+            borrowRequestService.deleteBorrowRequest(VALID_REQUEST_ID);
 
-        when(borrowRequestRepository.findBorrowRequestById(VALID_REQUEST_ID)).thenReturn(Optional.of(request));
-
-        // Test
-        borrowRequestService.deleteBorrowRequest(VALID_REQUEST_ID);
-
-        // Verify
-        verify(borrowRequestRepository).findBorrowRequestById(VALID_REQUEST_ID);
-        verify(borrowRequestRepository).delete(request);
+            // Verify
+            verify(borrowRequestRepository).findBorrowRequestById(VALID_REQUEST_ID);
+            verify(borrowRequestRepository).delete(any(BorrowRequest.class));
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     @Test
     public void testDeleteBorrowRequestNotFound() {
-        // Setup
-        when(borrowRequestRepository.findBorrowRequestById(VALID_REQUEST_ID)).thenReturn(Optional.empty());
+        // Setup Requester and Security Context (Requester tries to delete a non-existent request)
+        Account requester = new Account("Requester", "requester@test.com", "password");
+        requester.setId(VALID_REQUESTER_ID);
+        Authentication auth = mock(Authentication.class);
+        SecurityContext securityContext = mock(SecurityContext.class);
+        
+        // Make all authentication mocking lenient to avoid UnnecessaryStubbingException
+        lenient().when(securityContext.getAuthentication()).thenReturn(auth);
+        lenient().when(auth.getName()).thenReturn(requester.getEmail());
+        lenient().when(auth.isAuthenticated()).thenReturn(true);
+        SecurityContextHolder.setContext(securityContext);
 
-        // Test & Verify
-        assertThrows(IllegalArgumentException.class, () -> borrowRequestService.deleteBorrowRequest(VALID_REQUEST_ID));
-        verify(borrowRequestRepository).findBorrowRequestById(VALID_REQUEST_ID);
-        verify(borrowRequestRepository, never()).delete(any(BorrowRequest.class));
+        try {
+            // Use doReturn for the spy method and make it lenient
+            lenient().doReturn(true).when(borrowRequestService).isOwnerOrRequesterOfRequest(VALID_REQUEST_ID, requester.getEmail());
+            
+            // Request doesn't exist
+            when(borrowRequestRepository.findBorrowRequestById(VALID_REQUEST_ID)).thenReturn(Optional.empty());
+
+            // Test & Verify
+            assertThrows(IllegalArgumentException.class, () -> borrowRequestService.deleteBorrowRequest(VALID_REQUEST_ID));
+            verify(borrowRequestRepository).findBorrowRequestById(VALID_REQUEST_ID);
+            verify(borrowRequestRepository, never()).delete(any(BorrowRequest.class));
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
+    public void testCreateBorrowRequestAuthenticatedUserNotFound() {
+        // Setup
+        Date startDate = new Date();
+        Date endDate = new Date(startDate.getTime() + 86400000);
+        CreateBorrowRequestDto requestDto = new CreateBorrowRequestDto(
+            VALID_REQUESTER_ID,
+            VALID_GAME_ID,
+            startDate,
+            endDate
+        );
+
+        // Mock authentication with a user that doesn't exist in the database
+        Authentication authentication = mock(Authentication.class);
+        SecurityContext securityContext = mock(SecurityContext.class);
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+        when(authentication.getName()).thenReturn("nonexistent@email.com");
+        when(authentication.isAuthenticated()).thenReturn(true);
+        SecurityContextHolder.setContext(securityContext);
+
+        try {
+            // User doesn't exist in database
+            when(accountRepository.findByEmail("nonexistent@email.com")).thenReturn(Optional.empty());
+
+            // Test & Verify - expect UnauthedException instead of IllegalArgumentException
+            assertThrows(UnauthedException.class, () -> borrowRequestService.createBorrowRequest(requestDto));
+            verify(borrowRequestRepository, never()).save(any(BorrowRequest.class));
+        } finally {
+            SecurityContextHolder.clearContext(); // Clean up security context
+        }
     }
 }

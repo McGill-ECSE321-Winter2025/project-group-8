@@ -22,10 +22,22 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import ca.mcgill.ecse321.gameorganizer.dto.CreateEventRequest;
-import ca.mcgill.ecse321.gameorganizer.dto.EventResponse;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
 import ca.mcgill.ecse321.gameorganizer.services.EventService;
+import jakarta.servlet.http.HttpServletRequest;
+import ca.mcgill.ecse321.gameorganizer.dto.request.CreateEventRequest;
+import ca.mcgill.ecse321.gameorganizer.dto.response.EventResponse;
+import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException;
+import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;
+
+// Removed duplicate import: import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import ca.mcgill.ecse321.gameorganizer.security.JwtAuthenticationFilter;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.http.HttpHeaders;
+import java.util.Arrays;
+import java.util.Collection;
 
 /**
  * REST controller for managing gaming events.
@@ -34,20 +46,30 @@ import ca.mcgill.ecse321.gameorganizer.services.EventService;
  * @author @Yessine-glitch
  */
 @RestController
-@RequestMapping("/events")
+@RequestMapping("/api/events")
 public class EventController {
-    
+
     private static final Logger log = LoggerFactory.getLogger(EventController.class);
     private final EventService eventService;
-    
+
     @Autowired
     public EventController(EventService eventService) {
         this.eventService = eventService;
     }
-    
+
+    /**
+     * Endpoint for simple authentication testing.
+     * Returns a success message if reachable.
+     * @return ResponseEntity indicating success.
+     */
+    @GetMapping("/auth-test")
+    public ResponseEntity<String> authTestEndpoint() {
+        return ResponseEntity.ok("Authentication test successful.");
+    }
+
     /**
      * Retrieves an event by its ID.
-     * 
+     *
      * @param eventId The UUID of the event to retrieve
      * @return The event with the specified ID
      */
@@ -59,7 +81,7 @@ public class EventController {
 
     /**
      * Retrieves all events.
-     * 
+     *
      * @return List of all events
      */
     @GetMapping
@@ -70,12 +92,11 @@ public class EventController {
             .collect(Collectors.toList());
         return ResponseEntity.ok(eventResponses);
     }
-    
+
     /**
      * Creates a new event.
-     * 
+     *
      * @param request The event creation request
-      * @param authentication The authenticated user details
      * @return The created event
      */
     @PostMapping
@@ -99,67 +120,93 @@ public class EventController {
              return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build(); // Indicate an unexpected state
          }
 
-        Event event = eventService.createEvent(request, email);
+        Event event = eventService.createEvent(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(new EventResponse(event));
     }
 
     /**
      * Updates an existing event.
-     * 
+     *
      * @param eventId The UUID of the event to update
      * @param title The new title (optional)
      * @param dateTime The new date and time (optional)
      * @param location The new location (optional)
      * @param description The new description (optional)
      * @param maxParticipants The new maximum number of participants (optional)
-      * @param authentication The authenticated user details
      * @return The updated event
      */
     @PutMapping("/{eventId}")
-    public ResponseEntity<EventResponse> updateEvent( // Corrected signature start
+    public ResponseEntity<EventResponse> updateEvent(
             @PathVariable UUID eventId,
             @RequestParam(required = false) String title,
             @RequestParam(required = false) java.sql.Date dateTime,
- // Use explicit java.sql.Date
             @RequestParam(required = false) String location,
             @RequestParam(required = false) String description,
-            @RequestParam(required = false, defaultValue = "0") int maxParticipants,
-            Authentication authentication) { // Corrected signature end
-        
-        log.info("Attempting to update event {}. Authentication: {}", eventId, authentication);
+            @RequestParam(required = false, defaultValue = "0") int maxParticipants) { // Removed HttpServletRequest
+
+        // Authentication and Authorization are now handled by Spring Security filters and @PreAuthorize in the service layer.
+        // We can directly call the service method.
+
+        // The complex logic for retrieving authentication and the test bypass are removed.
+
         try {
-            if (authentication == null || !authentication.isAuthenticated()) {
-                 log.error("Update Event {}: User not authenticated.", eventId);
-                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-            }
-            String email = authentication.getName(); // Get email from Authentication
+            // Call the updated service method (without userEmail)
             Event updatedEvent = eventService.updateEvent(
-                   eventId, title, dateTime, location, description, maxParticipants, email);
+                   eventId, title, dateTime, location, description, maxParticipants);
             return ResponseEntity.ok(new EventResponse(updatedEvent));
         } catch (IllegalArgumentException e) {
-            // This specific catch block might become redundant with the @ExceptionHandler,
-            // but leaving it for now doesn't hurt. The handler will take precedence.
-            return ResponseEntity.notFound().build(); 
+            // Let GlobalExceptionHandler handle this (typically 404 or 400)
+            log.error("Error updating event {}: {}", eventId, e.getMessage());
+            throw e; // Re-throw for handler
+        } catch (ForbiddenException e) {
+            // Let GlobalExceptionHandler handle this (typically 403)
+            log.error("Authorization error updating event {}: {}", eventId, e.getMessage());
+            throw e; // Re-throw for handler
+        } catch (UnauthedException e) {
+            // Let GlobalExceptionHandler handle this (typically 401)
+            log.error("Authentication error updating event {}: {}", eventId, e.getMessage());
+            throw e; // Re-throw for handler
         }
+        // Other potential exceptions will also be caught by GlobalExceptionHandler
     }
-    
+
     /**
      * Deletes an event by its ID.
-     * 
+     *
      * @param eventId The UUID of the event to delete
-      * @param authentication The authenticated user details
      * @return No content response
      */
     @DeleteMapping("/{eventId}")
-    public ResponseEntity<Void> deleteEvent(@PathVariable UUID eventId) {
-        
-        eventService.deleteEvent(eventId); // Service handles exceptions (NotFound, Forbidden)
-        return ResponseEntity.noContent().build(); // Controller returns 204 on success
+    // Using HEAD's implementation with try-catch for explicit exception delegation
+    public ResponseEntity<Void> deleteEvent(@PathVariable UUID eventId) { // Removed HttpServletRequest
+        // Authentication and Authorization are now handled by Spring Security filters and @PreAuthorize in the service layer.
+        // We can directly call the service method.
+
+        // The complex logic for retrieving authentication and the test bypass are removed.
+
+        try {
+            // Call the updated service method (without userEmail)
+            eventService.deleteEvent(eventId);
+            return ResponseEntity.noContent().build(); // Return 204 No Content on success
+        } catch (IllegalArgumentException e) {
+            // Let GlobalExceptionHandler handle this (typically 404 or 400)
+            log.error("Error deleting event {}: {}", eventId, e.getMessage());
+            throw e; // Re-throw for handler
+        } catch (ForbiddenException e) {
+            // Let GlobalExceptionHandler handle this (typically 403)
+            log.error("Authorization error deleting event {}: {}", eventId, e.getMessage());
+            throw e; // Re-throw for handler
+        } catch (UnauthedException e) {
+            // Let GlobalExceptionHandler handle this (typically 401)
+            log.error("Authentication error deleting event {}: {}", eventId, e.getMessage());
+            throw e; // Re-throw for handler
+        }
+        // Other potential exceptions will also be caught by GlobalExceptionHandler
     }
 
     /**
      * Finds events scheduled on a specific date.
-     * 
+     *
      * @param date The date to search for
      * @return List of events on the specified date
      */
@@ -171,10 +218,10 @@ public class EventController {
             .collect(Collectors.toList());
         return ResponseEntity.ok(eventResponses);
     }
-    
+
     /**
      * Finds events featuring a specific game by the game's ID.
-     * 
+     *
      * @param gameId The ID of the featured game
      * @return List of events featuring the specified game
      */
@@ -186,10 +233,10 @@ public class EventController {
             .collect(Collectors.toList());
         return ResponseEntity.ok(eventResponses);
     }
-    
+
     /**
      * Finds events featuring a specific game by the game's name.
-     * 
+     *
      * @param gameName The name of the featured game
      * @return List of events featuring the specified game
      */
@@ -202,10 +249,10 @@ public class EventController {
             .collect(Collectors.toList());
         return ResponseEntity.ok(eventResponses);
     }
-    
+
     /**
      * Finds events hosted by a specific user by the host's ID.
-     * 
+     *
      * @param hostId The ID of the host
      * @return List of events hosted by the specified user
      */
@@ -217,10 +264,10 @@ public class EventController {
             .collect(Collectors.toList());
         return ResponseEntity.ok(eventResponses);
     }
-    
+
     /**
      * Finds events hosted by a specific user by the host's username.
-     * 
+     *
      * @param hostUsername The username of the host
      * @return List of events hosted by the specified user
      */
@@ -234,10 +281,10 @@ public class EventController {
             .collect(Collectors.toList());
         return ResponseEntity.ok(eventResponses);
     }
-    
+
     /**
      * Finds events where the featured game has a specific minimum number of players.
-     * 
+     *
      * @param minPlayers The minimum number of players for the featured game
      * @return List of events with games matching the minimum player count
      */
@@ -250,10 +297,10 @@ public class EventController {
             .collect(Collectors.toList());
         return ResponseEntity.ok(eventResponses);
     }
-    
+
     /**
      * Finds events by location, with partial matching supported.
-     * 
+     *
      * @param location The location text to search for
      * @return List of events at locations matching the search text
      */
@@ -269,7 +316,7 @@ public class EventController {
 
     /**
      * Finds events by title, with partial matching supported.
-     * 
+     *
      * @param title The title text to search for
      * @return List of events with titles matching the search text
      */

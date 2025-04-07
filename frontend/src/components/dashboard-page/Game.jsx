@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge"; // Keep Badge import in case needed later
 import {
   Dialog,
   DialogContent,
@@ -8,82 +9,109 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import { Trash2 } from "lucide-react";
-import { deleteGame } from "../../service/game-api.js";
-import { motion, AnimatePresence } from "framer-motion";
-import ModifyGameDialog from "./ModifyGameDialog.jsx";
+import { Package, Edit } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion"; // Import Framer Motion
+import GameInstanceManager from "./GameInstanceManager.jsx"; // Import the new component
+import ModifyGameDialog from "./ModifyGameDialog.jsx"; // Import ModifyGameDialog
 
-export default function Game({ name, date, isAvailable, imageSrc, game, onDeleteSuccess }) {
-  const [open, setOpen] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+// Combined props: pass the whole game object and the refresh callback
+export default function Game({ game, refreshGames }) {
+  // State for game instances dialog
+  const [showInstances, setShowInstances] = useState(false);
+  // State for modify game dialog
+  const [showModifyGame, setShowModifyGame] = useState(false);
 
-  const handleDelete = async () => {
-    setIsDeleting(true);
-    const success = await deleteGame(game.id);
-    if (success) {
-      setOpen(false);
-      if (onDeleteSuccess) {
-        onDeleteSuccess(game.id);
-      }
-    } else {
-      setIsDeleting(false);
-    }
-  };
+  // Use game.id from the game prop
+  const gameId = game?.id;
+  const gameName = game?.name || "this game"; // Use game name or placeholder
+  const imageSrc = game?.image || "https://upload.wikimedia.org/wikipedia/commons/1/14/No_Image_Available.jpg.svg?height=300&width=400"; // Use origin's placeholder
 
+  // JSX structure using Framer Motion from origin/dev-Yessine-D3
   return (
-    <AnimatePresence>
-      {!isDeleting && (
+    <>
+      <AnimatePresence>
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -20, transition: { duration: 0.2 } }}
-          key={game.id}
-          className="mb-4"
+          key={`game-card-${gameId}`}
         >
-          <Card>
-            <CardContent className="flex flex-col items-start p-4 space-y-2">
-              <img src={imageSrc} alt={name} className="w-32 h-32 object-cover rounded" />
-              <h3 className="text-lg font-semibold">{name}</h3>
-
-              <div className="w-full flex flex-col gap-2">
-                <ModifyGameDialog
-                  game={game}
-                  onUpdateSuccess={(updatedGame) => {
-                    Object.assign(game, updatedGame);
-                    if (onDeleteSuccess) onDeleteSuccess(game.id);
-                  }}
+          <Card 
+            className="min-w-[260px] cursor-pointer hover:shadow-md transition-shadow duration-200"
+            onClick={() => setShowInstances(true)}
+          >
+            <CardContent className="p-0">
+              <div className="aspect-[4/3] relative">
+                <img
+                  src={imageSrc}
+                  alt={gameName}
+                  className="object-cover w-full h-full rounded-t-lg"
                 />
-                <Dialog open={open} onOpenChange={setOpen}>
-                  <DialogTrigger asChild>
-                    <Button className="w-full" variant="destructive">
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Delete
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Delete Game</DialogTitle>
-                      <DialogDescription>
-                        Are you sure you want to delete <strong>{name}</strong>?
-                      </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                      <Button variant="outline" onClick={() => setOpen(false)}>
-                        Cancel
-                      </Button>
-                      <Button variant="destructive" onClick={handleDelete}>
-                        Confirm
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
+              </div>
+              <div className="p-4">
+                <h3 className="font-semibold text-lg">{gameName}</h3>
+                <div className="flex justify-between items-center mt-4 gap-2">
+                  <Button variant="outline" size="sm" className="flex gap-1" onClick={(e) => {
+                    e.stopPropagation();
+                    setShowInstances(true);
+                  }}>
+                    <Package className="h-4 w-4" />
+                    Manage Copies
+                  </Button>
+                  <Button variant="outline" size="sm" className="flex gap-1" onClick={(e) => {
+                    e.stopPropagation();
+                    setShowModifyGame(true);
+                  }}>
+                    <Edit className="h-4 w-4" />
+                    Modify Game
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
         </motion.div>
-      )}
-    </AnimatePresence>
+      </AnimatePresence>
+      
+      {/* Game Instances Dialog */}
+      <Dialog 
+        open={showInstances} 
+        onOpenChange={(openState) => {
+          if (!openState && document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+          }
+          setShowInstances(openState);
+        }}
+      >
+        <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Manage Game Copies - {gameName}</DialogTitle>
+            <DialogDescription>
+              View and manage all your copies of this game, including their condition and availability.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <GameInstanceManager 
+            gameId={gameId} 
+            gameName={gameName} 
+            refreshGames={refreshGames} 
+          />
+          
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setShowInstances(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modify Game Dialog */}
+      <ModifyGameDialog
+        open={showModifyGame}
+        onOpenChange={setShowModifyGame}
+        onGameModified={refreshGames}
+        gameId={gameId}
+      />
+    </>
   );
 }

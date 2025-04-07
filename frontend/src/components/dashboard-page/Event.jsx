@@ -14,6 +14,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { deleteEvent } from "../../service/event-api" // Import deleteEvent function
+import UpdateEventDialog from "../events-page/UpdateEventDialog.jsx" // Import UpdateEventDialog
 
 export default function Event({
   id, // Make sure we get the event ID
@@ -30,6 +31,7 @@ export default function Event({
   const [open, setOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false) // Track deletion state
   const [error, setError] = useState(null) // Track error state
+  const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false) // For update dialog
 
   const handleCancelEvent = async () => {
     if (!id) {
@@ -156,10 +158,27 @@ export default function Event({
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
+
+              {/* Modify Event Button */}
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setIsUpdateDialogOpen(true)}
+              >
+                Modify Event
+              </Button>
             </div>
           </div>
         </div>
       </CardContent>
+
+      {/* UpdateEventDialog Component */}
+      <UpdateEventDialog
+        open={isUpdateDialogOpen}
+        onOpenChange={setIsUpdateDialogOpen}
+        onEventUpdated={onRegistrationUpdate}
+        eventId={id}
+      />
     </Card>
   )
 }

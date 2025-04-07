@@ -24,4 +24,13 @@ public interface AccountRepository extends JpaRepository<Account, Integer> {
      */
     Optional<Account> findByEmail(String email);
     Optional<Account> findByName(String name);
+
+
+    /**
+     * Finds an account by its password reset token.
+     *
+     * @param token The password reset token to search for
+     * @return Optional containing the account if found, empty otherwise
+     */
+    Optional<Account> findByResetPasswordToken(String token);
 }

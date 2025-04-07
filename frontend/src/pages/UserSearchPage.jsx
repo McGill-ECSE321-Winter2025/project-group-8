@@ -36,29 +36,35 @@ function UserSearchPage() {
     }
     setIsLoadingSearch(true);
     setSearchError(null);
-    setSearchResults([]);
+    setSearchResults([]); // Clear previous results before new search
     try {
       // Call getUserInfoByEmail assuming query is the exact email
       const result = await getUserInfoByEmail(query);
-      // Adapt the result for UserList/UserProfileCard
-      const userResult = {
-          // The backend GET /account/{email} returns AccountResponse DTO
-          // which has name, events list, and gameOwner boolean.
-          // We need an ID for the key prop and email for navigation.
-          id: result.email, // Use email as unique key for now
-          username: result.username, // Use 'username' directly from AccountResponse DTO
-          email: result.email, // Use the email from the response
-          isGameOwner: result.gameOwner,
+      
+      // Check if we have a valid result
+      if (result) {
+        // Adapt the result for UserList/UserProfileCard
+        const userResult = {
+          // The backend now returns UserSummaryDto with id, name, email, and gameOwner fields
+          id: result.id || result.email, // Use id as key, fallback to email if needed
+          username: result.name, // Backend uses 'name' instead of 'username'
+          email: result.email,
+          isGameOwner: result.gameOwner, // Now matches the backend field name
           avatarUrl: "/placeholder.svg?height=48&width=48" // Placeholder avatar
-      };
-      setSearchResults([userResult]); // Put the single result in an array
-      setSearchError(null); // Clear any previous error on success
+        };
+        setSearchResults([userResult]); // Put the single result in an array
+        setSearchError(null); // Clear any previous error on success
+      } else {
+        // Handle case where result is empty but request succeeded
+        setSearchResults([]);
+        setSearchError('No user found with that email.');
+      }
     } catch (error) {
        setSearchResults([]); // Always clear results on error
        // Handle "user not found" specifically (e.g., 400/404 from backend) vs other errors
        const errorMsg = error.message || '';
-       if (errorMsg.includes("400") || errorMsg.includes("404") || errorMsg.toLowerCase().includes("not exist")) {
-            setSearchError(null); // Don't set an error message for "not found"
+       if (errorMsg.includes("400") || errorMsg.includes("404") || errorMsg.toLowerCase().includes("not exist") || errorMsg.toLowerCase().includes("not found")) {
+            setSearchError('No user found with that email.'); // Show a user-friendly message for "not found"
        } else {
            // Set a generic error for other failures
            setSearchError('Search failed. Please try again.');

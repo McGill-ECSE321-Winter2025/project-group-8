@@ -2,22 +2,28 @@ package ca.mcgill.ecse321.gameorganizer.controllers;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import ca.mcgill.ecse321.gameorganizer.dto.GameCreationDto;
-import ca.mcgill.ecse321.gameorganizer.dto.GameResponseDto;
-import ca.mcgill.ecse321.gameorganizer.dto.GameSearchCriteria;
-import ca.mcgill.ecse321.gameorganizer.dto.ReviewResponseDto;
-import ca.mcgill.ecse321.gameorganizer.dto.ReviewSubmissionDto;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.services.AccountService;
 import ca.mcgill.ecse321.gameorganizer.services.GameService;
+import ca.mcgill.ecse321.gameorganizer.dto.request.GameCreationDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.GameSearchCriteria;
+import ca.mcgill.ecse321.gameorganizer.dto.request.ReviewSubmissionDto;
+import ca.mcgill.ecse321.gameorganizer.dto.response.GameResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dto.response.GameInstanceResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dto.response.ReviewResponseDto;
+import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException; // Import
+import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException; // Import
+import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException; // Import
+import org.springframework.web.server.ResponseStatusException; // Import
 
 /**
  * Controller that handles API endpoints for game operations.
@@ -28,6 +34,8 @@ import ca.mcgill.ecse321.gameorganizer.services.GameService;
  */
 
 @RestController
+@RequestMapping("/api/games")
+
 public class GameController {
     @Autowired
     private GameService service;
@@ -43,7 +51,7 @@ public class GameController {
      * @param namePart Optional parameter to filter games by name containing text
      * @return List of games matching the filter criteria
      */
-    @GetMapping("/games")
+    @GetMapping
     public ResponseEntity<List<GameResponseDto>> getAllGames(
             @RequestParam(required = false) String ownerId,
             @RequestParam(required = false) String category,
@@ -83,7 +91,7 @@ public class GameController {
      * @param id ID of the game to retrieve
      * @return The requested game
      */
-    @GetMapping("/games/{id}")
+    @GetMapping("/{id}")
     public ResponseEntity<GameResponseDto> findGameById(@PathVariable int id) {
         Game game = service.getGameById(id);
         return ResponseEntity.ok(new GameResponseDto(game));
@@ -95,10 +103,22 @@ public class GameController {
      * @param gameCreationDto Data for the new game
      * @return The created game
      */
-    @PostMapping("/games")
+    @PostMapping
     public ResponseEntity<GameResponseDto> createGame(@RequestBody GameCreationDto gameCreationDto) {
-        GameResponseDto createdGame = service.createGame(gameCreationDto);
-        return new ResponseEntity<>(createdGame, HttpStatus.CREATED);
+        try {
+            // Service now uses authenticated principal for owner
+            GameResponseDto createdGame = service.createGame(gameCreationDto);
+            return new ResponseEntity<>(createdGame, HttpStatus.CREATED);
+        } catch (UnauthedException e) {
+            // When owner doesn't exist, return 400 Bad Request
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        } catch (ForbiddenException e) {
+            // When permission denied, return 403 Forbidden
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, e.getMessage());
+        } catch (IllegalArgumentException e) {
+            // Handle validation errors
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
     }
 
     /**
@@ -108,10 +128,18 @@ public class GameController {
      * @param gameDto Updated game data
      * @return The updated game
      */
-    @PutMapping("/games/{id}")
+    @PutMapping("/{id}")
     public ResponseEntity<GameResponseDto> updateGame(@PathVariable int id, @RequestBody GameCreationDto gameDto) {
-        GameResponseDto updatedGame = service.updateGame(id, gameDto);
-        return ResponseEntity.ok(updatedGame);
+        try {
+            GameResponseDto updatedGame = service.updateGame(id, gameDto);
+            return ResponseEntity.ok(updatedGame);
+        } catch (ForbiddenException | UnauthedException e) {
+             throw new ResponseStatusException(HttpStatus.FORBIDDEN, e.getMessage()); // Or UNAUTHORIZED
+        } catch (ResourceNotFoundException e) {
+             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        } catch (IllegalArgumentException e) {
+             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
     }
 
     /**
@@ -120,9 +148,15 @@ public class GameController {
      * @param id ID of the game to delete
      * @return Confirmation message
      */
-    @DeleteMapping("/games/{id}")
+    @DeleteMapping("/{id}")
     public ResponseEntity<String> deleteGame(@PathVariable int id) {
-        return service.deleteGame(id);
+        try {
+            return service.deleteGame(id);
+        } catch (ForbiddenException | UnauthedException e) {
+             throw new ResponseStatusException(HttpStatus.FORBIDDEN, e.getMessage()); // Or UNAUTHORIZED
+        } catch (ResourceNotFoundException e) {
+             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
     }
 
     /**
@@ -131,7 +165,7 @@ public class GameController {
      * @param players Number of players
      * @return List of games compatible with the player count
      */
-    @GetMapping("/games/players")
+    @GetMapping("/players")
     public ResponseEntity<List<GameResponseDto>> getGamesByPlayerCount(@RequestParam int players) {
         List<Game> games = service.getGamesByPlayerRange(players, players);
         List<GameResponseDto> gameResponseDtos = games.stream()
@@ -143,7 +177,7 @@ public class GameController {
     /**
      * Advanced search endpoint for games with multiple criteria
      */
-    @GetMapping("/games/search")
+    @GetMapping("/search")
     public ResponseEntity<List<GameResponseDto>> searchGames(GameSearchCriteria criteria) {
         List<Game> games = service.searchGames(criteria);
         List<GameResponseDto> gameResponseDtos = games.stream()
@@ -171,7 +205,7 @@ public class GameController {
     /**
      * Get all reviews for a specific game
      */
-    @GetMapping("/games/{id}/reviews")
+    @GetMapping("/{id}/reviews")
     public ResponseEntity<List<ReviewResponseDto>> getGameReviews(@PathVariable int id) {
         List<ReviewResponseDto> reviews = service.getReviewsByGameId(id);
         return ResponseEntity.ok(reviews);
@@ -180,21 +214,206 @@ public class GameController {
     /**
      * Submit a new review for a game
      */
-    @PostMapping("/games/{id}/reviews")
+    @PostMapping("/{id}/reviews")
     public ResponseEntity<ReviewResponseDto> submitGameReview(
             @PathVariable int id,
             @RequestBody ReviewSubmissionDto reviewDto) {
-        reviewDto.setGameId(id);
-        ReviewResponseDto review = service.submitReview(reviewDto);
-        return new ResponseEntity<>(review, HttpStatus.CREATED);
+        try {
+            reviewDto.setGameId(id);
+            // Service now uses authenticated principal for reviewer
+            ReviewResponseDto review = service.submitReview(reviewDto);
+            return new ResponseEntity<>(review, HttpStatus.CREATED);
+        } catch (ForbiddenException | UnauthedException e) {
+             throw new ResponseStatusException(HttpStatus.FORBIDDEN, e.getMessage()); // Or UNAUTHORIZED
+        } catch (ResourceNotFoundException e) {
+             throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        } catch (IllegalArgumentException e) {
+             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
     }
 
     /**
      * Get average rating for a game
      */
-    @GetMapping("/games/{id}/rating")
+    @GetMapping("/{id}/rating")
     public ResponseEntity<Double> getGameRating(@PathVariable int id) {
         double rating = service.getAverageRatingForGame(id);
         return ResponseEntity.ok(rating);
+    }
+
+    /**
+     * Get all instances for a specific game
+     */
+    @GetMapping("/{id}/instances")
+    public ResponseEntity<List<GameInstanceResponseDto>> getGameInstances(@PathVariable int id) {
+        try {
+            List<GameInstanceResponseDto> instances = service.getInstancesByGameId(id);
+            return ResponseEntity.ok(instances);
+        } catch (ResourceNotFoundException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error retrieving game instances");
+        }
+    }
+
+    /**
+     * Check if a game is available for a specific date range
+     * 
+     * @param id The ID of the game to check
+     * @param startDate The start date of the borrowing period (in milliseconds since epoch)
+     * @param endDate The end date of the borrowing period (in milliseconds since epoch)
+     * @return Boolean indicating whether the game is available for the specified period
+     */
+    @GetMapping("/{id}/availability")
+    public ResponseEntity<Boolean> checkGameAvailability(
+            @PathVariable int id,
+            @RequestParam long startDate,
+            @RequestParam long endDate) {
+        try {
+            // Convert milliseconds to Date objects
+            java.util.Date start = new java.util.Date(startDate);
+            java.util.Date end = new java.util.Date(endDate);
+            
+            boolean isAvailable = service.isGameAvailableForPeriod(id, start, end);
+            return ResponseEntity.ok(isAvailable);
+        } catch (ResourceNotFoundException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error checking game availability");
+        }
+    }
+
+    /**
+     * Creates a new game instance (copy)
+     * 
+     * @param id ID of the game
+     * @param instanceData Data for the new instance
+     * @return The created game instance
+     */
+    @PostMapping("/{id}/instances")
+    public ResponseEntity<GameInstanceResponseDto> createGameInstance(
+            @PathVariable int id,
+            @RequestBody Map<String, Object> instanceData) {
+        try {
+            // Add gameId to the instance data
+            instanceData.put("gameId", id);
+            
+            // Call service method to create the instance
+            GameInstanceResponseDto createdInstance = service.createGameInstance(instanceData);
+            return new ResponseEntity<>(createdInstance, HttpStatus.CREATED);
+        } catch (ResourceNotFoundException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        } catch (ForbiddenException | UnauthedException e) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, e.getMessage());
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
+    }
+
+    /**
+     * Updates a specific game instance
+     * 
+     * @param id ID of the game
+     * @param instanceId ID of the instance to update
+     * @param instanceData Updated instance data
+     * @return The updated game instance
+     */
+    @PutMapping("/{id}/instances/{instanceId}")
+    public ResponseEntity<GameInstanceResponseDto> updateGameInstance(
+            @PathVariable int id,
+            @PathVariable int instanceId,
+            @RequestBody Map<String, Object> instanceData) {
+        try {
+            // Add gameId to the instance data
+            instanceData.put("gameId", id);
+            
+            // Call service method to update the instance
+            GameInstanceResponseDto updatedInstance = service.updateGameInstance(instanceId, instanceData);
+            return ResponseEntity.ok(updatedInstance);
+        } catch (ResourceNotFoundException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        } catch (ForbiddenException | UnauthedException e) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, e.getMessage());
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
+    }
+
+    /**
+     * Deletes a specific game instance
+     * 
+     * @param id ID of the game
+     * @param instanceId ID of the instance to delete
+     * @return Success message
+     */
+    @DeleteMapping("/{id}/instances/{instanceId}")
+    public ResponseEntity<String> deleteGameInstance(
+            @PathVariable int id,
+            @PathVariable int instanceId) {
+        try {
+            service.deleteGameInstance(instanceId);
+            return ResponseEntity.ok("Game instance deleted successfully");
+        } catch (ResourceNotFoundException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        } catch (ForbiddenException | UnauthedException e) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, e.getMessage());
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
+    }
+
+    /**
+     * Creates a copy of a game in the user's collection
+     * @param gameId ID of the game to copy
+     * @param instanceData Additional data for the game instance (condition, location, etc.)
+     * @return The created game instance
+     */
+    @PostMapping("/{gameId}/copy")
+    public ResponseEntity<GameInstanceResponseDto> copyGame(
+            @PathVariable int gameId,
+            @RequestBody(required = false) Map<String, Object> instanceData) {
+        
+        try {
+            // Create instance data map if not provided
+            Map<String, Object> data = instanceData != null ? instanceData : new java.util.HashMap<>();
+            // Set the game ID in the instance data
+            data.put("gameId", gameId);
+            
+            // Use the existing createGameInstance logic to create a copy
+            GameInstanceResponseDto createdInstance = service.createGameInstance(data);
+            return new ResponseEntity<>(createdInstance, HttpStatus.CREATED);
+        } catch (UnauthedException e) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, e.getMessage());
+        } catch (ForbiddenException e) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, e.getMessage());
+        } catch (ResourceNotFoundException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
+                    "An unexpected error occurred while copying the game: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Retrieves all game instances owned by the current authenticated user.
+     * This allows users to see their collection regardless of who created the original games.
+     *
+     * @return List of game instances owned by the current user
+     */
+    @GetMapping("/instances/my")
+    public ResponseEntity<List<GameInstanceResponseDto>> getCurrentUserGameInstances() {
+        try {
+            List<GameInstanceResponseDto> instances = service.getGameInstancesByCurrentUser();
+            return ResponseEntity.ok(instances);
+        } catch (UnauthedException e) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, e.getMessage());
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
+                    "An unexpected error occurred while fetching your game instances: " + e.getMessage());
+        }
     }
 }

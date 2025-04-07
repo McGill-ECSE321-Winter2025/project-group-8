@@ -16,6 +16,10 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.ObjectIdGenerators;
+
 /**
  * Represents a board game in the system.
  * Games can be owned by users and borrowed by others through borrow requests.
@@ -27,6 +31,8 @@ import lombok.Setter;
 @NoArgsConstructor
 @Getter
 @Setter
+@JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Game {
 
     /** Unique identifier for the game */
@@ -34,7 +40,6 @@ public class Game {
     @GeneratedValue(strategy = GenerationType.AUTO)
     private int id;
 
-    @Column(unique = true) // Should make names unique in db
     /** Name of the game */
     private String name;
 
@@ -55,10 +60,12 @@ public class Game {
 
     /** Owner of the game */
     @ManyToOne // Assuming owner is mandatory, add (optional = false) if needed
+    @JsonIgnoreProperties("games")
     private GameOwner owner;
 
     /** Reviews associated with this game */
     @OneToMany(mappedBy = "gameReviewed", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @JsonIgnoreProperties("gameReviewed")
     private Set<Review> reviews;
 
 
@@ -119,6 +126,7 @@ public class Game {
                this.maxPlayers == game.maxPlayers &&
                (this.name != null ? this.name.equals(game.name) : game.name == null) &&
                (this.image != null ? this.image.equals(game.image) : game.image == null) &&
-               (this.dateAdded != null ? this.dateAdded.equals(game.dateAdded) : game.dateAdded == null);
+               (this.dateAdded != null ? this.dateAdded.equals(game.dateAdded) : game.dateAdded == null) &&
+               (this.category != null ? this.category.equals(game.category) : game.category == null);
     }
 }

@@ -18,13 +18,30 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
-import org.springframework.security.web.util.matcher.OrRequestMatcher;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextPersistenceFilter;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
+import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
+import org.springframework.security.web.access.ExceptionTranslationFilter;
+import org.springframework.security.web.context.NullSecurityContextRepository;
+import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
+import java.util.Arrays;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import ca.mcgill.ecse321.gameorganizer.security.JwtAuthenticationFilter; // Added import
+import ca.mcgill.ecse321.gameorganizer.security.JwtAuthenticationFilter;
 
 @Configuration
+@EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfig {
+
+    static {
+    }
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
@@ -32,58 +49,89 @@ public class SecurityConfig {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
     }
 
-    // Chain for public endpoints (authentication, registration)
+    // Main security filter chain
     @Bean
-    @Order(1)
-    public SecurityFilterChain publicFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            .securityMatcher( // Apply this chain ONLY to the combined public paths
-                 new OrRequestMatcher(
-                    new AntPathRequestMatcher("/api/v1/auth/**"),
-                    new AntPathRequestMatcher("/api/v1/account", HttpMethod.POST.toString())
-                 )
-            )
+            // Apply rules only to paths starting with /api or /auth or /users/me or /dev
+            .securityMatcher("/api/**", "/auth/**", "/users/**", "/dev/**")
             .authorizeHttpRequests(authz -> authz
-                .anyRequest().permitAll() // Permit all requests matching this chain
-            )
-            .csrf(csrf -> csrf.disable()) // Disable CSRF
-            .cors(Customizer.withDefaults()) // Enable CORS
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)); // Stateless
+                // --- Authentication & Account Creation ---
+                .requestMatchers("/auth/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/account").permitAll() // Account creation via API
+                .requestMatchers("/dev/**").permitAll() // Allow dev endpoints
 
-        return http.build();
-    }
+                // --- Public Read Operations (using /api prefix) ---
+                .requestMatchers(HttpMethod.GET, "/api/games/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/events/**").permitAll()
+                // Note: /api/users/*/games might need adjustment based on UserController mapping
+                .requestMatchers(HttpMethod.GET, "/api/users/*/games").permitAll()
 
-    // Chain for protected API endpoints
-    @Bean
-    @Order(2)
-    public SecurityFilterChain protectedApiFilterChain(HttpSecurity http) throws Exception {
-        http
-            .securityMatcher("/api/v1/**") // Apply this chain to all other /api/v1 paths
-            .authorizeHttpRequests(authz -> authz
-                // Specific rules for borrow requests (example)
-                .requestMatchers(HttpMethod.POST, "/api/v1/borrowrequests").hasRole("USER")
-                .requestMatchers(HttpMethod.PUT, "/api/v1/borrowrequests/**").hasRole("GAME_OWNER")
-                .requestMatchers(HttpMethod.DELETE, "/api/v1/borrowrequests/**").hasRole("GAME_OWNER")
-                .requestMatchers(HttpMethod.GET, "/api/v1/borrowrequests/**").hasRole("USER")
-                // Default rule: require authentication for any other matched request
+                // --- Authenticated Operations (using /api prefix and direct paths) ---
+                .requestMatchers("/users/me").authenticated() // User profile endpoint without /api prefix
+                .requestMatchers(HttpMethod.GET, "/api/account/**").authenticated()
+                .requestMatchers(HttpMethod.PUT, "/api/account/**").authenticated()
+                .requestMatchers(HttpMethod.DELETE, "/api/account/**").authenticated()
+                .requestMatchers("/api/registrations/**").authenticated()
+                .requestMatchers("/api/borrowrequests/**").authenticated()
+                .requestMatchers("/api/lending-records/**").authenticated()
+                .requestMatchers("/api/reviews/**").authenticated()
+                // Add specific role checks if needed (example below)
+                .requestMatchers(HttpMethod.POST, "/api/games/**").hasRole("GAME_OWNER") // Example role check
+                .requestMatchers(HttpMethod.PUT, "/api/games/**").hasRole("GAME_OWNER")
+                .requestMatchers(HttpMethod.DELETE, "/api/games/**").hasRole("GAME_OWNER")
+                .requestMatchers(HttpMethod.DELETE, "/api/lending-records/**").hasRole("GAME_OWNER")
+                // Default: require authentication for any other /api endpoints
+                .requestMatchers("/api/**").authenticated()
+                // Fallback for any other matched request (shouldn't be hit often with specific matcher)
                 .anyRequest().authenticated()
             )
+            .csrf(csrf -> csrf.disable())
+            .cors(Customizer.withDefaults()) // Uses corsConfigurationSource bean
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            // Removed explicit .securityContext configuration.
+            // Will rely on SecurityContextHolderFilter added below.
+            // Removed explicit requestCache and logout configurations.
+            .anonymous(anonymous -> anonymous.disable())
             .exceptionHandling(handling -> handling
-                .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)) // Return 401 on auth failure
+                .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
             )
-            .csrf(csrf -> csrf.disable()) // Disable CSRF
-            .cors(Customizer.withDefaults()) // Enable CORS
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // Stateless
-            // Remove explicit SecurityContextRepository - rely on default behavior with SecurityContextHolder
-            // .securityContext(context -> context
-            //     .securityContextRepository(new RequestAttributeSecurityContextRepository())
-            // )
-            // Add JWT filter for this chain
+            // Reverted adding SecurityContextHolderFilter explicitly due to ordering issues.
+            // Relying on STATELESS + NullSecurityContextRepository.
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
+    // Removed the second filter chain bean
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        // Can't use * with allowCredentials=true, so specify the frontend origin
+        configuration.setAllowedOrigins(Arrays.asList(
+            "http://localhost:3000", 
+            "http://localhost:5173", 
+            "http://127.0.0.1:3000", 
+            "http://127.0.0.1:5173"
+        ));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(Arrays.asList(
+            "authorization", 
+            "content-type", 
+            "x-auth-token", 
+            "Authorization",
+            "X-Remember-Me", 
+            "X-User-Id"
+        ));
+        configuration.setExposedHeaders(Arrays.asList("x-auth-token"));
+        configuration.setAllowCredentials(true); // Allow credentials
+        configuration.setMaxAge(3600L); // Cache preflight response for 1 hour
+        
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
 
     // --- Authentication Provider Beans (remain the same) ---
 

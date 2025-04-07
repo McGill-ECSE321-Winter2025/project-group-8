@@ -13,7 +13,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { unregisterFromEvent } from "../../service/event-api"; // Import the API function
+import { unregisterFromEvent } from "../../service/registration-api"; // Update import to use registration-api instead
 
 export default function EventRegistered({
   name,
@@ -32,24 +32,35 @@ export default function EventRegistered({
   const handleCancelRegistration = async () => {
     try {
       // Log the registration ID being used for debugging
-      console.log("Attempting to unregister with ID:", registrationId);
+      console.log("EventRegistered: Attempting to unregister with ID:", {
+        registrationId,
+        typeOf: typeof registrationId,
+        valueCheck: registrationId ? "Has value" : "No value",
+      });
+      
+      // Validate registration ID before proceeding
+      if (!registrationId) {
+        console.error("EventRegistered: Registration ID is missing");
+        alert("Cannot unregister: Registration ID not found.");
+        return;
+      }
       
       // Call the API function with the registrationId
       const successMessage = await unregisterFromEvent(registrationId);
-      console.log("Unregistration successful:", successMessage);
+      console.log("EventRegistered: Unregistration successful:", successMessage);
+      
+      // Call the refresh function passed from the parent dashboard page
+      if (typeof onRegistrationUpdate === "function") {
+        onRegistrationUpdate();
+      }
+      
+      // Call the provided callback function (if it exists for other purposes)
+      if (typeof onCancelRegistration === "function") {
+        onCancelRegistration();
+      }
     } catch (error) {
-      console.error("Error during unregistration:", error.message);
+      console.error("EventRegistered: Error during unregistration:", error);
       alert(`Failed to unregister: ${error.message}`); // Notify the user
-    }
-
-    // Call the provided callback function (if it exists for other purposes)
-    if (typeof onCancelRegistration === "function") {
-      onCancelRegistration();
-    }
-    
-    // Call the refresh function passed from the parent dashboard page
-    if (typeof onRegistrationUpdate === "function") {
-      onRegistrationUpdate();
     }
 
     // Close the dialog

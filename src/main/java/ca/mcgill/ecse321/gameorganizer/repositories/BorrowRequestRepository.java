@@ -1,17 +1,19 @@
 package ca.mcgill.ecse321.gameorganizer.repositories;
 
-import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
-import ca.mcgill.ecse321.gameorganizer.models.BorrowRequestStatus;
-import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
-import ca.mcgill.ecse321.gameorganizer.models.Account;
+import java.util.Date;
+import java.util.List;
+import java.util.Optional; // Import added
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.util.Date;
-import java.util.List;
-import java.util.Optional;
+import ca.mcgill.ecse321.gameorganizer.models.Account;
+import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
+import ca.mcgill.ecse321.gameorganizer.models.BorrowRequestStatus;
+import ca.mcgill.ecse321.gameorganizer.models.Game;
+import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 
 /**
  * Repository interface for managing BorrowRequest entities.
@@ -76,8 +78,6 @@ public interface BorrowRequestRepository extends JpaRepository<BorrowRequest, In
      */
     List<BorrowRequest> findByRequester(Account requester);
 
-    List<BorrowRequest> findBorrowRequestsByRequesterEmail(String email);
-
     /**
      * Finds all borrow requests associated with a specific game owner by their ID.
      *
@@ -87,4 +87,26 @@ public interface BorrowRequestRepository extends JpaRepository<BorrowRequest, In
     @Query("SELECT br FROM BorrowRequest br WHERE br.requestedGame.owner.id = :ownerId")
     List<BorrowRequest> findBorrowRequestsByOwnerId(@Param("ownerId") int ownerId);
 
+    /**
+     * Finds all borrow requests associated with a specific game.
+     * Used for cascade deletion when a game is deleted.
+     *
+     * @param game The game whose borrow requests to find
+     * @return List of borrow requests associated with the specified game
+     */
+    List<BorrowRequest> findByRequestedGame(Game game);
+
+    /**
+     * Find borrow requests with approved status for a specific game
+     * that overlap with a given period.
+     * Used to check availability for new or updated requests.
+     */
+    @Query("SELECT br FROM BorrowRequest br " +
+           "WHERE br.requestedGame.id = :gameId " +
+           "AND br.status = 'APPROVED' " +
+           "AND ((br.startDate <= :endDate) AND (br.endDate >= :startDate))")
+    List<BorrowRequest> findOverlappingApprovedRequestsForGame(
+        @Param("gameId") int gameId,
+        @Param("startDate") Date startDate,
+        @Param("endDate") Date endDate);
 }

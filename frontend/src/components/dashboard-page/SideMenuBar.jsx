@@ -1,7 +1,10 @@
 "use client"
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
+import { useState, useContext } from "react" // Added useContext
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/context/AuthContext.jsx";
+import { upgradeAccountToGameOwner, updateUsernamePassword } from '@/service/dashboard-api.js'; // Added updateUsernamePassword
+// import { toast } from 'react-toastify';
 import {
   Dialog,
   DialogContent,
@@ -11,110 +14,116 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Settings, User, KeyRound, RefreshCw, Crown } from "lucide-react"
-import { updateUsernamePassword, upgradeAccountToGameOwner } from "@/service/update-account-info.js"
+import { Input } from "@/components/ui/input.jsx"
+import { Label } from "@/components/ui/label.jsx"
+import { Settings, User, KeyRound } from "lucide-react"
 
-export default function SideMenuBar({ userType }) {
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [ownerDialogOpen, setOwnerDialogOpen] = useState(false)
-  const [username, setUsername] = useState("")
-  const [password, setPassword] = useState("")
-  const [newPassword, setNewPassword] = useState("")
-  const [confirmPassword, setConfirmPassword] = useState("")
-  const [showRefreshDialog, setShowRefreshDialog] = useState(false)
+export default function SideMenuBar({ userType }) { // userType prop might become redundant if context is always used
+  const { user, isAuthenticated } = useAuth(); // Get user and auth status from context
+  const [open, setOpen] = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [isUpgrading, setIsUpgrading] = useState(false);
+  const [upgradeError, setUpgradeError] = useState(null);
+  const [upgradeSuccess, setUpgradeSuccess] = useState(false);
+  const [isSavingSettings, setIsSavingSettings] = useState(false); // Loading state for settings save
+  const [settingsError, setSettingsError] = useState(null); // Error state for settings save
 
-  // Game owner form states
-  const [gameTitle, setGameTitle] = useState("")
-  const [gameDescription, setGameDescription] = useState("")
-
+  // Renamed handleSubmit to handleSettingsSubmit to avoid naming conflict
   async function handleSettingsSubmit(e) {
-    e.preventDefault()
+    e.preventDefault();
+    setSettingsError(null);
 
-    if (newPassword && newPassword !== confirmPassword) {
-      alert("Passwords don't match")
-      return
+    if (password && password !== confirmPassword) {
+      // alert("Passwords don't match"); // Replace alert with better feedback
+      setSettingsError("Passwords don't match");
+      // toast.error("Passwords don't match");
+      return;
     }
 
-    console.log("Updating account with:", { username, password, email: localStorage.getItem("userEmail") })
+    setIsSavingSettings(true);
 
-    setSettingsOpen(false)
+    const updateData = {};
+    if (username.trim()) {
+      updateData.username = username.trim();
+    }
+    if (password) {
+      // Add password validation if needed (e.g., minimum length)
+      updateData.password = password;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      // toast.info("No changes detected.");
+      setIsSavingSettings(false);
+      setOpen(false); // Close dialog if no changes
+      return;
+    }
 
     try {
-      console.log(typeof localStorage.getItem("userEmail"))
-      const response = await updateUsernamePassword({
-        email: localStorage.getItem("userEmail"),
-        username: username,
-        password: password,
-        newPassword: newPassword,
-      })
+      await updateUsernamePassword(updateData);
+      // toast.success("Account settings updated successfully!");
 
-      setShowRefreshDialog(true)
+      // Clear form and close dialog on success
+      setOpen(false);
+      setUsername("");
+      setPassword("");
+      setConfirmPassword("");
+      // Note: Context doesn't auto-refresh username. User might need to re-login to see username changes everywhere.
 
-      // Reset form fields
-      setUsername("")
-      setPassword("")
-      setNewPassword("")
-      setConfirmPassword("")
-    } catch (error) {
-      console.error(error)
+    } catch (err) {
+      console.error("Failed to update account settings:", err);
+      // toast.error(err.message || "Failed to update settings. Please try again.");
+      setSettingsError(err.message || "Failed to update settings. Please try again.");
+    } finally {
+      setIsSavingSettings(false);
     }
   }
 
-  async function handleOwnerSubmit(e) {
-    e.preventDefault()
+  const handleUpgrade = async () => {
+    if (!isAuthenticated || !user?.email) {
+      // toast.error("You must be logged in to perform this action.");
+      setUpgradeError("You must be logged in to perform this action.");
+      return;
+    }
 
-    console.log("Submitting game owner request:", { gameTitle, gameDescription })
-
-    setOwnerDialogOpen(false)
+    setIsUpgrading(true);
+    setUpgradeError(null);
+    setUpgradeSuccess(false);
 
     try {
-     await upgradeAccountToGameOwner(localStorage.getItem("userEmail"))
+      await upgradeAccountToGameOwner(user.email);
+      // toast.success("Account successfully upgraded to Game Owner! Please re-login for changes to take effect.");
+      setUpgradeSuccess(true);
+      // Ideally, we would refresh the user context here, but it lacks a refresh function.
+      // Option: Trigger logout and redirect? -> logout(); navigate('/login');
+      // Option: Force page reload? -> window.location.reload();
+      // Option: Just inform user -> (Handled by success message)
 
-      setShowRefreshDialog(true)
-
-      // Reset form fields
-      setGameTitle("")
-      setGameDescription("")
-    } catch (error) {
-      console.error(error)
+    } catch (err) {
+      console.error("Failed to upgrade account:", err);
+      // toast.error(err.message || "Failed to upgrade account. Please try again.");
+      setUpgradeError(err.message || "Failed to upgrade account. Please try again.");
+    } finally {
+      setIsUpgrading(false);
     }
-  }
-
-  function handleRefresh() {
-    window.location.reload()
-  }
+  };
 
   return (
     <>
-      {userType !== "owner" && (
-        <Dialog open={ownerDialogOpen} onOpenChange={setOwnerDialogOpen}>
-          <DialogTrigger asChild>
-            <Button variant="ghost" className="w-full justify-start gap-2">
-              <Crown className="h-4 w-4" />
-              Become a Game Owner
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Become a Game Owner</DialogTitle>
-              <DialogDescription>
-                By becoming a game owner, you will be able to add games and host events!
-              </DialogDescription>
-            </DialogHeader>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setOwnerDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button variant="positive" type="submit" onClick={handleOwnerSubmit}>Go!</Button>
-              </DialogFooter>
-          </DialogContent>
-        </Dialog>
+      {/* Use user role from context if available, otherwise fallback to prop */}
+      {isAuthenticated && user?.role !== 'GAME_OWNER' && ( // Check context for role
+        <>
+          <Button variant="ghost" className="w-full justify-start gap-2" onClick={handleUpgrade} disabled={isUpgrading}>
+            <User className="h-4 w-4" />
+            {isUpgrading ? "Upgrading..." : "Become a Game Owner"}
+          </Button>
+          {upgradeError && <p className="text-red-500 text-xs px-4 py-1">{upgradeError}</p>}
+          {upgradeSuccess && <p className="text-green-500 text-xs px-4 py-1">Upgrade successful! Please log out and log back in.</p>}
+        </>
       )}
 
-      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+      <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
           <Button variant="ghost" className="w-full justify-start gap-2">
             <Settings className="h-4 w-4" />
@@ -124,9 +133,12 @@ export default function SideMenuBar({ userType }) {
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Account Settings</DialogTitle>
-            <DialogDescription>Update your account information. Click save when you're done.</DialogDescription>
+            <DialogDescription>
+              Update your account information. Leave fields blank to keep current values. Click save when you're done.
+              {settingsError && <p className="text-red-500 text-sm mt-2">{settingsError}</p>}
+            </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSettingsSubmit}>
+          <form onSubmit={handleSettingsSubmit}> {/* Updated onSubmit handler */}
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
                 <Label htmlFor="username">
@@ -144,35 +156,19 @@ export default function SideMenuBar({ userType }) {
               <div className="grid gap-2">
                 <Label htmlFor="password">
                   <KeyRound className="h-4 w-4 inline mr-2" />
-                  Password
+                  New Password
                 </Label>
                 <Input
                   id="password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="newPassword">
-                  <KeyRound className="h-4 w-4 inline mr-2" />
-                  New Password
-                </Label>
-                <Input
-                  id="newPassword"
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="Enter new password"
                 />
-                <p className="text-xs text-muted-foreground">
-                  Leave this field blank if you don't want to change your password
-                </p>
+                <p className="text-xs text-muted-foreground">Leave blank if you don't want to change your password</p>
               </div>
 
-              {newPassword && (
+              {password && (
                 <div className="grid gap-2">
                   <Label htmlFor="confirmPassword">Confirm Password</Label>
                   <Input
@@ -186,29 +182,14 @@ export default function SideMenuBar({ userType }) {
               )}
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setSettingsOpen(false)}>
+              <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isSavingSettings}>
                 Cancel
               </Button>
-              <Button type="submit">Save changes</Button>
+              <Button type="submit" disabled={isSavingSettings}>
+                {isSavingSettings ? "Saving..." : "Save changes"}
+              </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Refresh Dialog - Shared between both forms */}
-      <Dialog open={showRefreshDialog} onOpenChange={setShowRefreshDialog}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Success!</DialogTitle>
-            <DialogDescription> Please refresh the page for the changes to take
-              effect.</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button onClick={handleRefresh} className="gap-2">
-              <RefreshCw className="h-4 w-4" />
-              Refresh Page
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>

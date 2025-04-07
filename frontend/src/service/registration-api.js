@@ -1,44 +1,82 @@
-// Define API_BASE_URL or import from a central config
-const API_BASE_URL = "http://localhost:8080/api/v1";
+import apiClient, { UnauthorizedError } from './apiClient'; // Import the centralized API client and UnauthorizedError
 
 /**
  * Fetches all event registrations for a given user email.
- * Requires authentication.
+ * Requires authentication (via HttpOnly cookie).
  * @param {string} email - The email of the user.
+ * @param {number} [retryCount=0] - Number of times this request has been retried
  * @returns {Promise<Array>} A promise that resolves to an array of registration objects.
+ * @throws {UnauthorizedError} If the user is not authenticated.
+ * @throws {ApiError} For other API-related errors.
  */
-export const getRegistrationsByEmail = async (email) => {
-  const token = localStorage.getItem("token");
-  if (!token) {
-    throw new Error("Authentication token not found. Please log in.");
-  }
+export const getRegistrationsByEmail = async (email, retryCount = 0) => {
   if (!email) {
      throw new Error("Email is required to fetch registrations.");
   }
 
-  const headers = {
-    "Content-Type": "application/json",
-    'Authorization': `Bearer ${token}`
-  };
-
-  // Use the updated backend path /registrations/user/{email}
-  const url = `${API_BASE_URL}/registrations/user/${encodeURIComponent(email)}`;
+  // Max retry count to prevent infinite loops
+  const MAX_RETRIES = 2;
+  
+  // Add a small delay to allow authentication to complete if this is a retry
+  if (retryCount > 0) {
+    await new Promise(resolve => setTimeout(resolve, 800));
+  }
 
   try {
-    const response = await fetch(url, {
+    // Use the correct API endpoint path
+    const registrations = await apiClient(`/registrations/user/${encodeURIComponent(email)}`, {
       method: "GET",
-      headers: headers,
+      skipPrefix: false
     });
+    return registrations;
+  } catch (error) {
+    // If unauthorized error and we haven't exceeded max retries, try again
+    if (error instanceof UnauthorizedError && retryCount < MAX_RETRIES) {
+      console.log(`Auth not ready, retrying registration fetch for ${email} (attempt ${retryCount + 1})`);
+      return getRegistrationsByEmail(email, retryCount + 1);
+    }
+    
+    console.error(`Failed to fetch registrations for user ${email}:`, error);
+    throw error; // Re-throw the specific error from apiClient
+  }
+};
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to fetch registrations: ${response.status} ${response.statusText} - ${errorText}`);
+
+/**
+ * Unregisters a user from an event.
+ * Requires authentication.
+ * @param {string} registrationId - The ID of the registration to delete.
+ * @returns {Promise<Object>} A promise that resolves to the response data (likely empty or confirmation).
+ * @throws {UnauthorizedError} If the user is not authenticated.
+ * @throws {ApiError} For other API-related errors.
+ */
+export const unregisterFromEvent = async (registrationId) => {
+  if (!registrationId) {
+    throw new Error("Registration ID is required to unregister.");
+  }
+
+  // Convert registrationId to string if it's a number
+  const registrationIdString = String(registrationId);
+  console.log(`[API] Unregistering from event with registration ID: ${registrationIdString}`);
+
+  try {
+    // Make sure we have a valid registration ID
+    if (isNaN(parseInt(registrationIdString))) {
+      throw new Error(`Invalid registration ID format: ${registrationIdString}`);
     }
 
-    return response.json(); // Returns RegistrationResponseDto[]
+    const response = await apiClient(`/registrations/${registrationIdString}`, {
+      method: "DELETE",
+      skipPrefix: false, // Assuming '/registrations/{id}' is the full path
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    console.log(`[API] Successfully unregistered with ID ${registrationIdString}`);
+    return response; // Or handle specific success response if needed
   } catch (error) {
-      console.error("Error fetching registrations:", error);
-      throw error; // Re-throw for the component to handle
+    console.error(`[API] Failed to unregister registration ${registrationIdString}:`, error);
+    throw error; // Re-throw the specific error from apiClient
   }
 };
 

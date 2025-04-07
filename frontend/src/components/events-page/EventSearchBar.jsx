@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Input } from "../../ui/input";
 import { Search, CalendarX, RefreshCw } from "lucide-react";
 import { searchEventsByTitle } from "../../service/event-api.js";
 import { EventCard } from "./EventCard";
 import { motion, AnimatePresence } from "framer-motion";
-import { getRegistrationsByEmail } from "../../service/registration-api.js"; // Import registration fetcher
+// Removed: import { getRegistrationsByEmail } from "../../service/registration-api.js";
+import { useAuth } from "@/context/AuthContext"; // Import useAuth (still needed for user email if we decide to re-add refresh)
 
 // Animation variants for search results
 const resultsContainer = {
@@ -31,28 +32,26 @@ const resultItem = {
   }
 };
 
-export function EventSearchBar({ onSearchStateChange }) {
+export function EventSearchBar({ onSearchStateChange, userRegistrations }) { // Accept userRegistrations prop
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [prevSearchTerm, setPrevSearchTerm] = useState("");
-  const [userRegistrations, setUserRegistrations] = useState([]); // Store user registrations
+  // Removed: const [userRegistrations, setUserRegistrations] = useState([]);
+  const { user } = useAuth(); // Keep user for potential future use (e.g., refresh logic)
+  
+  // Track if component is mounted to prevent state updates after unmount
+  const isMountedRef = useRef(true);
 
-  // Fetch registrations when search is performed
-  const fetchUserRegistrations = async () => {
-    const userEmail = localStorage.getItem("userEmail");
-    if (!userEmail) return [];
-    
-    try {
-      const registrations = await getRegistrationsByEmail(userEmail);
-      setUserRegistrations(registrations || []);
-      return registrations;
-    } catch (error) {
-      console.error("Failed to fetch user registrations:", error);
-      return [];
-    }
-  };
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  // Removed: fetchUserRegistrations function
 
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
@@ -75,7 +74,7 @@ export function EventSearchBar({ onSearchStateChange }) {
   }, [searchTerm, onSearchStateChange, prevSearchTerm]);
 
   // Helper to adapt backend event DTO to what the child Event component expects
-  const adaptEventData = (event) => {
+  const adaptEventData = useCallback((event) => {
     if (!event) return null;
     return {
       id: event.eventId,
@@ -93,44 +92,51 @@ export function EventSearchBar({ onSearchStateChange }) {
       },
       description: event.description || '',
     };
- };
+  }, []);
 
-  const handleSearch = async () => {
+  const handleSearch = useCallback(async () => {
+    if (!isMountedRef.current) return;
+    
     setIsLoading(true);
     try {
-      // Fetch search results and user registrations concurrently
-      const [results, registrations] = await Promise.all([
-        searchEventsByTitle(searchTerm),
-        fetchUserRegistrations()
-      ]);
+      // Fetch only search results
+      const results = await searchEventsByTitle(searchTerm);
       
-      const adaptedResults = results.map(event => adaptEventData(event));
-      setSearchResults(adaptedResults);
-      setHasSearched(true);
+      if (isMountedRef.current) {
+        const adaptedResults = results.map(event => adaptEventData(event));
+        setSearchResults(adaptedResults);
+        setHasSearched(true);
+      }
     } catch (error) {
       console.error("Search error:", error);
-      setSearchResults([]);
-      setHasSearched(true);
+      if (isMountedRef.current) {
+        setSearchResults([]);
+        setHasSearched(true);
+      }
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
-  };
+  }, [searchTerm, adaptEventData]); // Removed fetchUserRegistrations dependency
 
   // Function to refresh data after registration action
-  const handleRegistrationUpdate = async () => {
-    // Refresh search results
+  // Note: This currently only re-fetches search results.
+  // If the parent's registration data needs refreshing, a callback prop from EventsPage would be needed.
+  const handleRegistrationUpdate = useCallback(async () => {
+    if (!isMountedRef.current) return;
+    // Re-fetch search results only
     try {
-      const [results, registrations] = await Promise.all([
-        searchEventsByTitle(searchTerm),
-        fetchUserRegistrations()
-      ]);
+      const results = await searchEventsByTitle(searchTerm);
       
-      const adaptedResults = results.map(event => adaptEventData(event));
-      setSearchResults(adaptedResults);
+      if (isMountedRef.current) {
+        const adaptedResults = results.map(event => adaptEventData(event));
+        setSearchResults(adaptedResults);
+      }
     } catch (error) {
       console.error("Error refreshing search results:", error);
     }
-  };
+  }, [searchTerm, adaptEventData]); // Removed fetchUserRegistrations dependency
 
   return (
     <div className="w-full">

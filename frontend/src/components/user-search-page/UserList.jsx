@@ -87,10 +87,10 @@ const UserList = ({ users = [], isLoading, error, emptyMessage = "No users found
     >
       {users.map((user) => (
         <motion.div key={user.id || user.username} variants={itemVariants} className="h-full">
-          <div onClick={() => navigate(`/profile?email=${searchQuery}`)} className="cursor-pointer">
+          <div className="h-full"> {/* Removed onClick and cursor-pointer */}
             <MemoizedUserProfileCard
               user={user}
-              onClick={() => onUserClick(user)}
+              onClick={() => onUserClick(user)} // This handler remains
             />
           </div>
         </motion.div>
