@@ -452,6 +452,7 @@ public class GameService {
         game.setMinPlayers(updateDto.getMinPlayers());
         game.setMaxPlayers(updateDto.getMaxPlayers());
         game.setImage(updateDto.getImage());
+        game.setCategory(updateDto.getCategory());
 
         // Save the updated game
             gameRepository.save(game);
