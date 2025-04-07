@@ -36,7 +36,7 @@ function UserSearchPage() {
     }
     setIsLoadingSearch(true);
     setSearchError(null);
-    setSearchResults([]);
+    setSearchResults([]); // Clear previous results before new search
     try {
       // Call getUserInfoByEmail assuming query is the exact email
       const result = await getUserInfoByEmail(query);
