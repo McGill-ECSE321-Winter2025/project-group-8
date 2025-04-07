@@ -21,6 +21,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.Collections; // Keep one import
+import java.util.UUID; // Added import
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -79,8 +80,11 @@ public class RegistrationServiceTest {
         // Setup
         Date registrationDate = new Date();
         Account attendee = new Account("Attendee", "attendee@test.com", "password");
+        attendee.setEmail("attendee@test.com"); // Explicitly set email to ensure it's not null
         Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
         Event event = new Event("Game Night", new Date(), "Location", "Description", 10, game, new Account());
+        UUID eventId = UUID.randomUUID(); // Generate UUID
+        event.setId(eventId); // Set UUID on event
 
         Registration registration = new Registration(registrationDate);
         registration.setId(VALID_REGISTRATION_ID);
@@ -89,6 +93,7 @@ public class RegistrationServiceTest {
 
         when(registrationRepository.save(any(Registration.class))).thenReturn(registration);
         when(accountRepository.findByEmail(attendee.getEmail())).thenReturn(Optional.of(attendee)); // Mock finding authenticated user
+        when(eventRepository.findEventById(any(UUID.class))).thenReturn(Optional.of(event)); // Corrected mock to return Optional<Event>
 
         // Setup Security Context
         Authentication auth = mock(Authentication.class);
@@ -101,11 +106,11 @@ public class RegistrationServiceTest {
             // Test
             Registration result = registrationService.createRegistration(registrationDate, event); // Ensure signature: (Date, Event)
 
-        // Verify
-        assertNotNull(result);
-        assertEquals(VALID_REGISTRATION_ID, result.getId());
-        assertEquals(attendee, result.getAttendee());
-        assertEquals(event, result.getEventRegisteredFor());
+            // Verify
+            assertNotNull(result);
+            assertEquals(VALID_REGISTRATION_ID, result.getId());
+            assertEquals(attendee, result.getAttendee());
+            assertEquals(event, result.getEventRegisteredFor());
         } finally {
             SecurityContextHolder.clearContext(); // Clear context after test
         }

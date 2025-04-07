@@ -33,6 +33,10 @@ import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.services.AuthenticationService;
 import jakarta.servlet.http.HttpSession;
+import ca.mcgill.ecse321.gameorganizer.services.EmailService;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.eq;
+import jakarta.mail.MessagingException;
 
 @ExtendWith(MockitoExtension.class)
 @ContextConfiguration(initializers = TestJwtConfig.Initializer.class)
@@ -46,6 +50,9 @@ public class AuthenticationServiceTest {
 
     @Mock
     private HttpSession session;
+
+    @Mock // Added mock
+    private EmailService emailService;
 
     @InjectMocks
     private AuthenticationService authenticationService;
@@ -143,14 +150,17 @@ public class AuthenticationServiceTest {
     // --- Tests for requestPasswordReset ---
 
     @Test
-    public void testRequestPasswordResetSuccess() {
+    public void testRequestPasswordResetSuccess() throws MessagingException {
         // Setup
         PasswordResetRequestDto requestDto = new PasswordResetRequestDto();
         requestDto.setEmail(VALID_EMAIL);
         Account account = new Account();
         account.setEmail(VALID_EMAIL);
+        account.setName("Test User"); // Set a name to avoid null name
         when(accountRepository.findByEmail(VALID_EMAIL)).thenReturn(Optional.of(account));
         ArgumentCaptor<Account> accountCaptor = ArgumentCaptor.forClass(Account.class);
+        // Use any() for all parameters to avoid strict mock matching issues
+        doNothing().when(emailService).sendPasswordResetEmail(anyString(), anyString(), anyString());
 
         // Test
         authenticationService.requestPasswordReset(requestDto);
@@ -161,6 +171,8 @@ public class AuthenticationServiceTest {
         Account savedAccount = accountCaptor.getValue();
         assertNotNull(savedAccount.getResetPasswordToken());
         assertNotNull(savedAccount.getResetPasswordTokenExpiry());
+        // Verify email was sent with correct arguments
+        verify(emailService).sendPasswordResetEmail(eq(VALID_EMAIL), eq(savedAccount.getResetPasswordToken()), eq(savedAccount.getName()));
         // Check expiry is roughly 30 minutes in the future (allow some leeway for test execution time)
         LocalDateTime expectedExpiry = LocalDateTime.now().plusMinutes(30);
         LocalDateTime actualExpiry = savedAccount.getResetPasswordTokenExpiry();

@@ -294,22 +294,21 @@ public class EventServiceTest {
         Game game = new Game("Test Game", 2, 4, "test.jpg", new java.util.Date());
         game.setId(VALID_GAME_ID);
         
-        Event event = new Event(VALID_TITLE, new Date(System.currentTimeMillis()), VALID_LOCATION,
+        String newTitle = "Updated Event Title";
+        java.sql.Date newDate = new java.sql.Date(System.currentTimeMillis()); // Convert to java.sql.Date
+        String newLocation = "Updated Location";
+        String newDescription = "Updated event description";
+        int newMaxParticipants = 15;
+        
+        Event event = new Event(VALID_TITLE, new java.util.Date(), VALID_LOCATION, 
                 VALID_DESCRIPTION, VALID_MAX_PARTICIPANTS, game, host);
         event.setId(VALID_EVENT_ID);
-        
-        // New event details
-        String newTitle = "Updated Event";
-        Date newDate = new Date(System.currentTimeMillis() + 86400000); // Next day
-        String newLocation = "New Location";
-        String newDescription = "Updated description";
-        int newMaxParticipants = 15;
         
         // Mock the security context
         Authentication authentication = mock(Authentication.class);
         SecurityContext securityContext = mock(SecurityContext.class);
-        lenient().when(securityContext.getAuthentication()).thenReturn(authentication);
-        lenient().when(authentication.getName()).thenReturn(VALID_HOST_EMAIL);
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+        when(authentication.getName()).thenReturn(VALID_HOST_EMAIL);
         SecurityContextHolder.setContext(securityContext);
         
         try {
@@ -355,7 +354,7 @@ public class EventServiceTest {
             
             // Test & Verify
             assertThrows(IllegalArgumentException.class, () -> 
-                eventService.updateEvent(VALID_EVENT_ID, "New Title", new Date(System.currentTimeMillis()),
+                eventService.updateEvent(VALID_EVENT_ID, "New Title", new java.sql.Date(System.currentTimeMillis()),
                         "New Location", "New Description", 20));
             verify(eventRepository, never()).save(any(Event.class));
         } finally {
@@ -366,7 +365,7 @@ public class EventServiceTest {
     @Test
     public void testUpdateEventNotHost() {
         // Setup
-        java.util.Date dateTime = new java.util.Date();
+        java.sql.Date dateTime = new java.sql.Date(System.currentTimeMillis()); // Convert to java.sql.Date
         
         // Create host account for the event
         Account actualHost = new Account();
@@ -381,7 +380,7 @@ public class EventServiceTest {
         // Create the event with the actual host (not the test user)
         Event existingEvent = new Event(
             VALID_TITLE, 
-            dateTime, 
+            new java.util.Date(), 
             VALID_LOCATION, 
             VALID_DESCRIPTION, 
             VALID_MAX_PARTICIPANTS, 
@@ -403,7 +402,7 @@ public class EventServiceTest {
             .when(eventService).updateEvent(
                 eq(VALID_EVENT_ID), 
                 anyString(), 
-                any(java.util.Date.class),
+                any(java.sql.Date.class), // Updated to match service method signature
                 anyString(),
                 anyString(),
                 anyInt()

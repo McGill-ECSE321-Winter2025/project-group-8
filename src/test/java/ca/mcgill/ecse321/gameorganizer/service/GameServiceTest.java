@@ -41,9 +41,12 @@ import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.models.Review;
+import ca.mcgill.ecse321.gameorganizer.models.GameInstance;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.GameInstanceRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 import ca.mcgill.ecse321.gameorganizer.services.GameService;
 
 @ExtendWith(MockitoExtension.class)
@@ -58,6 +61,12 @@ public class GameServiceTest {
 
     @Mock
     private AccountRepository accountRepository;
+
+    @Mock
+    private GameInstanceRepository gameInstanceRepository;
+
+    @Mock
+    private EventRepository eventRepository;
 
     @InjectMocks
     private GameService gameService;
@@ -93,9 +102,12 @@ public class GameServiceTest {
 
             Game savedGame = new Game(VALID_GAME_NAME, VALID_MIN_PLAYERS, VALID_MAX_PLAYERS, VALID_IMAGE, new Date());
             savedGame.setOwner(owner);
+            GameInstance savedGameInstance = new GameInstance();
+            savedGameInstance.setGame(savedGame);
 
             when(accountRepository.findByEmail(VALID_OWNER_EMAIL)).thenReturn(Optional.of(owner));
             when(gameRepository.save(any(Game.class))).thenReturn(savedGame);
+            when(gameInstanceRepository.save(any(GameInstance.class))).thenReturn(savedGameInstance);
 
             // Test
             GameResponseDto response = gameService.createGame(gameDto);
@@ -107,6 +119,7 @@ public class GameServiceTest {
             assertEquals(VALID_MAX_PLAYERS, response.getMaxPlayers());
             verify(accountRepository).findByEmail(VALID_OWNER_EMAIL);
             verify(gameRepository).save(any(Game.class));
+            verify(gameInstanceRepository).save(any(GameInstance.class));
         } finally {
             SecurityContextHolder.clearContext();
         }
@@ -287,6 +300,7 @@ public class GameServiceTest {
             Game game = new Game(VALID_GAME_NAME, VALID_MIN_PLAYERS, VALID_MAX_PLAYERS, VALID_IMAGE, new Date());
             game.setOwner(owner); // Set the owner
             when(gameRepository.findGameById(VALID_GAME_ID)).thenReturn(game);
+            when(eventRepository.findEventByFeaturedGameId(VALID_GAME_ID)).thenReturn(Collections.emptyList());
 
             // Test
             ResponseEntity<String> response = gameService.deleteGame(VALID_GAME_ID);
@@ -295,6 +309,7 @@ public class GameServiceTest {
             assertEquals(200, response.getStatusCodeValue());
             verify(gameRepository).findGameById(VALID_GAME_ID);
             verify(gameRepository).delete(game);
+            verify(eventRepository).findEventByFeaturedGameId(VALID_GAME_ID);
         } finally {
             SecurityContextHolder.clearContext();
         }
@@ -540,6 +555,7 @@ public class GameServiceTest {
             game.setOwner(owner); // Set the owner
             game.setId(VALID_GAME_ID); // Assume a valid ID for the test game
             when(gameRepository.findGameById(VALID_GAME_ID)).thenReturn(game); // Mock finding game by ID
+            when(eventRepository.findEventByFeaturedGameId(VALID_GAME_ID)).thenReturn(Collections.emptyList()); // Added mock for eventRepo find
 
             // Test
             ResponseEntity<String> response = gameService.deleteGame(VALID_GAME_ID);
