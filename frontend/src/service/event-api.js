@@ -146,55 +146,188 @@ export const registerForEvent = async (eventId) => {
 };
 
 /**
- * Creates a new event. Requires authentication (via HttpOnly cookie).
- * Backend identifies the host from the session.
- * @param {object} eventData - Data for the new event.
- * @param {string} eventData.title
- * @param {string} eventData.dateTime - ISO 8601 format string or similar expected by backend.
- * @param {string} eventData.location
- * @param {string} eventData.description
- * @param {number} eventData.maxParticipants
- * @param {number} eventData.featuredGameId - ID of the featured game.
- * @returns {Promise<object>} A promise that resolves to the created event object.
- * @throws {UnauthorizedError} If the user is not authenticated.
- * @throws {ForbiddenError} If the user is not allowed to create events.
- * @throws {ApiError} For other API-related errors.
+ * Creates a new event
+ * 
+ * @param {Object} eventData - Data for the event
+ * @param {string} eventData.title - Event title
+ * @param {string} eventData.dateTime - Event date and time (ISO string)
+ * @param {number} eventData.maxParticipants - Maximum number of participants
+ * @param {string} eventData.location - Event location
+ * @param {number|string} eventData.featuredGameId - ID of the featured game
+ * @param {number} [eventData.gameInstanceId] - ID of the game instance (for borrowed games)
+ * @param {boolean} [eventData.isBorrowed] - Whether the game is borrowed
+ * @param {string} [eventData.description] - Event description
+ * @returns {Promise<Object>} Created event data
  */
 export const createEvent = async (eventData) => {
-  if (!eventData.featuredGameId) {
-      throw new Error("Featured Game ID is missing in event data for createEvent");
+  if (!eventData.title) {
+    throw new Error("Event title is required");
   }
-
-  // Construct the payload according to backend DTO expectations
-  const payload = {
-    title: eventData.title,
-    dateTime: new Date(eventData.dateTime).toISOString(), // Ensure ISO format
-    location: eventData.location || "",
-    description: eventData.description || "",
-    maxParticipants: parseInt(eventData.maxParticipants, 10),
-    featuredGame: { id: parseInt(eventData.featuredGameId, 10) } // Send game ID nested
-  };
-
-  // Log the payload for debugging
-  console.log("Create event payload:", JSON.stringify(payload, null, 2));
-
+  if (!eventData.dateTime) {
+    throw new Error("Event date and time are required");
+  }
+  if (!eventData.maxParticipants) {
+    throw new Error("Maximum participants is required");
+  }
+  
+  // Ensure featuredGameId or featuredGame.id is provided and valid
+  if (!eventData.featuredGameId && !(eventData.featuredGame && eventData.featuredGame.id)) {
+    throw new Error("A featured game must be selected");
+  }
+  
+  // Get the game ID from either source
+  const gameId = eventData.featuredGameId || (eventData.featuredGame && eventData.featuredGame.id);
+  
+  // Check if gameId is NaN when it's supposed to be a number
+  if (typeof gameId === 'number' && isNaN(gameId)) {
+    throw new Error("Invalid featured game ID");
+  }
+  
+  console.log("Creating event with data:", JSON.stringify(eventData, null, 2));
+  
   try {
-    const createdEvent = await apiClient("/events", {
-      method: "POST",
-      body: payload,
-      skipPrefix: false, // Assuming /api/events
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
-    console.log("Event created successfully:", createdEvent);
-    return createdEvent;
-  } catch (error) {
-    console.error("Failed to create event:", error);
-    if (error.response) {
-      console.error("Server response:", error.response);
+    // Ensure featuredGameId is a number or properly formatted string
+    let formattedFeaturedGameId = gameId;
+    if (typeof formattedFeaturedGameId === 'string' && !isNaN(formattedFeaturedGameId)) {
+      formattedFeaturedGameId = parseInt(formattedFeaturedGameId, 10);
     }
-    throw error; // Re-throw the specific error from apiClient
+    
+    // Make sure it's not NaN after conversion
+    if (typeof formattedFeaturedGameId === 'number' && isNaN(formattedFeaturedGameId)) {
+      throw new Error("Failed to parse featured game ID");
+    }
+    
+    // Build a URL with the game ID as a query parameter
+    const endpoint = `/events?featuredGameId=${formattedFeaturedGameId}`;
+    
+    // Create a new payload with explicit key names that match what the backend expects
+    // Try multiple naming variations for the game ID
+    const payload = {
+      title: eventData.title,
+      dateTime: eventData.dateTime,
+      maxParticipants: Number(eventData.maxParticipants),
+      location: eventData.location || "",
+      description: eventData.description || "",
+      // Try multiple field name variations for the game ID
+      featuredGameId: formattedFeaturedGameId,
+      gameId: formattedFeaturedGameId,
+      game_id: formattedFeaturedGameId,
+      FeaturedGameId: formattedFeaturedGameId,
+      GameId: formattedFeaturedGameId,
+      featured_game_id: formattedFeaturedGameId,
+      "featured-game-id": formattedFeaturedGameId,
+      createdBy: localStorage.getItem('userId') || null
+    };
+    
+    // Add gameInstanceId if present and this is a borrowed game
+    if (eventData.isBorrowed && eventData.gameInstanceId) {
+      payload.gameInstanceId = eventData.gameInstanceId;
+      // Also try other naming variants for gameInstanceId
+      payload.game_instance_id = eventData.gameInstanceId;
+      payload.GameInstanceId = eventData.gameInstanceId;
+    }
+    
+    // Log the final payload being sent to the server
+    console.log("Final event payload:", JSON.stringify(payload, null, 2));
+    
+    let response;
+    try {
+      // Create a properly formatted request body with featuredGame as an object with ID
+      const properPayload = {
+        title: payload.title,
+        dateTime: payload.dateTime,
+        maxParticipants: Number(payload.maxParticipants),
+        location: payload.location || "",
+        description: payload.description || "",
+        featuredGame: {
+          id: formattedFeaturedGameId
+        },
+        // Add gameInstanceId if present for borrowed games
+        ...(payload.gameInstanceId && { gameInstanceId: payload.gameInstanceId })
+      };
+      
+      console.log("Properly formatted payload:", JSON.stringify(properPayload, null, 2));
+      
+      // Remove featuredGameId from URL - put it in the body instead
+      response = await apiClient("/events", {
+        method: "POST",
+        body: properPayload,
+        skipPrefix: false
+      });
+    } catch (apiClientError) {
+      console.log("Failed with apiClient, trying direct fetch:", apiClientError);
+      
+      // Fallback to direct fetch as a backup
+      const API_URL = "http://localhost:8080/api"; // Use your actual API URL
+      
+      // Get auth tokens from localStorage
+      const userId = localStorage.getItem('userId');
+      const isAuthenticated = localStorage.getItem('isAuthenticated');
+      
+      // Create headers
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+      
+      // Add auth headers if available
+      if (userId) headers['X-User-Id'] = userId;
+      if (isAuthenticated) headers['X-Remember-Me'] = 'true';
+      
+      // Add a single game ID parameter for simplicity
+      const directPayload = {
+        title: payload.title,
+        dateTime: payload.dateTime,
+        maxParticipants: Number(payload.maxParticipants),
+        location: payload.location || "",
+        description: payload.description || "",
+        featuredGame: {
+          id: formattedFeaturedGameId
+        },
+        // Also include gameInstanceId for borrowed games if present
+        ...(payload.gameInstanceId && { gameInstanceId: payload.gameInstanceId })
+      };
+      
+      console.log("Trying direct fetch with payload:", JSON.stringify(directPayload, null, 2));
+      
+      const directResponse = await fetch(`${API_URL}/events`, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(directPayload),
+        credentials: 'include'
+      });
+      
+      if (!directResponse.ok) {
+        const errorText = await directResponse.text();
+        console.error("Direct API call failed:", directResponse.status, errorText);
+        throw new Error(`API error: ${errorText}`);
+      }
+      
+      response = await directResponse.json();
+    }
+    
+    console.log("Event created successfully:", response);
+    return response;
+  } catch (error) {
+    console.error("Error creating event:", error);
+    
+    // Try to extract more information from the error
+    console.log("Error details:", error);
+    if (error.response) {
+      console.log("Error response:", error.response);
+    }
+    
+    // Provide more user-friendly error messages based on error type
+    if (error.message && error.message.includes("borrow period")) {
+      throw new Error("Event must occur within the borrow period for borrowed games.");
+    } else if (error.name === 'UnauthorizedError') {
+      throw new Error("You must be logged in to create events.");
+    } else if (error.name === 'ForbiddenError') {
+      throw new Error("You don't have permission to create events with this game.");
+    } else if (error.message && (error.message.includes("Featured game ID") || error.message.includes("invalid") || error.message.includes("featured") || error.message.includes("game"))) {
+      throw new Error("Featured game ID is missing or invalid. Please try a different game or contact support.");
+    }
+    
+    throw error;
   }
 };
 

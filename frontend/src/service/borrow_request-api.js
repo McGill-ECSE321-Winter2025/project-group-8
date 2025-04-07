@@ -142,22 +142,39 @@ export const getBorrowRequestsByStatus = async (status) => {
 
 /**
  * Gets borrow requests by requester ID
- * @param {number} requesterId - The ID of the requester
- * @returns {Promise<Array>} List of borrow requests made by the specified requester
+ * @param {string|number} requesterId - The ID or email of the requester
+ * @returns {Promise<Array>} List of borrow requests associated with the specified requester
  */
 export const getBorrowRequestsByRequester = async (requesterId) => {
   if (!requesterId) {
     throw new Error("Requester ID is required.");
   }
-  // Remove manual token check and Authorization header
-  // Removed extra brace
-
-  // Use apiClient
-  return apiClient(`${BORROW_REQUESTS_ENDPOINT}/requester/${requesterId}`, {
-    method: "GET",
-    requiresAuth: true,
-    skipPrefix: false // Use /api prefix
-  });
+  
+  // Determine if requesterId is an email
+  const isEmail = typeof requesterId === 'string' && requesterId.includes('@');
+  
+  try {
+    let endpoint;
+    if (isEmail) {
+      // If it's an email, use the user endpoint instead
+      // This assumes the backend has an endpoint to get requests by user email
+      endpoint = `/borrowrequests/user/${encodeURIComponent(requesterId)}`;
+    } else {
+      // Otherwise use the regular endpoint
+      endpoint = `/borrowrequests/requester/${requesterId}`;
+    }
+    
+    // Use apiClient
+    return await apiClient(endpoint, {
+      method: "GET",
+      requiresAuth: true,
+      skipPrefix: false // Use /api prefix
+    });
+  } catch (error) {
+    console.error(`Error fetching borrow requests for requester ${requesterId}:`, error);
+    // Return empty array on error to prevent UI crashes
+    return [];
+  }
 };
 
 /**
@@ -178,4 +195,82 @@ export const getBorrowRequestsByOwner = async (ownerId) => {
         requiresAuth: true,
         skipPrefix: false // Use /api prefix
     });
+};
+
+/**
+ * Gets games that a user is currently borrowing with approved status
+ * that can be used for creating events
+ * 
+ * @param {string} userId - The ID of the user
+ * @returns {Promise<Array>} List of borrowed games that can be used for events
+ */
+export const getActiveBorrowedGames = async (userId) => {
+    if (!userId) {
+        throw new Error("User ID is required.");
+    }
+    
+    try {
+        // Get user's borrow requests
+        const requests = await getBorrowRequestsByRequester(userId);
+        
+        console.log("Active borrow requests:", requests);
+        
+        // Filter for approved requests where the end date is in the future
+        const activeRequests = requests.filter(req => 
+            req.status === 'APPROVED' && 
+            new Date(req.endDate) > new Date()
+        );
+        
+        console.log("Filtered active requests:", activeRequests);
+        
+        // Get game details for each request
+        const borrowedGames = await Promise.all(
+            activeRequests.map(async (req) => {
+                try {
+                    // Import the game-api functions to avoid circular dependencies
+                    const { getGameById } = await import('./game-api.js');
+                    
+                    // Validate the requestedGameId
+                    if (!req.requestedGameId || req.requestedGameId <= 0) {
+                        console.error(`Invalid requestedGameId in borrow request:`, req);
+                        return null;
+                    }
+                    
+                    const game = await getGameById(req.requestedGameId);
+                    
+                    console.log(`Got game details for borrowed game ${req.requestedGameId}:`, game);
+                    
+                    // Ensure we have valid game data
+                    if (!game || !game.id) {
+                        console.error(`Invalid game data returned for ID ${req.requestedGameId}`);
+                        return null;
+                    }
+                    
+                    // Add borrow request information to the game
+                    // Making sure to include the requestedGameId as gameId for event creation
+                    return {
+                        ...game,
+                        isBorrowed: true,
+                        borrowStartDate: req.startDate,
+                        borrowEndDate: req.endDate,
+                        gameInstanceId: req.gameInstanceId || req.id, // Fallback to request id if instance id is missing
+                        borrowRequestId: req.id,
+                        requestedGameId: req.requestedGameId // This is critical for event creation
+                    };
+                } catch (error) {
+                    console.error(`Error fetching game details for borrowed game ID ${req.requestedGameId}:`, error);
+                    return null;
+                }
+            })
+        );
+        
+        // Filter out any failed game fetch attempts
+        const filteredGames = borrowedGames.filter(game => game !== null);
+        console.log(`Found ${filteredGames.length} active borrowed games for user ${userId}:`, filteredGames);
+        
+        return filteredGames;
+    } catch (error) {
+        console.error(`Error fetching active borrowed games for user ${userId}:`, error);
+        return [];
+    }
 };

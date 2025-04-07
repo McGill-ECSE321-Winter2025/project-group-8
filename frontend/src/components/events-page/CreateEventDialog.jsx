@@ -14,17 +14,28 @@ import { Input } from "../../ui/input";
 import { Textarea } from "../../ui/textarea";
 import { Label } from "../../ui/label";
 import { createEvent } from "../../service/event-api.js";
-import { getGamesByOwner } from "../../service/game-api.js";
+import { getGamesAvailableForEvents } from "../../service/game-api.js";
 import { Loader2, Calendar, Users, MapPin, Search, X, Check, AlertCircle, Info } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "../../context/AuthContext.jsx";
 import { 
   Card,
   CardContent
 } from "../../ui/card";
+import {
+  FormField,
+  FormItem,
+  FormLabel,
+  FormControl
+} from "../../ui/form";
+import { ScrollArea } from "../../ui/scroll-area";
+import { Badge } from "../../ui/badge";
+import { cn } from "../../lib/utils";
 
 // Create a utility function to help with debugging
 const logState = (message, data = {}) => {
-  console.log(`[CreateEventDialog] ${message}`, data);
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[CreateEventDialog] ${message}`, data);
+  }
 };
 
 export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) {
@@ -52,7 +63,7 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
   // Log component re-renders
   logState(`Render #${renderCount.current}, isLoadingUserGames=${isLoadingUserGames}, gamesCount=${userGames.length}`);
 
-  const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm({
+  const { register, handleSubmit, formState: { errors }, reset, setValue, watch, control } = useForm({
     defaultValues: {
       title: "",
       dateTime: "",
@@ -138,7 +149,7 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
         logState("Fetching games for user", { userEmail });
         
         // Store the promise in a ref to prevent unmounting during fetch
-        fetchPromiseRef.current = getGamesByOwner(userEmail);
+        fetchPromiseRef.current = getGamesAvailableForEvents(userEmail);
         const games = await fetchPromiseRef.current;
         fetchPromiseRef.current = null;
         
@@ -163,7 +174,7 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
           setGameSearchResults([]);
         } else if (games.length === 0) {
           logState("No games found for user");
-          setGameLoadError("No games found. Please add a game to your collection first.");
+          setGameLoadError("No games available for events. You need to own games or have approved borrowed games to create an event.");
           setUserGames([]);
           setGameSearchResults([]);
         } else {
@@ -294,7 +305,7 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
           throw new Error("No user email available for retry");
         }
         
-        const games = await getGamesByOwner(emailToUse);
+        const games = await getGamesAvailableForEvents(emailToUse);
         
         if (!isMountedRef.current) return;
         
@@ -308,7 +319,7 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
           setUserGames([]);
           setGameSearchResults([]);
         } else if (games.length === 0) {
-          setGameLoadError("No games found. Please add a game to your collection first.");
+          setGameLoadError("No games available for events. You need to own games or have approved borrowed games to create an event.");
           setUserGames([]);
           setGameSearchResults([]);
         } else {
@@ -335,24 +346,117 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
 
   const onSubmit = handleSubmit(async (data) => {
     if (!selectedGameId) {
-      setSubmitError("Please select one of your games from the search results.");
+      setSubmitError("Please select a game from the search results.");
       return;
     }
 
-    const isUserGame = userGames.some(game => game.id === selectedGameId);
-    if (!isUserGame) {
-      setSubmitError("You can only create events for games you own.");
+    // Get the selected game
+    const selectedGame = userGames.find(game => game.id === selectedGameId);
+    
+    if (!selectedGame) {
+      setSubmitError("Selected game not found. Please try again.");
       return;
+    }
+    
+    // Log ALL properties of the selected game
+    console.log("All properties of the selected game:", Object.keys(selectedGame));
+    console.log("Full game object:", selectedGame);
+    
+    // If this is a borrowed game, validate that the event date is within the borrow period
+    if (selectedGame?.isBorrowed) {
+      const eventDate = new Date(data.dateTime);
+      const borrowStartDate = new Date(selectedGame.borrowStartDate);
+      const borrowEndDate = new Date(selectedGame.borrowEndDate);
+      
+      // Check if event date is within the borrow period
+      if (eventDate < borrowStartDate || eventDate > borrowEndDate) {
+        // Format dates with both date and time
+        const formatDateTime = (date) => {
+          return date.toLocaleString(undefined, {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+        };
+        
+        setSubmitError(
+          `This event must be scheduled between ${formatDateTime(borrowStartDate)} and ${formatDateTime(borrowEndDate)} since the game is borrowed.`
+        );
+        return;
+      }
     }
 
     const { gameSearchTermInput, ...formData } = data;
     setIsLoading(true);
     setSubmitError("");
 
+    // Log the full selected game object to debug
+    console.log("Selected game for event:", selectedGame);
+
+    // For borrowed games, ensure we're using the correct game ID
+    // Some backends might expect the original game ID, not the instance ID
+    let gameId = null;
+    
+    if (selectedGame.isBorrowed) {
+      if (selectedGame.requestedGameId) {
+        console.log("Using requestedGameId for borrowed game:", selectedGame.requestedGameId);
+        gameId = selectedGame.requestedGameId;
+      } else if (selectedGame.gameId) {
+        console.log("Using gameId for borrowed game:", selectedGame.gameId);
+        gameId = selectedGame.gameId;
+      } else {
+        console.log("Using id for borrowed game:", selectedGame.id);
+        gameId = selectedGame.id;
+      }
+    } else {
+      console.log("Using game.id for owned game:", selectedGame.id);
+      gameId = selectedGame.id;
+    }
+    
+    // Validate gameId is not null, undefined, or NaN
+    if (!gameId || (typeof gameId === 'number' && isNaN(gameId))) {
+      console.error("Invalid game ID:", gameId);
+      setSubmitError("Invalid game ID. Please select a different game.");
+      setIsLoading(false);
+      return;
+    }
+    
+    // Ensure gameId is a number if it's a numeric string
+    if (typeof gameId === 'string' && !isNaN(gameId)) {
+      gameId = parseInt(gameId, 10);
+    }
+    
+    // Try to get the game instance ID
+    let gameInstanceId = null;
+    if (selectedGame.isBorrowed) {
+      if (selectedGame.gameInstanceId) {
+        gameInstanceId = selectedGame.gameInstanceId;
+      } else if (selectedGame.instanceId) {
+        gameInstanceId = selectedGame.instanceId;
+      } else if (selectedGame.borrowRequestId) {
+        gameInstanceId = selectedGame.borrowRequestId;
+      }
+      
+      console.log("Using game instance ID:", gameInstanceId);
+    }
+    
+    // Build a payload with explicitly named fields
     const payload = {
       ...formData,
-      featuredGameId: selectedGameId,
+      featuredGame: {
+        id: gameId
+      },
+      // Only include gameInstanceId if it exists and this is a borrowed game
+      ...(selectedGame.isBorrowed && gameInstanceId && { 
+        gameInstanceId: gameInstanceId,
+        isBorrowed: true
+      })
     };
+    
+    // Debug logging
+    console.log("Event payload:", JSON.stringify(payload, null, 2));
 
     try {
       const result = await createEvent(payload);
@@ -485,7 +589,7 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
                 <Info className="h-5 w-5 text-blue-400" />
               </div>
               <div className="ml-3">
-                <p className="text-sm text-blue-700">You don't have any games. Please add a game to your collection first.</p>
+                <p className="text-sm text-blue-700">You don't have any games available. You need to either own games or have active approved borrow requests to create an event.</p>
               </div>
             </div>
           </div>
@@ -497,7 +601,7 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
       <div className="my-2">
         {debugInfo}
         <p className="text-sm text-green-600">
-          {userGames.length} games available for selection
+          {userGames.length} games available for selection (owned and borrowed)
         </p>
       </div>
     );
@@ -509,7 +613,10 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold text-center">Create New Event</DialogTitle>
           <DialogDescription className="text-center text-gray-500">
-            Fill out the form below to create a new event featuring one of your games.
+            Fill out the form below to create a new event featuring a game from your collection or one you've borrowed.
+            <span className="block mt-1 text-xs text-amber-600">
+              Note: For borrowed games, events must be scheduled within your borrowing period.
+            </span>
           </DialogDescription>
         </DialogHeader>
 
@@ -592,13 +699,13 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
               {!selectedGameId ? (
                 <div className="space-y-3">
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
                       <Search className="h-5 w-5 text-gray-400" />
                     </div>
                     <Input
                       ref={searchInputRef}
                       id="gameSearchTermInput"
-                      placeholder="Search your games..."
+                      placeholder="Search your owned and borrowed games..."
                       {...register("gameSearchTermInput")}
                       onChange={(e) => {
                         setValue("gameSearchTermInput", e.target.value);
@@ -621,11 +728,54 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
                             <button
                               key={game.id}
                               type="button"
-                              className="w-full text-left px-4 py-3 text-sm border-b border-gray-100 hover:bg-gray-50 transition-colors flex items-center justify-between"
-                              onClick={() => handleGameSelect(game)}
+                              className="w-full px-4 py-2 text-left hover:bg-gray-100 focus:outline-none cursor-pointer"
+                              onClick={() => {
+                                // Store both the game ID and requestedGameId for borrowed games
+                                setSelectedGameId(game.id);
+                                setValue("gameSearchTermInput", game.name);
+                                
+                                // If this is a borrowed game, add a data attribute to track the original gameId
+                                if (game.isBorrowed) {
+                                  console.log("Selected a borrowed game:", game);
+                                  // The requestedGameId is usually the main game ID we want to use
+                                  if (game.requestedGameId) {
+                                    console.log("This borrowed game has a requestedGameId:", game.requestedGameId);
+                                  }
+                                }
+                                
+                                // Also update search results for rendering correct count
+                                setGameSearchResults([game]);
+                                setIsInputFocused(false);
+                              }}
                             >
-                              <span>{game.name}</span>
-                              <Check className="h-4 w-4 text-gray-400 opacity-0 group-hover:opacity-100" />
+                              <div className="flex items-center">
+                                {game.image ? (
+                                  <img 
+                                    src={game.image} 
+                                    alt={game.name} 
+                                    className="w-10 h-10 mr-3 object-cover rounded" 
+                                    onError={(e) => {
+                                      e.target.onerror = null;
+                                      e.target.src = "https://placehold.co/100x100?text=No+Image";
+                                    }}
+                                  />
+                                ) : (
+                                  <div className="w-10 h-10 mr-3 bg-gray-200 flex items-center justify-center rounded">
+                                    <span className="text-xs text-gray-500">No img</span>
+                                  </div>
+                                )}
+                                <div>
+                                  <div className="font-medium">{game.name}</div>
+                                  <div className="text-xs text-gray-500 flex items-center">
+                                    <span className="mr-2">Players: {game.minPlayers}-{game.maxPlayers}</span>
+                                    {game.isBorrowed && (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                        Borrowed
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
                             </button>
                           ))}
                         </div>
@@ -642,26 +792,67 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
                   )}
                 </div>
               ) : (
-                <div className="bg-gray-50 p-4 rounded-md border border-gray-200">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">
-                        {userGames.find(g => g.id === selectedGameId)?.name}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Selected game for your event
-                      </p>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Selected Game:</p>
+                  <div className="flex items-center justify-between border rounded-lg p-3">
+                    <div className="flex items-center space-x-3">
+                      {selectedGameId && (
+                        <div className="space-y-2">
+                          {(() => {
+                            const selectedGame = userGames.find(g => g.id === selectedGameId) || {};
+                            return (
+                              <div className="flex items-center justify-between border rounded-lg p-3">
+                                <div className="flex items-center space-x-3">
+                                  {selectedGame.image ? (
+                                    <img 
+                                      src={selectedGame.image} 
+                                      alt={selectedGame.name} 
+                                      className="w-12 h-12 object-cover rounded" 
+                                      onError={(e) => {
+                                        e.target.onerror = null;
+                                        e.target.src = "https://placehold.co/100x100?text=No+Image";
+                                      }}
+                                    />
+                                  ) : (
+                                    <div className="w-12 h-12 bg-gray-200 flex items-center justify-center rounded">
+                                      <span className="text-xs text-gray-500">No img</span>
+                                    </div>
+                                  )}
+                                  <div>
+                                    <div className="font-medium">{selectedGame.name}</div>
+                                    <div className="text-xs text-gray-500 mt-1 flex items-center">
+                                      {selectedGame.isBorrowed ? (
+                                        <div className="flex flex-col">
+                                          <Badge className="mb-1 self-start" variant="outline">Borrowed</Badge>
+                                          <span className="text-xs text-amber-600">
+                                            Available until: {new Date(selectedGame.borrowEndDate).toLocaleDateString()}
+                                          </span>
+                                        </div>
+                                      ) : (
+                                        <span>Players: {selectedGame.minPlayers}-{selectedGame.maxPlayers}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0"
+                                  onClick={() => {
+                                    setSelectedGameId(null);
+                                    setValue("gameSearchTermInput", "");
+                                  }}
+                                >
+                                  <X className="h-4 w-4" />
+                                  <span className="sr-only">Clear selection</span>
+                                </Button>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
                     </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={clearSelectedGame}
-                      className="h-8 w-8"
-                      title="Change game"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
                   </div>
                 </div>
               )}
