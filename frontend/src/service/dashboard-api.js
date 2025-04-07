@@ -287,15 +287,11 @@ export async function markAsReturned(lendingRecordId, data) {
 }
 
 export async function updateUsernamePassword(request) {
-  const userId = localStorage.getItem('userId');
-  return apiClient(`/account?userId=${userId}`, {
+  return apiClient(`/account`, {
     method: "PUT",
     body: request,
     skipPrefix: false,
     credentials: 'include',
-    headers: {
-      'X-User-Id': userId
-    }
   });
 }
 
