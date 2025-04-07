@@ -26,11 +26,6 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
   
   // Track if component is mounted
   const isMountedRef = useRef(true);
-  // Track last fetched email to prevent redundant fetches
-  const fetchedRef = useRef({
-    email: null,
-    timestamp: 0
-  });
 
   // Add state to track input focus
   const [isInputFocused, setIsInputFocused] = useState(false);
@@ -56,113 +51,86 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
     };
   }, []);
 
-  // Debug loading state
-  useEffect(() => {
-    if (isLoadingUserGames) {
-      console.log("Loading user games...");
-    } else {
-      console.log(`User games loaded: ${userGames.length} games available`);
-    }
-  }, [isLoadingUserGames, userGames.length]);
-
   // Load user's games when dialog opens
   useEffect(() => {
     // Only fetch when dialog is open and user email is available
-    if (!open || !userEmail) return;
-    
-    // Don't refetch if already loaded for this user recently (within 5 minutes)
-    const now = Date.now();
-    const isFresh = fetchedRef.current.email === userEmail && 
-                    (now - fetchedRef.current.timestamp) < 5 * 60 * 1000;
-                    
-    if (isFresh && userGames.length > 0) {
-      console.log("Using cached games data");
-      return;
-    }
-
-    // Don't start a new fetch if already loading
-    if (isLoadingUserGames) {
-      console.log("Already loading games, skipping");
-      return;
-    }
-    
-    async function fetchUserGames() {
-      setIsLoadingUserGames(true);
-      
-      try {
-        console.log(`Fetching games for user ${userEmail}`);
-        const games = await getGamesByOwner(userEmail);
-        
-        if (isMountedRef.current) {
-          console.log(`Received ${games.length} games`);
-          setUserGames(games);
-          
-          // Update fetch timestamp
-          fetchedRef.current = {
-            email: userEmail,
-            timestamp: Date.now()
-          };
-        }
-      } catch (error) {
-        console.error("Error fetching games:", error);
-        if (isMountedRef.current) {
-          toast.error("Failed to load your games");
-        }
-      } finally {
-        if (isMountedRef.current) {
-          setIsLoadingUserGames(false);
-        }
-      }
-    }
-    
-    fetchUserGames();
-    
-    // Add a safety timeout to reset loading state if stuck
-    const safetyTimer = setTimeout(() => {
-      if (isMountedRef.current && isLoadingUserGames) {
-        console.log("Safety timeout triggered - resetting loading state");
-        setIsLoadingUserGames(false);
-      }
-    }, 10000);
-    
-    return () => clearTimeout(safetyTimer);
-  }, [open, userEmail, isLoadingUserGames, userGames.length]);
-
-  // Watch the game search term input to trigger filtering
-  const watchedGameSearchTerm = watch("gameSearchTermInput");
-
-  // Filter user's games based on search term
-  useEffect(() => {
-    // If no games are loaded, don't try to filter
-    if (userGames.length === 0) {
-      setGameSearchResults([]);
-      return;
-    }
-
-    // If search term is empty, show all user games in the dropdown if input is focused
-    if (!watchedGameSearchTerm) {
-      if (isInputFocused) {
-        setGameSearchResults(userGames);
-      } else {
+    if (!open || !userEmail) {
+      // Clear games if dialog closes or user logs out
+      if (!open) {
+        setUserGames([]);
         setGameSearchResults([]);
       }
       return;
     }
 
+    console.log("Starting to fetch games...");
+    setIsLoadingUserGames(true);
+    setUserGames([]); // Clear previous games while loading
+    setGameSearchResults([]);
+
+    async function fetchUserGames() {
+      try {
+        console.log(`Fetching games for user ${userEmail}`);
+        const games = await getGamesByOwner(userEmail);
+
+        if (isMountedRef.current) { // Still check if mounted before setting state
+          console.log(`Received ${games.length} games - updating state`);
+          setUserGames(games);
+          // Initially show all fetched games in the dropdown
+          setGameSearchResults([...games]);
+        }
+      } catch (error) {
+        console.error("Error fetching games:", error);
+        if (isMountedRef.current) {
+          // Optionally set an error state here
+          setUserGames([]); // Clear games on error
+          setGameSearchResults([]);
+        }
+      } finally {
+        if (isMountedRef.current) {
+          console.log("Setting isLoadingUserGames to false in finally block");
+          setIsLoadingUserGames(false);
+        }
+      }
+    }
+
+    fetchUserGames();
+
+  }, [open, userEmail]); // Dependencies remain the same
+
+  // Watch the game search term input to trigger filtering
+  const watchedGameSearchTerm = watch("gameSearchTermInput");
+
+  // Filter user's games based on search term - separate from the fetch effect
+  useEffect(() => {
+    console.log(`Filtering games: ${userGames.length} available, search term: "${watchedGameSearchTerm || ''}"`);
+    
+    // If no games are loaded, nothing to filter
+    if (userGames.length === 0) {
+      console.log("No games to filter");
+      return;
+    }
+    
     // Don't search if a game is already selected by ID
     if (selectedGameId) {
-      setGameSearchResults([]);
       return;
     }
 
-    // Filter from already loaded user games
-    const searchTerm = watchedGameSearchTerm.toLowerCase();
+    // If search term is empty, show all user games
+    if (!watchedGameSearchTerm || watchedGameSearchTerm.trim() === '') {
+      console.log(`Showing all ${userGames.length} games`);
+      setGameSearchResults([...userGames]);
+      return;
+    }
+
+    // Filter from loaded user games
+    const searchTerm = watchedGameSearchTerm.toLowerCase().trim();
     const filteredGames = userGames.filter(game => 
       game.name.toLowerCase().includes(searchTerm)
     );
     console.log(`Filtered ${filteredGames.length} games matching "${searchTerm}"`);
     setGameSearchResults(filteredGames);
-  }, [watchedGameSearchTerm, selectedGameId, userGames, isInputFocused]);
+  }, [watchedGameSearchTerm, selectedGameId, userGames]);
 
   const handleGameSelect = useCallback((game) => {
     setSelectedGameId(game.id);
@@ -233,17 +201,32 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
 
   // Custom UI helper function to handle input focus
   const handleInputFocus = useCallback(() => {
+    console.log("Input focused, setting isInputFocused to true");
     setIsInputFocused(true);
-    // When input is focused and we have games but no search text, show all games
-    if (userGames.length > 0 && !selectedGameId && !watchedGameSearchTerm) {
-      setGameSearchResults(userGames);
+    
+    // Always update game search results when focused
+    if (userGames.length > 0 && !selectedGameId) {
+      console.log(`Showing all ${userGames.length} games in dropdown on focus`);
+      setGameSearchResults([...userGames]);
     }
-  }, [userGames, selectedGameId, watchedGameSearchTerm]);
+  }, [userGames, selectedGameId]);
+
+  // Handle showing dropdown
+  const showDropdown = useCallback(() => {
+    if (userGames.length > 0 && !selectedGameId) {
+      console.log(`Manually showing all ${userGames.length} games in dropdown`);
+      setIsInputFocused(true);
+      setGameSearchResults([...userGames]);
+    }
+  }, [userGames, selectedGameId]);
 
   // Handle input blur
   const handleInputBlur = useCallback(() => {
     // Use timeout to allow click events on dropdown items to fire first
-    setTimeout(() => setIsInputFocused(false), 200);
+    setTimeout(() => {
+      console.log("Hiding game search results");
+      setIsInputFocused(false);
+    }, 200);
   }, []);
 
   // Reset state when dialog opens to ensure a fresh start
@@ -256,6 +239,14 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
       setSubmitError("");
     }
   }, [open]);
+
+  // Replace Label component to show/hide loading spinner
+  const GameLabel = () => (
+    <div className="flex items-center">
+      <Label htmlFor="gameSearchTermInput">Your Game <span className="text-red-500">*</span></Label>
+      {isLoadingUserGames && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+    </div>
+  );
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
@@ -299,10 +290,7 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
 
           {/* Game Search Input and Results - Now filtering from user's games */}
           <div className="space-y-2 relative">
-            <Label htmlFor="gameSearchTermInput">
-              Your Game <span className="text-red-500">*</span>
-              {isLoadingUserGames && <Loader2 className="ml-2 inline h-4 w-4 animate-spin" />}
-            </Label>
+            <GameLabel />
             <div className="flex items-center gap-2">
               <Input
                 id="gameSearchTermInput"
@@ -312,28 +300,32 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
                   setValue("gameSearchTermInput", e.target.value);
                   if (selectedGameId) setSelectedGameId(null);
                 }}
-                onFocus={handleInputFocus}
-                onBlur={handleInputBlur}
+                onFocus={() => setIsInputFocused(true)}
+                onBlur={() => setTimeout(() => setIsInputFocused(false), 200)}
                 autoComplete="off"
                 className={!selectedGameId && submitError.includes("select") ? "border-red-500" : ""}
-                disabled={isLoadingUserGames} // Disable while loading user games
+                disabled={isLoadingUserGames}
               />
-            </div>
-            
-            {/* Debug info - will help troubleshoot the loading state */}
-            <div className="text-xs text-muted-foreground mt-1">
-              {isLoadingUserGames ? 
-                "Loading your games..." : 
-                `${userGames.length} games available for selection`
-              }
             </div>
             
             {/* Display no games message if needed */}
             {userGames.length === 0 && !isLoadingUserGames && (
               <p className="text-sm text-yellow-600 mt-1">
                 You don't have any games. Please add a game in your collection first.
+                <br/>
+                <span className="text-xs text-gray-500">
+                  API returned {userGames?.length || 0} games.
+                </span>
               </p>
             )}
+            
+            {/* Debug info */}
+            <div className="text-xs text-muted-foreground mt-1">
+              {isLoadingUserGames ? 
+                "Loading your games..." : 
+                `${userGames.length} games available for selection (${gameSearchResults.length} in dropdown)`
+              }
+            </div>
             
             {/* Display selected game */}
             {selectedGameId && (
@@ -347,30 +339,30 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
               <p className="text-red-500 text-sm">{submitError}</p>
             )}
 
-            {/* Search Results Dropdown - Shows all or filtered games */}
-            {!selectedGameId && !isLoadingUserGames && (
-              <div className="relative">
-                {gameSearchResults.length > 0 && isInputFocused && (
-                  <ul className="absolute z-10 w-full bg-background border border-border rounded-md mt-1 max-h-40 overflow-y-auto shadow-lg">
-                    {/* Show header if displaying all games */}
-                    {!watchedGameSearchTerm && gameSearchResults.length === userGames.length && userGames.length > 0 && (
-                      <li className="px-3 py-1 text-xs text-muted-foreground border-b">
-                        All your games
-                      </li>
-                    )}
-                    
-                    {/* Show filtered results */}
-                    {gameSearchResults.map((game) => (
-                      <li
+            {/* Simple Game Selector - Always visible when games are available */}
+            {userGames.length > 0 && !selectedGameId && !isLoadingUserGames && (
+              <div className="mt-2 border rounded-md border-gray-300 dark:border-gray-700">
+                <div className="p-2 bg-gray-50 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-700">
+                  <p className="text-sm font-medium">Select a game: ({userGames.length} available)</p>
+                </div>
+                <div className="max-h-40 overflow-y-auto">
+                  {gameSearchResults.length > 0 ? (
+                    gameSearchResults.map((game) => (
+                      <button
                         key={game.id}
-                        className="px-3 py-2 hover:bg-accent cursor-pointer text-sm"
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm border-b border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700"
                         onClick={() => handleGameSelect(game)}
                       >
                         {game.name}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                      </button>
+                    ))
+                  ) : (
+                    <div className="p-3 text-sm text-gray-500 text-center">
+                      No matching games found
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
