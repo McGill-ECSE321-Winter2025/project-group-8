@@ -40,7 +40,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
             authorities.add(new SimpleGrantedAuthority("ROLE_GAME_OWNER"));
         }
         // Add other roles/authorities if needed based on other account subtypes, e.g., ROLE_ADMIN
-
+        System.out.println(account.getEmail());
         return new User(account.getEmail(), account.getPassword(), authorities);
     }
 }

@@ -39,7 +39,7 @@ export default function LoginPage() {
         localStorage.setItem("userEmail", data.email); // Store email
 
         // Redirect to dashboard
-        navigate("/dashboard")
+        navigate("/dashboard/profile")
       } else if (response.status === 401) {
         alert("Invalid email or password")
       } else {

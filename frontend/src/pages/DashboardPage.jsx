@@ -85,9 +85,7 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <nav className="flex flex-col gap-2 pt-4">
-                  <Routes>
-                    <Route path="profile" element={<SideMenuBar userType={userType}/>} />
-                  </Routes>
+                  <SideMenuBar userType={userType}/>
                 </nav>
               </CardContent>
             </Card>
@@ -97,8 +95,8 @@ export default function DashboardPage() {
           <Tabs className="bg-background">
             <TabsList className="w-full h-10 mb-2">
               {/* Conditionally render Games tab trigger if user is owner? Or handle inside component */}
-              <TabsTrigger value="games">Game Library</TabsTrigger>
               <TabsTrigger value="events">Events</TabsTrigger>
+              <TabsTrigger value="games">Game Library</TabsTrigger>
               <TabsTrigger value="requests">Borrow Requests</TabsTrigger>
               <TabsTrigger value="borrowing">Lending History</TabsTrigger>
             </TabsList>

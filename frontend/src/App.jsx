@@ -28,7 +28,7 @@ function App() {
           <Route path="/games"          element={<ProtectedRoute><GameSearchPage /></ProtectedRoute>}/>
           <Route path="/profile"        element={<ProtectedRoute><UserProfilePage /></ProtectedRoute>}/>
           <Route path="/user-search"    element={<ProtectedRoute><UserSearchPage /></ProtectedRoute>}/> {/* Protected user search too */}
-          <Route path="/dashboard/*"    element={<ProtectedRoute><DashboardPage /></ProtectedRoute>}/>
+          <Route path="/dashboard/profile"    element={<ProtectedRoute><DashboardPage /></ProtectedRoute>}/>
         </Routes>
         <Toaster position="top-right" richColors expand={true} />
     </div>
