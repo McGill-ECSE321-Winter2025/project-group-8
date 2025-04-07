@@ -17,7 +17,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import ReviewForm from './ReviewForm.jsx';
 import { toast } from 'sonner';
 import { checkUserCanReviewGame } from '../../service/dashboard-api.js';
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip.jsx';
+import { Tooltip, TooltipTrigger, TopTooltipContent } from '../ui/tooltip.jsx';
 
 export const GameDetailsDialog = ({ game, onRequestGame }) => {
   const [searchParams] = useSearchParams();
@@ -288,22 +288,23 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
                     {isCheckingReviewEligibility && <Loader2 className="h-3 w-3 animate-spin ml-1" />}
                   </Button>
                 ) : (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled
-                        className="flex items-center gap-1 cursor-not-allowed"
-                      >
-                        <PenSquare className="h-3 w-3" />
-                        Add Review
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent className="bg-popover text-foreground text-xs p-2 w-48 text-center">
+                  <div className="relative group">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled
+                      className="flex items-center gap-1 cursor-not-allowed"
+                    >
+                      <PenSquare className="h-3 w-3" />
+                      Add Review
+                    </Button>
+                    <div 
+                      className="absolute -left-5 -top-18 w-38 p-2 bg-popover border rounded-md shadow-md text-xs text-foreground text-center
+                      opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                    >
                       You can only review games that you have borrowed and returned
-                    </TooltipContent>
-                  </Tooltip>
+                    </div>
+                  </div>
                 )
               )}
             </div>
