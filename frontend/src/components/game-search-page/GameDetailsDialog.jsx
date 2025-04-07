@@ -8,30 +8,25 @@ import {
   Dialog,
 } from '../ui/dialog';
 import { Button } from '../ui/button';
-import { Users, Calendar, Star, MessageSquare, User, Loader2 } from 'lucide-react'; // Added Loader2
+import { Users, Calendar, Star, MessageSquare, User, Loader2 } from 'lucide-react';
 import Tag from '../common/Tag.jsx';
 import GameOwnerTag from '../common/GameOwnerTag.jsx';
 import { useSearchParams } from 'react-router-dom';
-import { getGameInstances, getGameReviews } from '../../service/game-api.js'; // Added API imports
-
-// Removed mock data functions: generateGameInstances and generateGameReviews
+import { getGameReviews } from '../../service/game-api.js';
 
 export const GameDetailsDialog = ({ game, onRequestGame }) => {
   const [searchParams] = useSearchParams();
   const fromUserId = searchParams.get('fromUser');
-  const [showInstancesDialog, setShowInstancesDialog] = useState(false);
   const [selectedInstance, setSelectedInstance] = useState(null);
-  const [instances, setInstances] = useState([]); // State for fetched instances
+  const [instances, setInstances] = useState([]);
   const [isLoadingInstances, setIsLoadingInstances] = useState(false);
   const [instancesError, setInstancesError] = useState(null);
-  const [reviews, setReviews] = useState([]); // State for fetched reviews
+  const [reviews, setReviews] = useState([]);
   const [isLoadingReviews, setIsLoadingReviews] = useState(false);
   const [reviewsError, setReviewsError] = useState(null);
-  const [averageRating, setAverageRating] = useState(0); // Keep average rating state
+  const [averageRating, setAverageRating] = useState(0);
   
   if (!game) return null;
-  
-  // Removed direct generation of instances
   
   // Fetch reviews when game changes
   useEffect(() => {
@@ -39,11 +34,13 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
       const fetchReviews = async () => {
         setIsLoadingReviews(true);
         setReviewsError(null);
-        setReviews([]); // Clear previous reviews
-        setAverageRating(0); // Reset average rating
+        setReviews([]);
+        setAverageRating(0);
+        
         try {
           const fetchedReviews = await getGameReviews(game.id);
           setReviews(fetchedReviews);
+          
           // Calculate average rating
           if (fetchedReviews.length > 0) {
             const ratingSum = fetchedReviews.reduce((sum, review) => sum + review.rating, 0);
@@ -58,29 +55,30 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
       };
       fetchReviews();
     }
-  }, [game?.id]); // Depend on game.id
+  }, [game?.id]);
 
-  // Fetch instances when game changes
+  // Use instances from the game object instead of fetching them again
   useEffect(() => {
-    if (game?.id) {
-      const fetchInstances = async () => {
-        setIsLoadingInstances(true);
-        setInstancesError(null);
-        setInstances([]); // Clear previous instances
-        setSelectedInstance(null); // Clear selection
-        try {
-          const fetchedInstances = await getGameInstances(game.id);
-          setInstances(fetchedInstances);
-        } catch (error) {
-          console.error("Failed to fetch game instances:", error);
-          setInstancesError("Could not load available copies.");
-        } finally {
-          setIsLoadingInstances(false);
-        }
-      };
-      fetchInstances();
+    setIsLoadingInstances(true);
+    setInstancesError(null);
+    
+    try {
+      // Use the instances passed from the parent component
+      if (game?.instances && Array.isArray(game.instances)) {
+        setInstances(game.instances);
+      } else {
+        setInstances([]);
+      }
+      setIsLoadingInstances(false);
+    } catch (error) {
+      console.error("Error processing game instances:", error);
+      setInstancesError("Could not load available copies.");
+      setIsLoadingInstances(false);
     }
-  }, [game?.id]); // Depend on game.id
+    
+    // Clear selected instance when game changes
+    setSelectedInstance(null);
+  }, [game?.id, game?.instances]);
   
   const handleRequestWithInstance = () => {
     onRequestGame(game, selectedInstance);
@@ -112,13 +110,12 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
   };
 
   return (
-    <>
     <DialogContent className="sm:max-w-[95%] md:max-w-[90%] lg:max-w-[80%] xl:max-w-6xl overflow-y-auto max-h-[90vh]">
       <DialogHeader>
         <div className="flex flex-col sm:flex-row sm:items-start gap-4">
           <div className="w-full sm:w-1/4 flex-shrink-0">
             <img 
-              src={game.imageUrl || game.image} 
+              src={game.image || 'https://placehold.co/400x300/e9e9e9/1d1d1d?text=No+Image'} 
               alt={game.name} 
               className="w-full h-auto rounded-md aspect-[4/3] object-cover"
             />
@@ -128,13 +125,13 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
             <div className="mb-2 flex items-center gap-2">
               <Tag text={game.category} variant="primary" fromUserId={fromUserId} />
               {!isLoadingReviews && !reviewsError && reviews.length > 0 && (
-                  <div className="flex items-center gap-1 text-sm">
-                    <span className="flex items-center">
-                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400 mr-1" />
-                      {averageRating}
-                    </span>
-                    <span className="text-muted-foreground">({reviews.length} reviews)</span>
-                  </div>
+                <div className="flex items-center gap-1 text-sm">
+                  <span className="flex items-center">
+                    <Star className="h-4 w-4 fill-yellow-400 text-yellow-400 mr-1" />
+                    {averageRating}
+                  </span>
+                  <span className="text-muted-foreground">({reviews.length} reviews)</span>
+                </div>
               )}
               {isLoadingReviews && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
               {reviewsError && <span className="text-xs text-red-500">Error loading reviews</span>}
@@ -161,6 +158,18 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
                     : `${game.minPlayers}-${game.maxPlayers} players`}
                 </span>
               </div>
+              {game.owner && (
+                <div className="flex items-center gap-2 mt-2">
+                  <User className="h-4 w-4 text-muted-foreground" />
+                  <span>Owner: {game.owner.name}</span>
+                </div>
+              )}
+              {game.dateAdded && (
+                <div className="flex items-center gap-2 mt-2">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  <span>Added: {formatDate(game.dateAdded)}</span>
+                </div>
+              )}
             </div>
           </div>
           
@@ -186,7 +195,7 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
                         <div className="flex items-center gap-2">
                           <div className="font-medium flex items-center gap-1">
                             <User className="h-4 w-4 text-muted-foreground" />
-                            {review.reviewer?.name || 'Anonymous'} {/* Handle potential missing reviewer */}
+                            {review.reviewer?.name || 'Anonymous'}
                           </div>
                           <div className="text-xs text-muted-foreground">
                             {formatDate(review.dateSubmitted)}
@@ -207,16 +216,6 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
               <p className="text-sm text-muted-foreground">No reviews yet.</p>
             )}
           </div>
-          
-          {/* Similar Games */}
-          <div className="space-y-2">
-            <h4 className="text-sm font-medium">You might also like</h4>
-            <div className="flex flex-wrap gap-2">
-              <Tag text="Pandemic" variant="primary" interactive searchable fromUserId={fromUserId} />
-              <Tag text="Carcassonne" variant="primary" interactive searchable fromUserId={fromUserId} />
-              <Tag text="Ticket to Ride" variant="primary" interactive searchable fromUserId={fromUserId} />
-            </div>
-          </div>
         </div>
         
         {/* Right Column: Game Instances and Borrowing */}
@@ -235,18 +234,17 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
                 instances.map(instance => (
                   <div
                     key={instance.id}
-                    onClick={() => setSelectedInstance(instance)}
+                    onClick={() => instance.available && setSelectedInstance(instance)}
                     className={`
-                      border rounded-md p-3 cursor-pointer transition-colors
+                      border rounded-md p-3 transition-colors
                       ${selectedInstance?.id === instance.id
-                        ? 'border-primary bg-primary/5'
-                        : 'hover:border-primary/50'}
-                      ${!instance.available ? 'opacity-60 cursor-not-allowed' : ''}
+                        ? 'border-primary bg-primary/5 cursor-pointer'
+                        : instance.available 
+                          ? 'hover:border-primary/50 cursor-pointer' 
+                          : 'opacity-60 cursor-not-allowed'}
                     `}
-                    // Disable clicking if not available? Or handle in button logic? Let's keep clickable for now.
                   >
                     <div className="flex justify-between items-center">
-                      {/* Assuming owner object structure from backend */}
                       <h4 className="font-medium">Owner: {instance.owner?.name || 'Unknown Owner'}</h4>
                       {selectedInstance?.id === instance.id && (
                         <svg className="h-4 w-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -259,10 +257,16 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
                         {instance.available ? 'Available for borrowing' : 'Currently unavailable'}
                       </span>
                     </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {/* Assuming dateAdded field exists */}
-                      Added: {formatDate(instance.dateAdded)}
-                    </div>
+                    {instance.condition && (
+                      <div className="text-xs mt-1">
+                        Condition: {instance.condition}
+                      </div>
+                    )}
+                    {instance.acquiredDate && (
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Added: {formatDate(instance.acquiredDate)}
+                      </div>
+                    )}
                   </div>
                 ))
               ) : (
@@ -290,11 +294,13 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
                 <span>Available for borrowing</span>
               </div>
               <div className="text-green-600 font-medium">
-                {isLoadingInstances ? 'Loading...' : instancesError ? 'Error loading copies' : `${instances.length} ${instances.length === 1 ? 'copy' : 'copies'} available from different owners`}
+                {isLoadingInstances ? 'Loading...' 
+                  : instancesError ? 'Error loading copies' 
+                  : `${instances.filter(i => i.available).length} of ${instances.length} ${instances.length === 1 ? 'copy' : 'copies'} available`}
               </div>
               {selectedInstance && (
                 <div className="flex items-center gap-2 mt-2 p-2 rounded bg-primary/10">
-                  <span className="font-medium">Selected: Copy from {selectedInstance.owner.name}</span>
+                  <span className="font-medium">Selected: Copy from {selectedInstance.owner?.name || 'Unknown'}</span>
                 </div>
               )}
             </div>
@@ -302,6 +308,5 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
         </div>
       </div>
     </DialogContent>
-    </>
   );
 }; 

@@ -17,6 +17,7 @@ import ca.mcgill.ecse321.gameorganizer.dto.request.GameCreationDto;
 import ca.mcgill.ecse321.gameorganizer.dto.request.GameSearchCriteria;
 import ca.mcgill.ecse321.gameorganizer.dto.request.ReviewSubmissionDto;
 import ca.mcgill.ecse321.gameorganizer.dto.response.GameResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dto.response.GameInstanceResponseDto;
 import ca.mcgill.ecse321.gameorganizer.dto.response.ReviewResponseDto;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException; // Import
 import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException; // Import
@@ -239,16 +240,18 @@ public class GameController {
         return ResponseEntity.ok(rating);
     }
 
-
     /**
      * Get all instances for a specific game
      */
     @GetMapping("/{id}/instances")
-    public ResponseEntity<List</* TODO: Replace with actual GameInstanceResponseDto */Object>> getGameInstances(@PathVariable int id) {
-        // TODO: Implement service call to fetch game instances
-        // List<GameInstanceResponseDto> instances = service.getInstancesByGameId(id);
-        // return ResponseEntity.ok(instances);
-        // Placeholder response until service/DTO are ready:
-        return ResponseEntity.ok(List.of()); // Return empty list for now
+    public ResponseEntity<List<GameInstanceResponseDto>> getGameInstances(@PathVariable int id) {
+        try {
+            List<GameInstanceResponseDto> instances = service.getInstancesByGameId(id);
+            return ResponseEntity.ok(instances);
+        } catch (ResourceNotFoundException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
     }
 }

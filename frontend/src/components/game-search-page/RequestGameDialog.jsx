@@ -1,4 +1,4 @@
-import React, { useState } from 'react'; // Added useState
+import React, { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -17,23 +17,21 @@ import {
 } from '../ui/form';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Textarea } from '../ui/textarea'; // Added Textarea import
+import { Textarea } from '../ui/textarea';
 import { useForm } from "react-hook-form";
 import { createBorrowRequest } from '../../service/borrow_request-api.js';
 import { toast } from 'sonner';
-import { useAuth } from '@/context/AuthContext'; // Added useAuth import
+import { useAuth } from '@/context/AuthContext';
 
-// Removed selectedInstance prop
-export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game }) => {
-  const { user } = useAuth(); // Get user from AuthContext
-  const [isSubmitting, setIsSubmitting] = useState(false); // State from origin
+export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game, gameInstance }) => {
+  const { user } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm({
-    // Default values for fields from origin/dev-Yessine-D3
     defaultValues: {
       date: '',
       time: '',
-      duration: '1', // Default duration, e.g., 1 hour
+      duration: '1',
       players: game?.minPlayers || 1,
       message: '',
     }
@@ -42,7 +40,6 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game }) => {
   // Get today's date in YYYY-MM-DD format
   const today = new Date().toISOString().split('T')[0];
 
-  // handleSubmit logic adapted from origin/dev-Yessine-D3, using AuthContext
   const handleSubmit = async (data) => {
     if (!user?.id) {
        toast.error("You must be logged in to request a game.");
@@ -52,17 +49,18 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game }) => {
         toast.error("Game information is missing.");
         return;
     }
+    if (!gameInstance?.id) {
+        toast.error("Please select a specific game copy to borrow.");
+        return;
+    }
 
     try {
       setIsSubmitting(true);
 
-      // Date/Time calculation from origin
       const startDateTime = new Date(`${data.date}T${data.time}`);
       const endDateTime = new Date(startDateTime);
-      // Assuming duration is in hours
       endDateTime.setHours(endDateTime.getHours() + parseFloat(data.duration));
 
-      // Validate calculated dates
       if (isNaN(startDateTime.getTime()) || isNaN(endDateTime.getTime())) {
         throw new Error("Invalid date or time input.");
       }
@@ -71,23 +69,21 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game }) => {
       }
 
       const requestData = {
-        requesterId: user.id, // Use user ID from AuthContext
+        requesterId: user.id,
         requestedGameId: game.id,
-        // Convert dates to ISO string or timestamp as expected by backend
-        // Assuming backend expects ISO string based on other examples
+        gameInstanceId: gameInstance.id,
         startDate: startDateTime.toISOString(),
         endDate: endDateTime.toISOString(),
-        // Note: 'players' and 'message' from the form are not part of CreateBorrowRequestDto
-        // They might be intended for display or other logic not shown here.
+        message: data.message,
       };
 
       const response = await createBorrowRequest(requestData);
       console.log("Borrow request created:", response);
 
-      // Call onSubmit prop if provided (optional)
       onSubmit?.({
         game,
-        ...data, // Pass form data
+        gameInstance,
+        ...data,
         requestId: response.id,
         status: response.status
       });
@@ -98,7 +94,6 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game }) => {
       form.reset();
     } catch (error) {
       console.error("Borrow request error:", error);
-      // Error handling from origin
       let message = error.message || "Failed to submit borrow request.";
       if (message.toLowerCase().includes("own game")) {
         message = "You cannot borrow a game that you own.";
@@ -123,11 +118,18 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game }) => {
           </DialogDescription>
         </DialogHeader>
 
-        {/* Removed selectedInstance display from HEAD */}
+        {gameInstance && (
+          <div className="bg-muted/50 p-3 rounded-md mb-4">
+            <p className="font-medium text-sm">Selected Copy:</p>
+            <p className="text-sm">Owner: {gameInstance.owner?.name || 'Unknown'}</p>
+            {gameInstance.condition && (
+              <p className="text-sm">Condition: {gameInstance.condition}</p>
+            )}
+          </div>
+        )}
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-            {/* Form fields from origin/dev-Yessine-D3 */}
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -224,8 +226,7 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game }) => {
             />
 
             <DialogFooter className="gap-2 mt-4">
-              {/* Submit button uses isSubmitting state from origin */}
-              <Button type="submit" disabled={isSubmitting}>
+              <Button type="submit" disabled={isSubmitting || !gameInstance}>
                 {isSubmitting ? "Submitting..." : "Submit Request"}
               </Button>
               <Button

@@ -19,6 +19,7 @@ import ca.mcgill.ecse321.gameorganizer.dto.request.GameCreationDto;
 import ca.mcgill.ecse321.gameorganizer.dto.request.GameSearchCriteria;
 import ca.mcgill.ecse321.gameorganizer.dto.request.ReviewSubmissionDto;
 import ca.mcgill.ecse321.gameorganizer.dto.response.GameResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dto.response.GameInstanceResponseDto;
 import ca.mcgill.ecse321.gameorganizer.dto.response.ReviewResponseDto;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException; // Import ForbiddenException
 import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
@@ -536,6 +537,56 @@ public class GameService {
             throw new IllegalArgumentException("Category cannot be empty");
         }
         return gameRepository.findByCategory(category);
+    }
+
+    /**
+     * Retrieves all instances (physical copies) of a specific game.
+     *
+     * @param gameId The ID of the game to get instances for
+     * @return A list of DTOs representing the game instances
+     * @throws ResourceNotFoundException if the game does not exist
+     * @throws IllegalArgumentException if the game ID is invalid
+     */
+    @Transactional
+    public List<GameInstanceResponseDto> getInstancesByGameId(int gameId) {
+        // Validate game exists
+        Game game = gameRepository.findGameById(gameId);
+        if (game == null) {
+            throw new ResourceNotFoundException("Game with ID " + gameId + " not found");
+        }
+        
+        // TODO: This is a placeholder implementation. In a real implementation,
+        // you would fetch game instances from a repository.
+        // For now, we return an empty list.
+        return List.of();
+        
+        /*
+        // Real implementation would look something like:
+        return gameInstanceRepository.findByGameId(gameId).stream()
+            .map(instance -> {
+                GameInstanceResponseDto dto = new GameInstanceResponseDto();
+                dto.setId(instance.getId());
+                dto.setGameId(game.getId());
+                dto.setGameName(game.getName());
+                dto.setCondition(instance.getCondition());
+                dto.setAvailable(instance.isAvailable());
+                dto.setLocation(instance.getLocation());
+                dto.setAcquiredDate(instance.getAcquiredDate());
+                
+                if (instance.getOwner() != null) {
+                    GameInstanceResponseDto.AccountDto ownerDto = 
+                        new GameInstanceResponseDto.AccountDto(
+                            instance.getOwner().getId(),
+                            instance.getOwner().getName(),
+                            instance.getOwner().getEmail()
+                        );
+                    dto.setOwner(ownerDto);
+                }
+                
+                return dto;
+            })
+            .collect(Collectors.toList());
+        */
     }
 
     //submit game review
