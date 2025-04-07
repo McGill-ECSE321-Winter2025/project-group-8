@@ -20,7 +20,7 @@ export default function DashboardEvents({ userType }) {
   const [apiCallAttempted, setApiCallAttempted] = useState(false);
 
   // Function to fetch both hosted and attended events - memoized to prevent infinite loops
-  const fetchDashboardEvents = useCallback(async () => {
+  const fetchDashboardEvents = useCallback(async (forceRefresh = false) => {
     // Don't try to fetch if we're not authenticated or auth isn't ready
     if (!user?.email || !isAuthenticated || !authReady) {
       if (!isLoading) return; // Don't update state if not loading
@@ -28,8 +28,8 @@ export default function DashboardEvents({ userType }) {
       return;
     }
 
-    // Don't refetch if we already tried and no auth state has changed
-    if (apiCallAttempted && !isLoading) return;
+    // Don't refetch if we already tried and no auth state has changed, unless forced
+    if (!forceRefresh && apiCallAttempted && !isLoading) return;
     setIsLoading(true);
     setError(null);
     setApiCallAttempted(true);
@@ -123,7 +123,12 @@ export default function DashboardEvents({ userType }) {
 
   // Function to handle event creation success (passed to dialog)
   const handleEventAdded = useCallback(() => {
-    fetchDashboardEvents(); // Re-fetch events after adding a new one
+    fetchDashboardEvents(true); // Re-fetch events after adding a new one, force refresh
+  }, [fetchDashboardEvents]);
+
+  // Function specifically for registration updates that forces a refresh
+  const handleRegistrationUpdate = useCallback(() => {
+    fetchDashboardEvents(true); // Force refresh when registration changes
   }, [fetchDashboardEvents]);
 
   /**
@@ -209,7 +214,7 @@ export default function DashboardEvents({ userType }) {
                      {hostedEvents.map((event, index) => {
                         const adapted = adaptEventData(event); // Adapt hosted event
                         // Render EventCard for hosted events
-                        return adapted ? <EventCard key={`hosted-${adapted.id || index}`} event={adapted} onRegistrationUpdate={fetchDashboardEvents} isCurrentUserRegistered={false} /> : null;
+                        return adapted ? <EventCard key={`hosted-${adapted.id || index}`} event={adapted} onRegistrationUpdate={handleRegistrationUpdate} isCurrentUserRegistered={false} /> : null;
                      })}
                    </div>
                 ) : (
@@ -235,7 +240,7 @@ export default function DashboardEvents({ userType }) {
                          <EventCard
                            key={`attended-${adaptedEvent.id || index}`}
                            event={adaptedEvent}
-                           onRegistrationUpdate={fetchDashboardEvents} // Pass refresh function
+                           onRegistrationUpdate={handleRegistrationUpdate} // Use the force refresh function
                            isCurrentUserRegistered={true} // Always true for this list
                            registrationId={registrationId} // Pass the specific registration ID
                          />
