@@ -279,3 +279,32 @@ export async function getLendingRecordByRequestId(requestId) {
     skipPrefix: false,
   });
 }
+
+/**
+ * Checks if the current authenticated user can review a specific game.
+ * A user can only review a game if they have borrowed and returned it.
+ * 
+ * @param {number} gameId - The ID of the game to check
+ * @returns {Promise<boolean>} - Promise resolving to true if the user can review the game, false otherwise
+ */
+export async function checkUserCanReviewGame(gameId) {
+  const userId = localStorage.getItem('userId');
+  
+  try {
+    // Get user's lending records
+    const response = await apiClient(`/api/lending-records/can-review?gameId=${gameId}`, {
+      method: "GET",
+      skipPrefix: false,
+      credentials: 'include',
+      headers: {
+        'X-User-Id': userId
+      }
+    });
+    
+    // Backend will return a boolean indicating if user can review
+    return response.canReview === true;
+  } catch (error) {
+    console.error("Error checking if user can review game:", error);
+    return false; // Default to false if there's an error
+  }
+}

@@ -38,6 +38,8 @@ import ca.mcgill.ecse321.gameorganizer.repositories.RegistrationRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameInstanceRepository;
 import ca.mcgill.ecse321.gameorganizer.models.GameInstance;
+import ca.mcgill.ecse321.gameorganizer.repositories.LendingRecordRepository;
+import ca.mcgill.ecse321.gameorganizer.models.LendingRecord;
 
 /**
  * Service class that handles business logic for game management operations.
@@ -57,16 +59,17 @@ public class GameService {
     private RegistrationRepository  registrationRepository;
     private EventRepository eventRepository;
     private GameInstanceRepository gameInstanceRepository;
-
+    private LendingRecordRepository lendingRecordRepository;
 
     @Autowired
-    public GameService(GameRepository gameRepository, ReviewRepository reviewRepository, AccountRepository accountRepository, RegistrationRepository registrationRepository, EventRepository eventRepository, GameInstanceRepository gameInstanceRepository) {
+    public GameService(GameRepository gameRepository, ReviewRepository reviewRepository, AccountRepository accountRepository, RegistrationRepository registrationRepository, EventRepository eventRepository, GameInstanceRepository gameInstanceRepository, LendingRecordRepository lendingRecordRepository) {
         this.gameRepository = gameRepository;
         this.reviewRepository = reviewRepository;
         this.accountRepository = accountRepository;
         this.registrationRepository = registrationRepository;
         this.eventRepository = eventRepository;
         this.gameInstanceRepository = gameInstanceRepository;
+        this.lendingRecordRepository = lendingRecordRepository;
     }
 
     /**
@@ -110,6 +113,18 @@ public class GameService {
 
             Account reviewer = accountRepository.findByEmail(reviewerEmail)
                     .orElseThrow(() -> new UnauthedException("Authenticated reviewer account not found in database."));
+
+            // Verify that the user has borrowed this game before
+            List<LendingRecord> userLendingRecords = lendingRecordRepository.findByRequest_Requester(reviewer);
+            boolean hasBorrowedGame = userLendingRecords.stream()
+                .anyMatch(record -> record.getRequest() != null 
+                    && record.getRequest().getRequestedGame() != null 
+                    && record.getRequest().getRequestedGame().getId() == gameId
+                    && record.getStatus() == LendingRecord.LendingStatus.CLOSED);
+                    
+            if (!hasBorrowedGame) {
+                throw new ForbiddenException("You can only review games that you have borrowed and returned");
+            }
 
             Review review = new Review(rating, comment, new Date());
             review.setReviewer(reviewer);

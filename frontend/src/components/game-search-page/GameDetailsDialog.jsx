@@ -15,6 +15,9 @@ import { useSearchParams } from 'react-router-dom';
 import { getGameReviews } from '../../service/game-api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import ReviewForm from './ReviewForm.jsx';
+import { toast } from 'sonner';
+import { checkUserCanReviewGame } from '../../service/dashboard-api.js';
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip.jsx';
 
 export const GameDetailsDialog = ({ game, onRequestGame }) => {
   const [searchParams] = useSearchParams();
@@ -30,6 +33,8 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
   const [averageRating, setAverageRating] = useState(0);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [editingReview, setEditingReview] = useState(null);
+  const [userCanReview, setUserCanReview] = useState(false);
+  const [isCheckingReviewEligibility, setIsCheckingReviewEligibility] = useState(false);
   
   if (!game) return null;
   
@@ -66,6 +71,28 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
       fetchReviews();
     }
   }, [game?.id]);
+
+  // Check if the user can review this game (has borrowed and returned it)
+  useEffect(() => {
+    if (isAuthenticated && user && game?.id) {
+      const checkReviewEligibility = async () => {
+        setIsCheckingReviewEligibility(true);
+        try {
+          const canReview = await checkUserCanReviewGame(game.id);
+          setUserCanReview(canReview);
+        } catch (error) {
+          console.error("Failed to check if user can review game:", error);
+          setUserCanReview(false);
+        } finally {
+          setIsCheckingReviewEligibility(false);
+        }
+      };
+      
+      checkReviewEligibility();
+    } else {
+      setUserCanReview(false);
+    }
+  }, [isAuthenticated, user, game?.id]);
 
   // Use instances from the game object instead of fetching them again
   useEffect(() => {
@@ -248,15 +275,36 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
               </h4>
               
               {isAuthenticated && !showReviewForm && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={userReview ? () => handleEditReview(userReview) : handleAddReview}
-                  className="flex items-center gap-1"
-                >
-                  <PenSquare className="h-3 w-3" />
-                  {userReview ? "Edit Review" : "Add Review"}
-                </Button>
+                userReview || userCanReview ? (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={userReview ? () => handleEditReview(userReview) : handleAddReview}
+                    className="flex items-center gap-1"
+                    disabled={isCheckingReviewEligibility}
+                  >
+                    <PenSquare className="h-3 w-3" />
+                    {userReview ? "Edit Review" : "Add Review"}
+                    {isCheckingReviewEligibility && <Loader2 className="h-3 w-3 animate-spin ml-1" />}
+                  </Button>
+                ) : (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled
+                        className="flex items-center gap-1 cursor-not-allowed"
+                      >
+                        <PenSquare className="h-3 w-3" />
+                        Add Review
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-popover text-foreground text-xs p-2 w-48 text-center">
+                      You can only review games that you have borrowed and returned
+                    </TooltipContent>
+                  </Tooltip>
+                )
               )}
             </div>
             
