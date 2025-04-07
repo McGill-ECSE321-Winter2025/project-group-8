@@ -9,6 +9,7 @@ import java.util.Properties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import com.google.api.client.auth.oauth2.Credential;
@@ -33,8 +34,10 @@ import jakarta.mail.internet.MimeMessage;
 
 /**
  * Service for sending emails using Gmail API with OAuth 2.0 authentication.
+ * This service is conditionally loaded based on the 'use.gmail.api' property.
  */
 @Service
+@ConditionalOnProperty(name = "use.gmail.api", havingValue = "true")
 public class GmailApiService {
 
     private static final Logger log = LoggerFactory.getLogger(GmailApiService.class);

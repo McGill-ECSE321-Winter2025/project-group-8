@@ -42,7 +42,7 @@ export default function ForgotPasswordPage() {
           </div>
           <CardTitle className="text-2xl font-bold text-center">Reset your password</CardTitle>
           <CardDescription className="text-center">
-            Enter your email and we'll send you instructions to reset your password
+            Enter your email and we'll send you instructions to reset your password. If you don't receive an email, please check your spam folder.
           </CardDescription>
         </CardHeader>
         {!success ? (
