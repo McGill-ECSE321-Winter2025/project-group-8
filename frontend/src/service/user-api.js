@@ -28,9 +28,17 @@ export const getUserInfoByEmail = async (email) => {
   console.log(`Fetching user info for email: ${email}`);
 
   try {
-    return await apiClient(`/users/search/${encodeURIComponent(email)}`, {
+    const response = await apiClient(`/users/search/${encodeURIComponent(email)}`, {
       skipPrefix: false
     });
+    
+    // Debug log to see what's being returned from the API
+    console.log("User info received:", response);
+    if (response.events) {
+      console.log("Events data sample:", response.events[0]);
+    }
+    
+    return response;
   } catch (error) {
     // Log the error for debugging purposes
     console.error(`Error fetching user info for ${email}:`, error);

@@ -10,14 +10,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Package } from "lucide-react";
+import { Package, Edit } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion"; // Import Framer Motion
 import GameInstanceManager from "./GameInstanceManager.jsx"; // Import the new component
+import ModifyGameDialog from "./ModifyGameDialog.jsx"; // Import ModifyGameDialog
 
 // Combined props: pass the whole game object and the refresh callback
 export default function Game({ game, refreshGames }) {
   // State for game instances dialog
   const [showInstances, setShowInstances] = useState(false);
+  // State for modify game dialog
+  const [showModifyGame, setShowModifyGame] = useState(false);
 
   // Use game.id from the game prop
   const gameId = game?.id;
@@ -50,13 +53,20 @@ export default function Game({ game, refreshGames }) {
             <div className="p-4">
               {/* Simplified display like HEAD */}
               <h3 className="font-semibold text-lg">{gameName}</h3>
-              <div className="flex justify-between items-center mt-4">
+              <div className="flex justify-between items-center mt-4 gap-2">
                 <Button variant="outline" size="sm" className="flex gap-1" onClick={(e) => {
                   e.stopPropagation(); // Prevent opening the instances dialog
                   setShowInstances(true);
                 }}>
                   <Package className="h-4 w-4" />
                   Manage Copies
+                </Button>
+                <Button variant="outline" size="sm" className="flex gap-1" onClick={(e) => {
+                  e.stopPropagation(); // Prevent opening the instances dialog
+                  setShowModifyGame(true);
+                }}>
+                  <Edit className="h-4 w-4" />
+                  Modify Game
                 </Button>
               </div>
             </div>
@@ -96,6 +106,14 @@ export default function Game({ game, refreshGames }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modify Game Dialog */}
+      <ModifyGameDialog
+        open={showModifyGame}
+        onOpenChange={setShowModifyGame}
+        onGameModified={refreshGames}
+        gameId={gameId}
+      />
     </AnimatePresence>
   );
 }
