@@ -4,13 +4,15 @@ import { Button } from "@/components/ui/button.jsx";
 import Game from "./Game.jsx";
 import { TabsContent } from "@/components/ui/tabs.jsx";
 import AddGameDialog from "./AddGameDialog.jsx"; // Import the dialog
-import { Loader2 } from "lucide-react"; // Import Loader icon
+import SelectGameDialog from "./SelectGameDialog.jsx"; // Import the select game dialog
+import { Loader2, Plus, Copy } from "lucide-react"; // Import Loader and other icons
 import { getGamesByOwner, getGameInstances } from "../../service/game-api.js"; // Import the service function
 import { UnauthorizedError } from "@/service/apiClient"; // Import UnauthorizedError
 
 export default function DashboardGameLibrary({ userType }) {
   const { user, logout } = useAuth(); // Get user and logout from context
   const [isAddGameDialogOpen, setIsAddGameDialogOpen] = useState(false);
+  const [isSelectGameDialogOpen, setIsSelectGameDialogOpen] = useState(false);
   const [games, setGames] = useState([]); // State for fetched games
   const [isLoading, setIsLoading] = useState(true); // Keep loading state for fetch operation
   const [error, setError] = useState(null);
@@ -105,14 +107,36 @@ export default function DashboardGameLibrary({ userType }) {
     fetchGames();
   }, [fetchGames]);
 
+  // Function to handle adding a game instance (refreshes the list)
+  const handleGameInstanceAdded = useCallback((instance) => {
+    // Re-fetch the list to include the new instance
+    fetchGames();
+  }, [fetchGames]);
+
   return (
     <>
       <TabsContent value="games" className="space-y-6">
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold">My Games</h2>
-          {/* Only show button if userType is owner (checked via prop and auth context) */}
+          {/* Only show buttons if userType is owner (checked via prop and auth context) */}
           {userType === "owner" && user?.gameOwner && (
-            <Button onClick={() => setIsAddGameDialogOpen(true)}>Add New Game</Button>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setIsSelectGameDialogOpen(true)}
+                className="flex items-center"
+              >
+                <Copy className="mr-2 h-4 w-4" />
+                Add Game Copy
+              </Button>
+              <Button 
+                onClick={() => setIsAddGameDialogOpen(true)}
+                className="flex items-center"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add New Game
+              </Button>
+            </div>
           )}
         </div>
 
@@ -161,6 +185,14 @@ export default function DashboardGameLibrary({ userType }) {
         open={isAddGameDialogOpen}
         onOpenChange={setIsAddGameDialogOpen}
         onGameAdded={handleGameAdded}
+      />
+
+      {/* Render the Select Game Dialog */}
+      <SelectGameDialog
+        open={isSelectGameDialogOpen}
+        onOpenChange={setIsSelectGameDialogOpen}
+        onGameInstanceAdded={handleGameInstanceAdded}
+        maxVisibleGames={4}
       />
     </>
   );

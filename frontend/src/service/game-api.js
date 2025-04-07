@@ -39,29 +39,43 @@ export const searchGames = async (criteria) => {
 
 /**
  * Creates a new game. Requires authentication (via HttpOnly cookie).
- * The backend should identify the owner based on the authenticated user session.
+ * The backend identifies the owner based on the authenticated user session and the provided ownerId.
+ * 
+ * NOTE: The backend will always create a default instance regardless of the createInstance flag.
+ * This is backend behavior that cannot be disabled. The createInstance flag is kept for API compatibility.
+ * 
  * @param {object} gameData - The game data.
  * @param {string} gameData.name - Game name.
  * @param {number} gameData.minPlayers - Min players.
  * @param {number} gameData.maxPlayers - Max players.
  * @param {string} [gameData.image] - Image URL (optional).
  * @param {string} [gameData.category] - Category (optional).
- * @param {string} [gameData.condition] - Physical condition of the game copy (optional).
- * @param {string} [gameData.location] - Location where the game is stored (optional).
+ * @param {string} [gameData.ownerId] - Owner email (required).
+ * @param {string} [gameData.condition] - Physical condition of the game copy if creating instance.
+ * @param {string} [gameData.location] - Location where the game is stored if creating instance.
+ * @param {boolean} [gameData.createInstance=false] - When true, the backend will automatically create a game instance.
+ *                                                  No need to call createGameInstance separately when this is true.
  * @returns {Promise<object>} A promise that resolves to the created game object.
  * @throws {UnauthorizedError} If the user is not authenticated.
  * @throws {ForbiddenError} If the user is not allowed (e.g., not a game owner account type).
  * @throws {ApiError} For other API-related errors.
  */
 export const createGame = async (gameData) => {
-  // Remove ownerId/ownerEmail from payload - backend identifies owner via cookie/session
+  // Ensure ownerId is included in the payload
+  if (!gameData.ownerId) {
+    console.error("createGame: ownerId is required");
+    throw new Error("Owner ID is required to create a game");
+  }
+  
+  // Prepare payload with all required fields
   const payload = {
     ...gameData,
     minPlayers: parseInt(gameData.minPlayers, 10), // Ensure numbers are integers
     maxPlayers: parseInt(gameData.maxPlayers, 10),
-    // Include instance-specific fields
-    condition: gameData.condition || "Excellent", // Default value
-    location: gameData.location || "Home", // Default value
+    // Include instance-specific fields if instance should be created
+    condition: gameData.createInstance ? (gameData.condition || "Excellent") : undefined, // Only include if creating instance
+    location: gameData.createInstance ? (gameData.location || "Home") : undefined, // Only include if creating instance
+    createInstance: gameData.createInstance || false // Explicitly set createInstance flag
   };
 
   console.log("createGame: Attempting to create game:", payload);
@@ -101,12 +115,13 @@ export const createGame = async (gameData) => {
  * Fetches all games owned by a specific user (identified by email).
  * Requires authentication (via HttpOnly cookie).
  * @param {string} ownerEmail - The email of the owner whose games are to be fetched.
+ * @param {boolean} [filterByInstances=true] - Whether to filter by games that have instances
  * @returns {Promise<Array>} A promise that resolves to an array of game objects owned by the user.
  * @throws {UnauthorizedError} If the user is not authenticated.
  * @throws {ForbiddenError} If the user is not allowed to view these games.
  * @throws {ApiError} For other API-related errors.
  */
-export const getGamesByOwner = async (ownerEmail) => {
+export const getGamesByOwner = async (ownerEmail, filterByInstances = true) => {
   if (!ownerEmail) {
      console.warn("getGamesByOwner: Owner email is missing");
      return []; // Return empty array instead of throwing
@@ -121,8 +136,14 @@ export const getGamesByOwner = async (ownerEmail) => {
     return []; // Return empty array instead of throwing
   }
 
-  // Using the proper endpoint for fetching games by owner
-  const endpoint = `/games?ownerId=${encodeURIComponent(cleanEmail)}`;
+  // Create endpoint for fetching games by owner
+  let endpoint = `/games?ownerId=${encodeURIComponent(cleanEmail)}`;
+  
+  // Optionally add parameter for filtering by instances
+  if (!filterByInstances) {
+    endpoint += "&includeAllGames=true";
+  }
+  
   console.log("getGamesByOwner: Using endpoint:", endpoint);
 
   try {
@@ -394,29 +415,41 @@ export const updateGameInstance = async (instanceId, data) => {
 };
 
 /**
- * Creates a new game instance
- * @param {number} gameId - ID of the game to create an instance for
- * @param {object} data - Instance data (condition, location, ownerId)
- * @returns {Promise<Object>} - Created instance data
+ * Creates a new game instance (physical copy) for a specific game.
+ * Authentication is required (via HttpOnly cookie).
+ * @param {string|number} gameId - The ID of the game
+ * @param {object} data - The instance data
+ * @param {string} [data.name] - Optional name for this specific copy (e.g., "Deluxe Edition")
+ * @param {string} data.condition - Physical condition (e.g., "New", "Excellent", "Good", "Fair", "Poor")
+ * @param {string} data.location - Where the game is stored
+ * @param {boolean} data.available - Whether the copy is available for borrowing
+ * @param {string|number} [data.ownerId] - Owner ID (typically derived from authenticated user)
+ * @returns {Promise<object>} A promise that resolves to the created game instance object
+ * @throws {UnauthorizedError} If the user is not authenticated
+ * @throws {ForbiddenError} If the user is not allowed
+ * @throws {ApiError} For other API-related errors
  */
 export const createGameInstance = async (gameId, data) => {
   if (!gameId) {
-    throw new Error("Game ID is required to create game instance.");
+    throw new Error("Game ID is required to create an instance");
   }
   
-  // Use the pattern consistent with getGameInstances
-  const endpoint = `/games/${gameId}/instances`;
   console.log(`createGameInstance: Creating instance for game ${gameId}:`, data);
   
   try {
-    const response = await apiClient(endpoint, { 
+    // Ensure proper formatting of data
+    const instanceData = {
+      ...data,
+      gameId, // Ensure gameId is included
+      available: data.available !== false // Default to true if not specified
+    };
+    
+    const response = await apiClient(`/games/${gameId}/instances`, {
       method: "POST",
-      skipPrefix: false,
-      body: {
-        ...data,
-        gameId: gameId
-      }
+      body: instanceData,
+      skipPrefix: false // Use /api prefix
     });
+    
     console.log(`createGameInstance: Successfully created instance for game ${gameId}:`, response);
     return response;
   } catch (error) {
