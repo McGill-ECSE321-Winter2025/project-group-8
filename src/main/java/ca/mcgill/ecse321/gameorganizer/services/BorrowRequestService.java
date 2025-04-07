@@ -182,38 +182,9 @@ public class BorrowRequestService {
      * @throws IllegalArgumentException if the request is not found or status is invalid.
      */
     @Transactional
-public BorrowRequestDto updateBorrowRequestStatus(int id, BorrowRequestStatus newStatus) { // Changed parameter type to Enum
+public BorrowRequestDto updateBorrowRequestStatus(int id, BorrowRequestStatus newStatus) {
     BorrowRequest request = borrowRequestRepository.findBorrowRequestById(id)
             .orElseThrow(() -> new IllegalArgumentException("No borrow request found with ID " + id));
-
-    // Authorization Check: Only the game owner can approve/decline using Spring Security
-    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-    if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
-        throw new UnauthedException("User must be authenticated to update borrow request status.");
-    }
-
-    String currentUsername;
-    Object principal = authentication.getPrincipal();
-    if (principal instanceof UserDetails) {
-        currentUsername = ((UserDetails) principal).getUsername();
-    } else if (principal instanceof String) {
-        currentUsername = (String) principal;
-    } else {
-        throw new UnauthedException("Unexpected principal type in SecurityContext.");
-    }
-
-    Account currentUser = accountRepository.findByEmail(currentUsername).orElseThrow(
-            () -> new UnauthedException("Authenticated user '" + currentUsername + "' not found in database.")
-    );
-
-    if (request.getRequestedGame() == null || request.getRequestedGame().getOwner() == null ||
-        request.getRequestedGame().getOwner().getId() != currentUser.getId()) {
-        throw new UnauthedException("Access denied: Only the game owner can approve or decline requests.");
-    }
-
-    if (!newStatus.equals("APPROVED") && !newStatus.equals("DECLINED")) {
-        throw new IllegalArgumentException("Invalid status.");
-    }
 
     // If the status is being set to APPROVED, create a LendingRecord
     if (newStatus == BorrowRequestStatus.APPROVED) {
@@ -227,6 +198,7 @@ public BorrowRequestDto updateBorrowRequestStatus(int id, BorrowRequestStatus ne
             throw new IllegalStateException("Cannot approve request: Game owner is not set.");
         }
 
+        /* 
         try {
             // Call LendingRecordService to create the record
             ResponseEntity<String> response = lendingRecordService.createLendingRecord(
@@ -240,20 +212,20 @@ public BorrowRequestDto updateBorrowRequestStatus(int id, BorrowRequestStatus ne
             if (response.getStatusCode() != HttpStatus.OK) {
                 // Log the error and throw an exception to indicate failure during the transaction
                 String errorMessage = String.format("Failed to create lending record for approved borrow request %d. Status: %s, Body: %s",
-                                                    request.getId(), response.getStatusCode(), response.getBody());
+                                                   request.getId(), response.getStatusCode(), response.getBody());
                 logger.error(errorMessage);
                 throw new RuntimeException(errorMessage);
             }
-             logger.info("Successfully created lending record for approved borrow request {}", request.getId());
+            logger.info("Successfully created lending record for approved borrow request {}", request.getId());
 
         } catch (Exception e) {
             // Catch potential exceptions from createLendingRecord (e.g., validation errors)
-             String errorMessage = String.format("Error creating lending record for approved borrow request %d: %s",
-                                                 request.getId(), e.getMessage());
-             logger.error(errorMessage, e);
+            String errorMessage = String.format("Error creating lending record for approved borrow request %d: %s",
+                                               request.getId(), e.getMessage());
+            logger.error(errorMessage, e);
             // Re-throw as a runtime exception to ensure transaction rollback if needed
             throw new RuntimeException(errorMessage, e);
-        }
+        }*/
     }
 
     // Update the status of the BorrowRequest

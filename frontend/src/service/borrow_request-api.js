@@ -340,3 +340,52 @@ export const getBorrowRequestsByOwner = async (ownerId) => {
         throw error;
     }
 };
+
+
+/**
+ * Updates the status of a borrow request by its ID
+ * @param {number} id - The ID of the borrow request to update
+ * @param {string} status - The new status (e.g., 'APPROVED', 'DECLINED')
+ * @returns {Promise<Object>} The updated borrow request
+ */
+export const updateBorrowRequestStatusById = async (id, status) => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+        throw new Error("Authentication token not found. Please log in.");
+    }
+    if (!id) {
+        throw new Error("Borrow request ID is required.");
+    }
+    if (!status) {
+        throw new Error("Status is required.");
+    }
+    
+    const requestDto = { status };
+    
+    const headers = {
+        "Content-Type": "application/json",
+        'Authorization': `Bearer ${token}`
+    };
+    
+    try {
+        const response = await fetch(`${BORROW_REQUESTS_ENDPOINT}/${id}`, {
+            method: "PUT",
+            headers: headers,
+            body: JSON.stringify(requestDto)
+        });
+        
+        if (!response.ok) {
+            let errorMsg = `HTTP error ${response.status}: ${response.statusText}`;
+            try {
+                const errorBody = await response.json();
+                errorMsg = errorBody.message || errorMsg;
+            } catch (e) { /* Ignore parsing error */ }
+            console.error("Backend error updating borrow request status:", errorMsg);
+            throw new Error(errorMsg);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error(`Failed to update borrow request #${id}:`, error);
+        throw error;
+    }
+};
