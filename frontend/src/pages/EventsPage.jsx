@@ -73,13 +73,24 @@ export default function EventsPage() {
     try {
       // Check if we have a user and user.email from auth context
       const userEmail = user?.email;
-      // Fetch all events unconditionally
-      const eventData = await getAllEvents();
+      
+      // Fetch all events unconditionally - handle the possibility of an empty array
+      let eventData = [];
+      try {
+        eventData = await getAllEvents();
+        console.log(`[EventsPage] Retrieved ${eventData.length} events`);
+      } catch (eventError) {
+        console.error("Error fetching events:", eventError);
+        setError("Failed to load events. Please try again later.");
+        eventData = []; // Ensure we have an empty array
+      }
+      
       // Fetch registrations only if user is authenticated and has an email
       let registrationData = [];
       if (isAuthenticated && userEmail) {
         try {
           registrationData = await getRegistrationsByEmail(userEmail);
+          console.log(`[EventsPage] Retrieved ${registrationData.length} registrations`);
         } catch (regError) {
           console.error("Failed to fetch registrations:", regError);
           // Don't fail the whole operation, just log the error and continue with empty registrations
@@ -90,12 +101,13 @@ export default function EventsPage() {
         if (!userEmail) console.log("User email is not available");
       }
 
-      setAllEvents(eventData || []);
-      setFilteredEvents(eventData || []);
-      setDisplayedEvents(eventData || []);
+      // Ensure all state updates use arrays even if the API returns null/undefined
+      setAllEvents(Array.isArray(eventData) ? eventData : []);
+      setFilteredEvents(Array.isArray(eventData) ? eventData : []);
+      setDisplayedEvents(Array.isArray(eventData) ? eventData : []);
 
       // Store the full registration data
-      setUserRegistrations(registrationData || []);
+      setUserRegistrations(Array.isArray(registrationData) ? registrationData : []);
     } catch (err) {
       console.error("Failed to fetch events or registrations:", err);
       
@@ -108,9 +120,11 @@ export default function EventsPage() {
         setError(err.message || "Could not load page data.");
       }
       
-      setAllEvents([]); // Clear on error
+      // Ensure empty arrays
+      setAllEvents([]);
       setFilteredEvents([]);
       setDisplayedEvents([]);
+      setUserRegistrations([]);
     } finally {
       setIsLoading(false);
     }

@@ -26,15 +26,24 @@ export default function LendingRecord({ id, name, requester, startDate, endDate,
     setIsLoading(true);
     setError(null);
     try {
-      await markAsReturned(id, {});
+      console.log(`Attempting to mark record ${id} as returned...`);
+      // Use an empty object for the data payload
+      const response = await markAsReturned(id, {});
+      console.log("Mark as returned response:", response);
       
+      // If we get a successful response, update the UI
+      // The backend updates to OVERDUE status as a placeholder for "awaiting owner confirmation"
+      // but we want to show it as "Returned" in the UI
       setIsReturned(true);
       
       console.log("Success: Game marked as returned successfully!");
       
-      if (refreshRecords) {
-        refreshRecords(); // Refresh the list in the parent component
-      }
+      // Add a delay before refreshing to ensure backend processes the update
+      setTimeout(() => {
+        if (refreshRecords) {
+          refreshRecords(); // Refresh the list in the parent component
+        }
+      }, 500);
     } catch (err) {
       console.error("Failed to mark as returned:", err);
       // Create a more user-friendly error message
@@ -43,6 +52,9 @@ export default function LendingRecord({ id, name, requester, startDate, endDate,
         errorMessage = "Record not found. It may have been deleted or already processed.";
       } else if (err.message && err.message.includes("403")) {
         errorMessage = "You don't have permission to mark this record as returned.";
+      } else if (err.message) {
+        // Include the actual error message for debugging
+        errorMessage = `Failed to mark as returned: ${err.message}`;
       }
       setError(errorMessage);
     } finally {

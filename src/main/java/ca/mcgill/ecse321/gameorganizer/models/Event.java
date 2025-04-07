@@ -9,6 +9,10 @@ import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.ObjectIdGenerators;
+
 /**
  * Represents a gaming event in the system.
  * Events are organized gatherings where users can meet to play games.
@@ -20,6 +24,8 @@ import java.util.UUID;
 @Getter
 @Setter
 @NoArgsConstructor
+@JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Event {
 
     /**
@@ -63,12 +69,14 @@ public class Event {
      * The main game that will be featured at this event.
      */
     @ManyToOne // Event must have a featured game
+    @JsonIgnoreProperties("owner")
     private Game featuredGame;
 
     /**
      * The account of the user who is hosting the event.
      */
     @ManyToOne // Event must have a host
+    @JsonIgnoreProperties({"password", "resetPasswordToken", "resetPasswordTokenExpiry"})
     private Account host;
 
     /**

@@ -45,30 +45,56 @@ export default function DashboardEvents({ userType }) {
       // Fetch hosted events only if the user is an owner
       let hosted = [];
       if (userType === "owner" && user?.gameOwner) { // Check gameOwner status from context
-        hosted = await getEventsByHostEmail(userEmail);
-        setHostedEvents(hosted || []);
-      } else {
-        setHostedEvents([]); // Clear if not owner
+        try {
+          console.log(`[DashboardEvents] Fetching events hosted by ${userEmail}`);
+          hosted = await getEventsByHostEmail(userEmail);
+          console.log(`[DashboardEvents] Retrieved ${hosted.length} hosted events`);
+          
+          // Debug log to show the structure of the first event (if exists)
+          if (hosted.length > 0) {
+            console.log('[DashboardEvents] First hosted event structure:', {
+              id: hosted[0].id || hosted[0].eventId,
+              title: hosted[0].title,
+              featuredGame: hosted[0].featuredGame, // Log the entire game object
+              gameImagePath: hosted[0].featuredGame?.image || 'null', // Log the image path specifically
+            });
+          }
+          
+          // Ensure hosted is an array
+          hosted = Array.isArray(hosted) ? hosted : [];
+        } catch (hostedError) {
+          console.error(`[DashboardEvents] Error fetching hosted events:`, hostedError);
+          hosted = []; // Ensure hosted is an empty array on error
+        }
+      }
+      // Update hosted events state
+      setHostedEvents(hosted);
+
+      // Fetch registrations (attended events)
+      let registrations = [];
+      try {
+        console.log(`[DashboardEvents] Fetching registrations for ${userEmail}`);
+        const response = await getRegistrationsByEmail(userEmail);
+        // Ensure registrations is an array
+        registrations = Array.isArray(response) ? response : [];
+        console.log(`[DashboardEvents] Retrieved ${registrations.length} registrations`);
+      } catch (regError) {
+        console.error(`[DashboardEvents] Error fetching registrations:`, regError);
+        registrations = []; // Ensure registrations is an empty array on error
       }
 
-      // Fetch registrations (attended events) - Using HEAD's logic
-      const response = await getRegistrationsByEmail(userEmail);
-
-      // Ensure registrations is an array
-      const registrations = Array.isArray(response) ? response : [];
-      console.log("[DashboardEvents] Full Registrations:", registrations); // Log the full data
       // Store the full registration objects, filtering out any potentially invalid ones
       setAttendedRegistrations(registrations.filter(reg => reg && reg.event) || []);
-
     } catch (err) {
-      // This will catch errors from fetching hosted events or registrations list
+      // This will catch any other errors that might occur
       if (err instanceof UnauthorizedError) {
-        console.error("Unauthorized error fetching dashboard events:", err);
+        console.error("[DashboardEvents] Unauthorized error:", err);
         setError("Authentication error. Please try logging in again.");
       } else {
-        console.error("Failed to fetch dashboard events data:", err);
+        console.error("[DashboardEvents] Failed to fetch dashboard events data:", err);
         setError(err.message || "Could not load events.");
       }
+      // Ensure empty arrays on error
       setHostedEvents([]);
       setAttendedRegistrations([]);
     } finally {
@@ -100,24 +126,55 @@ export default function DashboardEvents({ userType }) {
     fetchDashboardEvents(); // Re-fetch events after adding a new one
   }, [fetchDashboardEvents]);
 
-  // Helper to adapt backend event DTO to what EventCard expects (Combined)
-  const adaptEventData = (event, registrationId = null) => { // Accept optional registrationId
-     if (!event) return null;
-     return {
-      id: event.eventId, // Use eventId from backend DTO
-      title: event.title,
-      dateTime: event.dateTime, // Pass raw date/time; formatting done in EventCard
-      location: event.location || 'N/A',
-      hostName: event.host?.name || 'Unknown Host', // Use host object if available (from origin)
-      game: event.featuredGame?.name || 'Unknown Game', // Use featuredGame object
-      currentNumberParticipants: event.currentNumberParticipants,
-      maxParticipants: event.maxParticipants,
-      featuredGameImage: event.featuredGame?.image || "https://placehold.co/400x300/e9e9e9/1d1d1d?text=No+Image",
-      participants: { // Kept from HEAD's structure
-        current: event.currentNumberParticipants ?? 0,
-        capacity: event.maxParticipants ?? 0,
+  /**
+   * Format event data for consistent use in EventCard
+   */
+  const adaptEventData = (event, registrationId = null) => {
+    if (!event) return null;
+    
+    const {
+      id,
+      title,
+      dateTime, 
+      location, 
+      currentNumberParticipants, 
+      maxParticipants,
+      description,
+      host
+    } = event;
+
+    // Get host information
+    const hostName = host?.name || event.hostName || "Unknown Host";
+    const hostEmail = host?.email || event.hostEmail || null;
+    const hostId = host?.id || event.hostId || null;
+
+    // Extract featured game image with proper fallbacks
+    // The backend Game model uses 'image' field, but might be transformed differently in DTOs
+    const featuredGameImage = 
+      event.featuredGame?.image || // From EventResponse.GameDto.image
+      event.featuredGame?.gameImage || // Alternative DTO structure
+      event.gameImage || // Flattened structure
+      null;
+
+    return {
+      id: id || event.id, // Ensure there's an ID
+      title: title || event.title || event.name || "Untitled Event",
+      dateTime: dateTime || event.dateTime,
+      location: location || event.location,
+      // Support different ways events might store game data
+      game: event.featuredGame?.name || event.game || event.gameName || "Unknown Game",
+      featuredGameImage: featuredGameImage,
+      // Set host data with fallbacks
+      host: host || { name: hostName, email: hostEmail, id: hostId },
+      hostName: hostName,
+      hostEmail: hostEmail,
+      hostId: hostId,
+      // Normalize participant counting
+      participants: {
+        current: currentNumberParticipants,
+        capacity: maxParticipants,
       },
-      description: event.description || '',
+      description: description || event.description || '',
       registrationId: registrationId, // Add registrationId if provided (from origin logic)
     };
   };

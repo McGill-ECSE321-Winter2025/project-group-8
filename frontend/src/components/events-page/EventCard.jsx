@@ -4,6 +4,7 @@ import confetti from "canvas-confetti";
 import { registerForEvent } from "@/service/event-api.js"; // Keep registerForEvent here
 import { unregisterFromEvent } from "@/service/registration-api.js"; // Import unregister from the correct file
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "@/context/AuthContext"; // Import Auth context
 import {
   Card,
   CardContent
@@ -23,17 +24,37 @@ import { toast } from "sonner";
 
 // Accept onRegistrationUpdate, isCurrentUserRegistered, and registrationId props
 export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered, registrationId }) {
-  // Initialize isRegistered state based on the prop passed from the parent
+  // Initial setup and state
   const [isRegistered, setIsRegistered] = useState(isCurrentUserRegistered || false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [error, setError] = useState(null);
   const [showDescription, setShowDescription] = useState(false);
   const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
+  const { user } = useAuth(); // Get current user from auth context
+
+  // Check if current user is the host of this event
+  const isUserEventHost = user && 
+    ((event.host && event.host.email && event.host.email === user.email) || 
+     (event.hostEmail && event.hostEmail === user.email) ||
+     (event.hostId && user.id && event.hostId === user.id) ||
+     (event.hostName && user.name && event.hostName === user.name));
 
   // Update isRegistered state if the prop changes (e.g., after parent refresh)
   useEffect(() => {
-    setIsRegistered(isCurrentUserRegistered || false);
-  }, [isCurrentUserRegistered]);
+    // If a registrationId is provided, the user is definitely registered
+    const isDefinitelyRegistered = !!registrationId || isCurrentUserRegistered;
+    setIsRegistered(isDefinitelyRegistered);
+    
+    // Debug registration state
+    console.log("[EventCard] Registration state updated:", {
+      eventId: event.id,
+      eventTitle: event.title,
+      isCurrentUserRegistered,
+      registrationId,
+      isDefinitelyRegistered,
+      isUserEventHost // Log if user is host
+    });
+  }, [isCurrentUserRegistered, registrationId, event.id, event.title, isUserEventHost]);
 
   const handleRegisterClick = async (e) => {
     setError(null);
@@ -49,7 +70,14 @@ export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered
       setIsAnimating(true);
       const { clientX: x, clientY: y } = e;
 
-      await registerForEvent(event.id); // Pass event ID
+      const eventId = event.id || event.eventId; // Support both ID formats
+      console.log(`[EventCard] Attempting to register for event:`, { eventId, eventTitle: event.title });
+      
+      if (!eventId) {
+        throw new Error("Cannot register: Event ID is missing");
+      }
+
+      await registerForEvent(eventId); // Pass event ID
 
       // If successful:
       setIsRegistered(true); // Update button state locally first
@@ -69,7 +97,10 @@ export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered
       setIsAnimating(false);
       
       // Check if this is the "already registered" error
-      if (error.message && error.message.includes("already exists")) {
+      if (error.message && (
+          error.message.includes("already exists") || 
+          error.message.includes("already registered")
+      )) {
         // User is already registered for this event
         setError("You are already registered for this event");
         setIsRegistered(true); // Update the UI state to show registered
@@ -77,15 +108,39 @@ export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered
         
         // Refresh to get the registration data
         if (onRegistrationUpdate) {
-          onRegistrationUpdate();
+          setTimeout(() => {
+            onRegistrationUpdate();
+          }, 1000);
         }
       } else if (error.message && error.message.includes("full capacity")) {
         // Event is at full capacity
         setError("⚠️ Event is at full capacity!");
         toast.error("Event is at full capacity!");
+      } else if (error.message && error.message.includes("cannot register for your own event")) {
+        // User trying to register for their own event
+        setError("You cannot register for your own event.");
+        toast.error("You cannot register for your own event.");
       } else {
-        // Generic error
-        const errorMsg = error.message || "Something went wrong. Please try again.";
+        // Generic error - extract the 'detail' message if it exists
+        let errorMsg = error.message || "Something went wrong. Please try again.";
+        
+        // Try to extract the detail message from JSON error response
+        if (errorMsg.includes("detail")) {
+          try {
+            const jsonStart = errorMsg.indexOf("{");
+            if (jsonStart !== -1) {
+              const jsonPart = errorMsg.substring(jsonStart);
+              const errorObj = JSON.parse(jsonPart);
+              if (errorObj.detail) {
+                errorMsg = errorObj.detail;
+              }
+            }
+          } catch (e) {
+            // If JSON parsing fails, keep the original message
+            console.log("Error parsing error message JSON:", e);
+          }
+        }
+        
         setError(errorMsg);
         toast.error(errorMsg);
       }
@@ -96,6 +151,14 @@ export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered
   const handleConfirmCancelRegistration = async () => {
      setError(null);
      try {
+       // Log detailed registration ID info for debugging
+       console.log("[EventCard] Registration ID when unregistering:", {
+         regId: registrationId, 
+         type: typeof registrationId,
+         eventId: event.id,
+         eventTitle: event.title
+       });
+       
        // Check if we actually have a registration ID to delete
        if (!registrationId) {
          throw new Error("Cannot unregister: Registration ID not found.");
@@ -110,7 +173,10 @@ export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered
        setIsCancelConfirmOpen(false);
        toast.info(`Unregistered from ${event.title || event.name}.`);
        if (onRegistrationUpdate) { // Call the refresh function from parent
-         onRegistrationUpdate(); // This will cause props to update
+         // Add a slight delay before refreshing to ensure backend has processed the change
+         setTimeout(() => {
+           onRegistrationUpdate();
+         }, 500);
        }
      } catch (error) {
        setIsAnimating(false);
@@ -197,8 +263,12 @@ export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered
         <div className="flex items-center text-gray-700 mb-4 text-sm">
           <Users className="w-4 h-4 mr-2 flex-shrink-0" />
           <span>
-
-            {event.currentNumberParticipants}/{event.maxParticipants} participants
+            {/* Try multiple fallback options for participant data */}
+            {event.participants && typeof event.participants.current === 'number' 
+              ? `${event.participants.current}/${event.participants.capacity} participants`
+              : typeof event.currentNumberParticipants === 'number' && typeof event.maxParticipants === 'number'
+                ? `${event.currentNumberParticipants}/${event.maxParticipants} participants` 
+                : "Participants: N/A"}
           </span>
         </div>
 
@@ -246,17 +316,27 @@ export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered
             >
               {showDescription ? "Hide Details" : "Show Details"}
             </Button>
-            <Button
-              className={`w-full text-white transition-all duration-300 text-sm ${
-                isRegistered
-                  ? "bg-red-500 hover:bg-red-600"
-                  : "bg-black hover:bg-gray-800"
-              } ${isAnimating ? "scale-95" : "scale-100"}`}
-              onClick={handleRegisterClick}
-              disabled={isAnimating}
-            >
-              {isRegistered ? "Unregister" : "Register"}
-            </Button>
+            {/* Only show register button if user is not the host */}
+            {!isUserEventHost ? (
+              <Button
+                className={`w-full text-white transition-all duration-300 text-sm ${
+                  isRegistered
+                    ? "bg-red-500 hover:bg-red-600"
+                    : "bg-black hover:bg-gray-800"
+                } ${isAnimating ? "scale-95" : "scale-100"}`}
+                onClick={handleRegisterClick}
+                disabled={isAnimating}
+              >
+                {isRegistered ? "Unregister" : "Register"}
+              </Button>
+            ) : (
+              <Button
+                className="w-full text-muted-foreground bg-gray-100 cursor-not-allowed"
+                disabled={true}
+              >
+                You are hosting this event
+              </Button>
+            )}
         </div>
 
          {/* Unregister Confirmation Dialog */}

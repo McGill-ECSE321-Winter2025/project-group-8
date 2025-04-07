@@ -21,14 +21,33 @@ import apiClient from './apiClient'; // Import the centralized API client
  */
 export const getAllEvents = async () => {
   try {
+    // Add a response type param to help with large or potentially invalid JSON responses
     const events = await apiClient("/events", {
       method: "GET",
-      skipPrefix: false // Assuming /api/events
+      skipPrefix: false, // Assuming /api/events
+      responseType: 'text' // Get as text first to better handle parsing errors
     });
-    return events;
+    
+    // Try to safely parse the response
+    let parsedEvents = [];
+    if (typeof events === 'string') {
+      try {
+        parsedEvents = JSON.parse(events);
+      } catch (parseError) {
+        console.error("Error parsing events JSON:", parseError);
+        console.log("First 100 chars of response:", events.substring(0, 100) + "...");
+        throw new Error("Server returned invalid JSON. Please contact the administrator.");
+      }
+    } else {
+      // Already parsed by apiClient
+      parsedEvents = events;
+    }
+    
+    return Array.isArray(parsedEvents) ? parsedEvents : [];
   } catch (error) {
     console.error("Failed to fetch events:", error);
-    throw error; // Re-throw the specific error from apiClient
+    // Return empty array instead of throwing to prevent UI from breaking
+    return [];
   }
 };
 
@@ -69,9 +88,13 @@ export const getEventById = async (eventId) => {
 export const registerForEvent = async (eventId) => {
   if (!eventId) throw new Error("Event ID is required.");
 
+  // Convert eventId to string if it's a number
+  const eventIdString = String(eventId);
+  console.log(`[API] Registering for event with ID: ${eventIdString}`);
+
   // Payload might only need the eventId if backend identifies user from cookie.
   const payload = {
-    eventId: eventId
+    eventId: eventIdString
     // attendeeId might not be needed if derived from session on backend
   };
 
@@ -79,12 +102,46 @@ export const registerForEvent = async (eventId) => {
     const registration = await apiClient("/registrations", {
       method: "POST",
       body: payload, // apiClient handles stringification
-      skipPrefix: false // Assuming /api/registrations
+      skipPrefix: false, // Assuming /api/registrations
+      headers: {
+        'Content-Type': 'application/json'
+      }
     });
+    console.log(`[API] Successfully registered for event ${eventIdString}`, registration);
     return registration; // Return the created registration object
   } catch (error) {
-    console.error(`Failed to register for event ${eventId}:`, error);
-    throw error; // Re-throw the specific error from apiClient
+    // Clean up error message if possible
+    let cleanedError = error;
+    
+    if (error.message) {
+      // Check for specific known error conditions and clean up the message
+      if (error.message.includes("already exists")) {
+        console.warn(`[API] User already registered for event ${eventIdString}`);
+        cleanedError = new Error("You are already registered for this event");
+      } else if (error.message.includes("You cannot register for your own event")) {
+        cleanedError = new Error("You cannot register for your own event");
+      } else if (error.message.includes("full capacity")) {
+        cleanedError = new Error("Event is already at full capacity");
+      } else if (error.message.includes("detail")) {
+        // Try to extract 'detail' from JSON error response
+        try {
+          const jsonStart = error.message.indexOf("{");
+          if (jsonStart !== -1) {
+            const jsonPart = error.message.substring(jsonStart);
+            const errorObj = JSON.parse(jsonPart);
+            if (errorObj.detail) {
+              cleanedError = new Error(errorObj.detail);
+            }
+          }
+        } catch (e) {
+          // If parsing fails, keep the original error
+          console.log("[API] Error parsing error message JSON:", e);
+        }
+      }
+    }
+    
+    console.error(`[API] Failed to register for event ${eventIdString}:`, error);
+    throw cleanedError; // Throw the cleaned up error
   }
 };
 
@@ -169,12 +226,31 @@ export const getEventsByHostEmail = async (hostEmail) => {
     // Using the correct endpoint based on backend API
     const events = await apiClient(`/events/by-host-email?hostEmail=${encodeURIComponent(hostEmail)}`, {
       method: "GET",
-      skipPrefix: false // Assuming /api/events/by-host-email
+      skipPrefix: false, // Assuming /api/events/by-host-email
+      responseType: 'text' // Get as text first to better handle parsing errors
     });
-    return events;
+    
+    // Try to safely parse the response
+    let parsedEvents = [];
+    if (typeof events === 'string') {
+      try {
+        parsedEvents = JSON.parse(events);
+      } catch (parseError) {
+        console.error(`Error parsing events JSON for host ${hostEmail}:`, parseError);
+        console.log("First 100 chars of response:", events.substring(0, 100) + "...");
+        // Return empty array instead of throwing
+        return [];
+      }
+    } else {
+      // Already parsed by apiClient
+      parsedEvents = events;
+    }
+    
+    return Array.isArray(parsedEvents) ? parsedEvents : [];
   } catch (error) {
     console.error(`Failed to fetch events for host ${hostEmail}:`, error);
-    throw error; // Re-throw the specific error from apiClient
+    // Return empty array instead of throwing to prevent UI from breaking
+    return [];
   }
 };
 
@@ -196,9 +272,25 @@ export const unregisterFromEvent = async (registrationId) => {
     // DELETE request to remove the registration using apiClient
     const result = await apiClient(`/registrations/${registrationId}`, {
       method: "DELETE",
-      skipPrefix: false // Assuming /api/registrations/:id
+      skipPrefix: false, // Assuming /api/registrations/:id
+      responseType: 'text' // Get as text first to better handle parsing errors
     });
-    return result; // Might be empty if server returns 204 No Content
+    
+    // If the result is a string, try to parse it as JSON
+    let parsedResult = result;
+    if (typeof result === 'string') {
+      try {
+        // Only try to parse if it looks like JSON
+        if (result.trim().startsWith('{') || result.trim().startsWith('[')) {
+          parsedResult = JSON.parse(result);
+        }
+      } catch (parseError) {
+        console.error("Error parsing unregister response:", parseError);
+        // Return the original string result on parse error
+      }
+    }
+    
+    return parsedResult; // Return the result (parsed or original)
   } catch (error) {
     console.error(`Failed to unregister from event (registration ${registrationId}):`, error);
     throw error; // Re-throw the specific error from apiClient

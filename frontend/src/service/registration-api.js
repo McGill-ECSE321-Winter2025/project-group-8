@@ -55,14 +55,27 @@ export const unregisterFromEvent = async (registrationId) => {
     throw new Error("Registration ID is required to unregister.");
   }
 
+  // Convert registrationId to string if it's a number
+  const registrationIdString = String(registrationId);
+  console.log(`[API] Unregistering from event with registration ID: ${registrationIdString}`);
+
   try {
-    const response = await apiClient(`/registrations/${registrationId}`, {
+    // Make sure we have a valid registration ID
+    if (isNaN(parseInt(registrationIdString))) {
+      throw new Error(`Invalid registration ID format: ${registrationIdString}`);
+    }
+
+    const response = await apiClient(`/registrations/${registrationIdString}`, {
       method: "DELETE",
-      skipPrefix: false // Assuming '/registrations/{id}' is the full path
+      skipPrefix: false, // Assuming '/registrations/{id}' is the full path
+      headers: {
+        'Content-Type': 'application/json'
+      }
     });
+    console.log(`[API] Successfully unregistered with ID ${registrationIdString}`);
     return response; // Or handle specific success response if needed
   } catch (error) {
-    console.error(`Failed to unregister registration ${registrationId}:`, error);
+    console.error(`[API] Failed to unregister registration ${registrationIdString}:`, error);
     throw error; // Re-throw the specific error from apiClient
   }
 };

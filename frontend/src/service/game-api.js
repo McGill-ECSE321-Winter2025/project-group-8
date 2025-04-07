@@ -108,13 +108,21 @@ export const createGame = async (gameData) => {
  */
 export const getGamesByOwner = async (ownerEmail) => {
   if (!ownerEmail) {
-     throw new Error("Owner email is required to fetch games.");
+     console.warn("getGamesByOwner: Owner email is missing");
+     return []; // Return empty array instead of throwing
   }
 
   console.log("getGamesByOwner: Fetching games for owner:", ownerEmail);
+  
+  // Handle if email is accidentally passed as an email object or with unnecessary formats
+  const cleanEmail = ownerEmail.toString().trim();
+  if (!cleanEmail) {
+    console.warn("getGamesByOwner: Owner email is empty after cleaning");
+    return []; // Return empty array instead of throwing
+  }
 
   // Using the proper endpoint for fetching games by owner
-  const endpoint = `/games?ownerId=${encodeURIComponent(ownerEmail)}`;
+  const endpoint = `/games?ownerId=${encodeURIComponent(cleanEmail)}`;
   console.log("getGamesByOwner: Using endpoint:", endpoint);
 
   try {
@@ -128,22 +136,31 @@ export const getGamesByOwner = async (ownerEmail) => {
     // Use apiClient for the GET request with skipPrefix option
     const games = await apiClient(endpoint, { 
       method: "GET",
-      skipPrefix: false
+      skipPrefix: false,
+      timeout: 8000 // Set a reasonable timeout to prevent hanging
     });
     
-    console.log(`getGamesByOwner: Successfully fetched ${games.length} games for owner ${ownerEmail}:`, games);
+    // Ensure we return an array
+    if (!Array.isArray(games)) {
+      console.warn(`getGamesByOwner: Response is not an array for ${cleanEmail}:`, games);
+      return [];
+    }
+    
+    console.log(`getGamesByOwner: Successfully fetched ${games.length} games for owner ${cleanEmail}:`, games);
     return games;
   } catch (error) {
-    console.error(`getGamesByOwner: Failed to fetch games for owner ${ownerEmail}:`, error);
+    console.error(`getGamesByOwner: Failed to fetch games for owner ${cleanEmail}:`, error);
     // Check specific error types
     if (error.name === 'UnauthorizedError') {
       console.error("getGamesByOwner: Authentication error - user not logged in or session expired");
     } else if (error.name === 'ForbiddenError') {
       console.error("getGamesByOwner: Permission error accessing games");
+    } else if (error.name === 'TimeoutError') {
+      console.error("getGamesByOwner: Request timed out, possible server issue");
     }
     
-    // Re-throw the specific error from apiClient
-    throw error;
+    // Return empty array instead of throwing to prevent UI from breaking
+    return [];
   }
 };
 

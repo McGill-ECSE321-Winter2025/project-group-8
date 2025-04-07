@@ -15,25 +15,50 @@ export default function DashboardLendingRecord() {
 
   // Use useCallback to memoize the fetchLendingRecords function
   const fetchLendingRecords = useCallback(async () => {
+    // Early return conditions
     if (!user?.id || !isAuthenticated || !authReady) {
-      if (!isLoading) return; // Don't update state if not loading
+      console.log("Skipping fetch: Auth prerequisites not met", { 
+        userId: user?.id,
+        isAuthenticated,
+        authReady
+      });
       setIsLoading(false);
       return;
     }
     
+    // Prevent duplicate fetches while already loading
+    if (isLoading && fetchAttempted) {
+      console.log("Skipping duplicate fetch: Already loading");
+      return;
+    }
     
     try {
       setIsLoading(true);
       setFetchAttempted(true);
+      
       // Log cookie state before fetching
       const cookieState = getCookieAuthState();
+      console.log("Cookie state before fetching:", cookieState);
       
+      console.log(`Fetching lending history for user ID: ${user.id}`);
       const records = await getLendingHistory(user.id, true); // true indicates user is the owner
+      console.log(`Received ${records.length} lending records`);
+      
+      // Check if records is an array
+      if (!Array.isArray(records)) {
+        console.error("Expected array of records but got:", records);
+        setLendingRecords([]);
+        setError("Invalid data format received from the server.");
+        return;
+      }
       
       // Transform records to include proper status
       const processedRecords = records.map(record => {
+        if (!record) return null; // Skip null/undefined records
+        
         // Calculate if the record is overdue
-        const isOverdue = new Date() > new Date(record.endDate) && record.status !== 'CLOSED';
+        const isOverdue = record.endDate && new Date() > new Date(record.endDate) && 
+                         record.status !== 'CLOSED';
         
         // Determine display status
         const status = record.status === 'CLOSED' 
@@ -44,7 +69,7 @@ export default function DashboardLendingRecord() {
           ...record,
           status: status
         };
-      });
+      }).filter(Boolean); // Remove any null entries
       
       setLendingRecords(processedRecords);
       setError(null); // Clear any previous errors
@@ -55,30 +80,27 @@ export default function DashboardLendingRecord() {
       } else {
         setError("Failed to load lending records. Please try again later.");
       }
+      setLendingRecords([]); // Set empty array on error
     } finally {
       setIsLoading(false);
     }
-  }, [user, isAuthenticated, authReady, isLoading, fetchAttempted]);
+  }, [user?.id, isAuthenticated, authReady, isLoading, fetchAttempted]);
 
   // Reset fetch attempted when auth state changes
   useEffect(() => {
     if (authReady && isAuthenticated && user?.id) {
       setFetchAttempted(false);
     }
-  }, [authReady, isAuthenticated, user]);
+  }, [authReady, isAuthenticated, user?.id]);
 
   // Initial fetch when component mounts or user/auth state changes
   useEffect(() => {
-    // Add a delay before attempting to fetch to ensure auth is fully established
-    const timer = setTimeout(() => {
-      // Only fetch when authReady is true
-      if (authReady && isAuthenticated && user?.id) {
-        fetchLendingRecords();
-      }
-    }, 1500); // Increase delay to 1.5 seconds
-    
-    return () => clearTimeout(timer);
-  }, [fetchLendingRecords, authReady, isAuthenticated, user]);
+    // Only fetch when auth is ready and not already loading
+    if (authReady && isAuthenticated && user?.id && !isLoading && !fetchAttempted) {
+      console.log("Initial fetch of lending records triggered");
+      fetchLendingRecords();
+    }
+  }, [fetchLendingRecords, authReady, isAuthenticated, user?.id, isLoading, fetchAttempted]);
 
   return <TabsContent value="borrowing" className="space-y-6">
     <div className="flex justify-between items-center">

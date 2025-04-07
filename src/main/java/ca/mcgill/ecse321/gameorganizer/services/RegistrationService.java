@@ -64,6 +64,12 @@ public class RegistrationService {
             Account attendee = accountRepository.findByEmail(attendeeEmail)
                     .orElseThrow(() -> new UnauthedException("Authenticated attendee account not found in database."));
 
+            // Check if the user is trying to register for their own event
+            if (eventRegisteredFor.getHost() != null && 
+                eventRegisteredFor.getHost().getEmail().equals(attendeeEmail)) {
+                throw new IllegalArgumentException("You cannot register for your own event.");
+            }
+
             Registration registration = new Registration(registrationDate);
             if (registrationRepository.existsByAttendeeAndEventRegisteredFor(attendee, eventRegisteredFor)) {
                 throw new IllegalArgumentException("Registration already exists for this account and event.");

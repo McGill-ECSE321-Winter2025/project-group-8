@@ -27,7 +27,10 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
   // Track if component is mounted
   const isMountedRef = useRef(true);
   // Track last fetched email to prevent redundant fetches
-  const lastFetchedEmailRef = useRef(null);
+  const fetchedRef = useRef({
+    email: null,
+    timestamp: 0
+  });
 
   // Add state to track input focus
   const [isInputFocused, setIsInputFocused] = useState(false);
@@ -64,34 +67,66 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
 
   // Load user's games when dialog opens
   useEffect(() => {
-    if (open && userEmail) {
-      // Always load games when the dialog opens to ensure fresh data
-      const loadUserGames = async () => {
-        setIsLoadingUserGames(true);
-        lastFetchedEmailRef.current = userEmail;
-        
-        try {
-          const games = await getGamesByOwner(userEmail);
-          
-          if (isMountedRef.current) {
-            console.log(`Successfully loaded ${games?.length || 0} games for user ${userEmail}`);
-            setUserGames(games || []);
-          }
-        } catch (error) {
-          console.error("Failed to load user's games:", error);
-          if (isMountedRef.current) {
-            toast.error("Failed to load your games. Please try again.");
-          }
-        } finally {
-          if (isMountedRef.current) {
-            setIsLoadingUserGames(false);
-          }
-        }
-      };
-      
-      loadUserGames();
+    // Only fetch when dialog is open and user email is available
+    if (!open || !userEmail) return;
+    
+    // Don't refetch if already loaded for this user recently (within 5 minutes)
+    const now = Date.now();
+    const isFresh = fetchedRef.current.email === userEmail && 
+                    (now - fetchedRef.current.timestamp) < 5 * 60 * 1000;
+                    
+    if (isFresh && userGames.length > 0) {
+      console.log("Using cached games data");
+      return;
     }
-  }, [open, userEmail]);
+
+    // Don't start a new fetch if already loading
+    if (isLoadingUserGames) {
+      console.log("Already loading games, skipping");
+      return;
+    }
+    
+    async function fetchUserGames() {
+      setIsLoadingUserGames(true);
+      
+      try {
+        console.log(`Fetching games for user ${userEmail}`);
+        const games = await getGamesByOwner(userEmail);
+        
+        if (isMountedRef.current) {
+          console.log(`Received ${games.length} games`);
+          setUserGames(games);
+          
+          // Update fetch timestamp
+          fetchedRef.current = {
+            email: userEmail,
+            timestamp: Date.now()
+          };
+        }
+      } catch (error) {
+        console.error("Error fetching games:", error);
+        if (isMountedRef.current) {
+          toast.error("Failed to load your games");
+        }
+      } finally {
+        if (isMountedRef.current) {
+          setIsLoadingUserGames(false);
+        }
+      }
+    }
+    
+    fetchUserGames();
+    
+    // Add a safety timeout to reset loading state if stuck
+    const safetyTimer = setTimeout(() => {
+      if (isMountedRef.current && isLoadingUserGames) {
+        console.log("Safety timeout triggered - resetting loading state");
+        setIsLoadingUserGames(false);
+      }
+    }, 10000);
+    
+    return () => clearTimeout(safetyTimer);
+  }, [open, userEmail, isLoadingUserGames, userGames.length]);
 
   // Watch the game search term input to trigger filtering
   const watchedGameSearchTerm = watch("gameSearchTermInput");
@@ -120,18 +155,13 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
       return;
     }
 
-    // Filter from already loaded user games instead of making API call
-    const filterUserGames = () => {
-      const searchTerm = watchedGameSearchTerm.toLowerCase();
-      const filteredGames = userGames.filter(game => 
-        game.name.toLowerCase().includes(searchTerm)
-      );
-      console.log(`Filtered ${filteredGames.length} games from ${userGames.length} total games using term: ${searchTerm}`);
-      setGameSearchResults(filteredGames);
-    };
-
-    // Reduced debounce timer to make search more responsive
-    filterUserGames();
+    // Filter from already loaded user games
+    const searchTerm = watchedGameSearchTerm.toLowerCase();
+    const filteredGames = userGames.filter(game => 
+      game.name.toLowerCase().includes(searchTerm)
+    );
+    console.log(`Filtered ${filteredGames.length} games matching "${searchTerm}"`);
+    setGameSearchResults(filteredGames);
   }, [watchedGameSearchTerm, selectedGameId, userGames, isInputFocused]);
 
   const handleGameSelect = useCallback((game) => {
@@ -288,7 +318,6 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
                 className={!selectedGameId && submitError.includes("select") ? "border-red-500" : ""}
                 disabled={isLoadingUserGames} // Disable while loading user games
               />
-              {isSearchingGames && <Loader2 className="h-4 w-4 animate-spin" />}
             </div>
             
             {/* Debug info - will help troubleshoot the loading state */}
@@ -382,7 +411,7 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
             </Button>
             <Button 
               type="submit" 
-              disabled={isLoading || isSearchingGames || isLoadingUserGames || userGames.length === 0}
+              disabled={isLoading || isLoadingUserGames || userGames.length === 0}
             >
               {isLoading ? "Creating..." : "Create Event"}
             </Button>

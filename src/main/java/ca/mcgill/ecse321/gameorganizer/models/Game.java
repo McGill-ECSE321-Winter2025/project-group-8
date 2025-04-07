@@ -16,6 +16,10 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.ObjectIdGenerators;
+
 /**
  * Represents a board game in the system.
  * Games can be owned by users and borrowed by others through borrow requests.
@@ -27,6 +31,8 @@ import lombok.Setter;
 @NoArgsConstructor
 @Getter
 @Setter
+@JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Game {
 
     /** Unique identifier for the game */
@@ -55,10 +61,12 @@ public class Game {
 
     /** Owner of the game */
     @ManyToOne // Assuming owner is mandatory, add (optional = false) if needed
+    @JsonIgnoreProperties("games")
     private GameOwner owner;
 
     /** Reviews associated with this game */
     @OneToMany(mappedBy = "gameReviewed", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @JsonIgnoreProperties("gameReviewed")
     private Set<Review> reviews;
 
 

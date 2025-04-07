@@ -138,11 +138,11 @@ export async function actOnBorrowRequest(requestId, request) {
  * Fetch lending history with retry for auth issues
  */
 export async function getLendingHistory(accountId, isOwner, retryCount = 0) {
-  const MAX_RETRIES = 3;  // Increase max retries
+  const MAX_RETRIES = 2;  // Reduce max retries to prevent excessive attempts
   
   // Add delay for retry attempts with increasing delay times
   if (retryCount > 0) {
-    const delay = retryCount * 1000;  // Progressive delay: 1s, 2s, 3s
+    const delay = retryCount * 1000;  // Progressive delay: 1s, 2s
     console.log(`Waiting ${delay}ms before retry ${retryCount}/${MAX_RETRIES}`);
     await new Promise(resolve => setTimeout(resolve, delay));
   }
@@ -156,33 +156,85 @@ export async function getLendingHistory(accountId, isOwner, retryCount = 0) {
     // Debug auth state
     console.log(`[API] getLendingHistory for userId: ${userId}, isOwner: ${isOwner}`);
     
+    // Create a timeout promise to prevent hanging requests
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Request timed out')), 8000);
+    });
+    
     // The backend uses cookies for authentication, we just need the user ID in headers
     const headers = {
       'X-User-Id': userId
     };
     
     // Make sure we have proper credentials and authentication
-    return await apiClient(`/api/lending-records/${isOwner ? "owner" : "borrower"}/${accountId}`, {
-      skipPrefix: false,
-      retryOnAuth: true,
-      credentials: 'include',
-      headers
-    });
+    // Use Promise.race to implement timeout
+    const response = await Promise.race([
+      apiClient(`/api/lending-records/${isOwner ? "owner" : "borrower"}/${accountId}`, {
+        skipPrefix: false,
+        retryOnAuth: true,
+        credentials: 'include',
+        headers
+      }),
+      timeoutPromise
+    ]);
+    
+    // Validate response
+    if (!response) {
+      console.error('[API] Empty response received from lending history endpoint');
+      return [];
+    }
+    
+    if (!Array.isArray(response)) {
+      console.error('[API] Expected array response but got:', typeof response);
+      // Try to convert to array if possible (e.g., if it's an object with data property)
+      if (response && response.data && Array.isArray(response.data)) {
+        return response.data;
+      }
+      return [];
+    }
+    
+    console.log(`[API] Successfully fetched lending history with ${response.length} records`);
+    return response;
   } catch (error) {
     if (error instanceof UnauthorizedError && retryCount < MAX_RETRIES) {
       console.log(`Auth not ready, retrying lending history fetch (attempt ${retryCount + 1})`);
       return getLendingHistory(accountId, isOwner, retryCount + 1);
     }
-    throw error;
+    
+    if (error.message === 'Request timed out') {
+      console.error('[API] Lending history request timed out after 8 seconds');
+    } else {
+      console.error('[API] Error fetching lending history:', error);
+    }
+    
+    // Return empty array instead of throwing to prevent UI from breaking
+    return [];
   }
 }
 
 export async function markAsReturned(lendingRecordId, data) {
-  return apiClient(`/api/lending-records/${lendingRecordId}/mark-returned`, {
-    method: "POST",
-    body: data,
-    skipPrefix: false,
-  });
+  try {
+    // Get userId from localStorage for the header
+    const userId = localStorage.getItem('userId');
+    
+    console.log(`[API] Marking record ${lendingRecordId} as returned. User ID: ${userId}`);
+    
+    const response = await apiClient(`/api/lending-records/${lendingRecordId}/mark-returned`, {
+      method: "POST",
+      body: data,
+      skipPrefix: false,
+      credentials: 'include',  // Include cookies for authentication
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-Id': userId   // Include user ID in header
+      },
+    });
+    console.log(`[API] Successfully marked record ${lendingRecordId} as returned`);
+    return response;
+  } catch (error) {
+    console.error(`Error marking record ${lendingRecordId} as returned:`, error);
+    throw error;
+  }
 }
 
 export async function updateUsernamePassword(request) {

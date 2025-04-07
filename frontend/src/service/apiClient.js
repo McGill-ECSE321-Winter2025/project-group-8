@@ -206,6 +206,8 @@ const apiClient = async (endpoint, {
   retryOnAuth = true,
   requiresAuth = true,  // Assume endpoints require auth unless specified
   credentials = 'include', // Always include credentials by default
+  returnHeaders = false, // Option to return headers along with data
+  responseType = 'json', // Default to JSON, but allow 'text' for manual parsing
   ...customConfig
 } = {}) => {
   // Special handling for /users/me endpoint - don't suppress errors by default
@@ -250,36 +252,44 @@ const apiClient = async (endpoint, {
   // Get the user ID from localStorage if available
   const userId = localStorage.getItem('userId');
   
-  // Build request configuration
+  // Prepare headers
+  const requestHeaders = { ...headers };
+  
+  // Add userId to headers if available (unless already specified)
+  // This helps with user identification for logging/auditing on the backend
+  if (userId && !requestHeaders['X-User-Id']) {
+    requestHeaders['X-User-Id'] = userId;
+  }
+
+  // Request has a body, add appropriate content-type if not set
+  if (body !== undefined && body !== null) {
+    // If Content-Type not specified and body is an object that's not FormData, set to JSON
+    if (!requestHeaders['Content-Type'] && 
+        typeof body === 'object' && 
+        !(body instanceof FormData)) {
+      requestHeaders['Content-Type'] = 'application/json';
+    }
+  }
+
+  // Prepare request config
   const config = {
     method,
-    headers: {
-      'Content-Type': 'application/json',
-      // REMOVED: ...(userId && { 'X-User-Id': userId }), - Rely on HttpOnly cookie
-      ...headers,
-    },
-    credentials: 'include', // ALWAYS include credentials for cookies
+    headers: requestHeaders,
+    credentials, // Include cookies by default
     ...customConfig,
   };
 
-  // Don't manually add Authorization header - let browser send the cookie
-  // The backend uses a cookie-based system with 'accessToken' HttpOnly cookie
-  // We don't need to manually extract and add the token to headers
-
-  // Add CSRF token if available
-  const csrfToken = localStorage.getItem('csrfToken');
-  if (csrfToken && !config.headers['X-CSRF-TOKEN']) {
-    config.headers['X-CSRF-TOKEN'] = csrfToken;
-    console.log(`[API] Added CSRF token to request`);
+  // Add the body to the request if it exists
+  if (body) {
+    // If body is an object and Content-Type is application/json, stringify it
+    if (typeof body === 'object' && 
+        !(body instanceof FormData) && 
+        requestHeaders['Content-Type'] === 'application/json') {
+      config.body = JSON.stringify(body);
+    } else {
+      config.body = body;
+    }
   }
-
-  // Add body if provided
-  if (body && method !== 'GET') { // Ensure body is not added for GET requests
-    config.body = JSON.stringify(body);
-  }
-
-  // Should we return headers with the response?
-  const returnHeaders = customConfig.returnHeaders || false;
 
   // Build the complete URL
   const url = buildUrl(endpoint, skipPrefix);
@@ -311,13 +321,26 @@ const apiClient = async (endpoint, {
     }
 
     let responseData;
-    // Parse JSON response if available
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
-      responseData = await response.json();
-    } else {
-      // Return text for non-JSON responses
+    
+    // Handle response based on requested responseType
+    if (responseType === 'text') {
+      // Return raw text for manual parsing
       responseData = await response.text();
+    } else {
+      // Parse response based on content type
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          responseData = await response.json();
+        } catch (parseError) {
+          console.error(`[API] JSON parse error for ${url}:`, parseError);
+          // If JSON parsing fails, return the raw text and let the caller handle it
+          responseData = await response.text();
+        }
+      } else {
+        // Return text for non-JSON responses
+        responseData = await response.text();
+      }
     }
     
     // Return data with headers if requested
@@ -368,15 +391,41 @@ async function handleErrorResponse(response, endpoint, suppressErrors = false) {
     const contentType = response.headers.get('content-type');
     if (contentType && contentType.includes('application/json')) {
       errorData = await response.json();
-      if (errorData && typeof errorData.message === 'string') {
-        errorMessage = errorData.message;
-      } else if (errorData && typeof errorData.error === 'string') {
-         errorMessage = errorData.error; // Handle cases where error is in 'error' field
+      
+      // Priority order for error message fields
+      if (errorData) {
+        if (typeof errorData.detail === 'string') {
+          // Spring Boot error responses typically use 'detail'
+          errorMessage = errorData.detail;
+        } else if (typeof errorData.message === 'string') {
+          errorMessage = errorData.message;
+        } else if (typeof errorData.error === 'string') {
+          errorMessage = errorData.error;
+        } else if (typeof errorData.errorMessage === 'string') {
+          errorMessage = errorData.errorMessage;
+        }
       }
     } else {
       const text = await response.text();
       if (text) {
         errorMessage = text; // Use text response if not JSON
+        
+        // Try to extract JSON from text response (some errors might be JSON embedded in text)
+        if (text.includes('{') && text.includes('}')) {
+          try {
+            const jsonStart = text.indexOf('{');
+            const jsonEnd = text.lastIndexOf('}') + 1;
+            const jsonStr = text.substring(jsonStart, jsonEnd);
+            const jsonData = JSON.parse(jsonStr);
+            
+            if (jsonData.detail) {
+              errorMessage = jsonData.detail;
+            }
+          } catch (jsonParseErr) {
+            // Ignore JSON parsing errors in text
+            console.debug(`[API] Could not extract JSON from text response: ${jsonParseErr.message}`);
+          }
+        }
       }
     }
   } catch (err) {
@@ -391,13 +440,10 @@ async function handleErrorResponse(response, endpoint, suppressErrors = false) {
 
   // Throw appropriate error based on status code
   switch (response.status) {
+    case 400:
+      throw new ApiError(errorMessage || 'Bad request', 400);
     case 401:
       // A 401 means the request was not authenticated.
-      // This could be due to missing/invalid cookie or token.
-      // We should trigger a state where the app knows it's unauthenticated.
-      // Clearing client-side cookies here might be premature if it was a temporary issue,
-      // but it helps prevent loops based on stale `isAuthenticated` cookie.
-      // Let AuthContext handle the logout/state clearing.
       console.warn(`[API] Unauthorized (401) received for ${endpoint}. Auth state might be invalid.`);
       throw new UnauthorizedError(errorMessage || 'Authentication required. Please log in.');
     case 403:
@@ -405,8 +451,9 @@ async function handleErrorResponse(response, endpoint, suppressErrors = false) {
     case 404:
       throw new NotFoundError(errorMessage || `Resource not found at ${endpoint}.`);
     default:
-      // Include status in the generic ApiError message
-      throw new ApiError(`${errorMessage} (Status: ${response.status})`, response.status);
+      // Include status in the generic ApiError message, but only if the error message doesn't already contain it
+      const statusSuffix = errorMessage.includes(response.status.toString()) ? '' : ` (Status: ${response.status})`;
+      throw new ApiError(`${errorMessage}${statusSuffix}`, response.status);
   }
 }
 
