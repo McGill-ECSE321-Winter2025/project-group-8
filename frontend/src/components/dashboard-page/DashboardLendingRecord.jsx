@@ -2,7 +2,7 @@ import {TabsContent} from "@/components/ui/tabs.jsx";
 import LendingRecord from "@/components/dashboard-page/LendingRecord.jsx";
 import { useEffect, useState, useCallback } from "react";
 import { getLendingHistory } from "@/service/dashboard-api";
-import { UnauthorizedError, getCookieAuthState } from "@/service/apiClient"; // Import getCookieAuthState
+import { UnauthorizedError, getCookieAuthState } from "@/service/apiClient";
 import { useAuth } from "@/context/AuthContext";
 import { Loader2 } from "lucide-react";
 
@@ -10,12 +10,10 @@ export default function DashboardLendingRecord() {
   const [lendingRecords, setLendingRecords] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [fetchAttempted, setFetchAttempted] = useState(false);
   const { user, isAuthenticated, authReady } = useAuth();
 
-  // Use useCallback to memoize the fetchLendingRecords function
   const fetchLendingRecords = useCallback(async () => {
-    // Early return conditions
+    // Early return if auth prerequisites not met
     if (!user?.id || !isAuthenticated || !authReady) {
       console.log("Skipping fetch: Auth prerequisites not met", { 
         userId: user?.id,
@@ -26,15 +24,8 @@ export default function DashboardLendingRecord() {
       return;
     }
     
-    // Prevent duplicate fetches while already loading
-    if (isLoading && fetchAttempted) {
-      console.log("Skipping duplicate fetch: Already loading");
-      return;
-    }
-    
     try {
       setIsLoading(true);
-      setFetchAttempted(true);
       
       // Log cookie state before fetching
       const cookieState = getCookieAuthState();
@@ -84,23 +75,14 @@ export default function DashboardLendingRecord() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.id, isAuthenticated, authReady, isLoading, fetchAttempted]);
+  }, [user?.id, isAuthenticated, authReady]);
 
-  // Reset fetch attempted when auth state changes
+  // Initial fetch when component mounts or auth state changes
   useEffect(() => {
     if (authReady && isAuthenticated && user?.id) {
-      setFetchAttempted(false);
-    }
-  }, [authReady, isAuthenticated, user?.id]);
-
-  // Initial fetch when component mounts or user/auth state changes
-  useEffect(() => {
-    // Only fetch when auth is ready and not already loading
-    if (authReady && isAuthenticated && user?.id && !isLoading && !fetchAttempted) {
-      console.log("Initial fetch of lending records triggered");
       fetchLendingRecords();
     }
-  }, [fetchLendingRecords, authReady, isAuthenticated, user?.id, isLoading, fetchAttempted]);
+  }, [fetchLendingRecords, authReady, isAuthenticated, user?.id]);
 
   return <TabsContent value="borrowing" className="space-y-6">
     <div className="flex justify-between items-center">
@@ -127,8 +109,8 @@ export default function DashboardLendingRecord() {
             startDate={record.startDate}
             endDate={record.endDate}
             status={record.status}
-            imageSrc={record.game?.imageUrl || record.gameImage} // Try to use image URL from game object first
-            refreshRecords={fetchLendingRecords} // Pass the refresh function
+            imageSrc={record.game?.imageUrl || record.gameImage}
+            refreshRecords={fetchLendingRecords}
           />
         )
       )}

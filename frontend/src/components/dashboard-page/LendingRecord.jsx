@@ -1,21 +1,31 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent } from "@/components/ui/card.jsx";
 import { Badge } from "@/components/ui/badge.jsx"; // Import Badge
 import { Button } from "@/components/ui/button.jsx";
-import { markAsReturned } from '@/service/dashboard-api.js';
+import { toast } from 'sonner'; // Import toast for notifications
+import apiClient from '@/service/apiClient.js';
+import { useAuth } from "@/context/AuthContext";
 
-export default function LendingRecord({ id, name, requester, startDate, endDate, status, refreshRecords, imageSrc }) { // Add imageSrc prop
+export default function LendingRecord({ id, name, requester, startDate, endDate, status, refreshRecords, imageSrc }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [isReturned, setIsReturned] = useState(status === 'Returned' || status === 'CLOSED');
+  const [isReturned, setIsReturned] = useState(false);
+  const [localStatus, setLocalStatus] = useState(status);
+  const { user } = useAuth();
+
+  // Update isReturned state when status changes
+  useEffect(() => {
+    setIsReturned(status === 'Returned' || status === 'CLOSED');
+    setLocalStatus(status);
+  }, [status]);
 
   // Calculate if the lending is overdue based on the current date and end date
-  const isOverdue = new Date() > new Date(endDate) && status !== 'Returned' && status !== 'CLOSED';
+  const isOverdue = new Date() > new Date(endDate) && !isReturned;
   
   // Determine the current status to display
   const displayStatus = isReturned 
     ? 'Returned' 
-    : (isOverdue ? 'Overdue' : (status || 'Active'));
+    : (isOverdue ? 'Overdue' : (localStatus || 'Active'));
 
   const handleMarkReturned = async () => {
     if (!id) {
@@ -23,31 +33,55 @@ export default function LendingRecord({ id, name, requester, startDate, endDate,
       setError("Cannot process request: ID missing.");
       return;
     }
+    
     setIsLoading(true);
     setError(null);
+    
     try {
       console.log(`Attempting to mark record ${id} as returned...`);
-      // Use an empty object for the data payload
-      const response = await markAsReturned(id, {});
+      
+      // Determine which endpoint to use based on user role
+      const endpoint = user?.gameOwner 
+        ? `/api/lending-records/${id}/confirm-return`
+        : `/api/lending-records/${id}/mark-returned`;
+      
+      const requestBody = user?.gameOwner 
+        ? {
+            isDamaged: false,
+            damageNotes: "",
+            damageSeverity: 0
+          }
+        : {};
+      
+      const response = await apiClient(endpoint, {
+        method: "POST",
+        body: requestBody,
+        skipPrefix: false,
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
       console.log("Mark as returned response:", response);
       
-      // If we get a successful response, update the UI
-      // The backend updates to OVERDUE status as a placeholder for "awaiting owner confirmation"
-      // but we want to show it as "Returned" in the UI
+      // Update the local state immediately
       setIsReturned(true);
+      setLocalStatus('Returned');
       
-      console.log("Success: Game marked as returned successfully!");
+      // Show success message to user
+      toast.success("Game marked as returned successfully");
       
-      // Add a delay before refreshing to ensure backend processes the update
-      setTimeout(() => {
-        if (refreshRecords) {
-          refreshRecords(); // Refresh the list in the parent component
-        }
-      }, 500);
+      // Refresh the list in the parent component
+      if (refreshRecords) {
+        refreshRecords();
+      }
     } catch (err) {
       console.error("Failed to mark as returned:", err);
+      
       // Create a more user-friendly error message
       let errorMessage = "Failed to mark as returned.";
+      
       if (err.message && err.message.includes("404")) {
         errorMessage = "Record not found. It may have been deleted or already processed.";
       } else if (err.message && err.message.includes("403")) {
@@ -56,7 +90,9 @@ export default function LendingRecord({ id, name, requester, startDate, endDate,
         // Include the actual error message for debugging
         errorMessage = `Failed to mark as returned: ${err.message}`;
       }
+      
       setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }

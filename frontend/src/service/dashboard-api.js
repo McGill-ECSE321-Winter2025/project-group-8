@@ -123,12 +123,23 @@ export async function getOutgoingBorrowRequests(accountId, retryCount = 0) {
 
 export async function actOnBorrowRequest(requestId, request) {
   const userId = localStorage.getItem('userId');
+  
+  console.log("[API] Acting on borrow request:", {
+    requestId,
+    request,
+    userId
+  });
+  
+  // The backend expects just a simple JSON object with the status
+  // No need to add additional fields
+  
   return apiClient(`/api/borrowrequests/${requestId}`, {
     method: "PUT",
-    body: request,
+    body: request, // Send the request object directly
     skipPrefix: false,
     credentials: 'include',
     headers: {
+      'Content-Type': 'application/json',
       'X-User-Id': userId
     }
   });
@@ -217,11 +228,11 @@ export async function markAsReturned(lendingRecordId, data) {
     // Get userId from localStorage for the header
     const userId = localStorage.getItem('userId');
     
-    console.log(`[API] Marking record ${lendingRecordId} as returned. User ID: ${userId}`);
+    console.log(`[API] Marking record ${lendingRecordId} as returned. User ID: ${userId}, Data:`, data);
     
     const response = await apiClient(`/api/lending-records/${lendingRecordId}/mark-returned`, {
       method: "POST",
-      body: data,
+      body: {}, // Empty object is required by backend - simplified from data parameter
       skipPrefix: false,
       credentials: 'include',  // Include cookies for authentication
       headers: {
@@ -229,7 +240,7 @@ export async function markAsReturned(lendingRecordId, data) {
         'X-User-Id': userId   // Include user ID in header
       },
     });
-    console.log(`[API] Successfully marked record ${lendingRecordId} as returned`);
+    console.log(`[API] Successfully marked record ${lendingRecordId} as returned. Response:`, response);
     return response;
   } catch (error) {
     console.error(`Error marking record ${lendingRecordId} as returned:`, error);
@@ -274,8 +285,25 @@ export async function getHostedEvents(hostId) {
 }
 
 export async function getLendingRecordByRequestId(requestId) {
-  return apiClient(`/api/lending-records/request/${requestId}`, {
-    method: "GET",
-    skipPrefix: false,
-  });
+  try {
+    // Get userId from localStorage for the header
+    const userId = localStorage.getItem('userId');
+    
+    console.log(`[API] Getting lending record for borrow request ID: ${requestId}`);
+    
+    const response = await apiClient(`/api/lending-records/request/${requestId}`, {
+      method: "GET",
+      skipPrefix: false,
+      credentials: 'include',  // Include cookies for authentication
+      headers: {
+        'X-User-Id': userId   // Include user ID in header
+      }
+    });
+    
+    console.log(`[API] Successfully retrieved lending record for borrow request ID: ${requestId}`, response);
+    return response;
+  } catch (error) {
+    console.error(`[API] Error getting lending record for borrow request ID ${requestId}:`, error);
+    throw error;
+  }
 }
