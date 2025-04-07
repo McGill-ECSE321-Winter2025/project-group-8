@@ -1,10 +1,9 @@
 "use client"
 
-import { useState, useContext } from "react" // Added useContext
+import { useState, useContext } from "react"
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext.jsx";
-import { upgradeAccountToGameOwner, updateUsernamePassword } from '@/service/dashboard-api.js'; // Added updateUsernamePassword
-// import { toast } from 'react-toastify';
+import { upgradeAccountToGameOwner, updateUsernamePassword } from '@/service/dashboard-api.js';
 import {
   Dialog,
   DialogContent,
@@ -16,10 +15,11 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input.jsx"
 import { Label } from "@/components/ui/label.jsx"
-import { Settings, User, KeyRound } from "lucide-react"
+import { Settings, User, KeyRound, Crown } from "lucide-react"
+import { motion } from "framer-motion"
 
-export default function SideMenuBar({ userType }) { // userType prop might become redundant if context is always used
-  const { user, isAuthenticated } = useAuth(); // Get user and auth status from context
+export default function SideMenuBar({ userType }) {
+  const { user, isAuthenticated } = useAuth();
   const [open, setOpen] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -28,18 +28,15 @@ export default function SideMenuBar({ userType }) { // userType prop might becom
   const [isUpgrading, setIsUpgrading] = useState(false);
   const [upgradeError, setUpgradeError] = useState(null);
   const [upgradeSuccess, setUpgradeSuccess] = useState(false);
-  const [isSavingSettings, setIsSavingSettings] = useState(false); // Loading state for settings save
-  const [settingsError, setSettingsError] = useState(null); // Error state for settings save
-
-  // Renamed handleSubmit to handleSettingsSubmit to avoid naming conflict
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [settingsError, setSettingsError] = useState(null);
+  
   async function handleSettingsSubmit(e) {
     e.preventDefault();
     setSettingsError(null);
 
     if (newPassword && newPassword !== confirmPassword) {
-      // alert("Passwords don't match"); // Replace alert with better feedback
       setSettingsError("Passwords don't match");
-      // toast.error("Passwords don't match");
       return;
     }
 
@@ -52,31 +49,23 @@ export default function SideMenuBar({ userType }) { // userType prop might becom
     }
     updateData.password = password;
     if (newPassword) {
-      // Add password validation if needed (e.g., minimum length)
       updateData.newPassword = newPassword;
     }
 
     if (Object.keys(updateData).length === 0) {
-      // toast.info("No changes detected.");
       setIsSavingSettings(false);
-      setOpen(false); // Close dialog if no changes
+      setOpen(false);
       return;
     }
 
     try {
       await updateUsernamePassword(updateData);
-      // toast.success("Account settings updated successfully!");
-
-      // Clear form and close dialog on success
       setOpen(false);
       setUsername("");
       setPassword("");
       setConfirmPassword("");
-      // Note: Context doesn't auto-refresh username. User might need to re-login to see username changes everywhere.
-
     } catch (err) {
       console.error("Failed to update account settings:", err);
-      // toast.error(err.message || "Failed to update settings. Please try again.");
       setSettingsError(err.message || "Failed to update settings. Please try again.");
     } finally {
       setIsSavingSettings(false);
@@ -85,7 +74,6 @@ export default function SideMenuBar({ userType }) { // userType prop might becom
 
   const handleUpgrade = async () => {
     if (!isAuthenticated || !user?.email) {
-      // toast.error("You must be logged in to perform this action.");
       setUpgradeError("You must be logged in to perform this action.");
       return;
     }
@@ -96,16 +84,9 @@ export default function SideMenuBar({ userType }) { // userType prop might becom
 
     try {
       await upgradeAccountToGameOwner(user.email);
-      // toast.success("Account successfully upgraded to Game Owner! Please re-login for changes to take effect.");
       setUpgradeSuccess(true);
-      // Ideally, we would refresh the user context here, but it lacks a refresh function.
-      // Option: Trigger logout and redirect? -> logout(); navigate('/login');
-      // Option: Force page reload? -> window.location.reload();
-      // Option: Just inform user -> (Handled by success message)
-
     } catch (err) {
       console.error("Failed to upgrade account:", err);
-      // toast.error(err.message || "Failed to upgrade account. Please try again.");
       setUpgradeError(err.message || "Failed to upgrade account. Please try again.");
     } finally {
       setIsUpgrading(false);
@@ -114,15 +95,90 @@ export default function SideMenuBar({ userType }) { // userType prop might becom
 
   return (
     <>
-      {/* Use user role from context if available, otherwise fallback to prop */}
-      {isAuthenticated && user?.role !== 'GAME_OWNER' && ( // Check context for role
+      {isAuthenticated && user?.role !== 'GAME_OWNER' && (
         <>
-          <Button variant="ghost" className="w-full justify-start gap-2" onClick={handleUpgrade} disabled={isUpgrading}>
-            <User className="h-4 w-4" />
-            {isUpgrading ? "Upgrading..." : "Become a Game Owner"}
+          <Button 
+            variant="ghost" 
+            className="w-full justify-start gap-2 relative overflow-hidden" 
+            onClick={handleUpgrade} 
+            disabled={isUpgrading || upgradeSuccess}
+          >
+            {!upgradeSuccess ? (
+              <>
+                <User className="h-4 w-4" />
+                {isUpgrading ? "Upgrading..." : "Become a Game Owner"}
+              </>
+            ) : (
+              <motion.div 
+                className="flex items-center gap-2 w-full" 
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ 
+                  scale: 1, 
+                  opacity: 1,
+                  transition: { duration: 0.5 }
+                }}
+              >
+                <motion.div
+                  initial={{ y: -20, opacity: 0 }}
+                  animate={{ 
+                    y: 0, 
+                    opacity: 1,
+                    transition: { delay: 0.3, duration: 0.5 }
+                  }}
+                >
+                  <Crown className="h-5 w-5 text-yellow-500" />
+                </motion.div>
+                <motion.span
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ 
+                    x: 0, 
+                    opacity: 1,
+                    transition: { delay: 0.5, duration: 0.5 }
+                  }}
+                  className="text-green-500 font-semibold"
+                >
+                  Upgrade Successful!
+                </motion.span>
+              </motion.div>
+            )}
+            
+            {upgradeSuccess && (
+              <motion.div 
+                className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 opacity-20"
+                initial={{ opacity: 0 }}
+                animate={{ 
+                  opacity: [0, 0.2, 0.1],
+                  transition: { 
+                    duration: 1.5,
+                    repeat: 1,
+                    repeatType: "reverse"
+                  }
+                }}
+              />
+            )}
           </Button>
-          {upgradeError && <p className="text-red-500 text-xs px-4 py-1">{upgradeError}</p>}
-          {upgradeSuccess && <p className="text-green-500 text-xs px-4 py-1">Upgrade successful! Please log out and log back in.</p>}
+          
+          {upgradeError && (
+            <motion.p 
+              className="text-red-500 text-xs px-4 py-1"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              {upgradeError}
+            </motion.p>
+          )}
+          
+          {upgradeSuccess && (
+            <motion.p 
+              className="text-green-500 text-xs px-4 py-1"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              Please log out and log back in to see your new privileges!
+            </motion.p>
+          )}
         </>
       )}
 
@@ -141,7 +197,7 @@ export default function SideMenuBar({ userType }) { // userType prop might becom
               {settingsError && <p className="text-red-500 text-sm mt-2">{settingsError}</p>}
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSettingsSubmit}> {/* Updated onSubmit handler */}
+          <form onSubmit={handleSettingsSubmit}>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
                 <Label htmlFor="username">
@@ -157,26 +213,27 @@ export default function SideMenuBar({ userType }) { // userType prop might becom
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="username">
+                <Label htmlFor="current-password">
                   <KeyRound className="h-4 w-4 inline mr-2"/>
-                  Password
+                  Current Password
                 </Label>
                 <Input
-                  id="username"
+                  id="current-password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter new username"
+                  placeholder="Enter current password"
                 />
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="password">
+                <Label htmlFor="new-password">
                   <KeyRound className="h-4 w-4 inline mr-2"/>
                   New Password
                 </Label>
                 <Input
-                  id="password"
+                  id="new-password"
+                  type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="Enter new password"
@@ -184,11 +241,12 @@ export default function SideMenuBar({ userType }) { // userType prop might becom
                 <p className="text-xs text-muted-foreground">Leave blank if you don't want to change your password</p>
               </div>
 
-              {password && (
+              {newPassword && (
                 <div className="grid gap-2">
                   <Label htmlFor="confirmPassword">Confirm Password</Label>
                   <Input
                     id="confirmPassword"
+                    type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Confirm new password"
@@ -210,4 +268,3 @@ export default function SideMenuBar({ userType }) { // userType prop might becom
     </>
   )
 }
-
