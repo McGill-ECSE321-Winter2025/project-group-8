@@ -30,6 +30,7 @@ export default function SideMenuBar({ userType }) {
   const [upgradeSuccess, setUpgradeSuccess] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [settingsError, setSettingsError] = useState(null);
+  const [isGameOwner, setIsGameOwner] = useState(false);
   
   async function handleSettingsSubmit(e) {
     e.preventDefault();
@@ -104,7 +105,7 @@ export default function SideMenuBar({ userType }) {
 
   return (
     <>
-      {isAuthenticated && user?.role !== 'GAME_OWNER' && (
+      {isAuthenticated && !(user?.gameOwner || user?.role === 'GAME_OWNER') && (
         <>
           <Button 
             variant="ghost" 

@@ -92,7 +92,7 @@ export default function AddGameInstanceDialog({ open, onOpenChange, gameId, game
         <DialogHeader>
           <DialogTitle>Add New Copy of {gameName}</DialogTitle>
           <DialogDescription>
-            Enter the details for your new game copy
+            Enter the details for your new game copy to add it to your collection
           </DialogDescription>
         </DialogHeader>
 
@@ -100,6 +100,15 @@ export default function AddGameInstanceDialog({ open, onOpenChange, gameId, game
           {initialMessage && (
             <div className="p-3 border border-blue-200 bg-blue-50 rounded-md mb-2">
               <p className="text-sm text-blue-800">{initialMessage}</p>
+            </div>
+          )}
+
+          {!initialMessage && (
+            <div className="p-3 border border-blue-200 bg-blue-50 rounded-md mb-2">
+              <p className="text-sm text-blue-800">
+                <strong>Game has been added!</strong> Now you need to create a copy of this game for your collection.
+                This allows you to track specific details about your physical copy of the game.
+              </p>
             </div>
           )}
 

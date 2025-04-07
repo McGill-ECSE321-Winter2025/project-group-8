@@ -189,9 +189,10 @@ export default function AddGameDialog({ open, onOpenChange, onGameAdded }) {
       setCreatedGameId(result.id);
       setCreatedGameName(result.name);
       
-      // Always show the instance dialog to create a copy
-      setShowInstanceDialog(true);
-      // Keep the dialog open until instance is added
+      // Close this dialog since the game has been created
+      reset();
+      setSelectedGame(null);
+      onOpenChange(false);
       
       if (onGameAdded) {
         onGameAdded(result); // Notify parent component of game creation
@@ -350,17 +351,10 @@ export default function AddGameDialog({ open, onOpenChange, onGameAdded }) {
 
       {/* Instance Dialog */}
       <AddGameInstanceDialog
-        open={showInstanceDialog}
+        open={false}
         onOpenChange={(isOpen) => {
           if (!isOpen) {
-            // If dialog is closing, show a informative message
-            toast.info("Game was added to your collection with a default copy. You can edit copy details later.");
             setShowInstanceDialog(false);
-            reset();
-            setSelectedGame(null);
-            onOpenChange(false);
-          } else {
-            setShowInstanceDialog(true);
           }
         }}
         gameId={createdGameId}
