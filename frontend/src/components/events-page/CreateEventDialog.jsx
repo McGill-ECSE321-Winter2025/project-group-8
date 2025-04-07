@@ -422,9 +422,9 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
     // Show debug info in development environment
     const debugInfo = (
       <div className="text-xs text-gray-400 mb-2">
-        Loading: {isLoadingUserGames ? 'yes' : 'no'} | 
-        Games: {userGames.length} | 
-        Error: {gameLoadError ? 'yes' : 'no'}
+        {/* Loading: {isLoadingUserGames ? 'yes' : 'no'} |  */}
+        {/* Games: {userGames.length} |  */}
+        {/* Error: {gameLoadError ? 'yes' : 'no'} */}
       </div>
     );
     

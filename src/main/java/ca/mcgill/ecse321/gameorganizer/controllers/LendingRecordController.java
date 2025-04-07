@@ -698,6 +698,47 @@ public class LendingRecordController {
     }
 
     /**
+     * Checks if the current authenticated user can review a specific game.
+     * A user can only review a game if they have borrowed and returned it.
+     * 
+     * @param gameId The ID of the game to check
+     * @return Map containing a boolean "canReview" flag
+     */
+    @GetMapping("/can-review")
+    public ResponseEntity<Map<String, Boolean>> canUserReviewGame(@RequestParam int gameId) {
+        try {
+            // Get authenticated user
+            var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated() 
+                    || authentication instanceof org.springframework.security.authentication.AnonymousAuthenticationToken) {
+                return ResponseEntity.ok(Map.of("canReview", false));
+            }
+            
+            String username = authentication.getName();
+            Account user = accountService.getAccountByEmail(username);
+            
+            if (user == null) {
+                return ResponseEntity.ok(Map.of("canReview", false));
+            }
+            
+            // Get user's lending records
+            List<LendingRecord> userRecords = lendingRecordService.getLendingRecordsByBorrower(user);
+            
+            // Check if user has a closed (returned) lending record for this game
+            boolean hasReturnedGame = userRecords.stream()
+                .anyMatch(record -> record.getRequest() != null 
+                    && record.getRequest().getRequestedGame() != null 
+                    && record.getRequest().getRequestedGame().getId() == gameId
+                    && record.getStatus() == LendingStatus.CLOSED);
+            
+            return ResponseEntity.ok(Map.of("canReview", hasReturnedGame));
+        } catch (Exception e) {
+            System.out.println("Error checking if user can review game " + gameId + ": " + e.getMessage());
+            return ResponseEntity.ok(Map.of("canReview", false));
+        }
+    }
+
+    /**
      * Converts a LendingRecord entity to a LendingRecordResponseDto.
      *
      * @param record The lending record entity

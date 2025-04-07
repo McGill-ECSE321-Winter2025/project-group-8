@@ -50,12 +50,11 @@ public class SecurityConfig {
     }
 
     // Main security filter chain
-    // Main security filter chain
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             // Apply rules only to paths starting with /api or /auth or /users/me or /dev
-            .securityMatcher("/api/**", "/auth/**", "/users/me", "/dev/**")
+            .securityMatcher("/api/**", "/auth/**", "/users/**", "/dev/**")
             .authorizeHttpRequests(authz -> authz
                 // --- Authentication & Account Creation ---
                 .requestMatchers("/auth/**").permitAll()
@@ -68,8 +67,8 @@ public class SecurityConfig {
                 // Note: /api/users/*/games might need adjustment based on UserController mapping
                 .requestMatchers(HttpMethod.GET, "/api/users/*/games").permitAll()
 
-                // --- Authenticated Operations (using /api prefix) ---
-                .requestMatchers("/users/me").authenticated() // Specific user profile endpoint
+                // --- Authenticated Operations (using /api prefix and direct paths) ---
+                .requestMatchers("/users/me").authenticated() // User profile endpoint without /api prefix
                 .requestMatchers(HttpMethod.GET, "/api/account/**").authenticated()
                 .requestMatchers(HttpMethod.PUT, "/api/account/**").authenticated()
                 .requestMatchers(HttpMethod.DELETE, "/api/account/**").authenticated()
@@ -110,11 +109,24 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         // Can't use * with allowCredentials=true, so specify the frontend origin
-        configuration.setAllowedOrigins(Arrays.asList("http://localhost:3000", "http://localhost:5173"));
+        configuration.setAllowedOrigins(Arrays.asList(
+            "http://localhost:3000", 
+            "http://localhost:5173", 
+            "http://127.0.0.1:3000", 
+            "http://127.0.0.1:5173"
+        ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("authorization", "content-type", "x-auth-token", "Authorization"));
+        configuration.setAllowedHeaders(Arrays.asList(
+            "authorization", 
+            "content-type", 
+            "x-auth-token", 
+            "Authorization",
+            "X-Remember-Me", 
+            "X-User-Id"
+        ));
         configuration.setExposedHeaders(Arrays.asList("x-auth-token"));
         configuration.setAllowCredentials(true); // Allow credentials
+        configuration.setMaxAge(3600L); // Cache preflight response for 1 hour
         
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

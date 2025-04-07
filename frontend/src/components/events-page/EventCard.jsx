@@ -182,10 +182,8 @@ export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered
        setIsCancelConfirmOpen(false);
        toast.info(`Unregistered from ${event.title || event.name}.`);
        if (onRegistrationUpdate) { // Call the refresh function from parent
-         // Add a slight delay before refreshing to ensure backend has processed the change
-         setTimeout(() => {
-           onRegistrationUpdate();
-         }, 500);
+         // Call onRegistrationUpdate immediately without delay
+         onRegistrationUpdate();
        }
      } catch (error) {
        setIsAnimating(false);

@@ -285,25 +285,37 @@ export async function getHostedEvents(hostId) {
 }
 
 export async function getLendingRecordByRequestId(requestId) {
+  return apiClient(`/api/lending-records/request/${requestId}`, {
+    method: "GET",
+    skipPrefix: false,
+  });
+}
+
+/**
+ * Checks if the current authenticated user can review a specific game.
+ * A user can only review a game if they have borrowed and returned it.
+ * 
+ * @param {number} gameId - The ID of the game to check
+ * @returns {Promise<boolean>} - Promise resolving to true if the user can review the game, false otherwise
+ */
+export async function checkUserCanReviewGame(gameId) {
+  const userId = localStorage.getItem('userId');
+  
   try {
-    // Get userId from localStorage for the header
-    const userId = localStorage.getItem('userId');
-    
-    console.log(`[API] Getting lending record for borrow request ID: ${requestId}`);
-    
-    const response = await apiClient(`/api/lending-records/request/${requestId}`, {
+    // Get user's lending records
+    const response = await apiClient(`/api/lending-records/can-review?gameId=${gameId}`, {
       method: "GET",
       skipPrefix: false,
-      credentials: 'include',  // Include cookies for authentication
+      credentials: 'include',
       headers: {
-        'X-User-Id': userId   // Include user ID in header
+        'X-User-Id': userId
       }
     });
     
-    console.log(`[API] Successfully retrieved lending record for borrow request ID: ${requestId}`, response);
-    return response;
+    // Backend will return a boolean indicating if user can review
+    return response.canReview === true;
   } catch (error) {
-    console.error(`[API] Error getting lending record for borrow request ID ${requestId}:`, error);
-    throw error;
+    console.error("Error checking if user can review game:", error);
+    return false; // Default to false if there's an error
   }
 }

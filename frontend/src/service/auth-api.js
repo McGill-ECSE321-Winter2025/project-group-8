@@ -1,4 +1,4 @@
-import apiClient, { getCookieAuthState, UnauthorizedError, ConnectionError, setAuthInProgress } from './apiClient'; // Import setAuthInProgress
+import apiClient, { getCookieAuthState, UnauthorizedError, ConnectionError, setAuthInProgress, authInProgress } from './apiClient'; // Import authInProgress
 
 // Base URL from apiClient for consistent configuration
 const BASE_URL = 'http://localhost:8080';
@@ -24,14 +24,19 @@ export const loginUser = async (email, password, rememberMe = false) => {
     throw new Error("Email and password are required");
   }
 
+  // Ensure rememberMe is a boolean
+  rememberMe = Boolean(rememberMe);
+  
   try {
     // Set auth in progress flag before making the request
     setAuthInProgress(true);
     console.log('[AuthAPI] Login started. Auth in progress: true');
+    console.log('[AuthAPI] Remember Me flag:', rememberMe);
 
     // Clear potentially stale client-side auth state indicators *before* login attempt
     // This helps prevent race conditions where old state might interfere.
     document.cookie = "isAuthenticated=false; path=/; max-age=0";
+    document.cookie = "accessToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0";
     localStorage.removeItem('userId');
     localStorage.removeItem('userEmail');
     localStorage.removeItem('user');
@@ -58,7 +63,7 @@ export const loginUser = async (email, password, rememberMe = false) => {
     console.log('[AuthAPI] Authentication cookie check:', hasAuthCookie ? 'Cookie present' : 'Cookie missing');
     
     // Small delay to potentially allow browser to process Set-Cookie headers
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 200));
     console.log('[AuthAPI] Cookie state after login API call and delay:', getCookieAuthState());
 
     // The response body should contain user summary data.
@@ -69,7 +74,37 @@ export const loginUser = async (email, password, rememberMe = false) => {
       localStorage.setItem('userId', response.id);
       localStorage.setItem('userEmail', response.email);
       localStorage.setItem('user', JSON.stringify(response));
-      localStorage.setItem('rememberMe', rememberMe ? 'true' : 'false'); // Store rememberMe preference
+      
+      // Store rememberMe preference in localStorage
+      // This is important for session management on page refresh
+      localStorage.setItem('rememberMe', rememberMe ? 'true' : 'false');
+      console.log('[AuthAPI] RememberMe preference stored in localStorage:', rememberMe);
+      
+      // Immediately verify the session with the backend
+      // This ensures that subsequent requests will have the correct authentication state
+      console.log('[AuthAPI] Verifying session with backend after login...');
+      try {
+        // Small delay to allow cookies to be fully set
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Temporarily turn off auth in progress for this check
+        const wasAuthInProgress = authInProgress;
+        if (wasAuthInProgress) {
+          setAuthInProgress(false);
+        }
+        
+        // Verify the session
+        const verifiedProfile = await checkAuthStatus();
+        console.log('[AuthAPI] Session verification after login:', verifiedProfile ? 'Successful' : 'Failed');
+        
+        // Restore auth in progress
+        if (wasAuthInProgress) {
+          setAuthInProgress(true);
+        }
+      } catch (verifyError) {
+        console.error('[AuthAPI] Error verifying session after login:', verifyError);
+        // Continue with login process even if verification fails
+      }
 
       // Auth process complete
       setAuthInProgress(false);
@@ -91,6 +126,7 @@ export const loginUser = async (email, password, rememberMe = false) => {
     console.log('[AuthAPI] Login finished (error). Auth in progress: false');
     // Clear potentially partially set cookies/localStorage on error
     document.cookie = "isAuthenticated=false; path=/; max-age=0";
+    document.cookie = "accessToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0";
     localStorage.removeItem('userId');
     localStorage.removeItem('userEmail');
     localStorage.removeItem('user');
@@ -115,8 +151,8 @@ export const logoutUser = async () => {
     localStorage.removeItem('userId');
     localStorage.removeItem('userEmail');
     localStorage.removeItem('user');
-    localStorage.removeItem('rememberMe');
-    console.log('[AuthAPI] Cleared client-side auth state.');
+    localStorage.removeItem('rememberMe'); // Important: clear the rememberMe preference
+    console.log('[AuthAPI] Cleared client-side auth state including rememberMe setting');
 
     // Make the logout request to the backend
     await apiClient('/auth/logout', {
@@ -127,6 +163,10 @@ export const logoutUser = async () => {
     });
     console.log('[AuthAPI] Logout API call successful.');
 
+    // Force delete cookies by setting them to expire
+    document.cookie = "accessToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0";
+    document.cookie = "isAuthenticated=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0";
+    
     // Auth process complete
     setAuthInProgress(false);
     console.log('[AuthAPI] Logout finished. Auth in progress: false');
@@ -142,10 +182,11 @@ export const logoutUser = async () => {
     // Even if the server request fails, ensure client-side state is cleared
     // Force removal again just in case
     document.cookie = "isAuthenticated=false; path=/; max-age=0";
+    document.cookie = "accessToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; max-age=0";
     localStorage.removeItem('userId');
     localStorage.removeItem('userEmail');
     localStorage.removeItem('user');
-    localStorage.removeItem('rememberMe');
+    localStorage.removeItem('rememberMe'); // Ensure rememberMe is cleared
     console.log('[AuthAPI] Ensured client-side state cleared after logout API error.');
     console.log('[AuthAPI] Cookie state after failed logout API call:', getCookieAuthState());
 
@@ -160,46 +201,60 @@ export const logoutUser = async () => {
  * @returns {Promise<Object|null>} - User profile object if authenticated, null otherwise
  */
 export const checkAuthStatus = async () => {
+  // Save the current auth in progress state to restore later
+  const wasAuthInProgress = typeof authInProgress !== 'undefined' && authInProgress;
+  
   try {
     console.log('[AuthAPI] Checking auth status via /users/me...');
+    
+    // Check for rememberMe status to adapt session handling
+    const rememberMeSetting = localStorage.getItem('rememberMe') === 'true';
+    console.log('[AuthAPI] RememberMe setting from localStorage:', rememberMeSetting);
+    
     console.log('[AuthAPI] Cookie state before /users/me check:', getCookieAuthState());
+
+    // Temporarily unset the authInProgress flag for this check to avoid race conditions
+    if (wasAuthInProgress) {
+      console.log('[AuthAPI] Temporarily unsetting authInProgress flag for auth check');
+      setAuthInProgress(false);
+    }
+
+    // Prepare custom headers including rememberMe preference
+    const customHeaders = {
+      'X-Remember-Me': rememberMeSetting ? 'true' : 'false'
+    };
+    
+    console.log('[AuthAPI] Sending X-Remember-Me header:', customHeaders['X-Remember-Me']);
 
     // Use the user profile endpoint to check authentication
     // apiClient handles credentials: 'include' automatically
     const userProfile = await apiClient('/users/me', {
       method: 'GET',
+      headers: customHeaders,
       skipPrefix: true, // Endpoint is likely /users/me, not /api/users/me
       suppressErrors: true, // Don't throw ApiError for 401, let us handle it
       requiresAuth: true, // This endpoint definitely requires auth
-      // Removed headers: getAuthHeaders() - Rely on HttpOnly cookie sent by browser
+      retryOnAuth: false // Don't retry if auth is in progress - avoid loops
     });
 
     // If we get a valid response, user is authenticated
     if (userProfile && userProfile.id) {
       console.log('[AuthAPI] Auth status check successful. User:', userProfile.email);
-      // *** REMOVED client-side cookie setting here ***
-      // Backend should have already set necessary cookies if needed.
-      // Frontend should not try to manage hasAccessToken cookie.
-      // It can set isAuthenticated if needed by other parts, but ideally AuthContext handles this.
-
+      console.log('[AuthAPI] User is authenticated with RememberMe setting:', rememberMeSetting);
+      
       // Ensure localStorage is consistent (backup)
-      if (!localStorage.getItem('userId')) {
-        localStorage.setItem('userId', userProfile.id);
-      }
-      if (!localStorage.getItem('userEmail')) {
-         localStorage.setItem('userEmail', userProfile.email);
-      }
-       // Optionally update the full user object in localStorage
+      localStorage.setItem('userId', userProfile.id);
+      localStorage.setItem('userEmail', userProfile.email);
       localStorage.setItem('user', JSON.stringify(userProfile));
+      
+      // Ensure rememberMe preference is maintained
+      localStorage.setItem('rememberMe', rememberMeSetting ? 'true' : 'false');
 
       return userProfile; // Return the user profile object on success
     }
 
     // If response was invalid or empty, user is not authenticated.
     console.log('[AuthAPI] Auth status check returned no valid user profile.');
-    // *** REMOVED client-side cookie clearing here ***
-    // Let login/logout functions manage cookie state. A failed check doesn't
-    // necessarily mean cookies *should* be cleared (e.g., could be temporary network issue).
     return null;
 
   } catch (error) {
@@ -207,21 +262,22 @@ export const checkAuthStatus = async () => {
     if (error instanceof UnauthorizedError) {
       // 401 Unauthorized: User is definitely not logged in according to the backend.
       console.log('[AuthAPI] Auth status check failed: Unauthorized (401)');
-      // *** REMOVED client-side cookie clearing here ***
-      // Let login/logout functions handle cookie state.
       return null;
     } else if (error instanceof ConnectionError) {
       // Network error: Cannot reach the server to verify.
       console.error('[AuthAPI] Connection error during auth status check:', error.message);
       // We cannot confirm auth status. Returning null is safest.
-      // We could potentially trust existing cookies here, but it's risky.
-      // *** REMOVED client-side cookie clearing here ***
       return null;
     } else {
       // Other errors (e.g., 500 Internal Server Error, unexpected issues)
       console.error('[AuthAPI] Unexpected error during auth status check:', error);
-      // *** REMOVED client-side cookie clearing here ***
       return null;
+    }
+  } finally {
+    // Restore the previous authInProgress state if it was true
+    if (wasAuthInProgress) {
+      console.log('[AuthAPI] Restoring authInProgress flag after auth check');
+      setAuthInProgress(true);
     }
   }
 };

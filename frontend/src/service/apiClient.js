@@ -8,8 +8,8 @@ const API_PREFIX = '/api';
 const DEFAULT_TIMEOUT_MS = 8000; // 8 second timeout
 
 // Indicator for auth in progress
-let authInProgress = false;
-let lastAuthCheck = 0;
+export let authInProgress = false;
+export let lastAuthCheck = 0;
 
 // Custom error classes for better error handling
 export class ApiError extends Error {
@@ -214,18 +214,23 @@ const apiClient = async (endpoint, {
   const isUserMeEndpoint = endpoint.includes('/users/me');
   const effectiveSuppressErrors = isUserMeEndpoint ? false : suppressErrors;
 
-  // Skip auth checks for auth endpoints (login, logout)
-  // Note: /users/me *does* require auth checks
+  // Check if this is a login, logout, or user profile endpoint
   const isAuthActionEndpoint = endpoint.includes('/auth/login') || endpoint.includes('/auth/logout');
-
+  const isProfileEndpoint = endpoint.includes('/users/me');
+  
   // If auth is in progress and this isn't an auth action endpoint, wait or abort
   if (authInProgress && !isAuthActionEndpoint) {
     console.log(`[API] Auth in progress, delaying request to ${endpoint}`);
-    if (retryOnAuth && Date.now() - lastAuthCheck < 10) { // Increased wait time
-      console.log(`[API] Waiting up to10m2s for auth to complete for ${endpoint}`);
-      await new Promise(resolve => setTimeout(resolve, 10));
-      if (authInProgress && Date.now() - lastAuthCheck < 10) { // Fixed typo: lastAuthCheck
-        await new Promise(resolve => setTimeout(resolve, 10)); // Fixed typo: s10 -> 10
+    
+    // Special case for /users/me when checking auth status
+    if (isProfileEndpoint && retryOnAuth === false) {
+      console.log(`[API] Special handling for auth check to ${endpoint} - proceeding despite auth in progress`);
+      // Continue with the request for this special case
+    } else if (retryOnAuth && Date.now() - lastAuthCheck < 500) { // Increased wait time to 500ms
+      console.log(`[API] Waiting up to 500ms for auth to complete for ${endpoint}`);
+      await new Promise(resolve => setTimeout(resolve, 100));
+      if (authInProgress) {
+        await new Promise(resolve => setTimeout(resolve, 400)); // Wait longer
       }
       if (authInProgress) {
         console.error(`[API] Auth still in progress after waiting, aborting request to ${endpoint}`);
@@ -233,7 +238,7 @@ const apiClient = async (endpoint, {
       }
       console.log(`[API] Auth completed, proceeding with request to ${endpoint}`);
     } else {
-       console.error(`[API] Auth in progress, aborting immediate request to ${endpoint}`);
+      console.error(`[API] Auth in progress, aborting immediate request to ${endpoint}`);
       throw new UnauthorizedError('Authentication in progress');
     }
   }
@@ -252,8 +257,18 @@ const apiClient = async (endpoint, {
   // Get the user ID from localStorage if available
   const userId = localStorage.getItem('userId');
   
+  // Check for rememberMe status to adapt requests
+  const rememberMeSetting = localStorage.getItem('rememberMe') === 'true';
+  
   // Prepare headers
   const requestHeaders = { ...headers };
+  
+  // Add rememberMe flag as a header for ALL requests that require auth
+  // This ensures the server always knows the current rememberMe preference for cookie handling
+  if (requiresAuth && !requestHeaders['X-Remember-Me']) {
+    requestHeaders['X-Remember-Me'] = rememberMeSetting ? 'true' : 'false';
+    console.log(`[API] Adding X-Remember-Me header: ${rememberMeSetting} for ${endpoint}`);
+  }
   
   // Add userId to headers if available (unless already specified)
   // This helps with user identification for logging/auditing on the backend
@@ -271,11 +286,11 @@ const apiClient = async (endpoint, {
     }
   }
 
-  // Prepare request config
+  // Prepare request config - always include credentials for cookie-based auth
   const config = {
     method,
     headers: requestHeaders,
-    credentials, // Include cookies by default
+    credentials: 'include', // Always include credentials to ensure cookies are sent
     ...customConfig,
   };
 
@@ -300,14 +315,20 @@ const apiClient = async (endpoint, {
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
   try {
-    // Make the request
-    console.log(`[API] Making ${config.method} request to ${url}`);
+    // Log cookie state before making request
+    console.log(`[API] Making ${config.method} request to ${url} with credentials: ${config.credentials}`);
+    console.log(`[API] Cookie state before request:`, getCookieAuthState());
     console.log(`[API] Request headers:`, config.headers);
-    console.log(`[API] Request includes credentials:`, config.credentials);
+    
+    // Make the request
     const response = await fetch(url, config);
 
     // Clear the timeout
     clearTimeout(timeoutId);
+    
+    // Log cookie state after response
+    console.log(`[API] Response status: ${response.status} for ${url}`);
+    console.log(`[API] Cookie state after response:`, getCookieAuthState());
 
     // Handle different response statuses
     if (!response.ok) {

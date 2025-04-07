@@ -4,10 +4,12 @@ import { Card, CardContent } from "@/components/ui/card.jsx";
 import { Badge } from "@/components/ui/badge.jsx"; // Import Badge
 import { actOnBorrowRequest } from '@/service/dashboard-api.js'; // Assuming toast is available globally or via context
 import { useAuth } from "@/context/AuthContext"; // Import useAuth to check user type
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog.jsx";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog.jsx";
 import { getGameById } from '@/service/game-api.js';
 import { getLendingRecordByRequestId } from '@/service/dashboard-api.js';
 import ReviewForm from '../game-search-page/ReviewForm.jsx';
+import { useNavigate } from 'react-router-dom'; // Import useNavigate for navigation
+
 import { toast } from 'sonner';
 
 export default function BorrowRequest({ id, name, requester, date, endDate, status, refreshRequests, imageSrc, gameId, requestedGameId }) {
@@ -19,7 +21,11 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
   const [gameDetails, setGameDetails] = useState(null);
   const [lendingRecord, setLendingRecord] = useState(null);
   const [showReviewForm, setShowReviewForm] = useState(false);
+
+  const navigate = useNavigate(); // Initialize useNavigate
+
   const [isReturned, setIsReturned] = useState(false);
+
   
   // Check if user is a game owner
   const isGameOwner = user?.gameOwner === true;
@@ -127,6 +133,13 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
     setShowReviewForm(false);
     toast.success("Review submitted successfully!");
   };
+  
+  // Handler for navigating to game search page
+  const handleGoToGame = () => {
+    if (gameDetails?.name) {
+      navigate(`/games?q=${encodeURIComponent(gameDetails.name)}`);
+    }
+  };
 
   return (
     <>
@@ -208,6 +221,9 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
         <DialogContent className="max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Borrow Request Details</DialogTitle>
+            <DialogDescription>
+              View details about your borrow request and its current status.
+            </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4">
@@ -240,12 +256,27 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
                 {gameDetails.description && (
                   <p className="text-sm text-gray-600">{gameDetails.description}</p>
                 )}
+                
+                {/* Add a Go to Game button */}
+                <div className="flex justify-end mt-2">
+                  <Button 
+                    onClick={handleGoToGame}
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-1"
+                  >
+                    Go to Game
+                  </Button>
+                </div>
               </div>
             )}
 
             {/* Review section - only show for borrowers if game is returned */}
             {canReview && !showReviewForm && (
               <div className="pt-4 border-t">
+                <p className="text-sm text-muted-foreground mb-2 italic">
+                  You can only review games that you have borrowed and returned.
+                </p>
                 <Button 
                   onClick={() => setShowReviewForm(true)}
                   variant="outline"
