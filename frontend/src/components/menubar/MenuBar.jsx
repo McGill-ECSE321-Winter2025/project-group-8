@@ -63,7 +63,7 @@ export default function MenuBar() {
           {/* Links shown only when user is logged in */}
           {isLoggedIn && (
             <div className="flex items-center gap-2">
-              <Link to="/dashboard">
+              <Link to="/dashboard/profile">
                 <Button
                   variant="ghost"
                   className="text-sm font-semibold"
