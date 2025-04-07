@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button.jsx";
 import { Card, CardContent } from "@/components/ui/card.jsx";
 import { Badge } from "@/components/ui/badge.jsx"; // Import Badge
@@ -9,7 +9,8 @@ import { getGameById } from '@/service/game-api.js';
 import { getLendingRecordByRequestId } from '@/service/dashboard-api.js';
 import ReviewForm from '../game-search-page/ReviewForm.jsx';
 import { useNavigate } from 'react-router-dom'; // Import useNavigate for navigation
-// import { toast } from 'react-toastify'; // Example: if using react-toastify
+
+import { toast } from 'sonner';
 
 export default function BorrowRequest({ id, name, requester, date, endDate, status, refreshRequests, imageSrc, gameId, requestedGameId }) {
   const [isLoading, setIsLoading] = useState(false);
@@ -20,7 +21,11 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
   const [gameDetails, setGameDetails] = useState(null);
   const [lendingRecord, setLendingRecord] = useState(null);
   const [showReviewForm, setShowReviewForm] = useState(false);
+
   const navigate = useNavigate(); // Initialize useNavigate
+
+  const [isReturned, setIsReturned] = useState(false);
+
   
   // Check if user is a game owner
   const isGameOwner = user?.gameOwner === true;
@@ -30,25 +35,56 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
                     !isGameOwner &&
                     lendingRecord?.status === 'CLOSED'; // Only allow reviews for returned games
 
+  // Determine if this is a received request (not a sent request)
+  // For received requests, the current user is the game owner, not the requester
+  const isReceivedRequest = isGameOwner && requester !== user?.name;
+
+  // Update isReturned state when lendingRecord changes
+  useEffect(() => {
+    if (lendingRecord) {
+      setIsReturned(lendingRecord.status === 'CLOSED' || lendingRecord.status === 'Returned');
+    }
+  }, [lendingRecord]);
+
   const handleAction = async (status) => {
     if (!id) {
       console.error("Borrow request ID is missing!");
-      // toast.error("Cannot process request: ID missing.");
       setError("Cannot process request: ID missing.");
       return;
     }
     setIsLoading(true);
     setError(null);
     try {
-      await actOnBorrowRequest(id, { status });
-      // toast.success(`Request ${status.toLowerCase()}ed successfully!`);
+      // Create a request object with only the status
+      // The backend expects just the status for updating
+      const requestBody = {
+        status: status.toUpperCase()
+      };
+      
+      console.log("[API Request] Updating borrow request:", {
+        requestId: id,
+        requestBody: requestBody,
+        userId: localStorage.getItem('userId'),
+        user: user
+      });
+      
+      const response = await actOnBorrowRequest(id, requestBody);
+      
+      console.log("[API Response] Borrow request update response:", response);
+      
       if (refreshRequests) {
+        console.log("[UI] Refreshing borrow requests list");
         refreshRequests(); // Refresh the list in the parent component
       }
     } catch (err) {
-      console.error(`Failed to ${status.toLowerCase()} borrow request:`, err);
-      // toast.error(`Failed to ${status.toLowerCase()} request. Please try again.`);
-      setError(`Failed to ${status.toLowerCase()} request.`);
+      console.error("[API Error] Failed to update borrow request:", {
+        error: err,
+        errorMessage: err.message,
+        errorStack: err.stack,
+        userId: localStorage.getItem('userId'),
+        user: user
+      });
+      setError(`Failed to ${status.toLowerCase()} request. Please try again.`);
     } finally {
       setIsLoading(false);
     }
@@ -70,18 +106,23 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
         setGameDetails(gameResponse);
       }
 
-      // Check if there's a lending record for this request (to see if it's been returned)
+      // Check if there's a lending record for this request
       try {
         const lendingResponse = await getLendingRecordByRequestId(id);
+        console.log("Lending record response:", lendingResponse);
         setLendingRecord(lendingResponse);
+        setIsReturned(lendingResponse.status === 'CLOSED' || lendingResponse.status === 'Returned');
       } catch (lendingErr) {
         console.log("No lending record found or not yet approved", lendingErr);
+        setLendingRecord(null);
+        setIsReturned(false);
       }
       
       setShowDetails(true);
     } catch (err) {
       console.error("Failed to load game details:", err);
       setError("Failed to load game details.");
+      toast.error("Failed to load game details. Please try again.");
     } finally {
       setDetailsLoading(false);
     }
@@ -90,7 +131,7 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
   const handleSubmitReview = (review) => {
     console.log("Review submitted:", review);
     setShowReviewForm(false);
-    // Could add additional handling here, like showing a success message
+    toast.success("Review submitted successfully!");
   };
   
   // Handler for navigating to game search page
@@ -141,8 +182,8 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
               </div>
               
               <div className="flex gap-2 mt-4">
-                {/* Only show action buttons for game owners and if status is Pending */}
-                {isGameOwner && status === 'PENDING' && (
+                {/* Only show action buttons for game owners and if it's a received request and status is Pending */}
+                {isGameOwner && isReceivedRequest && status === 'PENDING' && (
                   <>
                     <Button 
                       variant="outline" 
@@ -199,12 +240,17 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
                   <div className="space-y-1 text-sm">
                     <p><span className="font-medium">Category:</span> {gameDetails.category || 'Unknown'}</p>
                     <p><span className="font-medium">Players:</span> {gameDetails.minPlayers}-{gameDetails.maxPlayers}</p>
-                    <p><span className="font-medium">Status:</span> {status}</p>
-                    {lendingRecord && (
-                      <p>
-                        <span className="font-medium">Return Status:</span> {lendingRecord.status === 'CLOSED' ? 'Returned' : 'Not Returned'}
-                      </p>
-                    )}
+                    <p><span className="font-medium">Request Status:</span> {status}</p>
+                    <p>
+                      <span className="font-medium">Return Status:</span>{" "}
+                      {isReturned ? (
+                        <Badge variant="positive" className="ml-2">Returned</Badge>
+                      ) : lendingRecord ? (
+                        <Badge variant="outline" className="ml-2">Not Returned</Badge>
+                      ) : (
+                        <Badge variant="outline" className="ml-2">Not Yet Lent</Badge>
+                      )}
+                    </p>
                   </div>
                 </div>
                 {gameDetails.description && (

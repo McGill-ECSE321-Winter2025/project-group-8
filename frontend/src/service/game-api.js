@@ -164,36 +164,30 @@ export const getGamesByOwner = async (ownerEmail) => {
   }
 };
 
-// Removed duplicate/older deleteGame function
 /**
  * Fetches a single game by its ID.
  * @param {number} id - Game ID
  * @returns {Promise<object>} Game object
  */
 export const getGameById = async (id) => {
-  const token = localStorage.getItem("token");
-
-  const headers = {
-    "Content-Type": "application/json",
-  };
-
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+  if (!id) {
+    throw new Error("Game ID is required.");
   }
-
-  const response = await fetch(`http://localhost:8080/api/games/${id}`, {
-    method: "GET",
-    headers,
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `Failed to fetch game #${id}: ${response.status} ${response.statusText}\n${errorText}`
-    );
+  
+  const endpoint = `/games/${id}`;
+  console.log(`getGameById: Fetching game with ID ${id}`);
+  
+  try {
+    const game = await apiClient(endpoint, { 
+      method: "GET",
+      skipPrefix: false // Use /api prefix
+    });
+    console.log(`getGameById: Successfully fetched game ${id}:`, game);
+    return game;
+  } catch (error) {
+    console.error(`getGameById: Failed to fetch game ${id}:`, error);
+    throw error;
   }
-
-  return await response.json();
 };
 
 /**
@@ -428,6 +422,49 @@ export const createGameInstance = async (gameId, data) => {
     return response;
   } catch (error) {
     console.error(`createGameInstance: Failed to create instance for game ${gameId}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Updates an existing game by ID. Requires authentication.
+ * @param {number} gameId - The ID of the game to update
+ * @param {object} gameData - The updated game data
+ * @param {string} gameData.name - Game name
+ * @param {number} gameData.minPlayers - Min players
+ * @param {number} gameData.maxPlayers - Max players
+ * @param {string} [gameData.image] - Image URL (optional)
+ * @param {string} [gameData.category] - Category (optional)
+ * @returns {Promise<object>} A promise that resolves to the updated game object
+ * @throws {UnauthorizedError} If the user is not authenticated
+ * @throws {ForbiddenError} If the user is not allowed to update this game
+ * @throws {ApiError} For other API-related errors
+ */
+export const updateGame = async (gameId, gameData) => {
+  if (!gameId) {
+    throw new Error("Game ID is required for updating a game");
+  }
+  
+  const payload = {
+    ...gameData,
+    minPlayers: parseInt(gameData.minPlayers, 10),
+    maxPlayers: parseInt(gameData.maxPlayers, 10)
+  };
+  
+  console.log(`updateGame: Attempting to update game ${gameId}:`, payload);
+  
+  try {
+    const endpoint = `/games/${gameId}`;
+    const updatedGame = await apiClient(endpoint, {
+      method: "PUT",
+      body: payload,
+      skipPrefix: false
+    });
+    
+    console.log(`updateGame: Successfully updated game ${gameId}:`, updatedGame);
+    return updatedGame;
+  } catch (error) {
+    console.error(`updateGame: Failed to update game ${gameId}:`, error);
     throw error;
   }
 };

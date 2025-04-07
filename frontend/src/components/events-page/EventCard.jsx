@@ -22,8 +22,8 @@ import { Calendar, AlertCircle, Users, MapPin, Gamepad2, Info } from "lucide-rea
 import { cn } from '@/components/lib/utils';
 import { toast } from "sonner";
 
-// Accept onRegistrationUpdate, isCurrentUserRegistered, and registrationId props
-export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered, registrationId }) {
+// Accept onRegistrationUpdate, isCurrentUserRegistered, registrationId, and hideRegisterButtons props
+export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered, registrationId, hideRegisterButtons = false }) {
   // Initial setup and state
   const [isRegistered, setIsRegistered] = useState(isCurrentUserRegistered || false);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -70,10 +70,19 @@ export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered
       setIsAnimating(true);
       const { clientX: x, clientY: y } = e;
 
-      const eventId = event.id || event.eventId; // Support both ID formats
-      console.log(`[EventCard] Attempting to register for event:`, { eventId, eventTitle: event.title });
+      // Get event ID from all possible properties, with fallbacks
+      const eventId = event.id || event.eventId;
+      console.log(`[EventCard] Attempting to register for event:`, { 
+        eventId, 
+        event: {
+          id: event.id,
+          eventId: event.eventId,
+          title: event.title
+        }
+      });
       
       if (!eventId) {
+        console.error("[EventCard] Missing event ID:", event);
         throw new Error("Cannot register: Event ID is missing");
       }
 
@@ -314,8 +323,8 @@ export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered
             >
               {showDescription ? "Hide Details" : "Show Details"}
             </Button>
-            {/* Only show register button if user is not the host */}
-            {!isUserEventHost ? (
+            {/* Only show register button if user is not the host AND hideRegisterButtons is false */}
+            {!isUserEventHost && !hideRegisterButtons ? (
               <Button
                 className={`w-full text-white transition-all duration-300 text-sm ${
                   isRegistered
@@ -327,14 +336,14 @@ export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered
               >
                 {isRegistered ? "Unregister" : "Register"}
               </Button>
-            ) : (
+            ) : isUserEventHost ? (
               <Button
                 className="w-full text-muted-foreground bg-gray-100 cursor-not-allowed"
                 disabled={true}
               >
                 You are hosting this event
               </Button>
-            )}
+            ) : null}
         </div>
 
          {/* Unregister Confirmation Dialog */}

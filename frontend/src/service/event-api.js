@@ -79,7 +79,7 @@ export const getEventById = async (eventId) => {
 /**
  * Registers the current authenticated user for an event.
  * Requires authentication (via HttpOnly cookie). Backend identifies attendee from session.
- * @param {string} eventId - The UUID of the event to register for.
+ * @param {string|number} eventId - The UUID or ID of the event to register for.
  * @returns {Promise<object>} A promise that resolves to the created registration object.
  * @throws {UnauthorizedError} If the user is not authenticated.
  * @throws {ForbiddenError} If registration is not allowed (e.g., event full, already registered).
@@ -88,9 +88,9 @@ export const getEventById = async (eventId) => {
 export const registerForEvent = async (eventId) => {
   if (!eventId) throw new Error("Event ID is required.");
 
-  // Convert eventId to string if it's a number
+  // Convert eventId to string if it's a number or other type
   const eventIdString = String(eventId);
-  console.log(`[API] Registering for event with ID: ${eventIdString}`);
+  console.log(`[API] Registering for event with ID: ${eventIdString} (original type: ${typeof eventId})`);
 
   // Payload might only need the eventId if backend identifies user from cookie.
   const payload = {
