@@ -471,3 +471,272 @@ export const deleteEvent = async (eventId) => {
     throw error; // Re-throw for caller to handle
   }
 };
+
+/**
+ * Updates an existing event by its ID.
+ * Requires authentication. Host/Admin privileges likely checked by backend.
+ * @param {string|number} eventId - The ID of the event to update.
+ * @param {object} eventData - Updated data for the event.
+ * @returns {Promise<object>} A promise that resolves to the updated event object.
+ */
+export const updateEvent = async (eventId, eventData) => {
+  if (!eventId) {
+    throw new Error("Event ID is required for updateEvent");
+  }
+  
+  // The backend expects individual URL parameters for each field
+  // NOT a JSON body like in the POST/create method
+  
+  // Prepare URL parameters
+  const params = new URLSearchParams();
+  
+  // Add each parameter if it exists
+  if (eventData.title) {
+    params.append('title', eventData.title);
+  }
+  
+  if (eventData.dateTime) {
+    // Convert JS Date to SQL Date format (YYYY-MM-DD)
+    const date = new Date(eventData.dateTime);
+    const formattedDate = date.toISOString().split('T')[0]; 
+    params.append('dateTime', formattedDate);
+  }
+  
+  if (eventData.location) {
+    params.append('location', eventData.location);
+  }
+  
+  if (eventData.description || eventData.description === '') {
+    // Allow empty string to clear description
+    params.append('description', eventData.description);
+  }
+  
+  // Always send maxParticipants
+  const maxParticipants = parseInt(eventData.maxParticipants, 10) || 1;
+  params.append('maxParticipants', maxParticipants);
+  
+  // Note: The featuredGame is not updated through this endpoint based on the 
+  // backend controller implementation
+
+  console.log("Update event URL parameters:", params.toString());
+  
+  try {
+    // Make a PUT request with URL parameters instead of a JSON body
+    const updatedEvent = await apiClient(`/events/${eventId}?${params.toString()}`, {
+      method: "PUT",
+      skipPrefix: false,
+      // No body for this request
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    });
+    
+    console.log("Event updated successfully:", updatedEvent);
+    return updatedEvent;
+  } catch (error) {
+    console.error(`Failed to update event ${eventId}:`, error);
+    
+    // Check for specific error messages from the backend
+    if (error.message && error.message.toLowerCase().includes("not found")) {
+      throw new Error("Event not found. It may have been deleted.");
+    }
+    
+    // Check for authorization issues
+    if (error.message && error.message.toLowerCase().includes("forbidden")) {
+      throw new Error("You don't have permission to update this event.");
+    }
+    
+    // Provide a more specific error message
+    throw new Error(`Failed to update event: ${error.message || "Unknown error"}`);
+  }
+};
+
+/**
+ * Alternative approach to update an event using POST instead of PUT.
+ * Some backends implement updates differently.
+ * @param {string|number} eventId - The ID of the event to update.
+ * @param {object} eventData - Updated data for the event.
+ * @returns {Promise<object>} A promise that resolves to the updated event object.
+ */
+export const updateEventAlternative = async (eventId, eventData) => {
+  if (!eventId) {
+    throw new Error("Event ID is required for updateEvent");
+  }
+  
+  // Create a simplified payload that matches what the create function sends
+  const payload = {
+    title: eventData.title,
+    dateTime: new Date(eventData.dateTime).toISOString(),
+    location: eventData.location || "",
+    description: eventData.description || "",
+    maxParticipants: parseInt(eventData.maxParticipants, 10),
+    featuredGameId: parseInt(eventData.featuredGameId, 10)
+  };
+
+  console.log("Alternative update approach - payload:", JSON.stringify(payload, null, 2));
+
+  try {
+    // Try an alternative endpoint pattern that some backends use
+    const updatedEvent = await apiClient(`/events/${eventId}/update`, {
+      method: "POST", // Using POST instead of PUT
+      body: payload,
+      skipPrefix: false,
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    console.log("Event updated successfully with alternative approach:", updatedEvent);
+    return updatedEvent;
+  } catch (error) {
+    console.error(`Alternative update approach failed for event ${eventId}:`, error);
+    
+    // Try another endpoint pattern
+    try {
+      console.log("Trying second alternative endpoint pattern...");
+      const updatedEvent = await apiClient(`/events/update/${eventId}`, {
+        method: "POST",
+        body: payload,
+        skipPrefix: false,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      console.log("Event updated successfully with second alternative approach:", updatedEvent);
+      return updatedEvent;
+    } catch (error2) {
+      console.error(`Second alternative update approach also failed:`, error2);
+      throw error; // Throw the original error
+    }
+  }
+};
+
+/**
+ * Another alternative update approach that focuses on proper UUID handling.
+ * Some backends are very strict about UUID format and validation.
+ * @param {string} eventId - The UUID of the event to update.
+ * @param {object} eventData - The updated event data.
+ */
+export const updateEventWithValidatedId = async (eventId, eventData) => {
+  if (!eventId) {
+    throw new Error("Event ID is required");
+  }
+  
+  // Make sure the UUID is properly formatted
+  let formattedId = eventId;
+  
+  // If it doesn't have dashes, try to format it as a standard UUID
+  if (eventId.length === 32 && !eventId.includes('-')) {
+    formattedId = `${eventId.substring(0, 8)}-${eventId.substring(8, 12)}-${eventId.substring(12, 16)}-${eventId.substring(16, 20)}-${eventId.substring(20)}`;
+  }
+  
+  console.log(`Trying special UUID format: ${formattedId}`);
+  
+  // Prepare a minimal payload with clean, primitive types
+  const payload = {
+    id: formattedId, // Include ID in the payload
+    title: String(eventData.title || "").trim(),
+    dateTime: new Date(eventData.dateTime).toISOString(),
+    location: String(eventData.location || "").trim(),
+    description: String(eventData.description || "").trim(),
+    maxParticipants: Number(eventData.maxParticipants),
+    // Just send the raw ID as a number
+    featuredGameId: Number(eventData.featuredGameId)
+  };
+  
+  console.log("UUID validation approach payload:", JSON.stringify(payload, null, 2));
+  
+  try {
+    // Try a PATCH request which is sometimes used for partial updates
+    const updatedEvent = await apiClient(`/events/${formattedId}`, {
+      method: "PATCH",
+      body: payload,
+      skipPrefix: false,
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    console.log("Event updated successfully with UUID validation approach:", updatedEvent);
+    return updatedEvent;
+  } catch (error) {
+    console.error(`UUID validation approach failed:`, error);
+    
+    // Try using POST to the base /events endpoint with ID in the payload
+    try {
+      console.log("Trying POST to base endpoint with ID in payload");
+      const updatedEvent = await apiClient(`/events`, {
+        method: "POST",
+        body: payload,
+        skipPrefix: false,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-HTTP-Method-Override': 'PUT' // Some backends use this header
+        }
+      });
+      console.log("Event updated successfully with POST+header approach:", updatedEvent);
+      return updatedEvent;
+    } catch (error2) {
+      console.error("POST+header approach also failed:", error2);
+      throw error; // Throw the original error
+    }
+  }
+};
+
+/**
+ * Special function that allows updating an event INCLUDING the featured game
+ * by deleting and recreating the event with the new data.
+ * This works around the backend limitation where the PUT endpoint doesn't allow changing the game.
+ * 
+ * @param {string} eventId - The ID of the event to update
+ * @param {object} eventData - The updated event data including featuredGameId
+ * @returns {Promise<object>} The newly created event that replaces the old one
+ */
+export const updateEventWithGameChange = async (eventId, eventData) => {
+  if (!eventId) {
+    throw new Error("Event ID is required");
+  }
+  
+  if (!eventData.featuredGameId) {
+    throw new Error("Featured Game ID is required for event update with game change");
+  }
+  
+  try {
+    // 1. Get the existing event with all its details
+    console.log("Getting existing event details for reconstruction");
+    const existingEvent = await getEventById(eventId);
+    
+    if (!existingEvent) {
+      throw new Error("Event not found");
+    }
+    
+    // 2. Prepare the create payload, using existing data as fallback
+    const createPayload = {
+      title: eventData.title || existingEvent.title,
+      dateTime: eventData.dateTime || existingEvent.dateTime,
+      location: eventData.location || existingEvent.location,
+      description: eventData.description || existingEvent.description,
+      maxParticipants: parseInt(eventData.maxParticipants || existingEvent.maxParticipants, 10),
+      featuredGameId: parseInt(eventData.featuredGameId, 10)
+    };
+    
+    console.log("Recreating event with new game - payload:", JSON.stringify(createPayload, null, 2));
+
+    // 3. Create the new event first so we don't lose data if creation fails
+    const newEvent = await createEvent(createPayload);
+    
+    if (!newEvent || !newEvent.eventId) {
+      throw new Error("Failed to create replacement event");
+    }
+    
+    console.log("Successfully created replacement event:", newEvent);
+    
+    // 4. Delete the old event only after successful creation
+    await deleteEvent(eventId);
+    console.log("Successfully deleted original event:", eventId);
+    
+    // 5. Return the newly created event
+    return newEvent;
+  } catch (error) {
+    console.error("Failed to update event with game change:", error);
+    throw new Error(`Failed to update event with game change: ${error.message}`);
+  }
+};
