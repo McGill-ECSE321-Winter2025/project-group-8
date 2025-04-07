@@ -55,10 +55,7 @@ export default function BorrowRequest({
   return (
     <Card>
       <CardContent className="p-4">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="md:w-1/4">
-            <div className="aspect-square bg-muted rounded-lg flex items-center justify-center"></div>
-          </div>
+        <div className="flex flex-col md:flex-row gap-4">      
           <div className="flex-1">
             <div className="flex justify-between items-center">
               <h3 className="text-xl font-semibold">Request for "{name}"</h3>
