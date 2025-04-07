@@ -46,6 +46,8 @@ export const searchGames = async (criteria) => {
  * @param {number} gameData.maxPlayers - Max players.
  * @param {string} [gameData.image] - Image URL (optional).
  * @param {string} [gameData.category] - Category (optional).
+ * @param {string} [gameData.condition] - Physical condition of the game copy (optional).
+ * @param {string} [gameData.location] - Location where the game is stored (optional).
  * @returns {Promise<object>} A promise that resolves to the created game object.
  * @throws {UnauthorizedError} If the user is not authenticated.
  * @throws {ForbiddenError} If the user is not allowed (e.g., not a game owner account type).
@@ -57,6 +59,9 @@ export const createGame = async (gameData) => {
     ...gameData,
     minPlayers: parseInt(gameData.minPlayers, 10), // Ensure numbers are integers
     maxPlayers: parseInt(gameData.maxPlayers, 10),
+    // Include instance-specific fields
+    condition: gameData.condition || "Excellent", // Default value
+    location: gameData.location || "Home", // Default value
   };
 
   console.log("createGame: Attempting to create game:", payload);

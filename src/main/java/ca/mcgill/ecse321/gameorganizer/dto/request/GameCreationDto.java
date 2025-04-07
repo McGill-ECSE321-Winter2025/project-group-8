@@ -10,19 +10,26 @@ public class GameCreationDto {
     private String image;
     private String category;
     private String ownerId;
+    
+    // Instance-specific fields
+    private String condition;
+    private String location;
 
     // Default constructor
     public GameCreationDto() {
     }
 
     // Constructor with all fields
-    public GameCreationDto(String name, int minPlayers, int maxPlayers, String image, String category, String ownerId) {
+    public GameCreationDto(String name, int minPlayers, int maxPlayers, String image, String category, String ownerId,
+                          String condition, String location) {
         this.name = name;
         this.minPlayers = minPlayers;
         this.maxPlayers = maxPlayers;
         this.image = image;
         this.category = category;
         this.ownerId = ownerId;
+        this.condition = condition;
+        this.location = location;
     }
 
     // Getters and setters
@@ -72,5 +79,21 @@ public class GameCreationDto {
 
     public void setOwnerId(String ownerId) {
         this.ownerId = ownerId;
+    }
+    
+    public String getCondition() {
+        return condition;
+    }
+
+    public void setCondition(String condition) {
+        this.condition = condition;
+    }
+
+    public String getLocation() {
+        return location;
+    }
+
+    public void setLocation(String location) {
+        this.location = location;
     }
 }

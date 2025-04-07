@@ -35,6 +35,8 @@ import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.RegistrationRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.GameInstanceRepository;
+import ca.mcgill.ecse321.gameorganizer.models.GameInstance;
 
 /**
  * Service class that handles business logic for game management operations.
@@ -53,15 +55,17 @@ public class GameService {
     private AccountRepository accountRepository;
     private RegistrationRepository  registrationRepository;
     private EventRepository eventRepository;
+    private GameInstanceRepository gameInstanceRepository;
 
 
     @Autowired
-    public GameService(GameRepository gameRepository, ReviewRepository reviewRepository, AccountRepository accountRepository, RegistrationRepository registrationRepository, EventRepository eventRepository) {
+    public GameService(GameRepository gameRepository, ReviewRepository reviewRepository, AccountRepository accountRepository, RegistrationRepository registrationRepository, EventRepository eventRepository, GameInstanceRepository gameInstanceRepository) {
         this.gameRepository = gameRepository;
         this.reviewRepository = reviewRepository;
         this.accountRepository = accountRepository;
         this.registrationRepository = registrationRepository;
         this.eventRepository = eventRepository;
+        this.gameInstanceRepository = gameInstanceRepository;
     }
 
     /**
@@ -153,6 +157,17 @@ public class GameService {
             if (aNewGame.getCategory() == null){
                 throw new IllegalArgumentException("Game must have a category");
             }
+            
+            // Validate instance information
+            if (aNewGame.getCondition() == null || aNewGame.getCondition().trim().isEmpty()) {
+                // Set default condition if not provided
+                aNewGame.setCondition("Excellent");
+            }
+            
+            if (aNewGame.getLocation() == null || aNewGame.getLocation().trim().isEmpty()) {
+                // Set default location if not provided
+                aNewGame.setLocation("Home");
+            }
 
             // Get owner account
             Account ownerAccount;
@@ -201,17 +216,44 @@ public class GameService {
             GameOwner gameOwner = (GameOwner) ownerAccount;
             logger.debug("GameService.createGame: Verified GameOwner status for: {}", ownerEmail);
 
-            // Create and save the game
-            Game createdGame = new Game(aNewGame.getName(), aNewGame.getMinPlayers(), aNewGame.getMaxPlayers(),
-                                        aNewGame.getImage(), new Date());
-            createdGame.setOwner(gameOwner);
-            createdGame.setCategory(aNewGame.getCategory());
+            // Check if a game with the same name already exists
+            List<Game> existingGames = gameRepository.findByName(aNewGame.getName());
+            Game game;
+            
+            if (existingGames.isEmpty()) {
+                // No game with this name exists - create a new game and its first instance
+                logger.info("GameService.createGame: Creating new game: {}", aNewGame.getName());
+                
+                // Create and save the game
+                game = new Game(aNewGame.getName(), aNewGame.getMinPlayers(), aNewGame.getMaxPlayers(),
+                                aNewGame.getImage(), new Date());
+                game.setOwner(gameOwner);
+                game.setCategory(aNewGame.getCategory());
+                
+                game = gameRepository.save(game);
+                logger.info("GameService.createGame: Successfully created game: {} - {} for owner: {}",
+                    game.getId(), game.getName(), ownerEmail);
+            } else {
+                // Game with this name already exists - use the existing game for the new instance
+                game = existingGames.get(0);
+                logger.info("GameService.createGame: Using existing game: {} - {} for new instance",
+                    game.getId(), game.getName());
+            }
+            
+            // Create a new GameInstance
+            GameInstance gameInstance = new GameInstance(
+                game, 
+                gameOwner, 
+                aNewGame.getCondition(), 
+                aNewGame.getLocation()
+            );
+            
+            GameInstance savedInstance = gameInstanceRepository.save(gameInstance);
+            logger.info("GameService.createGame: Created new game instance: {} for game: {}",
+                savedInstance.getId(), game.getName());
 
-            Game savedGame = gameRepository.save(createdGame);
-            logger.info("GameService.createGame: Successfully created game: {} - {} for owner: {}",
-                savedGame.getId(), savedGame.getName(), ownerEmail);
-
-            return new GameResponseDto(savedGame);
+            // Return the game details
+            return new GameResponseDto(game);
 
         } catch (IllegalArgumentException | ForbiddenException | UnauthedException e) {
             logger.error("GameService.createGame: Error: {} - {}", e.getClass().getSimpleName(), e.getMessage());
@@ -540,7 +582,7 @@ public class GameService {
     }
 
     /**
-     * Retrieves all instances (physical copies) of a specific game.
+     * Retrieves all instances of a specific game.
      *
      * @param gameId The ID of the game to get instances for
      * @return A list of DTOs representing the game instances
@@ -555,14 +597,11 @@ public class GameService {
             throw new ResourceNotFoundException("Game with ID " + gameId + " not found");
         }
         
-        // TODO: This is a placeholder implementation. In a real implementation,
-        // you would fetch game instances from a repository.
-        // For now, we return an empty list.
-        return List.of();
+        // Get instances from repository
+        List<GameInstance> instances = gameInstanceRepository.findByGame(game);
         
-        /*
-        // Real implementation would look something like:
-        return gameInstanceRepository.findByGameId(gameId).stream()
+        // Convert to DTOs
+        return instances.stream()
             .map(instance -> {
                 GameInstanceResponseDto dto = new GameInstanceResponseDto();
                 dto.setId(instance.getId());
@@ -586,7 +625,6 @@ public class GameService {
                 return dto;
             })
             .collect(Collectors.toList());
-        */
     }
 
     //submit game review
