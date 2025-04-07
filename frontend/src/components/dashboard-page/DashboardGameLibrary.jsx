@@ -93,6 +93,7 @@ export default function DashboardGameLibrary({ userType }) {
                 name={game.name}
                 imageSrc={game.image || "/https://upload.wikimedia.org/wikipedia/commons/1/14/No_Image_Available.jpg.svg?height=300&width=400"} // Use game image or placeholder
                 game = {game}
+                onDeleteSuccess={fetchGames}
                 // Pass other relevant props if Game component needs them
                 // date={game.dateAdded ? new Date(game.dateAdded).toLocaleDateString() : 'N/A'}
                 // isAvailable={true} // Backend doesn't seem to track availability directly on Game model yet

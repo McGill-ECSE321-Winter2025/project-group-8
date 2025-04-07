@@ -207,6 +207,41 @@ export const getGameById = async (id) => {
 };
 
 
+export async function updateGame(id, gameDto) {
+  try {
+    const token = localStorage.getItem("token");
+    const headers = {
+      "Content-Type": "application/json",
+    };
+
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${API_BASE_URL}/games/${id}`, {
+      method: "PUT",
+      headers: headers,
+      body: JSON.stringify(gameDto),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error("Backend error:", response.status, text);
+      return null;
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Error updating game:", error);
+    return null;
+  }
+}
+
+
+
+
+
+
 
 // Add other game-related API functions here as needed
 // e.g., getGameById, updateGame, deleteGame, getGameReviews, submitReview etc.
