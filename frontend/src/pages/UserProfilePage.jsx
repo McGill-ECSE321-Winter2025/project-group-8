@@ -34,6 +34,7 @@ export default function UserProfilePage() {
   const [searchParams] = useSearchParams();
   const profileEmail = searchParams.get('email');
   const { user: currentUser } = useAuth(); // Get current user from AuthContext
+  const [activeTab, setActiveTab] = useState(null);
 
   // State for fetched data
   const [userInfo, setUserInfo] = useState(null); // Includes name, events, isGameOwner
@@ -43,6 +44,10 @@ export default function UserProfilePage() {
   
   // Ref to track the last fetched email to prevent redundant API calls
   const lastFetchedEmailRef = useRef(null);
+
+  // Check if this is the current user's own profile
+  const isOwnProfile = currentUser && 
+    ((!profileEmail && currentUser.email) || (profileEmail === currentUser.email));
 
   // Memoize fetchData to prevent recreation on each render
   const fetchData = useCallback(async (emailToFetch) => {
@@ -98,6 +103,14 @@ export default function UserProfilePage() {
     }
   }, [profileEmail, fetchData]); // Remove currentUser?.email from dependencies
 
+  // Set the initial active tab once userInfo is loaded
+  useEffect(() => {
+    if (userInfo && !activeTab) {
+      const userType = userInfo.gameOwner ? "owner" : "player";
+      setActiveTab(userType === 'owner' ? "games" : "registered");
+    }
+  }, [userInfo, activeTab]);
+
   // Loading state
   if (isLoading) {
     return (
@@ -125,8 +138,10 @@ export default function UserProfilePage() {
       );
    }
 
-  // --- Render actual profile ---
-  const userType = userInfo.gameOwner ? "owner" : "player";
+  // Handle tab change
+  const handleTabChange = (value) => {
+    setActiveTab(value);
+  };
 
   return (
     <div className="bg-background text-foreground p-6">
@@ -146,7 +161,7 @@ export default function UserProfilePage() {
               {userInfo.gameOwner && (
                 <Badge variant="secondary" className="mt-2">Game Owner</Badge>
               )}
-              <p className="text-sm text-muted-foreground mt-1">{profileEmail}</p>
+              <p className="text-sm text-muted-foreground mt-1">{profileEmail || currentUser?.email}</p>
             </div>
             {/* TODO: Implement Edit Profile functionality only if viewing own profile */}
           </div>
@@ -154,7 +169,7 @@ export default function UserProfilePage() {
       </div>
 
       {/* Tabs for different sections */}
-      <Tabs defaultValue={userType === 'owner' ? "games" : "registered"} className="w-full">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="mb-6">
           {userInfo.gameOwner && (
              <TabsTrigger value="games">Owned Games</TabsTrigger>
@@ -190,21 +205,53 @@ export default function UserProfilePage() {
             </div>
             {userInfo.events && userInfo.events.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {userInfo.events.map((event) => {
-                   // Adapt event data for EventCard component
+                {userInfo.events.map((registration) => {
+                   // Adapt event data from registration.event for EventCard component
+                   const event = registration.event;
+                   if (!event) {
+                     console.error("Missing event data in registration:", registration);
+                     return null;
+                   }
+                   
                    const adaptedEvent = {
                      id: event.eventId,
                      title: event.title,
+                     name: event.title, // add name as backup
                      dateTime: event.dateTime,
                      location: event.location,
-                     host: event.host ? { name: event.host.name } : { name: 'Unknown' },
-                     featuredGame: event.featuredGame ? { name: event.featuredGame.name } : { name: 'N/A' },
+                     // Properly map host information
+                     host: event.host ? { 
+                       name: event.host.name,
+                       email: event.host.email
+                     } : { name: 'Unknown Host' },
+                     hostName: event.host ? event.host.name : 'Unknown Host',
+                     hostEmail: event.host ? event.host.email : null,
+                     // Properly map game information
+                     featuredGame: event.featuredGame ? { name: event.featuredGame.name } : { name: 'Unknown Game' },
+                     game: event.featuredGame ? event.featuredGame.name : 'Unknown Game',
                      featuredGameImage: event.featuredGame?.image || "https://placehold.co/400x300/e9e9e9/1d1d1d?text=No+Image",
+                     // Participants info - multiple formats to ensure compatibility
                      maxParticipants: event.maxParticipants,
-                     participantCount: event.currentNumberParticipants,
+                     currentNumberParticipants: event.currentNumberParticipants,
+                     participants: {
+                       current: event.currentNumberParticipants,
+                       capacity: event.maxParticipants
+                     },
                      description: event.description,
                    };
-                   return <EventCard key={adaptedEvent.id} event={adaptedEvent} />;
+                   
+                   return <EventCard 
+                     key={adaptedEvent.id} 
+                     event={adaptedEvent}
+                     isCurrentUserRegistered={isOwnProfile}
+                     registrationId={isOwnProfile ? registration.id : null}
+                     onRegistrationUpdate={() => {
+                       // Ensure we stay on the registered events tab
+                       setActiveTab("registered"); 
+                       // Refresh the data
+                       fetchData(profileEmail || currentUser?.email);
+                     }}
+                   />;
                 })}
               </div>
             ) : (
