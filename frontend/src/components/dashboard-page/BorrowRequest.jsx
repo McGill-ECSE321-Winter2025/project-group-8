@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button.jsx";
 import { Card, CardContent } from "@/components/ui/card.jsx";
 import { Badge } from "@/components/ui/badge.jsx"; // Import Badge
-import { actOnBorrowRequest } from '@/service/dashboard-api.js'; // Assuming toast is available globally or via context
+import { actOnBorrowRequest, deleteBorrowRequest } from '@/service/dashboard-api.js'; // Add deleteBorrowRequest
 import { useAuth } from "@/context/AuthContext"; // Import useAuth to check user type
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog.jsx";
 import { getGameById } from '@/service/game-api.js';
 import { getLendingRecordByRequestId } from '@/service/dashboard-api.js';
 import ReviewForm from '../game-search-page/ReviewForm.jsx';
 import { useNavigate } from 'react-router-dom'; // Import useNavigate for navigation
+import ModifyBorrowRequestDialog from './ModifyBorrowRequestDialog.jsx'; // Import the new dialog component
 
 import { toast } from 'sonner';
 
@@ -21,6 +22,7 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
   const [gameDetails, setGameDetails] = useState(null);
   const [lendingRecord, setLendingRecord] = useState(null);
   const [showReviewForm, setShowReviewForm] = useState(false);
+  const [showModifyDialog, setShowModifyDialog] = useState(false); // State for modify dialog
 
   const navigate = useNavigate(); // Initialize useNavigate
 
@@ -67,6 +69,9 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
     
     loadGameDetails();
   }, [requestedGameId, gameId, isReceivedRequest, id]);
+
+  // Determine if this is a sent request by the current user
+  const isSentRequest = !isReceivedRequest && requester === user?.name;
 
   // Update isReturned state when lendingRecord changes
   useEffect(() => {
@@ -202,6 +207,60 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
       return gameDetails?.instanceOwner?.name || 
              gameDetails?.owner?.name || 
              "Game Owner";
+
+    }
+  };
+
+  // Handle canceling a borrow request
+  const handleCancelRequest = async () => {
+    if (!id) {
+      console.error("Borrow request ID is missing!");
+      setError("Cannot process request: ID missing.");
+      return;
+    }
+    
+    if (!confirm("Are you sure you want to cancel this borrow request?")) {
+      return;
+    }
+    
+    setIsLoading(true);
+    setError(null);
+    try {
+      console.log("[API Request] Cancelling borrow request:", id);
+      
+      await deleteBorrowRequest(id);
+      
+      toast.success("Borrow request cancelled successfully");
+      
+      if (refreshRequests) {
+        console.log("[UI] Refreshing borrow requests list");
+        refreshRequests(); // Refresh the list in the parent component
+      }
+    } catch (err) {
+      console.error("[API Error] Failed to cancel borrow request:", {
+        error: err,
+        errorMessage: err.message,
+        errorStack: err.stack,
+        userId: localStorage.getItem('userId'),
+        user: user
+      });
+      setError("Failed to cancel request. Please try again.");
+      toast.error("Failed to cancel request. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Toggle the modify dialog
+  const handleToggleModifyDialog = () => {
+    setShowModifyDialog(!showModifyDialog);
+  };
+
+  // Handle modify success
+  const handleModifySuccess = () => {
+    setShowModifyDialog(false);
+    if (refreshRequests) {
+      refreshRequests();
     }
   };
 
@@ -262,6 +321,26 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
                       onClick={() => handleAction('APPROVED')}
                     >
                       {isLoading ? 'Processing...' : 'Approve'}
+                    </Button>
+                  </>
+                )}
+                
+                {/* Show Modify and Cancel buttons for the user's own pending requests */}
+                {isSentRequest && status === 'PENDING' && (
+                  <>
+                    <Button 
+                      variant="default" 
+                      disabled={isLoading} 
+                      onClick={handleToggleModifyDialog}
+                    >
+                      {isLoading ? 'Processing...' : 'Modify Request'}
+                    </Button>
+                    <Button 
+                      variant="destructive" 
+                      disabled={isLoading} 
+                      onClick={handleCancelRequest}
+                    >
+                      {isLoading ? 'Processing...' : 'Cancel Request'}
                     </Button>
                   </>
                 )}
@@ -364,6 +443,17 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Modify Borrow Request Dialog */}
+      {showModifyDialog && (
+        <ModifyBorrowRequestDialog
+          open={showModifyDialog}
+          onOpenChange={setShowModifyDialog}
+          requestId={id}
+          gameId={requestedGameId || gameId}
+          onSuccess={handleModifySuccess}
+        />
+      )}
     </>
   );
 }

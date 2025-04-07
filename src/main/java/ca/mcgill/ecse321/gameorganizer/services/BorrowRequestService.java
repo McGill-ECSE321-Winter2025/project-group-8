@@ -466,4 +466,110 @@ public class BorrowRequestService {
                 })
                 .collect(Collectors.toList());
     }
+    
+    /**
+     * Checks if the given username is the requester for a specific borrow request
+     *
+     * @param requestId The ID of the borrow request to check
+     * @param username The username (email) to check
+     * @return true if the username is the requester, false otherwise
+     */
+    @Transactional
+    public boolean isRequesterForRequest(int requestId, String username) {
+        Optional<BorrowRequest> request = borrowRequestRepository.findById(requestId);
+        if (!request.isPresent()) {
+            throw new IllegalArgumentException("Borrow request with ID " + requestId + " not found.");
+        }
+        
+        Account requester = request.get().getRequester();
+        if (requester == null) {
+            return false;
+        }
+        
+        return requester.getEmail().equals(username);
+    }
+    
+    /**
+     * Updates a borrow request with new details.
+     * Only updates allowed fields like dates, message, etc.
+     * Status must be handled separately.
+     *
+     * @param requestId The ID of the borrow request to update
+     * @param updatedRequestDto The DTO containing updated fields
+     * @return The updated borrow request DTO
+     */
+    @Transactional
+    public BorrowRequestDto updateBorrowRequestDetails(int requestId, BorrowRequestDto updatedRequestDto) {
+        Optional<BorrowRequest> existingRequestOpt = borrowRequestRepository.findById(requestId);
+        if (!existingRequestOpt.isPresent()) {
+            throw new IllegalArgumentException("Borrow request with ID " + requestId + " not found.");
+        }
+        
+        BorrowRequest existingRequest = existingRequestOpt.get();
+        
+        // Only update if the request is in PENDING status
+        if (existingRequest.getStatus() != BorrowRequestStatus.PENDING) {
+            throw new IllegalArgumentException("Only PENDING requests can be modified.");
+        }
+        
+        // Update the dates
+        if (updatedRequestDto.getStartDate() != null) {
+            existingRequest.setStartDate(updatedRequestDto.getStartDate());
+        }
+        
+        if (updatedRequestDto.getEndDate() != null) {
+            existingRequest.setEndDate(updatedRequestDto.getEndDate());
+        }
+        
+        // Validate that the end date is after the start date
+        if (existingRequest.getEndDate().before(existingRequest.getStartDate())) {
+            throw new IllegalArgumentException("End date must be after start date.");
+        }
+        
+        // Check if the dates conflict with existing requests
+        if (!isGameAvailableForPeriod(existingRequest.getRequestedGame().getId(), 
+                                      existingRequest.getStartDate(), 
+                                      existingRequest.getEndDate(),
+                                      existingRequest.getId())) {
+            throw new IllegalArgumentException("The game is not available for the selected time period.");
+        }
+        
+        // Save the updated request
+        BorrowRequest updatedRequest = borrowRequestRepository.save(existingRequest);
+        
+        // Convert to DTO and return
+        return new BorrowRequestDto(
+            updatedRequest.getId(),
+            updatedRequest.getRequester().getId(),
+            updatedRequest.getRequestedGame().getId(),
+            updatedRequest.getStartDate(),
+            updatedRequest.getEndDate(),
+            updatedRequest.getStatus().name(),
+            updatedRequest.getRequestDate()
+        );
+    }
+    
+    /**
+     * Checks if a game is available for a specific period, excluding a specific request
+     * Used when updating a request to make sure the new dates don't conflict
+     * 
+     * @param gameId The ID of the game to check
+     * @param startDate The desired start date
+     * @param endDate The desired end date
+     * @param excludeRequestId The ID of the request to exclude from the check
+     * @return true if the game is available, false otherwise
+     */
+    private boolean isGameAvailableForPeriod(int gameId, Date startDate, Date endDate, int excludeRequestId) {
+        // Get all approved borrow requests for this game that overlap with the period
+        List<BorrowRequest> overlappingRequests = borrowRequestRepository
+            .findOverlappingApprovedRequestsForGame(gameId, startDate, endDate);
+        
+        // Exclude the current request being updated
+        overlappingRequests = overlappingRequests.stream()
+            .filter(request -> request.getId() != excludeRequestId)
+            .collect(Collectors.toList());
+        
+        // If there are any overlapping requests, the game is not available
+        return overlappingRequests.isEmpty();
+    }
 }

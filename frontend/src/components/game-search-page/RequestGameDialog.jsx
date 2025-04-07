@@ -17,7 +17,6 @@ import {
 } from '../ui/form';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Textarea } from '../ui/textarea';
 import { Alert, AlertDescription } from '../ui/alert';
 import { AlertCircle } from 'lucide-react';
 import { useForm, useWatch } from "react-hook-form";
@@ -65,8 +64,6 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game, gameInst
       date: initialDate,
       time: initialTime,
       duration: calculateInitialDuration(),
-      players: game?.minPlayers || 1,
-      message: '',
     }
   });
 
@@ -160,7 +157,6 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game, gameInst
         gameInstanceId: gameInstance.id,
         startDate: startDateTime.toISOString(),
         endDate: endDateTime.toISOString(),
-        message: data.message,
       };
 
       const response = await createBorrowRequest(requestData);
@@ -258,10 +254,11 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game, gameInst
                   </FormItem>
                 )}
               />
+              
               <FormField
                 control={form.control}
                 name="time"
-                 rules={{ required: 'Time is required' }}
+                rules={{ required: 'Time is required' }}
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Start Time</FormLabel>
@@ -274,84 +271,46 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game, gameInst
               />
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="duration"
-                rules={{
-                    required: 'Duration is required',
-                    min: { value: 0.5, message: 'Duration must be at least 0.5 hours' }
-                 }}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Duration (hours)</FormLabel>
-                    <FormControl>
-                      <Input type="number" min="0.5" step="0.5" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="players"
-                 rules={{
-                    required: 'Number of players is required',
-                    min: { value: game?.minPlayers || 1, message: `Min players: ${game?.minPlayers || 1}` },
-                    max: { value: game?.maxPlayers || 10, message: `Max players: ${game?.maxPlayers || 10}` }
-                 }}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Number of Players</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min={game?.minPlayers || 1}
-                        max={game?.maxPlayers || 10}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
             <FormField
               control={form.control}
-              name="message"
+              name="duration"
+              rules={{ 
+                required: 'Duration is required',
+                min: { value: 0.5, message: 'Minimum duration is 30 minutes' },
+                max: { value: 72, message: 'Maximum duration is 72 hours' }
+              }}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Message to Owner (Optional)</FormLabel>
+                  <FormLabel>Duration (hours)</FormLabel>
                   <FormControl>
-                    <Textarea
-                      placeholder="Any special requests or information for the game owner"
-                      rows={3}
-                      {...field}
+                    <Input 
+                      type="number" 
+                      step="0.5" 
+                      min="0.5" 
+                      max="72" 
+                      {...field} 
+                      onChange={e => field.onChange(e.target.value)}
                     />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-
-            <DialogFooter className="gap-2 mt-4">
-              <Button 
-                type="submit" 
-                disabled={isSubmitting || !gameInstance || isAvailable === false || isCheckingAvailability}
-              >
-                {isSubmitting ? "Submitting..." : (isCheckingAvailability ? "Checking Availability..." : "Submit Request")}
-              </Button>
+            
+            <DialogFooter className="gap-2 sm:gap-0">
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => {
-                  form.reset();
-                  onOpenChange(false);
-                }}
+                onClick={() => onOpenChange(false)}
                 disabled={isSubmitting}
               >
                 Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSubmitting || isAvailable === false}
+              >
+                {isSubmitting ? 'Requesting...' : 'Send Request'}
               </Button>
             </DialogFooter>
           </form>

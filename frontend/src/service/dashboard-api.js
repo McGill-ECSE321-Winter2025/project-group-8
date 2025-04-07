@@ -146,6 +146,44 @@ export async function actOnBorrowRequest(requestId, request) {
 }
 
 /**
+ * Updates a user's own borrow request with new details
+ * Different from actOnBorrowRequest which is meant for owners to approve/reject
+ * 
+ * @param {number} requestId - The ID of the borrow request to update
+ * @param {object} updatedData - The updated request data
+ * @returns {Promise<Object>} Updated borrow request
+ */
+export async function updateUserBorrowRequest(requestId, updatedData) {
+  const userId = localStorage.getItem('userId');
+  
+  console.log("[API] Updating user's borrow request:", {
+    requestId,
+    updatedData,
+    userId
+  });
+  
+  // For now, since our backend doesn't have a separate endpoint,
+  // we'll just ensure we're only sending the status as PENDING
+  // along with the updated fields
+  const simplifiedRequest = {
+    ...updatedData,
+    status: 'PENDING' // Always ensure we're keeping the status as PENDING
+  };
+  
+  // Use the dedicated user-update endpoint that properly checks permissions for requesters
+  return apiClient(`/api/borrowrequests/${requestId}/user-update`, {
+    method: "PUT",
+    body: simplifiedRequest,
+    skipPrefix: false,
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-User-Id': userId
+    }
+  });
+}
+
+/**
  * Fetch lending history with retry for auth issues
  */
 export async function getLendingHistory(accountId, isOwner, retryCount = 0) {
@@ -318,4 +356,22 @@ export async function checkUserCanReviewGame(gameId) {
     console.error("Error checking if user can review game:", error);
     return false; // Default to false if there's an error
   }
+}
+
+export async function deleteBorrowRequest(requestId) {
+  const userId = localStorage.getItem('userId');
+  
+  console.log("[API] Deleting borrow request:", {
+    requestId,
+    userId
+  });
+  
+  return apiClient(`/api/borrowrequests/${requestId}`, {
+    method: "DELETE",
+    skipPrefix: false,
+    credentials: 'include',
+    headers: {
+      'X-User-Id': userId
+    }
+  });
 }
