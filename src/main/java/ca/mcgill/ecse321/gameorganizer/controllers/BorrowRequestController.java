@@ -231,4 +231,60 @@ public class BorrowRequestController {
              throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error retrieving borrow requests for owner: " + e.getMessage());
         }
     }
+
+    /**
+     * Updates a user's own borrow request with new details.
+     * Only allows the requester who created the request to update it.
+     * Only pending requests can be updated.
+     *
+     * @param id The ID of the borrow request to update.
+     * @param updatedRequestDto The updated borrow request details.
+     * @return The updated borrow request.
+     */
+    @PutMapping("/{id}/user-update")
+    public ResponseEntity<BorrowRequestDto> updateUserBorrowRequest(
+            @PathVariable int id,
+            @RequestBody BorrowRequestDto updatedRequestDto) {
+        
+        // Log request for debugging
+        System.out.println("Received request to update borrow request: " + id);
+        
+        try {
+            // Get current authentication
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth == null || !auth.isAuthenticated() || auth.getPrincipal().equals("anonymousUser")) {
+                throw new UnauthedException("Authentication required to update borrow request.");
+            }
+            
+            // Get the original request to verify ownership
+            BorrowRequestDto existingRequest = borrowRequestService.getBorrowRequestById(id);
+            
+            // Check if the current user is the requester
+            String username = auth.getName();
+            if (!borrowRequestService.isRequesterForRequest(id, username)) {
+                throw new ForbiddenException("You can only update your own borrow requests.");
+            }
+            
+            // Check if the request is in 'PENDING' status
+            if (!existingRequest.getStatus().equalsIgnoreCase("PENDING")) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, 
+                    "Only pending requests can be modified. This request is " + existingRequest.getStatus());
+            }
+            
+            // Update the request details
+            return ResponseEntity.ok(borrowRequestService.updateBorrowRequestDetails(id, updatedRequestDto));
+            
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        } catch (UnauthedException e) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, e.getMessage());
+        } catch (ForbiddenException e) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, e.getMessage());
+        } catch (Exception e) {
+            System.err.println("Error updating borrow request: " + e.getMessage());
+            e.printStackTrace();
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
+                "Error updating borrow request: " + e.getMessage());
+        }
+    }
 }

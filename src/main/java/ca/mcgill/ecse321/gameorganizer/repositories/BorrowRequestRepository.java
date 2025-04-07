@@ -95,4 +95,18 @@ public interface BorrowRequestRepository extends JpaRepository<BorrowRequest, In
      * @return List of borrow requests associated with the specified game
      */
     List<BorrowRequest> findByRequestedGame(Game game);
+
+    /**
+     * Find borrow requests with approved status for a specific game
+     * that overlap with a given period.
+     * Used to check availability for new or updated requests.
+     */
+    @Query("SELECT br FROM BorrowRequest br " +
+           "WHERE br.requestedGame.id = :gameId " +
+           "AND br.status = 'APPROVED' " +
+           "AND ((br.startDate <= :endDate) AND (br.endDate >= :startDate))")
+    List<BorrowRequest> findOverlappingApprovedRequestsForGame(
+        @Param("gameId") int gameId,
+        @Param("startDate") Date startDate,
+        @Param("endDate") Date endDate);
 }
