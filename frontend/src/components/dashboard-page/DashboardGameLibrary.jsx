@@ -80,7 +80,7 @@ export default function DashboardGameLibrary({ userType }) {
            </div>
         ) : games.length === 0 && userType !== "owner" ? (
             <div className="text-center py-10 text-muted-foreground">
-              Game library is only available for Game Owners.
+              Game library is only available for Game Owners. Upgrade your account for free to add games!
             </div>
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

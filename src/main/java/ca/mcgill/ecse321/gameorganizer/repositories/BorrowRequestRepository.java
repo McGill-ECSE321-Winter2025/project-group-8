@@ -76,6 +76,8 @@ public interface BorrowRequestRepository extends JpaRepository<BorrowRequest, In
      */
     List<BorrowRequest> findByRequester(Account requester);
 
+    List<BorrowRequest> findBorrowRequestsByRequesterEmail(String email);
+
     /**
      * Finds all borrow requests associated with a specific game owner by their ID.
      *
@@ -84,4 +86,5 @@ public interface BorrowRequestRepository extends JpaRepository<BorrowRequest, In
      */
     @Query("SELECT br FROM BorrowRequest br WHERE br.requestedGame.owner.id = :ownerId")
     List<BorrowRequest> findBorrowRequestsByOwnerId(@Param("ownerId") int ownerId);
+
 }

@@ -63,7 +63,7 @@ export default function RegistrationPage() {
           localStorage.setItem("userEmail", loginData.email); // Store email
 
           // Redirect to dashboard
-          navigate("/dashboard")
+          navigate("/dashboard/profile")
         } else {
           alert("Login failed after registration. Please try logging in manually.")
         }

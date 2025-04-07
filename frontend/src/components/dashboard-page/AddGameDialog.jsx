@@ -1,4 +1,4 @@
-import { useState } from "react";
+ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"; // Adjusted path
@@ -10,7 +10,6 @@ import { createGame } from "../../service/game-api.js"; // Adjusted path
 export default function AddGameDialog({ open, onOpenChange, onGameAdded }) {
   const [isLoading, setIsLoading] = useState(false);
   const [submitError, setSubmitError] = useState("");
-
   const { register, handleSubmit, formState: { errors }, reset } = useForm({
     defaultValues: {
       name: "",
