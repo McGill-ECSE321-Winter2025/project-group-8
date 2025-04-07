@@ -251,8 +251,37 @@ public class GameController {
             return ResponseEntity.ok(instances);
         } catch (ResourceNotFoundException e) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error retrieving game instances");
+        }
+    }
+
+    /**
+     * Check if a game is available for a specific date range
+     * 
+     * @param id The ID of the game to check
+     * @param startDate The start date of the borrowing period (in milliseconds since epoch)
+     * @param endDate The end date of the borrowing period (in milliseconds since epoch)
+     * @return Boolean indicating whether the game is available for the specified period
+     */
+    @GetMapping("/{id}/availability")
+    public ResponseEntity<Boolean> checkGameAvailability(
+            @PathVariable int id,
+            @RequestParam long startDate,
+            @RequestParam long endDate) {
+        try {
+            // Convert milliseconds to Date objects
+            java.util.Date start = new java.util.Date(startDate);
+            java.util.Date end = new java.util.Date(endDate);
+            
+            boolean isAvailable = service.isGameAvailableForPeriod(id, start, end);
+            return ResponseEntity.ok(isAvailable);
+        } catch (ResourceNotFoundException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error checking game availability");
         }
     }
 

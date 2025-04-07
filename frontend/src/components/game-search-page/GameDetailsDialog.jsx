@@ -8,11 +8,13 @@ import {
   Dialog,
 } from '../ui/dialog';
 import { Button } from '../ui/button';
-import { Users, Calendar, Star, MessageSquare, User, Loader2, PenSquare } from 'lucide-react';
+import { Users, Calendar, Star, MessageSquare, User, Loader2, PenSquare, Check, AlertCircle } from 'lucide-react';
+import { Input } from '../ui/input';
+import { Alert, AlertDescription } from '../ui/alert';
 import Tag from '../common/Tag.jsx';
 import GameOwnerTag from '../common/GameOwnerTag.jsx';
 import { useSearchParams } from 'react-router-dom';
-import { getGameReviews } from '../../service/game-api.js';
+import { getGameReviews, checkGameAvailability } from '../../service/game-api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import ReviewForm from './ReviewForm.jsx';
 import { toast } from 'sonner';
@@ -36,7 +38,16 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
   const [userCanReview, setUserCanReview] = useState(false);
   const [isCheckingReviewEligibility, setIsCheckingReviewEligibility] = useState(false);
   
+  // New state for availability checking
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [isAvailable, setIsAvailable] = useState(null);
+  const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
+  
   if (!game) return null;
+  
+  // Get today's date in YYYY-MM-DD format for min date value
+  const today = new Date().toISOString().split('T')[0];
   
   // Check if the current user has already reviewed this game
   const userReview = isAuthenticated && user ? reviews.find(review => 
@@ -71,6 +82,48 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
       fetchReviews();
     }
   }, [game?.id]);
+
+  // Check availability when dates change
+  useEffect(() => {
+    const checkAvailability = async () => {
+      // Only check if we have all required data
+      if (!game?.id || !startDate || !endDate) {
+        setIsAvailable(null);
+        return;
+      }
+      
+      // Validate dates
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      
+      if (end <= start) {
+        setIsAvailable(false);
+        // Clear selected instance if dates are invalid
+        if (selectedInstance) setSelectedInstance(null);
+        return;
+      }
+      
+      try {
+        setIsCheckingAvailability(true);
+        const available = await checkGameAvailability(game.id, start, end);
+        setIsAvailable(available);
+        
+        // If game is not available for the selected dates, clear the selected instance
+        if (!available && selectedInstance) {
+          setSelectedInstance(null);
+        }
+      } catch (error) {
+        console.error("Error checking game availability:", error);
+        setIsAvailable(null);
+      } finally {
+        setIsCheckingAvailability(false);
+      }
+    };
+    
+    // Debounce the availability check
+    const timeoutId = setTimeout(checkAvailability, 500);
+    return () => clearTimeout(timeoutId);
+  }, [game?.id, startDate, endDate, selectedInstance]);
 
   // Check if the user can review this game (has borrowed and returned it)
   useEffect(() => {
@@ -115,10 +168,27 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
     
     // Clear selected instance when game changes
     setSelectedInstance(null);
+    
+    // Reset dates and availability
+    setStartDate('');
+    setEndDate('');
+    setIsAvailable(null);
   }, [game?.id, game?.instances]);
   
   const handleRequestWithInstance = () => {
-    onRequestGame(game, selectedInstance);
+    if (isAvailable) {
+      // Pass the selected dates to the request form
+      const startDateTime = new Date(`${startDate}T12:00:00`); // Default to noon
+      const endDateTime = new Date(`${endDate}T12:00:00`);
+      
+      onRequestGame(game, {
+        ...selectedInstance,
+        requestStartDate: startDateTime,
+        requestEndDate: endDateTime
+      });
+    } else {
+      toast.error("Please select valid dates and ensure the game is available for that period.");
+    }
   };
 
   // Format date to a more readable format
@@ -254,7 +324,7 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
               {game.owner && (
                 <div className="flex items-center gap-2 mt-2">
                   <User className="h-4 w-4 text-muted-foreground" />
-                  <span>Owner: {game.owner.name}</span>
+                  <span>Owner: {game.owner.name || game.owner.email || 'Unknown'}</span>
                 </div>
               )}
               {game.dateAdded && (
@@ -265,6 +335,65 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
               )}
             </div>
           </div>
+          
+          {/* Availability Checker */}
+          {isAuthenticated && (
+            <div className="space-y-3 p-4 border rounded-md">
+              <h4 className="text-sm font-medium flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Check Availability
+              </h4>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">From</label>
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    min={today}
+                    className="text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">To</label>
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    min={startDate || today}
+                    className="text-sm"
+                    disabled={!startDate}
+                  />
+                </div>
+              </div>
+              
+              {isCheckingAvailability && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Checking availability...
+                </div>
+              )}
+              
+              {!isCheckingAvailability && isAvailable === true && (
+                <Alert className="bg-green-50 text-green-800 border-green-200">
+                  <Check className="h-4 w-4 text-green-600" />
+                  <AlertDescription className="text-green-700 text-sm">
+                    Available for the selected dates!
+                  </AlertDescription>
+                </Alert>
+              )}
+              
+              {!isCheckingAvailability && isAvailable === false && (
+                <Alert variant="destructive" className="text-sm">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Not available for these dates. Try different dates.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          )}
           
           {/* Reviews Section */}
           <div className="space-y-3">
@@ -390,67 +519,99 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
               ) : instancesError ? (
                 <p className="text-sm text-red-500">{instancesError}</p>
               ) : instances.length > 0 ? (
-                instances.map(instance => (
-                  <div
-                    key={instance.id}
-                    onClick={() => instance.available && setSelectedInstance(instance)}
-                    className={`
-                      border rounded-md p-3 transition-colors
-                      ${selectedInstance?.id === instance.id
-                        ? 'border-primary bg-primary/5 cursor-pointer'
-                        : instance.available 
-                          ? 'hover:border-primary/50 cursor-pointer' 
-                          : 'opacity-60 cursor-not-allowed'}
-                    `}
-                  >
-                    <div className="flex justify-between items-center">
-                      <h4 className="font-medium">Owner: {instance.owner?.name || 'Unknown Owner'}</h4>
-                      {selectedInstance?.id === instance.id && (
-                        <svg className="h-4 w-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-                        </svg>
-                      )}
-                    </div>
-                    <div className="mt-2 text-sm flex flex-col gap-1">
-                      {instance.condition && (
+                instances.map(instance => {
+                  const isDateRangeSelected = startDate && endDate;
+                  const isActuallyAvailable = isDateRangeSelected ? isAvailable === true : instance.available;
+                  
+                  return (
+                    <div
+                      key={instance.id}
+                      onClick={() => {
+                        if (isActuallyAvailable) {
+                          setSelectedInstance(instance);
+                        }
+                      }}
+                      className={`
+                        border rounded-md p-3 transition-colors
+                        ${selectedInstance?.id === instance.id 
+                          ? 'border-primary bg-primary/5'
+                          : isActuallyAvailable
+                            ? 'hover:border-primary/50' 
+                            : 'opacity-60'}
+                        ${isActuallyAvailable ? 'cursor-pointer' : 'cursor-not-allowed'}
+                      `}
+                    >
+                      <div className="flex justify-between items-center">
+                        <h4 className="font-medium">Owner: {instance.owner?.name || 'Unknown Owner'}</h4>
+                        {selectedInstance?.id === instance.id && (
+                          <svg className="h-4 w-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                          </svg>
+                        )}
+                      </div>
+                      <div className="mt-2 text-sm flex flex-col gap-1">
+                        {instance.condition && (
+                          <div>
+                            <span className="text-muted-foreground">Condition:</span> {instance.condition}
+                          </div>
+                        )}
+                        {instance.location && (
+                          <div>
+                            <span className="text-muted-foreground">Location:</span> {instance.location}
+                          </div>
+                        )}
                         <div>
-                          <span className="text-muted-foreground">Condition:</span> {instance.condition}
+                          <span className="text-muted-foreground">Status:</span>{' '}
+                          {(!isActuallyAvailable && isDateRangeSelected && isAvailable === false) ? (
+                            <span className="text-red-500">
+                              Unavailable for Selected Dates
+                            </span>
+                          ) : isDateRangeSelected && isAvailable === true ? (
+                            <span className="text-green-600">
+                              Available for Selected Dates
+                            </span>
+                          ) : (
+                            <span className={instance.available ? 'text-green-600' : 'text-red-500'}>
+                              {instance.available ? 'Generally Available' : 'Not Available'}
+                            </span>
+                          )}
                         </div>
-                      )}
-                      {instance.location && (
-                        <div>
-                          <span className="text-muted-foreground">Location:</span> {instance.location}
-                        </div>
-                      )}
-                      <div>
-                        <span className="text-muted-foreground">Status:</span>{' '}
-                        <span className={instance.available ? 'text-green-600' : 'text-red-500'}>
-                          {instance.available ? 'Available' : 'Not Available'}
-                        </span>
                       </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <p className="text-sm text-muted-foreground">No copies available.</p>
               )}
             </div>
             
-            {isAuthenticated && instances.some(instance => instance.available) && (
-              <Button 
-                onClick={handleRequestWithInstance} 
-                disabled={!selectedInstance}
-                className="w-full"
-              >
-                Request Selected Copy
-              </Button>
-            )}
-            
-            {!isAuthenticated && (
-              <p className="text-sm text-muted-foreground text-center">
-                Please log in to request a copy of this game.
-              </p>
-            )}
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              {isAuthenticated ? (
+                <Button 
+                  onClick={handleRequestWithInstance}
+                  disabled={!selectedInstance || 
+                            !selectedInstance.available || 
+                            !isAvailable || 
+                            !startDate || 
+                            !endDate}
+                  className="w-full sm:w-auto"
+                >
+                  {!selectedInstance ? "Select a Copy" : 
+                    (!startDate || !endDate) ? "Select Dates First" :
+                    (isCheckingAvailability) ? "Checking Availability..." :
+                    (isAvailable === false) ? "Unavailable for Dates" :
+                    (isAvailable === null) ? "Please Check Availability" :
+                    "Request This Game"}
+                </Button>
+              ) : (
+                <Button 
+                  disabled
+                  className="w-full sm:w-auto"
+                >
+                  Sign in to Request
+                </Button>
+              )}
+            </DialogFooter>
           </div>
         </div>
       </div>
