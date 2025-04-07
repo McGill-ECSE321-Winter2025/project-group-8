@@ -174,7 +174,12 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game, gameInst
         status: response.status
       });
 
-      toast.success(`Request to borrow ${game?.name} was successfully sent! 🎉`);
+      toast.success(
+        <div>
+          <p>Request to borrow {game?.name} was successfully sent! 🎉</p>
+          <p className="text-xs mt-1">After returning the game, you'll be able to write a review!</p>
+        </div>
+      );
 
       onOpenChange(false);
       form.reset();

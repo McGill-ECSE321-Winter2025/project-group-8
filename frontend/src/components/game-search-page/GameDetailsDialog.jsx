@@ -19,7 +19,7 @@ import { useAuth } from '../../context/AuthContext.jsx';
 import ReviewForm from './ReviewForm.jsx';
 import { toast } from 'sonner';
 import { checkUserCanReviewGame } from '../../service/dashboard-api.js';
-import { Tooltip, TooltipTrigger, TopTooltipContent } from '../ui/tooltip.jsx';
+import { ReviewTooltip } from '../ui/review-tooltip.jsx';
 
 export const GameDetailsDialog = ({ game, onRequestGame }) => {
   const [params, setParams] = useSearchParams();
@@ -139,11 +139,16 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
     if (isAuthenticated && user && game?.id) {
       const checkReviewEligibility = async () => {
         setIsCheckingReviewEligibility(true);
+        setUserCanReview(false); // Reset while checking
+        
         try {
+          console.log(`Checking if user ${user.email} can review game ${game.id}`);
           const canReview = await checkUserCanReviewGame(game.id);
+          console.log(`Review eligibility result for game ${game.id}: ${canReview}`);
           setUserCanReview(canReview);
         } catch (error) {
           console.error("Failed to check if user can review game:", error);
+          toast.error("Could not verify your review eligibility. Please try again later.");
           setUserCanReview(false);
         } finally {
           setIsCheckingReviewEligibility(false);
@@ -185,18 +190,21 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
   }, [game?.id, game?.instances]);
   
   const handleRequestWithInstance = () => {
-    if (isAvailable) {
-      // Pass the selected dates to the request form
-      const startDateTime = new Date(`${startDate}T12:00:00`); // Default to noon
-      const endDateTime = new Date(`${endDate}T12:00:00`);
+    // If both dates are selected and game is available for those dates
+    if ((startDate && endDate && isAvailable) || (!startDate && !endDate && selectedInstance)) {
+      // Pass the selected dates to the request form if they exist
+      const startDateTime = startDate ? new Date(`${startDate}T12:00:00`) : null; // Default to noon
+      const endDateTime = endDate ? new Date(`${endDate}T12:00:00`) : null;
       
       onRequestGame(game, {
         ...selectedInstance,
         requestStartDate: startDateTime,
         requestEndDate: endDateTime
       });
+    } else if (startDate && endDate && !isAvailable) {
+      toast.error("Game is not available for the selected dates. Please choose different dates.");
     } else {
-      toast.error("Please select valid dates and ensure the game is available for that period.");
+      toast.error("Please select valid dates to borrow this game.");
     }
   };
 
@@ -413,20 +421,30 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
               </h4>
               
               {isAuthenticated && !showReviewForm && (
-                userReview || userCanReview ? (
+                userReview ? (
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    onClick={userReview ? () => handleEditReview(userReview) : handleAddReview}
+                    onClick={() => handleEditReview(userReview)}
+                    className="flex items-center gap-1"
+                  >
+                    <PenSquare className="h-3 w-3" />
+                    Edit Review
+                  </Button>
+                ) : userCanReview ? (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleAddReview}
                     className="flex items-center gap-1"
                     disabled={isCheckingReviewEligibility}
                   >
                     <PenSquare className="h-3 w-3" />
-                    {userReview ? "Edit Review" : "Add Review"}
+                    Add Review
                     {isCheckingReviewEligibility && <Loader2 className="h-3 w-3 animate-spin ml-1" />}
                   </Button>
                 ) : (
-                  <div className="relative group">
+                  <ReviewTooltip>
                     <Button
                       variant="outline"
                       size="sm"
@@ -435,14 +453,9 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
                     >
                       <PenSquare className="h-3 w-3" />
                       Add Review
+                      {isCheckingReviewEligibility && <Loader2 className="h-3 w-3 animate-spin ml-1" />}
                     </Button>
-                    <div 
-                      className="absolute -left-5 -top-18 w-38 p-2 bg-popover border rounded-md shadow-md text-xs text-foreground text-center
-                      opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                    >
-                      You can only review games that you have borrowed and returned
-                    </div>
-                  </div>
+                  </ReviewTooltip>
                 )
               )}
             </div>
@@ -536,7 +549,7 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
                     <div
                       key={instance.id}
                       onClick={() => {
-                        if (isActuallyAvailable) {
+                        if (isActuallyAvailable || !isDateRangeSelected) {
                           setSelectedInstance(instance);
                         }
                       }}
@@ -544,10 +557,10 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
                         border rounded-md p-3 transition-colors
                         ${selectedInstance?.id === instance.id 
                           ? 'border-primary bg-primary/5'
-                          : isActuallyAvailable
+                          : (isActuallyAvailable || !isDateRangeSelected)
                             ? 'hover:border-primary/50' 
                             : 'opacity-60'}
-                        ${isActuallyAvailable ? 'cursor-pointer' : 'cursor-not-allowed'}
+                        ${(isActuallyAvailable || !isDateRangeSelected) ? 'cursor-pointer' : 'cursor-not-allowed'}
                       `}
                     >
                       <div className="flex justify-between items-center">
@@ -601,7 +614,11 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
                   {/* Button to borrow the game */}
                   <Button
                     onClick={handleRequestWithInstance}
-                    disabled={!isAvailable || !selectedInstance || isCheckingAvailability}
+                    disabled={
+                      !selectedInstance || 
+                      isCheckingAvailability || 
+                      (startDate && endDate && isAvailable === false)
+                    }
                     className="flex items-center gap-2"
                   >
                     {isCheckingAvailability ? (

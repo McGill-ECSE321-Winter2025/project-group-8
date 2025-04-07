@@ -30,14 +30,43 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
   // Check if user is a game owner
   const isGameOwner = user?.gameOwner === true;
 
+  // Determine if this is a received request (not a sent request)
+  // For received requests, the current user is the game owner, not the requester
+  const isReceivedRequest = isGameOwner && requester !== user?.name;
+  
   // Determine if the game has been returned and can be reviewed by the requester
   const canReview = status === 'APPROVED' && 
                     !isGameOwner &&
                     lendingRecord?.status === 'CLOSED'; // Only allow reviews for returned games
 
-  // Determine if this is a received request (not a sent request)
-  // For received requests, the current user is the game owner, not the requester
-  const isReceivedRequest = isGameOwner && requester !== user?.name;
+  // Load game details when component mounts to get owner information
+  useEffect(() => {
+    const loadGameDetails = async () => {
+      try {
+        const targetGameId = requestedGameId || gameId;
+        if (targetGameId) {
+          const gameResponse = await getGameById(targetGameId);
+          
+          // For sent requests, try to find the owner of the instance
+          if (!isReceivedRequest && gameResponse.instances && gameResponse.instances.length > 0) {
+            // Look for an instance with matching ID or use the first one available
+            const instance = gameResponse.instances.find(inst => inst.id === id) || gameResponse.instances[0];
+            if (instance && instance.owner) {
+              console.log("Initial load: Found instance owner:", instance.owner);
+              // Add instance owner to game details
+              gameResponse.instanceOwner = instance.owner;
+            }
+          }
+          
+          setGameDetails(gameResponse);
+        }
+      } catch (err) {
+        console.error("Failed to load initial game details:", err);
+      }
+    };
+    
+    loadGameDetails();
+  }, [requestedGameId, gameId, isReceivedRequest, id]);
 
   // Update isReturned state when lendingRecord changes
   useEffect(() => {
@@ -104,16 +133,39 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
       if (targetGameId) {
         const gameResponse = await getGameById(targetGameId);
         setGameDetails(gameResponse);
+        
+        // When this is a sent request, try to find the owner of the instance
+        // from the game's instances array
+        if (!isReceivedRequest && gameResponse.instances && gameResponse.instances.length > 0) {
+          // Look for an instance with matching ID (if we have it in the request)
+          // Otherwise, just take the first one
+          const instance = gameResponse.instances.find(inst => inst.id === id) || gameResponse.instances[0];
+          if (instance && instance.owner) {
+            console.log("Found instance owner:", instance.owner);
+            // Update gameDetails with the owner info 
+            setGameDetails(prev => ({
+              ...prev,
+              instanceOwner: instance.owner
+            }));
+          }
+        }
       }
 
-      // Check if there's a lending record for this request
-      try {
-        const lendingResponse = await getLendingRecordByRequestId(id);
-        console.log("Lending record response:", lendingResponse);
-        setLendingRecord(lendingResponse);
-        setIsReturned(lendingResponse.status === 'CLOSED' || lendingResponse.status === 'Returned');
-      } catch (lendingErr) {
-        console.log("No lending record found or not yet approved", lendingErr);
+      // Only check for lending record if the request is approved
+      // This avoids 404 errors for pending requests
+      if (status === 'APPROVED' || status === 'ACTIVE') {
+        try {
+          const lendingResponse = await getLendingRecordByRequestId(id);
+          console.log("Lending record response:", lendingResponse);
+          setLendingRecord(lendingResponse);
+          setIsReturned(lendingResponse.status === 'CLOSED' || lendingResponse.status === 'Returned');
+        } catch (lendingErr) {
+          console.log("No lending record found or not yet processed", lendingErr);
+          setLendingRecord(null);
+          setIsReturned(false);
+        }
+      } else {
+        // For pending or declined requests, we know there's no lending record yet
         setLendingRecord(null);
         setIsReturned(false);
       }
@@ -138,6 +190,18 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
   const handleGoToGame = () => {
     if (gameDetails?.name) {
       navigate(`/games?q=${encodeURIComponent(gameDetails.name)}`);
+    }
+  };
+
+  // Helper function to get the display name for the game instance owner
+  const getGameInstanceOwnerName = () => {
+    if (isReceivedRequest) {
+      return requester; // For received requests, show the requester
+    } else {
+      // For sent requests, show the instance owner if available
+      return gameDetails?.instanceOwner?.name || 
+             gameDetails?.owner?.name || 
+             "Game Owner";
     }
   };
 
@@ -171,7 +235,7 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
               {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
               <div className="grid gap-1 mt-2">
                 <div className="text-sm">
-                  <span className="font-medium">From:</span> {requester}
+                  <span className="font-medium">{isReceivedRequest ? "From:" : "To:"}</span> {getGameInstanceOwnerName()}
                 </div>
                 <div className="text-sm">
                   <span className="font-medium">Requested on:</span> {date}

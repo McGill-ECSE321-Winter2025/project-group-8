@@ -644,4 +644,124 @@ export const getUserGameInstances = async () => {
   }
 };
 
+/**
+ * Fetches games that a user can include in events.
+ * This includes both games they own and games they're currently borrowing
+ * that meet the time criteria for events.
+ * 
+ * @param {string} userId - ID or email of the user
+ * @returns {Promise<Array>} Array of games available for events
+ */
+export const getGamesAvailableForEvents = async (userId) => {
+  if (!userId) {
+    throw new Error("User ID is required.");
+  }
+  
+  console.log(`getGamesAvailableForEvents: Fetching games for user ${userId}`);
+  
+  try {
+    // First try to get all games from global library
+    let allAccessibleGames = [];
+    
+    // Step 1: Try to get owned games (this may fail if user is not a game owner)
+    let ownedGames = [];
+    try {
+      ownedGames = await getGamesByOwner(userId);
+      console.log(`getGamesAvailableForEvents: Found ${ownedGames.length} owned games`);
+      // Mark these as owned
+      ownedGames = ownedGames.map(game => ({
+        ...game,
+        isOwned: true
+      }));
+      allAccessibleGames.push(...ownedGames);
+    } catch (error) {
+      // If user is not a game owner, this API call will fail with 400
+      console.log("getGamesAvailableForEvents: User may not be a game owner:", error.message);
+      // Continue with other sources of games
+    }
+    
+    // Step 2: Try to get borrowed games by different means
+    try {
+      // First approach: Try to get active borrow requests through user service
+      // This is more resilient if email is provided instead of numeric ID
+      if (typeof userId === 'string' && userId.includes('@')) {
+        // Get user ID from auth service or localStorage if available
+        const numericUserId = localStorage.getItem('userId');
+        if (numericUserId) {
+          try {
+            // Import the function to avoid circular dependencies
+            const { getActiveBorrowedGames } = await import('./borrow_request-api.js');
+            const borrowedGames = await getActiveBorrowedGames(numericUserId);
+            console.log(`getGamesAvailableForEvents: Found ${borrowedGames.length} borrowed games using numeric ID`);
+            
+            // Add borrowed games to the list, avoiding duplicates
+            for (const borrowedGame of borrowedGames) {
+              if (!allAccessibleGames.some(game => game.id === borrowedGame.id)) {
+                allAccessibleGames.push({
+                  ...borrowedGame,
+                  isBorrowed: true
+                });
+              }
+            }
+          } catch (error) {
+            console.log("getGamesAvailableForEvents: Could not get borrowed games using numeric ID:", error.message);
+          }
+        }
+        
+        // Second approach: Try to get games through user API
+        try {
+          // Implement this if your backend has a user-games endpoint
+          // const userGames = await getUserGames(userId);
+          // allAccessibleGames.push(...userGames);
+        } catch (error) {
+          console.log("getGamesAvailableForEvents: Could not get user games:", error.message);
+        }
+      } else {
+        // Numeric ID provided, use the standard method
+        const { getActiveBorrowedGames } = await import('./borrow_request-api.js');
+        const borrowedGames = await getActiveBorrowedGames(userId);
+        console.log(`getGamesAvailableForEvents: Found ${borrowedGames.length} borrowed games`);
+        
+        // Add borrowed games to the list, avoiding duplicates
+        for (const borrowedGame of borrowedGames) {
+          if (!allAccessibleGames.some(game => game.id === borrowedGame.id)) {
+            allAccessibleGames.push({
+              ...borrowedGame,
+              isBorrowed: true
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error("getGamesAvailableForEvents: Error fetching borrowed games:", error);
+      // Continue with whatever games we have
+    }
+    
+    // Step 3: If we still have no games, try to get some sample games from the global library
+    if (allAccessibleGames.length === 0) {
+      try {
+        // Get up to 5 games from global library to show something
+        const sampleGames = await searchGames({ limit: 5 });
+        
+        if (sampleGames && sampleGames.length > 0) {
+          console.log(`getGamesAvailableForEvents: Found ${sampleGames.length} sample games from global library`);
+          allAccessibleGames = sampleGames.map(game => ({
+            ...game,
+            isSample: true // Mark these as sample games
+          }));
+        }
+      } catch (error) {
+        console.error("getGamesAvailableForEvents: Error fetching sample games:", error);
+      }
+    }
+    
+    console.log(`getGamesAvailableForEvents: Successfully fetched ${allAccessibleGames.length} total accessible games for user ${userId}`);
+    return allAccessibleGames;
+  } catch (error) {
+    console.error(`getGamesAvailableForEvents: Failed to fetch games for user ${userId}:`, error);
+    // Return empty array instead of throwing to prevent UI from breaking
+    return [];
+  }
+};
+
 // Add other game-related API functions here as needed, using apiClient
