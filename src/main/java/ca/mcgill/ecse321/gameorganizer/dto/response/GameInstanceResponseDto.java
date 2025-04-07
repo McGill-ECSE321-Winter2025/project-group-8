@@ -40,6 +40,29 @@ public class GameInstanceResponseDto {
         this.owner = owner;
     }
 
+    /**
+     * Constructs a DTO from a GameInstance entity
+     * @param instance The GameInstance entity
+     */
+    public GameInstanceResponseDto(ca.mcgill.ecse321.gameorganizer.models.GameInstance instance) {
+        this.id = instance.getId();
+        this.gameId = instance.getGame().getId();
+        this.gameName = instance.getGame().getName();
+        this.condition = instance.getCondition();
+        this.available = instance.isAvailable();
+        this.location = instance.getLocation();
+        this.name = instance.getName();
+        this.acquiredDate = instance.getAcquiredDate();
+        
+        // Create owner DTO
+        ca.mcgill.ecse321.gameorganizer.models.GameOwner gameOwner = instance.getOwner();
+        this.owner = new AccountDto(
+            gameOwner.getId(),
+            gameOwner.getName(),
+            gameOwner.getEmail()
+        );
+    }
+
     // Getters and setters
     public int getId() {
         return id;

@@ -567,5 +567,81 @@ export const checkGameAvailability = async (gameId, startDate, endDate) => {
   }
 };
 
+/**
+ * Creates a copy of an existing game in the user's collection.
+ * Requires authentication.
+ * 
+ * @param {number} gameId - ID of the game to copy
+ * @param {object} [instanceData] - Optional data for the game instance
+ * @param {string} [instanceData.condition] - Physical condition of the game copy
+ * @param {string} [instanceData.location] - Location where the game is stored
+ * @param {string} [instanceData.name] - Optional custom name for this copy
+ * @returns {Promise<object>} A promise that resolves to the created game instance
+ * @throws {UnauthorizedError} If the user is not authenticated
+ * @throws {ForbiddenError} If the user is not a game owner
+ * @throws {ApiError} For other API-related errors
+ */
+export const copyGame = async (gameId, instanceData = {}) => {
+  if (!gameId) {
+    throw new Error("Game ID is required to copy a game");
+  }
+  
+  console.log(`copyGame: Copying game with ID ${gameId}`);
+  
+  try {
+    // Use apiClient for the POST request
+    const createdInstance = await apiClient(`/games/${gameId}/copy`, {
+      method: "POST",
+      body: instanceData,
+      skipPrefix: false
+    });
+    
+    console.log("copyGame: Successfully created game copy:", createdInstance);
+    return createdInstance;
+  } catch (error) {
+    console.error(`copyGame: Failed to copy game ${gameId}:`, error);
+    
+    if (error.name === 'UnauthorizedError') {
+      console.error("copyGame: Authentication error - user not logged in or session expired");
+    } else if (error.name === 'ForbiddenError') {
+      console.error("copyGame: Permission error - user does not have GAME_OWNER role");
+    } else if (error.name === 'ApiError' && error.status === 404) {
+      console.error(`copyGame: Game with ID ${gameId} not found`);
+    }
+    
+    throw error;
+  }
+};
+
+/**
+ * Fetches all game instances owned by the current user.
+ * This is useful for showing the user's collection regardless of who created the original game.
+ * 
+ * @returns {Promise<Array>} A promise that resolves to an array of game instance objects
+ * @throws {UnauthorizedError} If the user is not authenticated
+ * @throws {ApiError} For other API-related errors
+ */
+export const getUserGameInstances = async () => {
+  console.log("getUserGameInstances: Fetching all game instances for current user");
+  
+  try {
+    const instances = await apiClient("/games/instances/my", {
+      method: "GET",
+      skipPrefix: false
+    });
+    
+    console.log(`getUserGameInstances: Successfully fetched ${instances.length} instances:`, instances);
+    return instances;
+  } catch (error) {
+    console.error("getUserGameInstances: Failed to fetch user's game instances:", error);
+    
+    if (error.name === 'UnauthorizedError') {
+      console.error("getUserGameInstances: Authentication error - user not logged in or session expired");
+    }
+    
+    // Return empty array instead of throwing to prevent UI from breaking
+    return [];
+  }
+};
+
 // Add other game-related API functions here as needed, using apiClient
-// e.g., getGameById, updateGame, deleteGame, getGameReviews, submitReview etc.

@@ -8,18 +8,19 @@ import {
   Dialog,
 } from '../ui/dialog';
 import { Button } from '../ui/button';
-import { Users, Calendar, Star, MessageSquare, User, Loader2, PenSquare, Check, AlertCircle } from 'lucide-react';
+import { Users, Calendar, Star, MessageSquare, User, Loader2, PenSquare, Check, AlertCircle, Copy } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Alert, AlertDescription } from '../ui/alert';
 import Tag from '../common/Tag.jsx';
 import GameOwnerTag from '../common/GameOwnerTag.jsx';
 import { useSearchParams } from 'react-router-dom';
-import { getGameReviews, checkGameAvailability } from '../../service/game-api.js';
+import { getGameReviews, checkGameAvailability, copyGame } from '../../service/game-api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import ReviewForm from './ReviewForm.jsx';
 import { toast } from 'sonner';
 import { checkUserCanReviewGame } from '../../service/dashboard-api.js';
 import { Tooltip, TooltipTrigger, TopTooltipContent } from '../ui/tooltip.jsx';
+import { useNavigate } from 'react-router-dom';
 
 export const GameDetailsDialog = ({ game, onRequestGame }) => {
   const [searchParams] = useSearchParams();
@@ -38,11 +39,16 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
   const [userCanReview, setUserCanReview] = useState(false);
   const [isCheckingReviewEligibility, setIsCheckingReviewEligibility] = useState(false);
   
+  // New state for game copying
+  const [isCopyingGame, setIsCopyingGame] = useState(false);
+  
   // New state for availability checking
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [isAvailable, setIsAvailable] = useState(null);
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
+  
+  const navigate = useNavigate();
   
   if (!game) return null;
   
@@ -270,6 +276,40 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
   const handleCancelReview = () => {
     setShowReviewForm(false);
     setEditingReview(null);
+  };
+
+  // Function to handle copying a game to the user's collection
+  const handleCopyGame = async () => {
+    if (!game?.id) return;
+    
+    try {
+      setIsCopyingGame(true);
+      
+      // Create a copy of the game in the user's collection
+      const defaultInstanceData = {
+        condition: "Good",
+        location: "Home",
+        name: `${game.name} (Copy)`
+      };
+      
+      await copyGame(game.id, defaultInstanceData);
+      toast.success("Game added to your collection!");
+      
+      // Refresh instances if needed
+      // This could trigger a refetch of the game details in a parent component
+    } catch (error) {
+      console.error("Failed to copy game:", error);
+      
+      if (error.name === 'UnauthorizedError') {
+        toast.error("Please log in to add games to your collection");
+      } else if (error.name === 'ForbiddenError') {
+        toast.error("You don't have permission to add games to your collection");
+      } else {
+        toast.error("Failed to add game to your collection");
+      }
+    } finally {
+      setIsCopyingGame(false);
+    }
   };
 
   return (
@@ -585,30 +625,45 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
               )}
             </div>
             
+            {/* Dialog Footer with actions */}
             <DialogFooter className="flex-col sm:flex-row gap-2">
               {isAuthenticated ? (
-                <Button 
-                  onClick={handleRequestWithInstance}
-                  disabled={!selectedInstance || 
-                            !selectedInstance.available || 
-                            !isAvailable || 
-                            !startDate || 
-                            !endDate}
-                  className="w-full sm:w-auto"
-                >
-                  {!selectedInstance ? "Select a Copy" : 
-                    (!startDate || !endDate) ? "Select Dates First" :
-                    (isCheckingAvailability) ? "Checking Availability..." :
-                    (isAvailable === false) ? "Unavailable for Dates" :
-                    (isAvailable === null) ? "Please Check Availability" :
-                    "Request This Game"}
-                </Button>
+                <>
+                  {/* Button to add a copy of the game to user's collection */}
+                  <Button 
+                    variant="outline" 
+                    className="flex items-center gap-2"
+                    onClick={handleCopyGame}
+                    disabled={isCopyingGame}
+                  >
+                    {isCopyingGame ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                    Add to My Collection
+                  </Button>
+                
+                  {/* Button to borrow the game */}
+                  <Button
+                    onClick={handleRequestWithInstance}
+                    disabled={!isAvailable || !selectedInstance || isCheckingAvailability}
+                    className="flex items-center gap-2"
+                  >
+                    {isCheckingAvailability ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Calendar className="h-4 w-4" />
+                    )}
+                    Borrow This Game
+                  </Button>
+                </>
               ) : (
-                <Button 
-                  disabled
-                  className="w-full sm:w-auto"
+                <Button
+                  onClick={() => navigate("/login")}
+                  variant="default"
                 >
-                  Sign in to Request
+                  Login to Borrow or Copy
                 </Button>
               )}
             </DialogFooter>

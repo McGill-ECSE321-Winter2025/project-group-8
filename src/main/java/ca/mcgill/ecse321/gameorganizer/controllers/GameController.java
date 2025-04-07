@@ -363,4 +363,57 @@ public class GameController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
         }
     }
+
+    /**
+     * Creates a copy of a game in the user's collection
+     * @param gameId ID of the game to copy
+     * @param instanceData Additional data for the game instance (condition, location, etc.)
+     * @return The created game instance
+     */
+    @PostMapping("/{gameId}/copy")
+    public ResponseEntity<GameInstanceResponseDto> copyGame(
+            @PathVariable int gameId,
+            @RequestBody(required = false) Map<String, Object> instanceData) {
+        
+        try {
+            // Create instance data map if not provided
+            Map<String, Object> data = instanceData != null ? instanceData : new java.util.HashMap<>();
+            // Set the game ID in the instance data
+            data.put("gameId", gameId);
+            
+            // Use the existing createGameInstance logic to create a copy
+            GameInstanceResponseDto createdInstance = service.createGameInstance(data);
+            return new ResponseEntity<>(createdInstance, HttpStatus.CREATED);
+        } catch (UnauthedException e) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, e.getMessage());
+        } catch (ForbiddenException e) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, e.getMessage());
+        } catch (ResourceNotFoundException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
+                    "An unexpected error occurred while copying the game: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Retrieves all game instances owned by the current authenticated user.
+     * This allows users to see their collection regardless of who created the original games.
+     *
+     * @return List of game instances owned by the current user
+     */
+    @GetMapping("/instances/my")
+    public ResponseEntity<List<GameInstanceResponseDto>> getCurrentUserGameInstances() {
+        try {
+            List<GameInstanceResponseDto> instances = service.getGameInstancesByCurrentUser();
+            return ResponseEntity.ok(instances);
+        } catch (UnauthedException e) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, e.getMessage());
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, 
+                    "An unexpected error occurred while fetching your game instances: " + e.getMessage());
+        }
+    }
 }

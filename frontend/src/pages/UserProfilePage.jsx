@@ -85,7 +85,7 @@ export default function UserProfilePage() {
           setOwnedGamesList(gamesData || []);
         } catch (gamesError) {
            console.error("Failed to fetch owned games:", gamesError);
-           setError("Could not load owned games. " + (gamesError.message || ''));
+           // Don't set error state here - just log it as we want to continue even if games can't be fetched
         }
       }
       

@@ -330,20 +330,22 @@ export default function MenuBar() {
               </Link>
             </>
           )}
-
-          {/* Dark Mode Toggle */}
-          <Button 
-            variant="ghost" 
-            className="w-10 h-10 p-0 rounded-full"
-            onClick={toggleDarkMode}
-            aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            {isDarkMode ? (
+            {/* Hide dark mode toggle on landing page */}
+            {location.pathname !== "/" && (
+            <Button 
+              variant="ghost" 
+              className="w-10 h-10 p-0 rounded-full"
+              onClick={toggleDarkMode}
+              aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              {isDarkMode ? (
               <Sun className="h-5 w-5 text-sidebar-foreground" />
-            ) : (
+              ) : (
               <Moon className="h-5 w-5" />
+              )}
+            </Button>
             )}
-          </Button>
+          {/* Dark Mode Toggle */}
 
           {/* Notifications */}
           {isAuthenticated && (
