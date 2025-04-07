@@ -36,7 +36,7 @@ export default function RegistrationPage() {
     try {
       // Step 1: Register the user
       // TODO: Replace with environment variable for API URL
-      const registrationResponse = await fetch("http://localhost:8080/account", {
+      const registrationResponse = await fetch("http://localhost:8080/api/account", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

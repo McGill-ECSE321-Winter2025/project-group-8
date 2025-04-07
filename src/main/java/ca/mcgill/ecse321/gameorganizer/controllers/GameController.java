@@ -238,4 +238,17 @@ public class GameController {
         double rating = service.getAverageRatingForGame(id);
         return ResponseEntity.ok(rating);
     }
+
+
+    /**
+     * Get all instances for a specific game
+     */
+    @GetMapping("/{id}/instances")
+    public ResponseEntity<List</* TODO: Replace with actual GameInstanceResponseDto */Object>> getGameInstances(@PathVariable int id) {
+        // TODO: Implement service call to fetch game instances
+        // List<GameInstanceResponseDto> instances = service.getInstancesByGameId(id);
+        // return ResponseEntity.ok(instances);
+        // Placeholder response until service/DTO are ready:
+        return ResponseEntity.ok(List.of()); // Return empty list for now
+    }
 }

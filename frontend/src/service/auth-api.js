@@ -171,7 +171,7 @@ export const checkAuthStatus = async () => {
       skipPrefix: true, // Endpoint is likely /users/me, not /api/users/me
       suppressErrors: true, // Don't throw ApiError for 401, let us handle it
       requiresAuth: true, // This endpoint definitely requires auth
-      headers: getAuthHeaders() // Use consistent auth headers
+      // Removed headers: getAuthHeaders() - Rely on HttpOnly cookie sent by browser
     });
 
     // If we get a valid response, user is authenticated
@@ -240,7 +240,7 @@ export const getUserProfile = async () => {
       skipPrefix: true, // Endpoint is likely /users/me
       suppressErrors: false, // Let errors propagate
       requiresAuth: true,
-      headers: getAuthHeaders() // Use consistent auth headers
+      // Removed headers: getAuthHeaders() - Rely on HttpOnly cookie sent by browser
     });
 
     // If we get a valid response, ensure localStorage is consistent

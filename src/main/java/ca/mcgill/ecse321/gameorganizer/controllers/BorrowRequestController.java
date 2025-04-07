@@ -216,7 +216,7 @@ public class BorrowRequestController {
      * @param ownerId The ID of the game owner.
      * @return A list of borrow requests associated with the specified game owner.
      */
-    @GetMapping("/owner/{ownerId}") // Kept mapping from origin/dev-Yessine-D3
+    @GetMapping("/by-owner/{ownerId}") // Changed mapping for troubleshooting
     public ResponseEntity<List<BorrowRequestDto>> getBorrowRequestsByOwnerId(@PathVariable int ownerId) {
         try {
             // Use service method from origin/dev-Yessine-D3

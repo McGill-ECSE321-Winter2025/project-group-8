@@ -35,6 +35,7 @@ export const AuthProvider = ({ children }) => {
   // Current path
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
 
+  const [isInitialCheckComplete, setIsInitialCheckComplete] = useState(false); // Added state
   // Update current path when location changes
   useEffect(() => {
     const handleLocationChange = () => {
@@ -87,6 +88,21 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
   
+  // Helper function to clear auth data
+  const clearAuthData = useCallback(() => {
+    setUser(null);
+    setIsAuthenticated(false);
+    localStorage.removeItem('rememberMe');
+    localStorage.removeItem('token');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('user');
+    // Also set the isAuthenticated cookie to false
+    document.cookie = "isAuthenticated=false; path=/";
+    setCurrentUserGamesError(null); // Clear game error on clear auth
+  }, []);
+
+
   // Initialize authentication state
   const initAuth = useCallback(async () => {
     try {
@@ -129,7 +145,7 @@ export const AuthProvider = ({ children }) => {
       clearAuthData();
     } finally {
       setLoading(false);
-      
+      setIsInitialCheckComplete(true); // Mark initial check as complete
       // Add a small delay before setting authReady to true
       // This gives the browser time to process state updates
       setTimeout(() => {
@@ -137,21 +153,8 @@ export const AuthProvider = ({ children }) => {
         setAuthInProgress(false); // Auth is no longer in progress
       }, 10); // Reduced delay
     }
-  }, []);
+  }, [fetchUserGames, clearAuthData]); // Added missing dependencies
   
-  // Helper function to clear auth data
-  const clearAuthData = useCallback(() => {
-    setUser(null);
-    setIsAuthenticated(false);
-    localStorage.removeItem('rememberMe');
-    localStorage.removeItem('token');
-    localStorage.removeItem('userId');
-    localStorage.removeItem('userEmail');
-    localStorage.removeItem('user');
-    // Also set the isAuthenticated cookie to false
-    document.cookie = "isAuthenticated=false; path=/";
-    setCurrentUserGamesError(null); // Clear game error on clear auth
-  }, []);
 
   // Initialize auth when component mounts
   useEffect(() => {
@@ -206,51 +209,53 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       setAuthReady(false);
       setAuthInProgress(true); // Set auth in progress flag
-      
+
       setUser(userData);
       setIsAuthenticated(true);
       setIsSessionExpired(false);
       setRememberMe(remember);
       setLastActivity(Date.now());
-      
+
       // Check if we have a token in the userData, which should come from the API response
       const token = userData.token || userData.accessToken;
-      
+
       // Save user data and token to localStorage
       if (userData) {
         if (token) {
-          localStorage.setItem('token', token);
+          localStorage.setItem('token', token); // Note: Storing token in localStorage is generally discouraged with HttpOnly cookies
         }
         localStorage.setItem('userId', userData.id);
         localStorage.setItem('userEmail', userData.email);
         localStorage.setItem('user', JSON.stringify(userData));
-        fetchUserGames(userData.email); // Fetch games after successful login (will clear error)
       }
-      
+
       // Save remember me preference
       localStorage.setItem('rememberMe', remember ? 'true' : 'false');
-      
-      // Verify authentication status after login
-      // Removed redundant checkAuthStatus() call after successful login
-      
-      // Add a small delay before setting authReady to true
-      // This ensures the browser has time to process the login
-      return new Promise(resolve => {
-        setTimeout(() => {
-          setLoading(false);
-          setAuthReady(true); // Authentication flow is now complete
-          setAuthInProgress(false); // Auth is no longer in progress
-          resolve(userData);
-        }, 10); // Reduced delay
-      });
-    } catch (error) {
-      console.error('Error during login:', error);
+
+      // Set auth state immediately *before* fetching games
       setLoading(false);
       setAuthReady(true);
+      setAuthInProgress(false); // Set to false *before* potentially long-running fetch
+      console.log('[AuthContext Login] Auth state updated, authInProgress: false');
+
+      // Now fetch games
+      if (userData && userData.email) {
+        fetchUserGames(userData.email);
+      }
+
+      // Return the user data after successful state updates
+      return userData;
+
+    } catch (error) {
+      console.error('Error during login:', error);
+      // Ensure state is reset on error
+      setLoading(false);
+      setAuthReady(true); // Set authReady even on error to unblock UI
       setAuthInProgress(false);
-      throw error;
+      // Consider clearing partial auth data here if necessary
+      throw error; // Re-throw for the caller
     }
-  }, []);
+  }, [fetchUserGames]); // Added fetchUserGames dependency
 
   // Logout function
   const logout = useCallback(async () => {
@@ -309,6 +314,11 @@ export const AuthProvider = ({ children }) => {
     currentUserGamesError // Provide game fetch error state
   };
 
+  // Don't render children until the initial check is done
+  if (!isInitialCheckComplete) {
+    return null; // Or a loading spinner component
+  }
+
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
@@ -321,4 +331,4 @@ export const useAuth = () => {
   return context;
 };
 
-export default AuthContext;
+// Removed default export to avoid potential import confusion

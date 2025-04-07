@@ -5,9 +5,10 @@
  * Follows the application's established API patterns.
  */
 
+import apiClient from './apiClient'; // Import the centralized API client
 // Use the same base URL as other API modules
-const API_BASE_URL = "http://localhost:8080/api/v1";
-const BORROW_REQUESTS_ENDPOINT = `${API_BASE_URL}/borrowrequests`;
+// Use apiClient which handles base URL and prefix
+const BORROW_REQUESTS_ENDPOINT = '/borrowrequests'; // Relative path for apiClient
 
 /**
  * Creates a new borrow request
@@ -15,37 +16,16 @@ const BORROW_REQUESTS_ENDPOINT = `${API_BASE_URL}/borrowrequests`;
  * @returns {Promise<Object>} The created borrow request
  */
 export const createBorrowRequest = async (requestData) => {
-  const token = localStorage.getItem("token");
-  if (!token) {
-    throw new Error("Authentication token not found. Please log in.");
-  }
+  // Remove manual token check and Authorization header
+  // Removed extra brace
 
-  const headers = {
-    "Content-Type": "application/json",
-    'Authorization': `Bearer ${token}`
-  };
-
-  try {
-    const response = await fetch(BORROW_REQUESTS_ENDPOINT, {
-      method: "POST",
-      headers: headers,
-      body: JSON.stringify(requestData)
-    });
-
-    if (!response.ok) {
-      let errorMsg = `HTTP error ${response.status}: ${response.statusText}`;
-      try {
-        const errorBody = await response.json();
-        errorMsg = errorBody.message || errorMsg;
-      } catch (e) { /* Ignore parsing error */ }
-      console.error("Backend error creating borrow request:", errorMsg);
-      throw new Error(errorMsg);
-    }
-    return await response.json();
-  } catch (error) {
-    console.error("Failed to create borrow request:", error);
-    throw error;
-  }
+  // Use apiClient
+  return apiClient(BORROW_REQUESTS_ENDPOINT, {
+    method: "POST",
+    body: requestData,
+    requiresAuth: true,
+    skipPrefix: false // Use /api prefix
+  });
 };
 
 /**
@@ -54,39 +34,18 @@ export const createBorrowRequest = async (requestData) => {
  * @returns {Promise<Object>} The borrow request
  */
 export const getBorrowRequestById = async (id) => {
-  const token = localStorage.getItem("token");
-  if (!token) {
-    throw new Error("Authentication token not found. Please log in.");
-  }
   if (!id) {
     throw new Error("Borrow request ID is required.");
   }
+  // Remove manual token check and Authorization header
+  // Removed extra brace
 
-  const headers = {
-    "Content-Type": "application/json",
-    'Authorization': `Bearer ${token}`
-  };
-
-  try {
-    const response = await fetch(`${BORROW_REQUESTS_ENDPOINT}/${id}`, {
-      method: "GET",
-      headers: headers
-    });
-
-    if (!response.ok) {
-      let errorMsg = `HTTP error ${response.status}: ${response.statusText}`;
-      try {
-        const errorBody = await response.json();
-        errorMsg = errorBody.message || errorMsg;
-      } catch (e) { /* Ignore parsing error */ }
-      console.error("Backend error fetching borrow request:", errorMsg);
-      throw new Error(errorMsg);
-    }
-    return await response.json();
-  } catch (error) {
-    console.error(`Failed to fetch borrow request #${id}:`, error);
-    throw error;
-  }
+  // Use apiClient
+  return apiClient(`${BORROW_REQUESTS_ENDPOINT}/${id}`, {
+    method: "GET",
+    requiresAuth: true,
+    skipPrefix: false // Use /api prefix
+  });
 };
 
 /**
@@ -94,35 +53,15 @@ export const getBorrowRequestById = async (id) => {
  * @returns {Promise<Array>} List of all borrow requests
  */
 export const getAllBorrowRequests = async () => {
-  const token = localStorage.getItem("token");
-  const headers = {
-    "Content-Type": "application/json",
-  };
-  
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
+  // Remove manual token check and Authorization header
+  // Removed extra brace
 
-  try {
-    const response = await fetch(BORROW_REQUESTS_ENDPOINT, {
-      method: "GET",
-      headers: headers
-    });
-
-    if (!response.ok) {
-      let errorMsg = `HTTP error ${response.status}: ${response.statusText}`;
-      try {
-        const errorBody = await response.json();
-        errorMsg = errorBody.message || errorMsg;
-      } catch (e) { /* Ignore parsing error */ }
-      console.error("Backend error fetching all borrow requests:", errorMsg);
-      throw new Error(errorMsg);
-    }
-    return await response.json();
-  } catch (error) {
-    console.error("Failed to fetch borrow requests:", error);
-    throw error;
-  }
+  // Use apiClient
+  return apiClient(BORROW_REQUESTS_ENDPOINT, {
+    method: "GET",
+    requiresAuth: true, // Assuming this needs auth, adjust if not
+    skipPrefix: false // Use /api prefix
+  });
 };
 
 /**
@@ -132,49 +71,31 @@ export const getAllBorrowRequests = async () => {
  * @returns {Promise<Object>} The updated borrow request
  */
 export const updateBorrowRequestStatus = async (id, status) => {
-  const token = localStorage.getItem("token");
-  if (!token) {
-    throw new Error("Authentication token not found. Please log in.");
-  }
   if (!id) {
     throw new Error("Borrow request ID is required.");
   }
   if (!status) {
     throw new Error("Status is required.");
   }
-
-  // First get the existing request to retain all fields
-  const existingRequest = await getBorrowRequestById(id);
+  // Remove manual token check and Authorization header
   
-  // Only update the status
+  // Note: Sending the full existingRequest might not be ideal for a status update.
+  // Ideally, the backend endpoint should accept just the status.
+  // Assuming the backend PUT /api/borrowrequests/{id} expects the full object for now.
+  
+  // Fetch existing request using the refactored function
+  const existingRequest = await getBorrowRequestById(id);
+  // Update status
   existingRequest.status = status;
+  // Removed extra brace
 
-  const headers = {
-    "Content-Type": "application/json",
-    'Authorization': `Bearer ${token}`
-  };
-
-  try {
-    const response = await fetch(`${BORROW_REQUESTS_ENDPOINT}/${id}`, {
-      method: "PUT",
-      headers: headers,
-      body: JSON.stringify(existingRequest)
-    });
-
-    if (!response.ok) {
-      let errorMsg = `HTTP error ${response.status}: ${response.statusText}`;
-      try {
-        const errorBody = await response.json();
-        errorMsg = errorBody.message || errorMsg;
-      } catch (e) { /* Ignore parsing error */ }
-      console.error("Backend error updating borrow request status:", errorMsg);
-      throw new Error(errorMsg);
-    }
-    return await response.json();
-  } catch (error) {
-    console.error(`Failed to update borrow request #${id}:`, error);
-    throw error;
-  }
+  // Use apiClient
+  return apiClient(`${BORROW_REQUESTS_ENDPOINT}/${id}`, {
+    method: "PUT",
+    body: existingRequest, // Sending full object as per original logic
+    requiresAuth: true,
+    skipPrefix: false // Use /api prefix
+  });
 };
 
 /**
@@ -183,39 +104,20 @@ export const updateBorrowRequestStatus = async (id, status) => {
  * @returns {Promise<boolean>} True if deletion was successful
  */
 export const deleteBorrowRequest = async (id) => {
-  const token = localStorage.getItem("token");
-  if (!token) {
-    throw new Error("Authentication token not found. Please log in.");
-  }
   if (!id) {
     throw new Error("Borrow request ID is required.");
   }
+  // Remove manual token check and Authorization header
+  // Removed extra brace
 
-  const headers = {
-    "Content-Type": "application/json",
-    'Authorization': `Bearer ${token}`
-  };
-
-  try {
-    const response = await fetch(`${BORROW_REQUESTS_ENDPOINT}/${id}`, {
-      method: "DELETE",
-      headers: headers
-    });
-
-    if (!response.ok) {
-      let errorMsg = `HTTP error ${response.status}: ${response.statusText}`;
-      try {
-        const errorBody = await response.json();
-        errorMsg = errorBody.message || errorMsg;
-      } catch (e) { /* Ignore parsing error */ }
-      console.error("Backend error deleting borrow request:", errorMsg);
-      throw new Error(errorMsg);
-    }
-    return true;
-  } catch (error) {
-    console.error(`Failed to delete borrow request #${id}:`, error);
-    throw error;
-  }
+  // Use apiClient
+  // DELETE often returns 204 No Content, apiClient handles this
+  await apiClient(`${BORROW_REQUESTS_ENDPOINT}/${id}`, {
+    method: "DELETE",
+    requiresAuth: true,
+    skipPrefix: false // Use /api prefix
+  });
+  return true; // Assume success if apiClient doesn't throw
 };
 
 /**
@@ -224,39 +126,18 @@ export const deleteBorrowRequest = async (id) => {
  * @returns {Promise<Array>} List of borrow requests with the specified status
  */
 export const getBorrowRequestsByStatus = async (status) => {
-  const token = localStorage.getItem("token");
-  if (!token) {
-    throw new Error("Authentication token not found. Please log in.");
-  }
   if (!status) {
     throw new Error("Status parameter is required.");
   }
+  // Remove manual token check and Authorization header
+  // Removed extra brace
 
-  const headers = {
-    "Content-Type": "application/json",
-    'Authorization': `Bearer ${token}`
-  };
-
-  try {
-    const response = await fetch(`${BORROW_REQUESTS_ENDPOINT}/status/${encodeURIComponent(status)}`, {
-      method: "GET",
-      headers: headers
-    });
-
-    if (!response.ok) {
-      let errorMsg = `HTTP error ${response.status}: ${response.statusText}`;
-      try {
-        const errorBody = await response.json();
-        errorMsg = errorBody.message || errorMsg;
-      } catch (e) { /* Ignore parsing error */ }
-      console.error(`Backend error fetching requests with status ${status}:`, errorMsg);
-      throw new Error(errorMsg);
-    }
-    return await response.json();
-  } catch (error) {
-    console.error(`Failed to fetch requests with status ${status}:`, error);
-    throw error;
-  }
+  // Use apiClient
+  return apiClient(`${BORROW_REQUESTS_ENDPOINT}/status/${encodeURIComponent(status)}`, {
+    method: "GET",
+    requiresAuth: true,
+    skipPrefix: false // Use /api prefix
+  });
 };
 
 /**
@@ -265,39 +146,18 @@ export const getBorrowRequestsByStatus = async (status) => {
  * @returns {Promise<Array>} List of borrow requests made by the specified requester
  */
 export const getBorrowRequestsByRequester = async (requesterId) => {
-  const token = localStorage.getItem("token");
-  if (!token) {
-    throw new Error("Authentication token not found. Please log in.");
-  }
   if (!requesterId) {
     throw new Error("Requester ID is required.");
   }
+  // Remove manual token check and Authorization header
+  // Removed extra brace
 
-  const headers = {
-    "Content-Type": "application/json",
-    'Authorization': `Bearer ${token}`
-  };
-
-  try {
-    const response = await fetch(`${BORROW_REQUESTS_ENDPOINT}/requester/${requesterId}`, {
-      method: "GET",
-      headers: headers
-    });
-
-    if (!response.ok) {
-      let errorMsg = `HTTP error ${response.status}: ${response.statusText}`;
-      try {
-        const errorBody = await response.json();
-        errorMsg = errorBody.message || errorMsg;
-      } catch (e) { /* Ignore parsing error */ }
-      console.error(`Backend error fetching requests for requester #${requesterId}:`, errorMsg);
-      throw new Error(errorMsg);
-    }
-    return await response.json();
-  } catch (error) {
-    console.error(`Failed to fetch requests for requester #${requesterId}:`, error);
-    throw error;
-  }
+  // Use apiClient
+  return apiClient(`${BORROW_REQUESTS_ENDPOINT}/requester/${requesterId}`, {
+    method: "GET",
+    requiresAuth: true,
+    skipPrefix: false // Use /api prefix
+  });
 };
 
 /**
@@ -306,37 +166,16 @@ export const getBorrowRequestsByRequester = async (requesterId) => {
  * @returns {Promise<Array>} List of borrow requests associated with the specified game owner
  */
 export const getBorrowRequestsByOwner = async (ownerId) => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-        throw new Error("Authentication token not found. Please log in.");
-    }
     if (!ownerId) {
         throw new Error("Owner ID is required.");
     }
+    // Remove manual token check and Authorization header
+    // Removed extra brace
 
-    const headers = {
-        "Content-Type": "application/json",
-        'Authorization': `Bearer ${token}`
-    };
-
-    try {
-        const response = await fetch(`${BORROW_REQUESTS_ENDPOINT}/owner/${ownerId}`, {
-            method: "GET",
-            headers: headers
-        });
-
-        if (!response.ok) {
-            let errorMsg = `HTTP error ${response.status}: ${response.statusText}`;
-            try {
-                const errorBody = await response.json();
-                errorMsg = errorBody.message || errorMsg;
-            } catch (e) { /* Ignore parsing error */ }
-            console.error(`Backend error fetching requests for owner #${ownerId}:`, errorMsg);
-            throw new Error(errorMsg);
-        }
-        return await response.json();
-    } catch (error) {
-        console.error(`Failed to fetch requests for owner #${ownerId}:`, error);
-        throw error;
-    }
+    // Use apiClient
+    return apiClient(`${BORROW_REQUESTS_ENDPOINT}/by-owner/${ownerId}`, { // Changed path for troubleshooting
+        method: "GET",
+        requiresAuth: true,
+        skipPrefix: false // Use /api prefix
+    });
 };

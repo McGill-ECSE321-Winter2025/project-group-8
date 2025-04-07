@@ -89,16 +89,16 @@ export default function DashboardPage() {
           <Tabs className="bg-background">
             <TabsList className="w-full h-10 mb-2">
               {/* Conditionally render Games tab trigger if user is owner? Or handle inside component */}
-              <TabsTrigger value="games">Game Library</TabsTrigger>
+              {userType === 'owner' && <TabsTrigger value="games">Game Library</TabsTrigger>}
               <TabsTrigger value="events">Events</TabsTrigger>
               <TabsTrigger value="requests">Borrow Requests</TabsTrigger>
-              <TabsTrigger value="borrowing">Lending History</TabsTrigger>
+              {userType === 'owner' && <TabsTrigger value="borrowing">Lending History</TabsTrigger>}
             </TabsList>
             {/* Pass fetched userType to child components */}
-            <DashboardGameLibrary userType={userType} />
+            {userType === 'owner' && <DashboardGameLibrary userType={userType} />}
             <DashboardEvents userType={userType} />
             <DashboardBorrowRequests userType={userType} />
-            <DashboardLendingRecord userType={userType} />
+            {userType === 'owner' && <DashboardLendingRecord userType={userType} />}
           </Tabs>
         </div>
       </main>

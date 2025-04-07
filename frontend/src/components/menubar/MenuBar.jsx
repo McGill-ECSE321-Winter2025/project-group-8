@@ -3,14 +3,18 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button.jsx";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { BellIcon } from "lucide-react";
+import apiClient from "@/service/apiClient"; // Import apiClient
+import { BellIcon, User } from "lucide-react"; // Added User icon
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"; // Added DropdownMenu imports
 import {
   Menubar,
   MenubarContent,
   MenubarItem,
   MenubarMenu,
   MenubarTrigger,
-} from "@/components/ui/menubar";
+} from "@/components/ui/menubar"; // Kept Menubar imports
 
 // Main menu component shown on all pages
 export default function MenuBar() {
@@ -36,11 +40,12 @@ export default function MenuBar() {
     try {
       if (!user?.id) return;
 
-      // For game owners: fetch their games' requests with status updates
-      const ownerRequestsResponse = await fetch('/borrowrequests', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      // For game owners: fetch their games' requests using apiClient
+      const ownerRequests = await apiClient('/borrowrequests', {
+        method: 'GET',
+        requiresAuth: true,
+        skipPrefix: false // Assuming endpoint is /api/borrowrequests
       });
-      const ownerRequests = await ownerRequestsResponse.json();
       
       // Filter for APPROVED or DECLINED statuses in the last 7 days
       const recentStatusChanges = ownerRequests.filter(req => {
@@ -54,11 +59,12 @@ export default function MenuBar() {
         return updateDate > sevenDaysAgo;
       });
 
-      // If user is a requester, get their requests too
-      const requesterRequestsResponse = await fetch(`/borrowrequests/requester/${user.id}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      // If user is a requester, get their requests too using apiClient
+      const requesterRequests = await apiClient(`/borrowrequests/requester/${user.id}`, {
+        method: 'GET',
+        requiresAuth: true,
+        skipPrefix: false // Assuming endpoint is /api/borrowrequests/requester/{id}
       });
-      const requesterRequests = await requesterRequestsResponse.json();
 
       // Combine notifications
       const allNotifications = [
@@ -235,18 +241,37 @@ export default function MenuBar() {
 
           {/* Logout Button (only if logged in) */}
           {isAuthenticated && (
-            <div className="flex items-center gap-2 pl-3 border-l border-gray-200">
-              {user?.username && (
-                <span className="text-sm text-gray-700 font-medium">
-                  Hi, {user.username} 👋
-                </span>
-              )}
-              <Button
-                onClick={handleLogout}
-                className="text-sm px-3 py-1.5 bg-red-600 text-white hover:bg-red-700 border-none"
-              >
-                Logout
-              </Button>
+            <div className="pl-3 border-l border-gray-200">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                    {/* Placeholder for User Avatar - using User icon for now */}
+                    <User className="h-5 w-5" />
+                    <span className="sr-only">Toggle user menu</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end" forceMount>
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none">{user?.username || "User"}</p>
+                      <p className="text-xs leading-none text-muted-foreground">
+                        {user?.email || "No email"}
+                      </p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link to="/profile" className="cursor-pointer">
+                      Profile Settings
+                    </Link>
+                  </DropdownMenuItem>
+                  {/* Add other items like Settings, etc. here if needed */}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50">
+                    Log out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           )}
         </div>

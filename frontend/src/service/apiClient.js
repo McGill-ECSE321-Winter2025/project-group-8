@@ -219,11 +219,11 @@ const apiClient = async (endpoint, {
   // If auth is in progress and this isn't an auth action endpoint, wait or abort
   if (authInProgress && !isAuthActionEndpoint) {
     console.log(`[API] Auth in progress, delaying request to ${endpoint}`);
-    if (retryOnAuth && Date.now() - lastAuthCheck < 10000) { // Increased wait time
-      console.log(`[API] Waiting up to 2s for auth to complete for ${endpoint}`);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      if (authInProgress && Date.now() - lastAuthCheck < 10000) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+    if (retryOnAuth && Date.now() - lastAuthCheck < 10) { // Increased wait time
+      console.log(`[API] Waiting up to10m2s for auth to complete for ${endpoint}`);
+      await new Promise(resolve => setTimeout(resolve, 10));
+      if (authInProgress && Date.now() - lastAuthCheck < 10) { // Fixed typo: lastAuthCheck
+        await new Promise(resolve => setTimeout(resolve, 10)); // Fixed typo: s10 -> 10
       }
       if (authInProgress) {
         console.error(`[API] Auth still in progress after waiting, aborting request to ${endpoint}`);
@@ -255,8 +255,7 @@ const apiClient = async (endpoint, {
     method,
     headers: {
       'Content-Type': 'application/json',
-      // Add Authorization header with user ID if available
-      ...(userId && { 'X-User-Id': userId }),
+      // REMOVED: ...(userId && { 'X-User-Id': userId }), - Rely on HttpOnly cookie
       ...headers,
     },
     credentials: 'include', // ALWAYS include credentials for cookies
