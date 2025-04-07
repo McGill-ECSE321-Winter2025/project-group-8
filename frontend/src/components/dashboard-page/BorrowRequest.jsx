@@ -5,15 +5,16 @@ import { Badge } from "@/components/ui/badge.jsx"; // Import Badge
 import { actOnBorrowRequest, deleteBorrowRequest } from '@/service/dashboard-api.js'; // Add deleteBorrowRequest
 import { useAuth } from "@/context/AuthContext"; // Import useAuth to check user type
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog.jsx";
-import { getGameById } from '@/service/game-api.js';
+import { getGameById, getGameInstanceById, getGameInstances } from '@/service/game-api.js';
 import { getLendingRecordByRequestId } from '@/service/dashboard-api.js';
+import { getBorrowRequestWithInstanceDetails } from '@/service/borrow_request-api.js';
 import ReviewForm from '../game-search-page/ReviewForm.jsx';
 import { useNavigate } from 'react-router-dom'; // Import useNavigate for navigation
 import ModifyBorrowRequestDialog from './ModifyBorrowRequestDialog.jsx'; // Import the new dialog component
 
 import { toast } from 'sonner';
 
-export default function BorrowRequest({ id, name, requester, date, endDate, status, refreshRequests, imageSrc, gameId, requestedGameId }) {
+export default function BorrowRequest({ id, name, requester, date, endDate, status, refreshRequests, imageSrc, gameId, requestedGameId, gameInstanceId }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const { user } = useAuth(); // Get user from auth context
@@ -23,6 +24,8 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
   const [lendingRecord, setLendingRecord] = useState(null);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [showModifyDialog, setShowModifyDialog] = useState(false); // State for modify dialog
+  const [instanceLoading, setInstanceLoading] = useState(false); // New state for instance loading
+  const [instanceOwner, setInstanceOwner] = useState(null); // State to store instance owner info
 
   const navigate = useNavigate(); // Initialize useNavigate
 
@@ -41,34 +44,159 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
                     !isGameOwner &&
                     lendingRecord?.status === 'CLOSED'; // Only allow reviews for returned games
 
+  // Load borrow request details when component mounts
+  useEffect(() => {
+    const loadBorrowRequestDetails = async () => {
+      if (!id) return;
+      
+      try {
+        setInstanceLoading(true);
+        console.log("Loading borrow request details:", id);
+        
+        // Try to get detailed borrow request info
+        const requestDetails = await getBorrowRequestWithInstanceDetails(id);
+        console.log("Got borrow request details:", requestDetails);
+        
+        if (requestDetails.instanceOwner) {
+          console.log("Found instance owner in borrow request:", requestDetails.instanceOwner);
+          setInstanceOwner(requestDetails.instanceOwner);
+        } else if (requestDetails.gameInstance?.owner) {
+          console.log("Found instance owner in game instance:", requestDetails.gameInstance.owner);
+          setInstanceOwner(requestDetails.gameInstance.owner);
+        }
+      } catch (err) {
+        console.error("Error loading borrow request details:", err);
+      } finally {
+        setInstanceLoading(false);
+      }
+    };
+    
+    loadBorrowRequestDetails();
+  }, [id]);
+
   // Load game details when component mounts to get owner information
   useEffect(() => {
     const loadGameDetails = async () => {
       try {
-        const targetGameId = requestedGameId || gameId;
-        if (targetGameId) {
-          const gameResponse = await getGameById(targetGameId);
-          
-          // For sent requests, try to find the owner of the instance
-          if (!isReceivedRequest && gameResponse.instances && gameResponse.instances.length > 0) {
-            // Look for an instance with matching ID or use the first one available
-            const instance = gameResponse.instances.find(inst => inst.id === id) || gameResponse.instances[0];
-            if (instance && instance.owner) {
-              console.log("Initial load: Found instance owner:", instance.owner);
+        setInstanceLoading(true);
+        console.log("Loading game details for request:", { 
+          requestId: id, 
+          gameId: requestedGameId || gameId,
+          gameInstanceId: gameInstanceId
+        });
+        
+        // First try to load the instance directly if we have an ID
+        if (gameInstanceId) {
+          try {
+            console.log("Attempting to fetch instance directly:", gameInstanceId);
+            const instanceData = await getGameInstanceById(gameInstanceId);
+            console.log("Successfully fetched instance:", instanceData);
+            
+            // Now fetch the game this instance belongs to
+            const targetGameId = requestedGameId || gameId || instanceData.gameId;
+            if (targetGameId) {
+              const gameResponse = await getGameById(targetGameId);
+              console.log("Fetched game details:", gameResponse);
+              
+              // Add the instance data to the game response
+              if (!gameResponse.instances) {
+                gameResponse.instances = [];
+              }
+              
+              // Check if the instance is already in the list
+              const existingIndex = gameResponse.instances.findIndex(
+                inst => inst.id === parseInt(gameInstanceId)
+              );
+              
+              if (existingIndex === -1) {
+                gameResponse.instances.push(instanceData);
+              } else {
+                gameResponse.instances[existingIndex] = instanceData;
+              }
+              
               // Add instance owner to game details
-              gameResponse.instanceOwner = instance.owner;
+              gameResponse.instanceOwner = instanceData.owner;
+              gameResponse.gameInstance = instanceData;
+              
+              setGameDetails(gameResponse);
             }
+          } catch (instanceErr) {
+            console.error("Failed to fetch instance directly:", instanceErr);
+            
+            // Fall back to fetching the game and its instances
+            await loadGameFromId();
           }
-          
-          setGameDetails(gameResponse);
+        } else {
+          // No instance ID, just load the game
+          await loadGameFromId();
         }
       } catch (err) {
         console.error("Failed to load initial game details:", err);
+      } finally {
+        setInstanceLoading(false);
+      }
+    };
+    
+    // Helper function to load game by ID
+    const loadGameFromId = async () => {
+      const targetGameId = requestedGameId || gameId;
+      if (targetGameId) {
+        const gameResponse = await getGameById(targetGameId);
+        console.log("Fetched game details:", gameResponse);
+        
+        // If game doesn't have instances loaded, try to fetch them
+        if (!gameResponse.instances || gameResponse.instances.length === 0) {
+          try {
+            console.log("Game has no instances, fetching them separately:", targetGameId);
+            const instances = await getGameInstances(targetGameId);
+            console.log("Fetched instances for game:", instances);
+            gameResponse.instances = instances;
+          } catch (instErr) {
+            console.error("Failed to fetch instances for game:", instErr);
+          }
+        }
+        
+        // Try to find the game instance and its owner
+        if (gameResponse.instances && gameResponse.instances.length > 0) {
+          console.log("Found instances:", gameResponse.instances);
+          
+          // Try to find the specific instance by ID
+          let matchedInstance = null;
+          
+          if (gameInstanceId) {
+            console.log("Looking for instance with ID:", gameInstanceId);
+            matchedInstance = gameResponse.instances.find(inst => inst.id === parseInt(gameInstanceId));
+            if (matchedInstance) {
+              console.log("Found matching instance by ID:", matchedInstance);
+            } else {
+              console.log("No matching instance found with ID:", gameInstanceId);
+              // If not found in game response, we've already tried fetching directly above
+            }
+          }
+          
+          if (!matchedInstance) {
+            console.log("Using first available instance as fallback");
+            matchedInstance = gameResponse.instances[0];
+          }
+          
+          if (matchedInstance && matchedInstance.owner) {
+            console.log("Instance owner found:", matchedInstance.owner);
+            // Add instance owner to game details
+            gameResponse.instanceOwner = matchedInstance.owner;
+            gameResponse.gameInstance = matchedInstance;
+          } else {
+            console.log("No owner found for instance:", matchedInstance);
+          }
+        } else {
+          console.log("No instances found for game:", gameResponse);
+        }
+        
+        setGameDetails(gameResponse);
       }
     };
     
     loadGameDetails();
-  }, [requestedGameId, gameId, isReceivedRequest, id]);
+  }, [requestedGameId, gameId, gameInstanceId, id]);
 
   // Determine if this is a sent request by the current user
   const isSentRequest = !isReceivedRequest && requester === user?.name;
@@ -133,27 +261,50 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
     setDetailsLoading(true);
     setError(null);
     try {
-      // Get the actual game ID from the request
-      const targetGameId = requestedGameId || gameId;
-      if (targetGameId) {
-        const gameResponse = await getGameById(targetGameId);
-        setGameDetails(gameResponse);
-        
-        // When this is a sent request, try to find the owner of the instance
-        // from the game's instances array
-        if (!isReceivedRequest && gameResponse.instances && gameResponse.instances.length > 0) {
-          // Look for an instance with matching ID (if we have it in the request)
-          // Otherwise, just take the first one
-          const instance = gameResponse.instances.find(inst => inst.id === id) || gameResponse.instances[0];
-          if (instance && instance.owner) {
-            console.log("Found instance owner:", instance.owner);
-            // Update gameDetails with the owner info 
-            setGameDetails(prev => ({
-              ...prev,
-              instanceOwner: instance.owner
-            }));
+      // If we have an instance ID, fetch it directly first
+      if (gameInstanceId) {
+        try {
+          console.log("View Details - Fetching instance directly:", gameInstanceId);
+          const instanceData = await getGameInstanceById(gameInstanceId);
+          console.log("View Details - Successfully fetched instance:", instanceData);
+          
+          // Now fetch the game this instance belongs to
+          const targetGameId = requestedGameId || gameId || instanceData.gameId;
+          if (targetGameId) {
+            const gameResponse = await getGameById(targetGameId);
+            console.log("View Details - Fetched game details:", gameResponse);
+            
+            // Add the instance to the game response
+            if (!gameResponse.instances) {
+              gameResponse.instances = [];
+            }
+            
+            // Check if the instance is already in the list
+            const existingIndex = gameResponse.instances.findIndex(
+              inst => inst.id === parseInt(gameInstanceId)
+            );
+            
+            if (existingIndex === -1) {
+              gameResponse.instances.push(instanceData);
+            } else {
+              gameResponse.instances[existingIndex] = instanceData;
+            }
+            
+            // Add instance owner to game details
+            gameResponse.instanceOwner = instanceData.owner;
+            gameResponse.gameInstance = instanceData;
+            
+            setGameDetails(gameResponse);
           }
+        } catch (instanceErr) {
+          console.error("View Details - Failed to fetch instance directly:", instanceErr);
+          
+          // Fall back to just fetching the game
+          await loadGameDetailsForViewDetails();
         }
+      } else {
+        // No instance ID, just load the game
+        await loadGameDetailsForViewDetails();
       }
 
       // Only check for lending record if the request is approved
@@ -185,6 +336,50 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
     }
   };
 
+  // Helper function to load game details for the view details dialog
+  const loadGameDetailsForViewDetails = async () => {
+    const targetGameId = requestedGameId || gameId;
+    if (targetGameId) {
+      const gameResponse = await getGameById(targetGameId);
+      console.log("View Details - Fetched game details:", gameResponse);
+      
+      // Try to find the game instance and its owner
+      if (gameResponse.instances && gameResponse.instances.length > 0) {
+        console.log("View Details - Found instances:", gameResponse.instances);
+        
+        // Try to find the specific instance by ID
+        let matchedInstance = null;
+        
+        if (gameInstanceId) {
+          console.log("View Details - Looking for instance with ID:", gameInstanceId);
+          matchedInstance = gameResponse.instances.find(inst => inst.id === parseInt(gameInstanceId));
+          if (matchedInstance) {
+            console.log("View Details - Found matching instance by ID:", matchedInstance);
+          }
+        }
+        
+        if (!matchedInstance) {
+          console.log("View Details - Using first available instance as fallback");
+          matchedInstance = gameResponse.instances[0];
+        }
+        
+        if (matchedInstance && matchedInstance.owner) {
+          console.log("View Details - Instance owner found:", matchedInstance.owner);
+          // Update gameDetails with the instance owner info
+          setGameDetails(prev => ({
+            ...prev,
+            instanceOwner: matchedInstance.owner,
+            gameInstance: matchedInstance
+          }));
+        } else {
+          console.log("View Details - No owner found for instance:", matchedInstance);
+        }
+      }
+      
+      setGameDetails(gameResponse);
+    }
+  };
+
   const handleSubmitReview = (review) => {
     console.log("Review submitted:", review);
     setShowReviewForm(false);
@@ -200,15 +395,83 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
 
   // Helper function to get the display name for the game instance owner
   const getGameInstanceOwnerName = () => {
-    if (isReceivedRequest) {
-      return requester; // For received requests, show the requester
-    } else {
-      // For sent requests, show the instance owner if available
-      return gameDetails?.instanceOwner?.name || 
-             gameDetails?.owner?.name || 
-             "Game Owner";
-
+    console.log("Getting instance owner name from gameDetails:", {
+      instanceOwner: gameDetails?.instanceOwner,
+      gameInstance: gameDetails?.gameInstance,
+      instances: gameDetails?.instances,
+      gameInstanceId: gameInstanceId,
+      directInstanceOwner: instanceOwner
+    });
+    
+    // If we have a direct instance owner from the request, use that first
+    if (instanceOwner) {
+      if (instanceOwner.name) {
+        console.log("Using direct instanceOwner.name:", instanceOwner.name);
+        return instanceOwner.name;
+      } else if (instanceOwner.email) {
+        console.log("Using direct instanceOwner.email:", instanceOwner.email);
+        return instanceOwner.email;
+      }
     }
+    
+    // If game details are still loading, show a loading indicator
+    if (!gameDetails) {
+      return "Loading...";
+    }
+    
+    // Prioritize the instance owner over the game creator
+    if (gameDetails?.instanceOwner?.name) {
+      console.log("Using instanceOwner.name:", gameDetails.instanceOwner.name);
+      return gameDetails.instanceOwner.name;
+    } 
+    else if (gameDetails?.instanceOwner?.email) {
+      console.log("Using instanceOwner.email:", gameDetails.instanceOwner.email);
+      return gameDetails.instanceOwner.email;
+    }
+    else if (gameDetails?.gameInstance?.owner?.name) {
+      console.log("Using gameInstance.owner.name:", gameDetails.gameInstance.owner.name);
+      return gameDetails.gameInstance.owner.name;
+    }
+    else if (gameDetails?.gameInstance?.owner?.email) {
+      console.log("Using gameInstance.owner.email:", gameDetails.gameInstance.owner.email);
+      return gameDetails.gameInstance.owner.email;
+    }
+    else if (gameDetails?.instances && gameInstanceId) {
+      // Try to find instance by ID
+      const instance = gameDetails.instances.find(inst => inst.id === parseInt(gameInstanceId));
+      if (instance?.owner?.name) {
+        console.log("Found instance by ID with owner name:", instance.owner.name);
+        return instance.owner.name;
+      }
+      else if (instance?.owner?.email) {
+        console.log("Found instance by ID with owner email:", instance.owner.email);
+        return instance.owner.email;
+      }
+    }
+    else if (gameDetails?.instances && gameDetails.instances.length > 0) {
+      const firstInstance = gameDetails.instances[0];
+      if (firstInstance?.owner?.name) {
+        console.log("Using first instance owner name:", firstInstance.owner.name);
+        return firstInstance.owner.name;
+      }
+      else if (firstInstance?.owner?.email) {
+        console.log("Using first instance owner email:", firstInstance.owner.email);
+        return firstInstance.owner.email;
+      }
+    }
+    
+    // Fallback to the game creator if we can't find the instance owner
+    if (gameDetails?.owner?.name) {
+      console.log("Falling back to game creator name:", gameDetails.owner.name);
+      return gameDetails.owner.name;
+    }
+    else if (gameDetails?.owner?.email) {
+      console.log("Falling back to game creator email:", gameDetails.owner.email);
+      return gameDetails.owner.email;
+    }
+    
+    console.log("No owner information found, using default");
+    return "Unknown Owner";
   };
 
   // Handle canceling a borrow request
@@ -294,7 +557,14 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
               {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
               <div className="grid gap-1 mt-2">
                 <div className="text-sm">
-                  <span className="font-medium">{isReceivedRequest ? "From:" : "To:"}</span> {getGameInstanceOwnerName()}
+                  <span className="font-medium">{isReceivedRequest ? "From:" : "From:"}</span> {requester}
+                </div>
+                <div className="text-sm">
+                  <span className="font-medium">{isReceivedRequest ? "To:" : "To:"}</span> {
+                    instanceLoading ? 
+                      <span className="text-muted-foreground italic">Loading instance owner...</span> : 
+                      getGameInstanceOwnerName()
+                  }
                 </div>
                 <div className="text-sm">
                   <span className="font-medium">Requested on:</span> {date}

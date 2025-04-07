@@ -274,3 +274,65 @@ export const getActiveBorrowedGames = async (userId) => {
         return [];
     }
 };
+
+/**
+ * Gets a borrow request by ID with additional details about the game instance
+ * @param {number} requestId - The ID of the borrow request
+ * @returns {Promise<Object>} Borrow request data with extra instance details
+ */
+export const getBorrowRequestWithInstanceDetails = async (requestId) => {
+  if (!requestId) {
+    throw new Error("Request ID is required to fetch borrow request details.");
+  }
+  
+  console.log("Fetching detailed borrow request:", requestId);
+  
+  try {
+    // First get the basic borrow request
+    const borrowRequest = await apiClient(`/borrowrequests/${requestId}`, {
+      method: "GET",
+      skipPrefix: false
+    });
+    
+    console.log("Got basic borrow request:", borrowRequest);
+    
+    // If request has a gameInstanceId, get instance details
+    if (borrowRequest.gameInstanceId) {
+      try {
+        // Import the relevant functions to avoid circular dependencies
+        const { getGameById, getGameInstances } = await import('./game-api.js');
+        
+        // Get the game data
+        const game = await getGameById(borrowRequest.requestedGameId);
+        console.log("Got game data for request:", game);
+        
+        // Get all instances for this game to find the specific one
+        const instances = await getGameInstances(borrowRequest.requestedGameId);
+        console.log(`Got ${instances.length} instances for game:`, instances);
+        
+        // Find the specific instance
+        const targetInstance = instances.find(inst => inst.id === borrowRequest.gameInstanceId);
+        
+        if (targetInstance) {
+          console.log("Found the specific instance:", targetInstance);
+          
+          // Merge the instance data into the borrow request
+          return {
+            ...borrowRequest,
+            gameInstance: targetInstance,
+            instanceOwner: targetInstance.owner || null
+          };
+        }
+      } catch (instanceError) {
+        console.error("Error fetching instance details:", instanceError);
+        // Continue with the basic borrow request info
+      }
+    }
+    
+    // Return the original borrow request if we couldn't enhance it
+    return borrowRequest;
+  } catch (error) {
+    console.error(`Error fetching borrow request ${requestId}:`, error);
+    throw error;
+  }
+};

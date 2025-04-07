@@ -57,4 +57,12 @@ public interface GameInstanceRepository extends JpaRepository<GameInstance, Inte
      * @return List of available instances for the given game
      */
     List<GameInstance> findByGameAndAvailable(Game game, boolean available);
+    
+    /**
+     * Find all instances owned by a specific user by their ID.
+     * 
+     * @param ownerId The ID of the owner to find instances for
+     * @return List of instances owned by the given user ID
+     */
+    List<GameInstance> findByOwnerId(int ownerId);
 } 

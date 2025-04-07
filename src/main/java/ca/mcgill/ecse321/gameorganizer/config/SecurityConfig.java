@@ -64,8 +64,11 @@ public class SecurityConfig {
                 // --- Public Read Operations (using /api prefix) ---
                 .requestMatchers(HttpMethod.GET, "/api/games/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/events/**").permitAll()
-                // Note: /api/users/*/games might need adjustment based on UserController mapping
-                .requestMatchers(HttpMethod.GET, "/api/users/*/games").permitAll()
+                // User games endpoints - allow public access
+                .requestMatchers(HttpMethod.GET, "/api/users/*/games/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/users/*/games/played").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/users/*/games/borrowed").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/users/*/games/owned").permitAll()
 
                 // --- Authenticated Operations (using /api prefix and direct paths) ---
                 .requestMatchers("/users/me").authenticated() // User profile endpoint without /api prefix

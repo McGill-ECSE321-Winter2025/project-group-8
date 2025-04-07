@@ -182,8 +182,8 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game, gameInst
     } catch (error) {
       console.error("Borrow request error:", error);
       let message = error.message || "Failed to submit borrow request.";
-      if (message.toLowerCase().includes("own game")) {
-        message = "You cannot borrow a game that you own.";
+      if (message.toLowerCase().includes("own game instance")) {
+        message = "You cannot borrow a game instance that you own.";
       } else if (message.toLowerCase().includes("not found")) {
         message = "The game or user could not be found.";
       } else if (message.toLowerCase().includes("400")) {

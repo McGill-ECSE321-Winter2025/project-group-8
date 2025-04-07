@@ -1,205 +1,299 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom'; // Import useNavigate
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import UserSearchBar from '../components/user-search-page/UserSearchBar.jsx';
 import UserList from '../components/user-search-page/UserList.jsx';
-// Import the correct function from user-api.js
-import { getUserInfoByEmail } from '@/service/user-api.js';
-// Keep UserPreviewOverlay import commented out for now
-// import UserPreviewOverlay from '../components/ui/UserPreviewOverlay.jsx';
-import { Loader2 } from 'lucide-react'; // Import Loader
+import { getUserInfoByEmail, searchUsers, searchUsersByName, searchUsersByEmail } from '@/service/user-api.js';
+import { Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button.jsx';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.jsx";
+import { motion } from 'framer-motion';
+import { toast } from 'sonner';
+import { Search } from 'lucide-react';
 
 function UserSearchPage() {
-  const navigate = useNavigate(); // Initialize navigate
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [searchResults, setSearchResults] = useState([]);
-  const [recommendations, setRecommendations] = useState([]); // Keep for potential future use
   const [isLoadingSearch, setIsLoadingSearch] = useState(false);
-  const [isLoadingRecs, setIsLoadingRecs] = useState(false); // Keep for potential future use
   const [searchError, setSearchError] = useState(null);
-  const [recsError, setRecsError] = useState(null); // Keep for potential future use
   const [filterGameOwnersOnly, setFilterGameOwnersOnly] = useState(
     searchParams.get('gameOwner') === 'true'
   );
+  const [searchType, setSearchType] = useState(searchParams.get('type') || 'all');
 
-  // Keep state for preview commented out for now
-  // const [selectedUser, setSelectedUser] = useState(null);
-  // const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-
-  // Function to handle search by exact email
+  // Function to handle search by email and name
   const handleSearch = async (query) => {
     if (!query || query.trim() === '') {
-        setSearchResults([]);
-        setSearchError(null);
-        setIsLoadingSearch(false);
-        return;
+      setSearchResults([]);
+      setSearchError(null);
+      setIsLoadingSearch(false);
+      return;
     }
+    
     setIsLoadingSearch(true);
     setSearchError(null);
-    setSearchResults([]); // Clear previous results before new search
+    setSearchResults([]);
+
     try {
-      // Call getUserInfoByEmail assuming query is the exact email
-      const result = await getUserInfoByEmail(query);
+      let results = [];
       
-      // Check if we have a valid result
-      if (result) {
-        // Adapt the result for UserList/UserProfileCard
-        const userResult = {
-          // The backend now returns UserSummaryDto with id, name, email, and gameOwner fields
-          id: result.id || result.email, // Use id as key, fallback to email if needed
-          username: result.name, // Backend uses 'name' instead of 'username'
-          email: result.email,
-          isGameOwner: result.gameOwner, // Now matches the backend field name
-          avatarUrl: "/placeholder.svg?height=48&width=48" // Placeholder avatar
-        };
-        setSearchResults([userResult]); // Put the single result in an array
-        setSearchError(null); // Clear any previous error on success
-      } else {
-        // Handle case where result is empty but request succeeded
-        setSearchResults([]);
-        setSearchError('No user found with that email.');
+      // Search based on the selected type and query
+      switch (searchType) {
+        case 'email':
+          // Check if it's an exact email search or a partial search
+          if (query.includes('@') && !query.includes('*') && !query.includes('%')) {
+            // Exact email search
+            try {
+              const emailResult = await getUserInfoByEmail(query);
+              if (emailResult) {
+                results.push({
+                  id: emailResult.id,
+                  username: emailResult.name,
+                  email: emailResult.email,
+                  isGameOwner: emailResult.gameOwner,
+                  gamesPlayed: emailResult.gamesPlayed || [],
+                  gamesOwned: emailResult.gamesOwned || [],
+                  avatarUrl: "/placeholder.svg?height=48&width=48"
+                });
+              }
+            } catch (error) {
+              console.log('Exact email search failed:', error);
+            }
+          } else {
+            // Partial email search
+            const emailResults = await searchUsersByEmail(query);
+            if (emailResults && emailResults.length > 0) {
+              results = emailResults.map(user => ({
+                id: user.id,
+                username: user.name,
+                email: user.email,
+                isGameOwner: user.gameOwner,
+                gamesPlayed: user.gamesPlayed || [],
+                gamesOwned: user.gamesOwned || [],
+                avatarUrl: "/placeholder.svg?height=48&width=48"
+              }));
+            }
+          }
+          break;
+          
+        case 'name':
+          // Search by name
+          const nameResults = await searchUsersByName(query);
+          if (nameResults && nameResults.length > 0) {
+            results = nameResults.map(user => ({
+              id: user.id,
+              username: user.name,
+              email: user.email,
+              isGameOwner: user.gameOwner,
+              gamesPlayed: user.gamesPlayed || [],
+              gamesOwned: user.gamesOwned || [],
+              avatarUrl: "/placeholder.svg?height=48&width=48"
+            }));
+          }
+          break;
+          
+        case 'all':
+        default:
+          // Search by both name and email
+          const combinedResults = await searchUsers({ 
+            term: query,
+            gameOwnerOnly: filterGameOwnersOnly
+          });
+          
+          if (combinedResults && combinedResults.length > 0) {
+            results = combinedResults.map(user => ({
+              id: user.id,
+              username: user.name,
+              email: user.email,
+              isGameOwner: user.gameOwner,
+              gamesPlayed: user.gamesPlayed || [],
+              gamesOwned: user.gamesOwned || [],
+              avatarUrl: "/placeholder.svg?height=48&width=48"
+            }));
+          }
+          break;
       }
+      
+      // Filter by game owner if requested
+      if (filterGameOwnersOnly) {
+        results = results.filter(user => user.isGameOwner);
+      }
+      
+      setSearchResults(results);
+      setSearchError(null);
     } catch (error) {
-       setSearchResults([]); // Always clear results on error
-       // Handle "user not found" specifically (e.g., 400/404 from backend) vs other errors
-       const errorMsg = error.message || '';
-       if (errorMsg.includes("400") || errorMsg.includes("404") || errorMsg.toLowerCase().includes("not exist") || errorMsg.toLowerCase().includes("not found")) {
-            setSearchError('No user found with that email.'); // Show a user-friendly message for "not found"
-       } else {
-           // Set a generic error for other failures
-           setSearchError('Search failed. Please try again.');
-           console.error("User search failed:", error); // Log the actual error for debugging
-       }
+      console.error("User search failed:", error);
+      setSearchResults([]);
+      setSearchError('Search failed. Please try again.');
     } finally {
       setIsLoadingSearch(false);
     }
   };
 
-
   // Load initial search if query param exists
   useEffect(() => {
     const initialQuery = searchParams.get('q');
+    const initialType = searchParams.get('type');
+    
+    if (initialType) {
+      setSearchType(initialType);
+    }
+    
     if (initialQuery) {
-      setSearchQuery(initialQuery); // Set state to trigger search effect
+      setSearchQuery(initialQuery);
     }
-    // Also handle initial filter state
+    
     setFilterGameOwnersOnly(searchParams.get('gameOwner') === 'true');
-  }, []); // Run only once on mount
+  }, []);
 
-
-  // Effect for debounced search - trigger on searchQuery change
+  // Effect for debounced search
   useEffect(() => {
-    // Debounce to avoid API call on every keystroke
     const debounceTimer = setTimeout(() => {
-      // Trigger search only if query is not empty
-       if (searchQuery.trim() !== '') {
-           handleSearch(searchQuery);
-       } else {
-           // Clear results if search query is cleared
-           setSearchResults([]);
-           setSearchError(null);
-       }
-    }, 500); // 500ms debounce
+      if (searchQuery.trim() !== '') {
+        handleSearch(searchQuery);
+      } else {
+        setSearchResults([]);
+        setSearchError(null);
+      }
+    }, 500);
 
-    // Cleanup function
     return () => clearTimeout(debounceTimer);
-  }, [searchQuery]); // Depend only on searchQuery
+  }, [searchQuery, searchType, filterGameOwnersOnly]);
 
-
-  // Update URL when search query changes (filter handled separately if needed)
+  // Update URL when search parameters change
   useEffect(() => {
-    const params = new URLSearchParams(searchParams); // Preserve existing params like previewUser
+    const params = new URLSearchParams(searchParams);
     if (searchQuery) {
-        params.set('q', searchQuery);
+      params.set('q', searchQuery);
     } else {
-        params.delete('q');
+      params.delete('q');
     }
-    // Update URL without causing re-render loop if possible
-    // Using replace: true might be better if search updates frequently
+    
+    if (searchType !== 'all') {
+      params.set('type', searchType);
+    } else {
+      params.delete('type');
+    }
+    
+    if (filterGameOwnersOnly) {
+      params.set('gameOwner', 'true');
+    } else {
+      params.delete('gameOwner');
+    }
+    
     setSearchParams(params, { replace: true });
-  }, [searchQuery]);
-
-
-  // TODO: Implement recommendations fetch if backend endpoint exists
-  // useEffect(() => {
-  //   const loadRecommendations = async () => { ... };
-  //   loadRecommendations();
-  // }, []);
-
-  // TODO: Implement user preview fetch if backend endpoint exists
-  // useEffect(() => {
-  //   const previewUserId = searchParams.get('previewUser');
-  //   if (previewUserId) { ... }
-  // }, [searchParams.get('previewUser')]);
-
+  }, [searchQuery, searchType, filterGameOwnersOnly]);
 
   const handleUserCardClick = (user) => {
-    // Navigate to profile page, passing email as query param
     if (user && user.email) {
-        navigate(`/profile?email=${encodeURIComponent(user.email)}`);
+      navigate(`/profile?email=${encodeURIComponent(user.email)}`);
     } else {
-        console.error("Cannot navigate to profile: user email missing.", user);
-        toast.error("Could not open user profile."); // Use toast for user feedback
+      console.error("Cannot navigate to profile: user email missing.", user);
+      toast.error("Could not open user profile.");
     }
   };
 
-  // Keep handlePreviewClose commented out
-  // const handlePreviewClose = () => { ... };
-
-  // Function to handle manual search submission (e.g., pressing Enter)
   const handleSearchSubmit = () => {
-    // The useEffect hook already handles debounced search based on searchQuery state
-    // This function might not be strictly necessary unless you want immediate search on Enter
     if (searchQuery.trim() !== '') {
-      handleSearch(searchQuery); // Trigger immediate search
+      handleSearch(searchQuery);
     }
+  };
+
+  const handleSearchTypeChange = (value) => {
+    setSearchType(value);
   };
 
   return (
-    <div className="container p-8 space-y-6">
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+      className="container p-8 space-y-8"
+    >
+      {/* Header */}
+      <div className="text-center mb-6">
+        <h1 className="text-3xl font-bold tracking-tight mb-2">Find Users</h1>
+        <p className="text-muted-foreground">Search for other users by name or email</p>
+      </div>
+      
+      {/* Search Type Tabs */}
+      <Tabs 
+        defaultValue={searchType} 
+        className="w-full md:w-3/4 lg:w-2/3 mx-auto"
+        onValueChange={handleSearchTypeChange}
+      >
+        <TabsList className="grid grid-cols-3 mb-4">
+          <TabsTrigger value="all">All</TabsTrigger>
+          <TabsTrigger value="name">By Name</TabsTrigger>
+          <TabsTrigger value="email">By Email</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       {/* Search Bar Area */}
       <div className="w-full md:w-3/4 lg:w-2/3 mx-auto">
         <UserSearchBar
           searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery} // Pass setter to update state
+          setSearchQuery={setSearchQuery}
           onSearchSubmit={handleSearchSubmit}
-          // Filter functionality is disabled for now as backend doesn't support it with email search
-          filterGameOwnersOnly={false} // Keep filter state, but maybe disable UI?
-          setFilterGameOwnersOnly={() => {}} // Disable filter changes for now
+          filterGameOwnersOnly={filterGameOwnersOnly}
+          setFilterGameOwnersOnly={setFilterGameOwnersOnly}
+          searchType={searchType}
         />
-         <p className="text-sm text-muted-foreground mt-2 text-center">Search by exact user email.</p>
+        <p className="text-sm text-muted-foreground mt-2 text-center">
+          {searchType === 'email' 
+            ? 'Search by user email address' 
+            : searchType === 'name' 
+              ? 'Search by user name' 
+              : 'Search by user name or email address'}
+        </p>
       </div>
 
-      {/* Conditional Search Results Area */}
-      {/* Show results only when a search has been attempted (query is not empty) */}
-      {searchQuery.trim() !== '' && (
-        <div className="mt-12">
+      {/* Search Results Area */}
+      {(searchQuery.trim() !== '' || searchResults.length > 0) && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.1 }}
+          className="mt-12"
+        >
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-semibold tracking-tight">Search Results</h2>
             {!isLoadingSearch && searchResults.length > 0 && (
               <span className="text-sm text-muted-foreground">
-                 Found {searchResults.length} user{searchResults.length !== 1 ? 's' : ''}
-               </span>
-             )}
-             {/* The explicit "No user found" span that was here is now removed */}
+                Found {searchResults.length} user{searchResults.length !== 1 ? 's' : ''}
+              </span>
+            )}
           </div>
-          {/* Pass error state to UserList, and let it handle the empty message */}
           <UserList
             users={searchResults}
             isLoading={isLoadingSearch}
-            error={searchError} // Pass the generic error state
-            emptyMessage="No user found matching your search." // Use the message from UserList
+            error={searchError}
+            emptyMessage={searchQuery ? `No users found matching "${searchQuery}"` : "Enter a search term to find users"}
             onUserClick={handleUserCardClick}
           />
-        </div>
+        </motion.div>
       )}
 
-      {/* Conditional Recommendations Area - Keep disabled */}
-      {/* {searchQuery.trim() === '' && ( ... )} */}
-
-      {/* Keep preview overlay commented out */}
-      {/* <UserPreviewOverlay ... /> */}
-    </div>
+      {/* Empty State */}
+      {searchQuery.trim() === '' && searchResults.length === 0 && !isLoadingSearch && (
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="flex flex-col items-center justify-center py-16 text-center"
+        >
+          <div className="rounded-full bg-primary/10 p-4 mb-4">
+            <Search className="h-8 w-8 text-primary" />
+          </div>
+          <h3 className="text-xl font-medium mb-2">Search for Users</h3>
+          <p className="text-muted-foreground max-w-md">
+            Enter a name or email address to find users in the system.
+            Click on a user card to view their profile.
+          </p>
+        </motion.div>
+      )}
+    </motion.div>
   );
 }
 

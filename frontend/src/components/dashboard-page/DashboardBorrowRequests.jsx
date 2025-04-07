@@ -43,11 +43,16 @@ export default function DashboardBorrowRequests({ userType }) {
         outgoingRequests.map(async (req) => {
           try {
             const game = await getGameById(req.requestedGameId);
+            console.log(`Enriched sent request ${req.id} with game ${req.requestedGameId}:`, {
+              game,
+              gameInstanceId: req.gameInstanceId
+            });
             return { 
               ...req, 
               requestedGameName: game.name, 
               gameImage: game.image || game.imageUrl || null, // Try both image field names
-              requesterName: user.name // Use current user's name for sent requests
+              requesterName: user.name, // Use current user's name for sent requests
+              gameInstanceId: req.gameInstanceId // Pass gameInstanceId if available
             };
           } catch (error) {
             console.error(`Error fetching game details for request ${req.id}, game ${req.requestedGameId}:`, error);
@@ -55,7 +60,8 @@ export default function DashboardBorrowRequests({ userType }) {
               ...req, 
               requestedGameName: "(Unknown Game)", 
               gameImage: null,
-              requesterName: user.name 
+              requesterName: user.name,
+              gameInstanceId: req.gameInstanceId // Pass gameInstanceId if available
             };
           }
         })
@@ -73,11 +79,16 @@ export default function DashboardBorrowRequests({ userType }) {
           ownerRequests.map(async (req) => {
             try {
               const game = await getGameById(req.requestedGameId);
+              console.log(`Enriched received request ${req.id} with game ${req.requestedGameId}:`, {
+                game,
+                gameInstanceId: req.gameInstanceId
+              });
               return { 
                 ...req, 
                 requestedGameName: game.name, 
                 gameImage: game.image || game.imageUrl || null, // Try both image field names
-                requesterName: req.requesterName
+                requesterName: req.requesterName,
+                gameInstanceId: req.gameInstanceId // Pass gameInstanceId if available
               };
             } catch (error) {
               console.error(`Error fetching game details for request ${req.id}, game ${req.requestedGameId}:`, error);
@@ -85,7 +96,8 @@ export default function DashboardBorrowRequests({ userType }) {
                 ...req, 
                 requestedGameName: "(Unknown Game)", 
                 gameImage: null, 
-                requesterName: req.requesterName
+                requesterName: req.requesterName,
+                gameInstanceId: req.gameInstanceId // Pass gameInstanceId if available
               };
             }
           })
@@ -167,6 +179,7 @@ export default function DashboardBorrowRequests({ userType }) {
                     refreshRequests={fetchBorrowRequests}
                     gameId={request.requestedGameId}
                     requestedGameId={request.requestedGameId}
+                    gameInstanceId={request.gameInstanceId}
                   />
                 )
               )}
@@ -194,6 +207,7 @@ export default function DashboardBorrowRequests({ userType }) {
                       refreshRequests={fetchBorrowRequests}
                       gameId={request.requestedGameId}
                       requestedGameId={request.requestedGameId}
+                      gameInstanceId={request.gameInstanceId}
                     />
                   )
                 )}
