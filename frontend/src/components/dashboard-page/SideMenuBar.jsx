@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useContext, useEffect } from "react"
-import { useState, useContext } from "react"
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext.jsx";
 import { upgradeAccountToGameOwner, updateUsernamePassword } from '@/service/dashboard-api.js';
