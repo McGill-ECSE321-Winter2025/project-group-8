@@ -195,6 +195,7 @@ public class GameService {
             new Date()
         );
         game.setOwner(owner);
+        game.setCategory(gameDto.getCategory());
         game = gameRepository.save(game);
 
         // Create the initial game instance
