@@ -131,6 +131,24 @@ public class LendingRecordController {
     }
 
     /**
+     * Retrieves a lending record by its associated borrow request ID.
+     * 
+     * @param requestId The ID of the borrow request
+     * @return ResponseEntity containing the lending record if found
+     */
+    @GetMapping("/request/{requestId}")
+    public ResponseEntity<LendingRecordResponseDto> getLendingRecordByRequestId(@PathVariable int requestId) {
+        try {
+            LendingRecord record = lendingRecordService.getLendingRecordByRequestId(requestId);
+            return ResponseEntity.ok(convertToResponseDto(record));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    /**
      * Retrieves lending records by owner.
      * 
      * @param ownerId The ID of the game owner
@@ -690,7 +708,8 @@ public class LendingRecordController {
         LendingRecordResponseDto.GameInfo gameInfo = new LendingRecordResponseDto.GameInfo(
                 record.getRequest().getRequestedGame().getId(),
                 record.getRequest().getRequestedGame().getName(),
-                record.getRequest().getRequestedGame().getCategory());
+                record.getRequest().getRequestedGame().getCategory(),
+                record.getRequest().getRequestedGame().getImage());
         
         // Create borrower info
         LendingRecordResponseDto.UserInfo borrowerInfo = new LendingRecordResponseDto.UserInfo(

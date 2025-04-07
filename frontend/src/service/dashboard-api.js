@@ -177,16 +177,11 @@ export async function getLendingHistory(accountId, isOwner, retryCount = 0) {
   }
 }
 
-export async function markAsReturned(lendingId, information) {
-  const userId = localStorage.getItem('userId');
-  return apiClient(`/api/lending-records/${lendingId}/mark-returned?userId=${userId}`, {
+export async function markAsReturned(lendingRecordId, data) {
+  return apiClient(`/api/lending-records/${lendingRecordId}/mark-returned`, {
     method: "POST",
-    body: information,
+    body: data,
     skipPrefix: false,
-    credentials: 'include',
-    headers: {
-      'X-User-Id': userId
-    }
   });
 }
 
@@ -223,5 +218,12 @@ export async function getHostedEvents(hostId) {
     headers: {
       'X-User-Id': userId || hostId
     }
+  });
+}
+
+export async function getLendingRecordByRequestId(requestId) {
+  return apiClient(`/api/lending-records/request/${requestId}`, {
+    method: "GET",
+    skipPrefix: false,
   });
 }

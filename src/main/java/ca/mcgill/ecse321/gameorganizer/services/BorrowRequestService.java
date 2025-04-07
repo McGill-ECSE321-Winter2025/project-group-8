@@ -31,6 +31,8 @@ import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
+import ca.mcgill.ecse321.gameorganizer.models.GameInstance;
+import ca.mcgill.ecse321.gameorganizer.repositories.GameInstanceRepository;
 /**
  * Service for managing borrow requests in the game organizer system.
  * Handles request creation, retrieval, updates, and deletion.
@@ -46,6 +48,7 @@ public class BorrowRequestService {
     private final GameRepository gameRepository;
     private final AccountRepository accountRepository;
     private final LendingRecordService lendingRecordService; // Added dependency
+    private final GameInstanceRepository gameInstanceRepository; // Added dependency
 
     // UserContext field removed
 
@@ -58,11 +61,12 @@ public class BorrowRequestService {
      */
     // Updated constructor to remove UserContext
     @Autowired
-    public BorrowRequestService(BorrowRequestRepository borrowRequestRepository, GameRepository gameRepository, AccountRepository accountRepository, LendingRecordService lendingRecordService) { // Added LendingRecordService
+    public BorrowRequestService(BorrowRequestRepository borrowRequestRepository, GameRepository gameRepository, AccountRepository accountRepository, LendingRecordService lendingRecordService, GameInstanceRepository gameInstanceRepository) { // Added LendingRecordService and GameInstanceRepository
         this.borrowRequestRepository = borrowRequestRepository;
         this.gameRepository = gameRepository;
         this.accountRepository = accountRepository;
         this.lendingRecordService = lendingRecordService; // Initialize LendingRecordService
+        this.gameInstanceRepository = gameInstanceRepository; // Initialize GameInstanceRepository
     }
 
     /**
@@ -281,6 +285,21 @@ public class BorrowRequestService {
             if (owner == null) {
                 // This case might indicate an orphaned game or configuration issue.
                 throw new IllegalStateException("Cannot approve request: Game owner is not set.");
+            }
+            
+            // Check if there is at least one available game instance
+            List<GameInstance> instances = gameInstanceRepository.findByGame(requestedGame);
+            boolean hasAvailableInstance = false;
+            
+            for (GameInstance instance : instances) {
+                if (instance.isAvailable()) {
+                    hasAvailableInstance = true;
+                    break;
+                }
+            }
+            
+            if (!hasAvailableInstance) {
+                throw new IllegalStateException("Cannot approve request: No available game instance found for the requested game.");
             }
 
             // Inner try-catch specifically for lending record creation issues

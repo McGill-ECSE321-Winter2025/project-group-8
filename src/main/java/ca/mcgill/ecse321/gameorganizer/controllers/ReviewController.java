@@ -20,7 +20,7 @@ import java.util.List;
  * @author Alexander
  */
 @RestController
-@RequestMapping("/reviews")
+@RequestMapping("/api/reviews")
 public class ReviewController {
 
     @Autowired

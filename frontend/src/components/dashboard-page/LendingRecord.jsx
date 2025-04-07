@@ -3,34 +3,48 @@ import { Card, CardContent } from "@/components/ui/card.jsx";
 import { Badge } from "@/components/ui/badge.jsx"; // Import Badge
 import { Button } from "@/components/ui/button.jsx";
 import { markAsReturned } from '@/service/dashboard-api.js';
-// import { toast } from 'react-toastify'; // Example
 
 export default function LendingRecord({ id, name, requester, startDate, endDate, status, refreshRecords, imageSrc }) { // Add imageSrc prop
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [isReturned, setIsReturned] = useState(status === 'Returned' || status === 'CLOSED');
+
+  // Calculate if the lending is overdue based on the current date and end date
+  const isOverdue = new Date() > new Date(endDate) && status !== 'Returned' && status !== 'CLOSED';
+  
+  // Determine the current status to display
+  const displayStatus = isReturned 
+    ? 'Returned' 
+    : (isOverdue ? 'Overdue' : (status || 'Active'));
 
   const handleMarkReturned = async () => {
     if (!id) {
       console.error("Lending record ID is missing!");
-      // toast.error("Cannot process request: ID missing.");
       setError("Cannot process request: ID missing.");
       return;
     }
     setIsLoading(true);
     setError(null);
     try {
-      // The API function `markAsReturned` expects (lendingId, information)
-      // Assuming no extra information is needed for now, passing null or an empty object.
-      // Adjust if specific 'information' payload is required by the backend.
       await markAsReturned(id, {});
-      // toast.success("Game marked as returned successfully!");
+      
+      setIsReturned(true);
+      
+      console.log("Success: Game marked as returned successfully!");
+      
       if (refreshRecords) {
         refreshRecords(); // Refresh the list in the parent component
       }
     } catch (err) {
       console.error("Failed to mark as returned:", err);
-      // toast.error("Failed to mark as returned. Please try again.");
-      setError("Failed to mark as returned.");
+      // Create a more user-friendly error message
+      let errorMessage = "Failed to mark as returned.";
+      if (err.message && err.message.includes("404")) {
+        errorMessage = "Record not found. It may have been deleted or already processed.";
+      } else if (err.message && err.message.includes("403")) {
+        errorMessage = "You don't have permission to mark this record as returned.";
+      }
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -44,6 +58,9 @@ export default function LendingRecord({ id, name, requester, startDate, endDate,
             src={imageSrc || "https://placehold.co/200x200/e9e9e9/1d1d1d?text=No+Image"}
             alt={`Cover art for ${name}`}
             className="w-full h-full object-cover rounded-lg aspect-square"
+            onError={(e) => {
+              e.target.src = "https://placehold.co/200x200/e9e9e9/1d1d1d?text=No+Image";
+            }}
           />
         </div>
         <div className="flex-1">
@@ -51,13 +68,13 @@ export default function LendingRecord({ id, name, requester, startDate, endDate,
             <h3 className="text-xl font-semibold">"{name}" has been lent</h3>
             <Badge
               variant={
-                status === 'Returned' ? 'positive' :
-                status === 'Overdue' ? 'destructive' :
+                displayStatus === 'Returned' ? 'positive' :
+                displayStatus === 'Overdue' ? 'destructive' :
                 'outline' // Default for Active or other statuses
               }
               className="text-xs"
             >
-              {status || 'Active'} {/* Display status, default to Active */}
+              {displayStatus}
             </Badge>
           </div>
           {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
@@ -66,13 +83,13 @@ export default function LendingRecord({ id, name, requester, startDate, endDate,
               <span className="font-medium">Borrower:</span> {requester}
             </div>
             <div className="text-sm">
-              <span className="font-medium">Lent on:</span> {startDate}
+              <span className="font-medium">Lent on:</span> {startDate ? new Date(startDate).toLocaleDateString() : 'Unknown'}
             </div>
             <div className="text-sm">
-              <span className="font-medium">Return by:</span> {endDate}
+              <span className="font-medium">Return by:</span> {endDate ? new Date(endDate).toLocaleDateString() : 'Unknown'}
             </div>
           </div>
-          {status !== 'Returned' && ( // Only show button if not already returned
+          {!isReturned && ( // Only show button if not already returned
             <div className="flex mt-4">
               <Button variant="positive" size="sm" onClick={handleMarkReturned} disabled={isLoading}>
                 {isLoading ? 'Processing...' : 'Mark as returned'}

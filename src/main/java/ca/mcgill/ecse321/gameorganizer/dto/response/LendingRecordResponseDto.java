@@ -141,6 +141,7 @@ public class LendingRecordResponseDto {
         private int id;
         private String name;
         private String category;
+        private String imageUrl;
         
         /**
          * Default constructor required for Jackson deserialization
@@ -149,15 +150,17 @@ public class LendingRecordResponseDto {
             // Required for Jackson deserialization
         }
         
-        public GameInfo(int id, String name, String category) {
+        public GameInfo(int id, String name, String category, String imageUrl) {
             this.id = id;
             this.name = name;
             this.category = category;
+            this.imageUrl = imageUrl;
         }
         
         public int getId() { return id; }
         public String getName() { return name; }
         public String getCategory() { return category; }
+        public String getImageUrl() { return imageUrl; }
     }
     
     /**

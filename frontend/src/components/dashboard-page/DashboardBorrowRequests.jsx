@@ -165,6 +165,8 @@ export default function DashboardBorrowRequests({ userType }) {
                     status={request.status}
                     imageSrc={request.gameImage}
                     refreshRequests={fetchBorrowRequests}
+                    gameId={request.requestedGameId}
+                    requestedGameId={request.requestedGameId}
                   />
                 )
               )}
@@ -190,6 +192,8 @@ export default function DashboardBorrowRequests({ userType }) {
                       status={request.status}
                       imageSrc={request.gameImage}
                       refreshRequests={fetchBorrowRequests}
+                      gameId={request.requestedGameId}
+                      requestedGameId={request.requestedGameId}
                     />
                   )
                 )}

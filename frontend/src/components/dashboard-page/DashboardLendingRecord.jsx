@@ -29,7 +29,24 @@ export default function DashboardLendingRecord() {
       const cookieState = getCookieAuthState();
       
       const records = await getLendingHistory(user.id, true); // true indicates user is the owner
-      setLendingRecords(records);
+      
+      // Transform records to include proper status
+      const processedRecords = records.map(record => {
+        // Calculate if the record is overdue
+        const isOverdue = new Date() > new Date(record.endDate) && record.status !== 'CLOSED';
+        
+        // Determine display status
+        const status = record.status === 'CLOSED' 
+          ? 'Returned' 
+          : (isOverdue ? 'Overdue' : 'Active');
+          
+        return {
+          ...record,
+          status: status
+        };
+      });
+      
+      setLendingRecords(processedRecords);
       setError(null); // Clear any previous errors
     } catch (err) {
       console.error("Error fetching lending records:", err);
@@ -83,11 +100,13 @@ export default function DashboardLendingRecord() {
           <LendingRecord 
             key={record.id} 
             id={record.id}
-            name={record.gameName || "Unknown Game"}
-            requester={record.borrowerName || "Unknown User"}
+            name={record.game?.name || "Unknown Game"}
+            requester={record.borrower?.name || "Unknown User"}
             startDate={record.startDate}
             endDate={record.endDate}
-            imageSrc={record.gameImage} // Pass the image source
+            status={record.status}
+            imageSrc={record.game?.imageUrl || record.gameImage} // Try to use image URL from game object first
+            refreshRecords={fetchLendingRecords} // Pass the refresh function
           />
         )
       )}

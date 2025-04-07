@@ -2,6 +2,7 @@ package ca.mcgill.ecse321.gameorganizer.services;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,10 +24,13 @@ import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.BorrowRequest;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
+import ca.mcgill.ecse321.gameorganizer.models.Game;
+import ca.mcgill.ecse321.gameorganizer.models.GameInstance;
 import ca.mcgill.ecse321.gameorganizer.models.LendingRecord;
 import ca.mcgill.ecse321.gameorganizer.models.LendingRecord.LendingStatus;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.GameInstanceRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.LendingRecordRepository;
 
 /**
@@ -43,6 +47,8 @@ public class LendingRecordService {
     private LendingRecordRepository lendingRecordRepository;
     private final BorrowRequestRepository borrowRequestRepository;
     private final AccountRepository accountRepository; // Inject AccountRepository
+    @Autowired
+    private GameInstanceRepository gameInstanceRepository; // Add GameInstanceRepository
 
     @Autowired
     public LendingRecordService(LendingRecordRepository lendingRecordRepository, BorrowRequestRepository borrowRequestRepository, AccountRepository accountRepository) {
@@ -105,6 +111,26 @@ public class LendingRecordService {
             // Create and save new lending record
             LendingRecord record = new LendingRecord(startDate, endDate, LendingStatus.ACTIVE, request, owner);
             lendingRecordRepository.save(record);
+            
+            // Find all game instances for the requested game and set the first available one to unavailable
+            Game requestedGame = request.getRequestedGame();
+            List<GameInstance> instances = gameInstanceRepository.findByGame(requestedGame);
+            boolean instanceFound = false;
+            
+            for (GameInstance instance : instances) {
+                if (instance.isAvailable()) {
+                    instance.setAvailable(false);
+                    gameInstanceRepository.save(instance);
+                    instanceFound = true;
+                    log.info("Game instance ID: {} for game '{}' marked as unavailable due to lending", 
+                            instance.getId(), requestedGame.getName());
+                    break;
+                }
+            }
+            
+            if (!instanceFound) {
+                log.warn("No available game instance found for game '{}'", requestedGame.getName());
+            }
 
             return ResponseEntity.ok("Lending record created successfully");
         } catch (IllegalArgumentException e) {
@@ -145,8 +171,43 @@ public class LendingRecordService {
      */
     @Transactional
     public LendingRecord getLendingRecordById(int id) {
-        return lendingRecordRepository.findLendingRecordById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("No lending record found with ID " + id));
+        if (id <= 0) {
+            throw new IllegalArgumentException("ID must be positive");
+        }
+        Optional<LendingRecord> record = lendingRecordRepository.findLendingRecordById(id);
+        if (record.isEmpty()) {
+            throw new IllegalArgumentException("Lending record with ID " + id + " not found");
+        }
+        return record.get();
+    }
+
+    /**
+     * Retrieves a lending record by its associated borrow request ID.
+     *
+     * @param requestId The ID of the borrow request
+     * @return The lending record associated with the borrow request
+     * @throws IllegalArgumentException if the request ID is invalid
+     * @throws ResourceNotFoundException if no lending record is found for the request
+     */
+    @Transactional
+    public LendingRecord getLendingRecordByRequestId(int requestId) {
+        if (requestId <= 0) {
+            throw new IllegalArgumentException("Request ID must be positive");
+        }
+        
+        // First, check if the borrow request exists
+        Optional<BorrowRequest> request = borrowRequestRepository.findBorrowRequestById(requestId);
+        if (request.isEmpty()) {
+            throw new ResourceNotFoundException("Borrow request with ID " + requestId + " not found");
+        }
+        
+        // Then find the associated lending record
+        Optional<LendingRecord> record = lendingRecordRepository.findByRequest(request.get());
+        if (record.isEmpty()) {
+            throw new ResourceNotFoundException("No lending record found for borrow request with ID " + requestId);
+        }
+        
+        return record.get();
     }
 
     /**
@@ -413,17 +474,42 @@ public class LendingRecordService {
                     .orElseThrow(() -> new UnauthedException("Authenticated user not found in database."));
             Integer currentUserId = currentUser.getId();
         
-        if (currentStatus == LendingStatus.CLOSED) {
-            throw new IllegalStateException("Lending record is already closed");
-        }
-        
+            if (currentStatus == LendingStatus.CLOSED) {
+                throw new IllegalStateException("Lending record is already closed");
+            }
+            
             record.recordClosing(currentUserId, reason != null ? reason : "Game returned in good condition");
+            
+            lendingRecordRepository.save(record);
+            
+            // Mark the corresponding game instance as available again
+            BorrowRequest request = record.getRequest();
+            if (request != null && request.getRequestedGame() != null) {
+                Game game = request.getRequestedGame();
+                
+                // Find the first unavailable game instance for this game and mark it as available
+                List<GameInstance> instances = gameInstanceRepository.findByGame(game);
+                boolean instanceUpdated = false;
+                
+                for (GameInstance instance : instances) {
+                    if (!instance.isAvailable()) {
+                        instance.setAvailable(true);
+                        gameInstanceRepository.save(instance);
+                        instanceUpdated = true;
+                        log.info("Game instance ID: {} for game '{}' marked as available after return", 
+                                instance.getId(), game.getName());
+                        break;
+                    }
+                }
+                
+                if (!instanceUpdated) {
+                    log.warn("No unavailable game instance found for game '{}' to mark as available", game.getName());
+                }
+            }
         
-        lendingRecordRepository.save(record);
-        
-        return ResponseEntity.ok(String.format(
-            "Lending record (ID: %d) successfully closed. Previous status was %s", 
-                record.getId(), currentStatus));
+            return ResponseEntity.ok(String.format(
+                "Lending record (ID: %d) successfully closed. Previous status was %s", 
+                    record.getId(), currentStatus));
         } catch (ResourceNotFoundException e) {
             return createErrorResponse(HttpStatus.NOT_FOUND, e.getMessage());
         } catch (IllegalStateException e) {
@@ -471,60 +557,70 @@ public class LendingRecordService {
             int id, boolean isDamaged, String damageNotes, int damageSeverity,
             String reason) { // Removed userId parameter
         try {
+            // Validate severity
+            if (damageSeverity < 0 || damageSeverity > 3) {
+                throw new IllegalArgumentException("Damage severity must be between 0 and 3");
+            }
+            
             LendingRecord record = getLendingRecordById(id);
-            log.info("Attempting closeLendingRecordWithDamageAssessment for record ID: {}. isDamaged={}, damageSeverity={}, reason={}", id, isDamaged, damageSeverity, reason);
             LendingStatus currentStatus = record.getStatus();
-
+            
             // Authorization handled by @PreAuthorize
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             Account currentUser = accountRepository.findByEmail(authentication.getName())
                     .orElseThrow(() -> new UnauthedException("Authenticated user not found in database."));
             Integer currentUserId = currentUser.getId();
-        
-        log.debug("Checking current status for record ID: {}. Current status: {}", id, currentStatus);
-        if (currentStatus == LendingStatus.CLOSED) {
-            log.warn("Attempted to close already closed record ID: {}", id);
-            throw new IllegalStateException("Lending record is already closed");
-        }
-        
-        if (isDamaged) {
-            record.recordDamage(true, damageNotes, damageSeverity);
-        }
-        
-        String damageDetails = isDamaged ? 
-                String.format("Game returned with %s damage.", 
-                        damageSeverity == 1 ? "minor" : 
-                        damageSeverity == 2 ? "moderate" : 
-                        damageSeverity == 3 ? "severe" : "unspecified") : 
-                "Game returned in good condition.";
-                
-        String closingReason = reason != null ? reason + ". " + damageDetails : damageDetails;
-        
-            record.recordClosing(currentUserId, closingReason);
-        
-        log.debug("Attempting to save closed record ID: {} with damage assessment.", record.getId());
-        // REMOVED REDUNDANT SAVE CALL HERE
-        try {
+            
+            if (currentStatus == LendingStatus.CLOSED) {
+                throw new IllegalStateException("Lending record is already closed");
+            }
+            
+            // Record damage info
+            record.recordDamage(isDamaged, damageNotes, damageSeverity);
+            
+            // Close the record
+            record.recordClosing(currentUserId, reason != null ? reason : "Game returned with notes");
+            
             lendingRecordRepository.save(record);
-            log.info("Successfully saved closed record ID: {}", record.getId());
-        } catch (Exception e) {
-            log.error("Error saving record ID: {} during close with damage assessment", record.getId(), e);
-            throw e;
-        }
-        
-            // Original save call removed
-            return ResponseEntity.ok("Lending record closed successfully");
+            
+            // Mark the corresponding game instance as available again
+            BorrowRequest request = record.getRequest();
+            if (request != null && request.getRequestedGame() != null) {
+                Game game = request.getRequestedGame();
+                
+                // Find the first unavailable game instance for this game and mark it as available
+                List<GameInstance> instances = gameInstanceRepository.findByGame(game);
+                boolean instanceUpdated = false;
+                
+                for (GameInstance instance : instances) {
+                    if (!instance.isAvailable()) {
+                        instance.setAvailable(true);
+                        gameInstanceRepository.save(instance);
+                        instanceUpdated = true;
+                        log.info("Game instance ID: {} for game '{}' marked as available after return", 
+                                instance.getId(), game.getName());
+                        break;
+                    }
+                }
+                
+                if (!instanceUpdated) {
+                    log.warn("No unavailable game instance found for game '{}' to mark as available", game.getName());
+                }
+            }
+            
+            return ResponseEntity.ok(String.format(
+                "Lending record (ID: %d) successfully closed with damage assessment", record.getId()));
         } catch (ResourceNotFoundException e) {
             return createErrorResponse(HttpStatus.NOT_FOUND, e.getMessage());
-        } catch (IllegalStateException e) {
+        } catch (IllegalArgumentException | IllegalStateException e) {
             return createErrorResponse(HttpStatus.BAD_REQUEST, e.getMessage());
         } catch (org.springframework.security.access.AccessDeniedException e) {
-             throw new ForbiddenException("Access denied: Only the game owner can close the lending record.");
+            throw new ForbiddenException("Access denied: Only the game owner can close the lending record with damage assessment.");
         } catch (UnauthedException e) {
-             return createErrorResponse(HttpStatus.UNAUTHORIZED, e.getMessage());
+            return createErrorResponse(HttpStatus.UNAUTHORIZED, e.getMessage());
         } catch (Exception e) {
-             log.error("Unexpected error closing record {} with damage: {}", id, e.getMessage(), e);
-             return createErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred.");
+            log.error("Unexpected error in closeLendingRecordWithDamageAssessment for record {}: {}", id, e.getMessage(), e);
+            return createErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred.");
         }
     }
     
