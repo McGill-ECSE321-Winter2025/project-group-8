@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useContext, useEffect } from "react"
+import { useState, useContext } from "react"
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext.jsx";
 import { upgradeAccountToGameOwner, updateUsernamePassword } from '@/service/dashboard-api.js';
@@ -30,17 +31,6 @@ export default function SideMenuBar({ userType }) {
   const [upgradeSuccess, setUpgradeSuccess] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [settingsError, setSettingsError] = useState(null);
-  const [isGameOwner, setIsGameOwner] = useState(false);
-  
-  useEffect(() => {
-    if (
-      user?.role === 'GAME_OWNER' || 
-      userType === 'GAME_OWNER' ||
-      localStorage.getItem('userRole') === 'GAME_OWNER'
-    ) {
-      setIsGameOwner(true);
-    }
-  }, [user, userType]);
   
   async function handleSettingsSubmit(e) {
     e.preventDefault();
@@ -94,19 +84,19 @@ export default function SideMenuBar({ userType }) {
     setUpgradeSuccess(false);
 
     try {
-      await upgradeAccountToGameOwner(user.email);
-      setUpgradeSuccess(true);
-      setIsGameOwner(true);
-      localStorage.setItem('userRole', 'GAME_OWNER');
-    } catch (err) {
-      console.error("Failed to upgrade account:", err);
-      if (err.message && (
-          err.message.includes("already a game owner") || 
-          err.message.includes("already a GAME_OWNER")
-      )) {
+      // If user is already a game owner, just update the state
+      if (user?.gameOwner || user?.role === 'GAME_OWNER') {
+        setUpgradeSuccess(true);
         setIsGameOwner(true);
         localStorage.setItem('userRole', 'GAME_OWNER');
+        return;
       }
+
+      console.log("Attempting to upgrade account for:", user.email);
+      await upgradeAccountToGameOwner(user.email);
+      setUpgradeSuccess(true);
+    } catch (err) {
+      console.error("Failed to upgrade account:", err);
       setUpgradeError(err.message || "Failed to upgrade account. Please try again.");
     } finally {
       setIsUpgrading(false);
@@ -115,7 +105,7 @@ export default function SideMenuBar({ userType }) {
 
   return (
     <>
-      {isAuthenticated && !isGameOwner && (
+      {isAuthenticated && user?.role !== 'GAME_OWNER' && (
         <>
           <Button 
             variant="ghost" 
