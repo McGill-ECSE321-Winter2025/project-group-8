@@ -120,12 +120,8 @@ export default function DashboardGameLibrary({ userType }) {
             {games.map(game => (
               <Game
                 key={game.id}
-                id={game.id}
-                name={game.name}
-                // Use imageSrc logic from origin/dev-Yessine-D3
-                imageSrc={game.image || "https://upload.wikimedia.org/wikipedia/commons/1/14/No_Image_Available.jpg.svg?height=300&width=400"}
-                // Pass the full game object as well (from origin/dev-Yessine-D3)
                 game={game}
+                refreshGames={fetchGames}
               />
             ))}
           </div>

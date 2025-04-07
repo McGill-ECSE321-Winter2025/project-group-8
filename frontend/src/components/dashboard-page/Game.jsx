@@ -11,9 +11,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Trash2 } from "lucide-react";
+import { Trash2, Edit, Package } from "lucide-react";
 import { deleteGame } from "../../service/game-api.js"; // Keep single import
 import { motion, AnimatePresence } from "framer-motion"; // Import Framer Motion
+import GameInstanceManager from "./GameInstanceManager.jsx"; // Import the new component
 
 // Combined props: pass the whole game object and the refresh callback
 export default function Game({ game, refreshGames }) {
@@ -21,6 +22,7 @@ export default function Game({ game, refreshGames }) {
   const [open, setOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false); // Loading state for deletion
   const [deleteError, setDeleteError] = useState(null); // Error state for deletion
+  const [showInstances, setShowInstances] = useState(false); // State for showing instances dialog
 
   // Use game.id from the game prop
   const gameId = game?.id;
@@ -64,7 +66,10 @@ export default function Game({ game, refreshGames }) {
         exit={{ opacity: 0, y: -20, transition: { duration: 0.2 } }}
         key={gameId} // Unique key for animation
       >
-        <Card className="min-w-[260px]">
+        <Card 
+          className="min-w-[260px] cursor-pointer hover:shadow-md transition-shadow duration-200"
+          onClick={() => setShowInstances(true)} // Open instances dialog on click
+        >
           <CardContent className="p-0">
             <div className="aspect-[4/3] relative">
               <img
@@ -76,11 +81,33 @@ export default function Game({ game, refreshGames }) {
             <div className="p-4">
               {/* Simplified display like HEAD */}
               <h3 className="font-semibold text-lg">{gameName}</h3>
-              <div className="flex justify-end items-center mt-4">
+              <div className="flex justify-between items-center mt-4">
+                <Button variant="outline" size="sm" className="flex gap-1" onClick={(e) => {
+                  e.stopPropagation(); // Prevent opening the instances dialog
+                  setShowInstances(true);
+                }}>
+                  <Package className="h-4 w-4" />
+                  Manage Copies
+                </Button>
                 {/* Dialog structure from HEAD */}
-                <Dialog open={open} onOpenChange={setOpen}>
+                <Dialog 
+                  open={open} 
+                  onOpenChange={(openState) => {
+                    // When closing, first blur any active element to ensure proper focus management
+                    if (!openState && document.activeElement instanceof HTMLElement) {
+                      document.activeElement.blur();
+                    }
+                    setOpen(openState);
+                  }}
+                >
                   <DialogTrigger asChild>
-                    <Button variant="outline" size="sm">
+                    <Button 
+                      variant="destructive" 
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation(); // Prevent opening the instances dialog
+                      }}
+                    >
                       Remove
                     </Button>
                   </DialogTrigger>
@@ -116,6 +143,39 @@ export default function Game({ game, refreshGames }) {
           </CardContent>
         </Card>
       </motion.div>
+      
+      {/* Game Instances Dialog */}
+      <Dialog 
+        open={showInstances} 
+        onOpenChange={(openState) => {
+          // When closing, first blur any active element to ensure proper focus management
+          if (!openState && document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+          }
+          setShowInstances(openState);
+        }}
+      >
+        <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Manage Game Copies - {gameName}</DialogTitle>
+            <DialogDescription>
+              View and manage all your copies of this game, including their condition and availability.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <GameInstanceManager 
+            gameId={gameId} 
+            gameName={gameName} 
+            refreshGames={refreshGames} 
+          />
+          
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setShowInstances(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AnimatePresence>
   );
 }

@@ -179,8 +179,6 @@ export const getGameById = async (id) => {
   return await response.json();
 };
 
-
-
 /**
  * Fetches all instances (physical copies) of a specific game.
  * Authentication might be required depending on backend setup.
@@ -235,8 +233,6 @@ export const getGameReviews = async (gameId) => {
   }
 };
 
-
-
 /**
  * Deletes a game by its ID. Requires authentication.
  * @param {string|number} gameId - The ID of the game to delete.
@@ -261,6 +257,67 @@ export const deleteGame = async (gameId) => {
   } catch (error) {
     console.error(`deleteGame: Failed to delete game ${gameId}:`, error);
     // Re-throw the specific error from apiClient
+    throw error;
+  }
+};
+
+/**
+ * Updates a game instance with new information
+ * @param {number} instanceId - ID of the game instance to update
+ * @param {object} data - Updated instance data (condition, location, available)
+ * @returns {Promise<Object>} - Updated instance data
+ */
+export const updateGameInstance = async (instanceId, data) => {
+  if (!instanceId) {
+    throw new Error("Instance ID is required to update game instance.");
+  }
+  
+  // Try direct endpoint for game instances without nesting under games
+  const endpoint = `/game-instances/${instanceId}`;
+  console.log(`updateGameInstance: Using direct endpoint ${endpoint}`);
+  
+  try {
+    const response = await apiClient(endpoint, { 
+      method: "PUT",
+      skipPrefix: false,
+      body: data
+    });
+    console.log(`updateGameInstance: Successfully updated instance ${instanceId}:`, response);
+    return response;
+  } catch (error) {
+    console.error(`updateGameInstance: Failed to update instance ${instanceId}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Creates a new game instance
+ * @param {number} gameId - ID of the game to create an instance for
+ * @param {object} data - Instance data (condition, location, ownerId)
+ * @returns {Promise<Object>} - Created instance data
+ */
+export const createGameInstance = async (gameId, data) => {
+  if (!gameId) {
+    throw new Error("Game ID is required to create game instance.");
+  }
+  
+  // Use the pattern consistent with getGameInstances
+  const endpoint = `/games/${gameId}/instances`;
+  console.log(`createGameInstance: Creating instance for game ${gameId}:`, data);
+  
+  try {
+    const response = await apiClient(endpoint, { 
+      method: "POST",
+      skipPrefix: false,
+      body: {
+        ...data,
+        gameId: gameId
+      }
+    });
+    console.log(`createGameInstance: Successfully created instance for game ${gameId}:`, response);
+    return response;
+  } catch (error) {
+    console.error(`createGameInstance: Failed to create instance for game ${gameId}:`, error);
     throw error;
   }
 };
