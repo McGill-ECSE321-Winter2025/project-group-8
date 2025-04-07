@@ -87,4 +87,11 @@ public interface BorrowRequestRepository extends JpaRepository<BorrowRequest, In
     @Query("SELECT br FROM BorrowRequest br WHERE br.requestedGame.owner.id = :ownerId")
     List<BorrowRequest> findBorrowRequestsByOwnerId(@Param("ownerId") int ownerId);
 
+    /**
+     * Deletes all borrow requests associated with a specific game by its ID.
+     *
+     * @param gameId The ID of the game whose borrow requests are to be deleted
+     */
+    void deleteByRequestedGame_Id(int gameId);
+
 }

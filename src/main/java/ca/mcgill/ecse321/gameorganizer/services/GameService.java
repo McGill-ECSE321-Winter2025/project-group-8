@@ -26,6 +26,7 @@ import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.models.Registration;
 import ca.mcgill.ecse321.gameorganizer.models.Review;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.RegistrationRepository;
@@ -46,15 +47,17 @@ public class GameService {
     private AccountRepository accountRepository;
     private RegistrationRepository  registrationRepository;
     private EventRepository eventRepository; 
+    private BorrowRequestRepository borrowRequestRepository;
 
 
     @Autowired
-    public GameService(GameRepository gameRepository, ReviewRepository reviewRepository, AccountRepository accountRepository, RegistrationRepository registrationRepository, EventRepository eventRepository) {
+    public GameService(GameRepository gameRepository, ReviewRepository reviewRepository, AccountRepository accountRepository, RegistrationRepository registrationRepository, EventRepository eventRepository, BorrowRequestRepository borrowRequestRepository) {
         this.gameRepository = gameRepository;
         this.reviewRepository = reviewRepository;
         this.accountRepository = accountRepository;
         this.registrationRepository = registrationRepository;
         this.eventRepository = eventRepository;
+        this.borrowRequestRepository = borrowRequestRepository;
     }
 
     /**
@@ -365,6 +368,7 @@ public class GameService {
 
         // Step 3: Delete all events
         eventRepository.deleteAll(events);
+        borrowRequestRepository.deleteByRequestedGame_Id(id);
 
         // Authorization Check
         /*Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
