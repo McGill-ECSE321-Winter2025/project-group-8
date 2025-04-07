@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createGameInstance } from "@/service/game-api.js";
+import { copyGame } from "@/service/game-api.js";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -53,12 +53,10 @@ export default function AddGameInstanceDialog({ open, onOpenChange, gameId, game
         name: data.name || null,
         condition: data.condition,
         location: data.location,
-        available: true,
-        gameId: gameId,
-        ownerId: user?.id
+        available: true
       };
       
-      const result = await createGameInstance(gameId, instanceData);
+      const result = await copyGame(gameId, instanceData);
       
       toast.success("Game copy added successfully");
       reset(); // Reset form

@@ -40,7 +40,6 @@ public class Game {
     @GeneratedValue(strategy = GenerationType.AUTO)
     private int id;
 
-    @Column(unique = true) // Should make names unique in db
     /** Name of the game */
     private String name;
 

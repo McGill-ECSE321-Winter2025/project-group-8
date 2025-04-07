@@ -13,7 +13,7 @@ import { Input } from '../ui/input';
 import { Alert, AlertDescription } from '../ui/alert';
 import Tag from '../common/Tag.jsx';
 import GameOwnerTag from '../common/GameOwnerTag.jsx';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { getGameReviews, checkGameAvailability } from '../../service/game-api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import ReviewForm from './ReviewForm.jsx';
@@ -22,19 +22,28 @@ import { checkUserCanReviewGame } from '../../service/dashboard-api.js';
 import { Tooltip, TooltipTrigger, TopTooltipContent } from '../ui/tooltip.jsx';
 
 export const GameDetailsDialog = ({ game, onRequestGame }) => {
-  const [searchParams] = useSearchParams();
-  const { user, isAuthenticated } = useAuth();
-  const fromUserId = searchParams.get('fromUser');
+  const [params, setParams] = useSearchParams();
+  const { isAuthenticated, user } = useAuth();
+  const navigate = useNavigate();
+  
+  // States for interacting with the game
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState('');
+  const [reviews, setReviews] = useState([]);
+  const [editingReview, setEditingReview] = useState(null);
+  const [borrowingGame, setBorrowingGame] = useState(false);
+  const [borrowSuccess, setBorrowSuccess] = useState(false);
+  const [borrowError, setBorrowError] = useState(null);
+  const [canReview, setCanReview] = useState(false);
+  const [showLoginAlert, setShowLoginAlert] = useState(false);
   const [selectedInstance, setSelectedInstance] = useState(null);
   const [instances, setInstances] = useState([]);
   const [isLoadingInstances, setIsLoadingInstances] = useState(false);
   const [instancesError, setInstancesError] = useState(null);
-  const [reviews, setReviews] = useState([]);
   const [isLoadingReviews, setIsLoadingReviews] = useState(false);
   const [reviewsError, setReviewsError] = useState(null);
   const [averageRating, setAverageRating] = useState(0);
   const [showReviewForm, setShowReviewForm] = useState(false);
-  const [editingReview, setEditingReview] = useState(null);
   const [userCanReview, setUserCanReview] = useState(false);
   const [isCheckingReviewEligibility, setIsCheckingReviewEligibility] = useState(false);
   
@@ -286,7 +295,7 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
           <div className="flex-1">
             <DialogTitle className="text-2xl mb-2">{game.name}</DialogTitle>
             <div className="mb-2 flex items-center gap-2">
-              <Tag text={game.category} variant="primary" fromUserId={fromUserId} />
+              <Tag text={game.category} variant="primary" fromUserId={params.get('fromUser')} />
               {!isLoadingReviews && !reviewsError && reviews.length > 0 && (
                 <div className="flex items-center gap-1 text-sm">
                   <span className="flex items-center">
@@ -585,30 +594,30 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
               )}
             </div>
             
+            {/* Dialog Footer with actions */}
             <DialogFooter className="flex-col sm:flex-row gap-2">
               {isAuthenticated ? (
-                <Button 
-                  onClick={handleRequestWithInstance}
-                  disabled={!selectedInstance || 
-                            !selectedInstance.available || 
-                            !isAvailable || 
-                            !startDate || 
-                            !endDate}
-                  className="w-full sm:w-auto"
-                >
-                  {!selectedInstance ? "Select a Copy" : 
-                    (!startDate || !endDate) ? "Select Dates First" :
-                    (isCheckingAvailability) ? "Checking Availability..." :
-                    (isAvailable === false) ? "Unavailable for Dates" :
-                    (isAvailable === null) ? "Please Check Availability" :
-                    "Request This Game"}
-                </Button>
+                <>
+                  {/* Button to borrow the game */}
+                  <Button
+                    onClick={handleRequestWithInstance}
+                    disabled={!isAvailable || !selectedInstance || isCheckingAvailability}
+                    className="flex items-center gap-2"
+                  >
+                    {isCheckingAvailability ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Calendar className="h-4 w-4" />
+                    )}
+                    Borrow This Game
+                  </Button>
+                </>
               ) : (
-                <Button 
-                  disabled
-                  className="w-full sm:w-auto"
+                <Button
+                  onClick={() => navigate("/login")}
+                  variant="default"
                 >
-                  Sign in to Request
+                  Login to Borrow
                 </Button>
               )}
             </DialogFooter>

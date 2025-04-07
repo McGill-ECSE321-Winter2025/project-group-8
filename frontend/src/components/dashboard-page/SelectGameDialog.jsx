@@ -7,7 +7,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getGamesByOwner } from "@/service/game-api.js";
+import { searchGames } from "@/service/game-api.js";
 import { useAuth } from "@/context/AuthContext";
 import AddGameInstanceDialog from "./AddGameInstanceDialog";
 
@@ -43,22 +43,17 @@ export default function SelectGameDialog({ open, onOpenChange, onGameInstanceAdd
     setFilteredGames(filtered);
   }, [games, searchQuery]);
 
-  // Fetch user's games
+  // Fetch all games for the global library
   const fetchGames = async () => {
-    if (!user?.email) {
-      setError("User email not found. Cannot fetch games.");
-      return;
-    }
-
     setIsLoading(true);
     setError("");
 
     try {
-      // Get all games regardless of instances
-      const fetchedGames = await getGamesByOwner(user.email, false);
+      // Get all games from the global library
+      const fetchedGames = await searchGames({ includeAllGames: true });
       
       // Log the results for debugging
-      console.log("Fetched games for copying:", fetchedGames);
+      console.log("Fetched games for the global library:", fetchedGames);
       
       if (Array.isArray(fetchedGames) && fetchedGames.length > 0) {
         setGames(fetchedGames);
@@ -66,11 +61,11 @@ export default function SelectGameDialog({ open, onOpenChange, onGameInstanceAdd
       } else {
         setGames([]);
         setFilteredGames([]);
-        setError("No games found in your library. Add a game first.");
+        setError("No games found in the global library.");
       }
     } catch (err) {
       console.error("Failed to fetch games:", err);
-      setError("Could not load your games.");
+      setError("Could not load games from the library.");
       setGames([]);
       setFilteredGames([]);
     } finally {
@@ -130,7 +125,7 @@ export default function SelectGameDialog({ open, onOpenChange, onGameInstanceAdd
           <DialogHeader>
             <DialogTitle>Select Game</DialogTitle>
             <DialogDescription>
-              Choose a game from your library to add a new copy
+              Choose a game from the global library to add a copy to your collection
             </DialogDescription>
           </DialogHeader>
 
@@ -140,7 +135,7 @@ export default function SelectGameDialog({ open, onOpenChange, onGameInstanceAdd
               {games.length === 0 && !isLoading && (
                 <div className="p-4 border border-amber-200 bg-amber-50 rounded-md mb-3">
                   <p className="text-sm text-amber-800">
-                    You need to add some games to your library first. Click "Add New Game" to create a game in your collection.
+                    No games are available in the library. You can still add a new game to create one.
                   </p>
                 </div>
               )}
@@ -174,7 +169,7 @@ export default function SelectGameDialog({ open, onOpenChange, onGameInstanceAdd
                     {isLoading && <CommandLoading />}
                     {!isLoading && filteredGames.length === 0 && (
                       <CommandEmpty>
-                        {searchQuery.length > 0 ? "No games found." : "No games in your library."}
+                        {searchQuery.length > 0 ? "No games found." : "No games in the global library."}
                       </CommandEmpty>
                     )}
                     {filteredGames.length > 0 && (

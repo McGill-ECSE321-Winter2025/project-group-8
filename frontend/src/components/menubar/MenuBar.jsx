@@ -433,7 +433,7 @@ export default function MenuBar() {
                   <DropdownMenuSeparator className="dark:border-sidebar-border" />
                   <DropdownMenuItem asChild>
                     <Link to="/profile" className="cursor-pointer dark:text-sidebar-foreground dark:focus:bg-sidebar-accent">
-                      Profile Settings
+                      My Profile
                     </Link>
                   </DropdownMenuItem>
                   {/* Add other items like Settings, etc. here if needed */}

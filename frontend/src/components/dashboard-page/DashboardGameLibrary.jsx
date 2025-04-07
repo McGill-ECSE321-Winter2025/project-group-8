@@ -6,7 +6,7 @@ import { TabsContent } from "@/components/ui/tabs.jsx";
 import AddGameDialog from "./AddGameDialog.jsx"; // Import the dialog
 import SelectGameDialog from "./SelectGameDialog.jsx"; // Import the select game dialog
 import { Loader2, Plus, Copy } from "lucide-react"; // Import Loader and other icons
-import { getGamesByOwner, getGameInstances } from "../../service/game-api.js"; // Import the service function
+import { getUserGameInstances, getGameById } from "../../service/game-api.js"; // Import the service functions
 import { UnauthorizedError } from "@/service/apiClient"; // Import UnauthorizedError
 
 export default function DashboardGameLibrary({ userType }) {
@@ -24,14 +24,12 @@ export default function DashboardGameLibrary({ userType }) {
   // Function to fetch games
   // Use useCallback to memoize fetchGames, prevent re-creation if user object reference changes unnecessarily
   const fetchGames = useCallback(async () => {
-    if (!user?.email) { // Check if user and user.email exist
-      setError("User email not found. Cannot fetch games.");
+    if (!user?.id) { // Check if user and user.id exist
+      setError("User ID not found. Cannot fetch games.");
       setIsLoading(false);
       setGames([]);
       return;
     }
-
-    const ownerEmail = user.email; // Get email from context user object
 
     setIsLoading(true);
     setError(null);
@@ -43,36 +41,45 @@ export default function DashboardGameLibrary({ userType }) {
         allCookies: document.cookie
       });
 
-      const fetchedGames = await getGamesByOwner(ownerEmail);
+      // Get all game instances owned by the current user
+      const userInstances = await getUserGameInstances();
       
-      // Filter out games with no instances
-      const gamesWithInstances = await Promise.all(
-        fetchedGames.map(async (game) => {
+      if (!userInstances.length) {
+        setGames([]);
+        setIsLoading(false);
+        return;
+      }
+      
+      // Group instances by game to create a collection
+      const gameMap = new Map();
+      
+      // Process each instance and group by game ID
+      for (const instance of userInstances) {
+        const gameId = instance.gameId;
+        
+        if (!gameMap.has(gameId)) {
           try {
-            const instances = await getGameInstances(game.id);
-            // Only keep instances owned by current user
-            const userInstances = instances.filter(instance => 
-              instance.owner && instance.owner.id === user?.id
-            );
-            return { 
-              ...game, 
-              instances: userInstances,
-              hasUserInstances: userInstances.length > 0 
-            };
+            // Fetch the full game details if not already in the map
+            const game = await getGameById(gameId);
+            gameMap.set(gameId, {
+              ...game,
+              instances: [instance],
+              hasUserInstances: true
+            });
           } catch (error) {
-            console.error(`Error fetching instances for game ${game.id}:`, error);
-            return { 
-              ...game, 
-              instances: [],
-              hasUserInstances: false 
-            };
+            console.error(`Error fetching game ${gameId}:`, error);
           }
-        })
-      );
+        } else {
+          // Add this instance to the existing game's instances
+          const game = gameMap.get(gameId);
+          game.instances.push(instance);
+        }
+      }
       
-      // Filter to only show games where the user has at least one instance
-      const filteredGames = gamesWithInstances.filter(game => game.hasUserInstances);
-      setGames(filteredGames || []); // Ensure games is always an array
+      // Convert the map values to an array
+      const userGames = Array.from(gameMap.values());
+      setGames(userGames);
+      
     } catch (err) {
       console.error("[DashboardGameLibrary] Error details:", err);
 
@@ -87,19 +94,19 @@ export default function DashboardGameLibrary({ userType }) {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.email, user?.id, logout]); // Add user?.id to dependencies
+  }, [user?.id, logout]); // Update dependencies
 
   // Fetch games when the component mounts or when the user object changes (specifically the email)
   useEffect(() => {
     // Only fetch if the user is identified as an owner and their email is available
-    if (userType === "owner" && user?.email) {
+    if (userType === "owner" && user?.id) {
       fetchGames();
     } else if (userType !== "owner") {
       // If not an owner, explicitly set loading to false and games to empty
       setIsLoading(false);
       setGames([]);
     }
-  }, [userType, user?.email, fetchGames]);
+  }, [userType, user?.id, fetchGames]);
 
   // Function to handle adding a game (refreshes the list)
   const handleGameAdded = useCallback((newGame) => {
@@ -151,7 +158,8 @@ export default function DashboardGameLibrary({ userType }) {
           </div>
         ) : games.length === 0 && userType === "owner" ? (
            <div className="text-center py-10 text-muted-foreground">
-             You haven't added any games yet. Click "Add New Game" to start!
+             <p>You haven't added any games to your collection yet.</p>
+             <p className="mt-2">Click "Add New Game" to create a new game or "Copy Existing Game" to add a copy from the global library.</p>
            </div>
         ) : games.length === 0 && userType !== "owner" ? (
             <div className="text-center py-10 text-muted-foreground">

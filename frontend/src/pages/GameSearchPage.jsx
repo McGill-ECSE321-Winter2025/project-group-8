@@ -146,7 +146,9 @@ export default function GameSearchPage() {
         category: filters.category || undefined,
         minPlayers: filters.minPlayers || undefined,
         maxPlayers: filters.maxPlayers || undefined,
-        minRating: filters.minRating || undefined
+        minRating: filters.minRating || undefined,
+        // Remove owner filter to show all games from all users
+        includeAllGames: true // Add this flag to include all games in the global library
       };
       // Remove empty/undefined criteria before sending
       Object.keys(criteria).forEach(key => (criteria[key] === undefined || criteria[key] === '') && delete criteria[key]);
