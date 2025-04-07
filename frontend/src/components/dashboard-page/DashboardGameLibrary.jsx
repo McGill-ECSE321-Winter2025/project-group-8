@@ -1,62 +1,114 @@
-import {Button} from "@/components/ui/button.jsx";
+import { useState, useEffect } from "react"; // Import useState and useEffect
+import { Button } from "@/components/ui/button.jsx";
 import Game from "./Game.jsx";
-import {TabsContent} from "@/components/ui/tabs.jsx";
+import { TabsContent } from "@/components/ui/tabs.jsx";
+import AddGameDialog from "./AddGameDialog.jsx"; // Import the dialog
+import { Loader2 } from "lucide-react"; // Import Loader icon
+import { getGamesByOwner } from "../../service/game-api.js"; // Import the service function
 
 export default function DashboardGameLibrary({ userType }) {
+  const [isAddGameDialogOpen, setIsAddGameDialogOpen] = useState(false);
+  const [games, setGames] = useState([]); // State for fetched games
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const dummyItems = [
-    {
-      id: 1,
-      name: "Dragon's Dilemma",
-      date: "January 12, 2025",
-      isAvailable: true,
-      imageSrc: "/placeholder.svg?height=300&width=400",
-    },
-    {
-      id: 2,
-      name: "Mystic Rails",
-      date: "February 3, 2025",
-      isAvailable: false,
-      imageSrc: "/placeholder.svg?height=300&width=400",
-    },
-    {
-      id: 3,
-      name: "Castle Siege Tactics",
-      date: "February 18, 2025",
-      isAvailable: true,
-      imageSrc: "/placeholder.svg?height=300&width=400",
-    },
-    {
-      id: 4,
-      name: "Cyber Syndicate",
-      date: "March 1, 2025",
-      isAvailable: false,
-      imageSrc: "/placeholder.svg?height=300&width=400",
-    },
-    {
-      id: 5,
-      name: "Realm of Riddles",
-      date: "March 27, 2025",
-      isAvailable: true,
-      imageSrc: "/placeholder.svg?height=300&width=400",
-    },
-    {
-      id: 6,
-      name: "Galactic Traders",
-      date: "April 1, 2025",
-      isAvailable: true,
-      imageSrc: "/placeholder.svg?height=300&width=400",
-    },
-  ];
+  // Function to fetch games
+  const fetchGames = async () => {
+    setIsLoading(true);
+    setError(null);
+    const ownerEmail = localStorage.getItem("userEmail");
+    if (!ownerEmail) {
+      setError("User email not found. Please log in again.");
+      setIsLoading(false);
+      setGames([]); // Clear games if email is missing
+      return;
+    }
 
-  return <TabsContent value="games" className="space-y-6">
-    <div className="flex justify-between items-center">
-      <h2 className="text-2xl font-bold">My Games</h2>
-      {userType === "owner" && <Button>Add New Game</Button>}
-    </div>
+    try {
+      const fetchedGames = await getGamesByOwner(ownerEmail);
+      setGames(fetchedGames || []); // Ensure games is always an array
+    } catch (err) {
+      console.error("Failed to fetch games:", err);
+      setError(err.message || "Could not load your games.");
+      setGames([]); // Clear games on error
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-      {dummyItems.map(item => <Game key={item.id} {...item} />)}
-    </div>
-  </TabsContent>
+  // Fetch games on component mount
+  useEffect(() => {
+    // Only fetch if the user is an owner (or adjust logic if players should see their borrowed games here)
+    if (userType === "owner") {
+       fetchGames();
+    } else {
+        setIsLoading(false); // Not loading if not an owner
+        setGames([]); // Ensure games is empty for non-owners in this view
+    }
+  }, [userType]); // Re-fetch if userType changes (though unlikely)
+
+  // Function to handle adding a game (refreshes the list)
+  const handleGameAdded = (newGame) => {
+    console.log("New game added:", newGame);
+    // Re-fetch the list to include the new game
+    fetchGames();
+  };
+
+  return (
+    <>
+      <TabsContent value="games" className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold">My Games</h2>
+          {/* Only show button if userType is owner */}
+          {userType === "owner" && (
+            <Button onClick={() => setIsAddGameDialogOpen(true)}>Add New Game</Button>
+          )}
+        </div>
+
+        {/* Conditional Rendering based on loading/error/data */}
+        {isLoading ? (
+          <div className="flex justify-center items-center py-10">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : error ? (
+          <div className="text-center py-10 text-destructive">
+            <p>Error loading games: {error}</p>
+          </div>
+        ) : games.length === 0 && userType === "owner" ? (
+           <div className="text-center py-10 text-muted-foreground">
+             You haven't added any games yet. Click "Add New Game" to start!
+           </div>
+        ) : games.length === 0 && userType !== "owner" ? (
+            <div className="text-center py-10 text-muted-foreground">
+              Game library is only available for Game Owners.
+            </div>
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {games.map(game => (
+              // Adapt game data for the Game component if necessary
+              // Assuming Game component expects `imageSrc` and potentially other props
+              <Game
+                key={game.id}
+                id={game.id}
+                name={game.name}
+                imageSrc={game.image || "/https://upload.wikimedia.org/wikipedia/commons/1/14/No_Image_Available.jpg.svg?height=300&width=400"} // Use game image or placeholder
+                game = {game}
+                onDeleteSuccess={fetchGames}
+                // Pass other relevant props if Game component needs them
+                // date={game.dateAdded ? new Date(game.dateAdded).toLocaleDateString() : 'N/A'}
+                // isAvailable={true} // Backend doesn't seem to track availability directly on Game model yet
+              />
+            ))}
+          </div>
+        )}
+      </TabsContent>
+
+      {/* Render the Add Game Dialog */}
+      <AddGameDialog
+        open={isAddGameDialogOpen}
+        onOpenChange={setIsAddGameDialogOpen}
+        onGameAdded={handleGameAdded}
+      />
+    </>
+  );
 }

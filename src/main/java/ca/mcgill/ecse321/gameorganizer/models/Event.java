@@ -17,9 +17,9 @@ import java.util.UUID;
  * @author @Yessine-glitch
  */
 @Entity
-@NoArgsConstructor
 @Getter
 @Setter
+@NoArgsConstructor
 public class Event {
 
     /**
@@ -62,13 +62,13 @@ public class Event {
     /**
      * The main game that will be featured at this event.
      */
-    @ManyToOne
+    @ManyToOne // Event must have a featured game
     private Game featuredGame;
 
     /**
      * The account of the user who is hosting the event.
      */
-    @ManyToOne
+    @ManyToOne // Event must have a host
     private Account host;
 
     /**

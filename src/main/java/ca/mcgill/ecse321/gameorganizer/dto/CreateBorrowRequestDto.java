@@ -14,6 +14,10 @@ public class CreateBorrowRequestDto {
     private Date startDate;
     private Date endDate;
 
+    // Default constructor (required for Jackson)
+    public CreateBorrowRequestDto() {
+    }
+
     /**
      * Constructs a new create borrow request DTO.
      * 

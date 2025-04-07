@@ -13,26 +13,57 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { deleteEvent } from "../../service/event-api" // Import deleteEvent function
 
 export default function Event({
-                                name,
-                                date,
-                                time,
-                                location,
-                                game,
-                                participants: { current, capacity },
-                                onCancelRegistration,
-                              }) {
+  id, // Make sure we get the event ID
+  name,
+  date,
+  time,
+  location,
+  game,
+  participants: { current, capacity },
+  onCancelRegistration: onCancelEvent, // Keep this if used elsewhere
+  onRegistrationUpdate, // Add the refresh prop
+  gameImage,
+}) {
   const [open, setOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false) // Track deletion state
+  const [error, setError] = useState(null) // Track error state
 
-  const handleCancelRegistration = () => {
-    // Call the provided callback function
-    if (typeof onCancelRegistration === "function") {
-      onCancelRegistration()
+  const handleCancelEvent = async () => {
+    if (!id) {
+      setError("Event ID is missing. Cannot delete event.");
+      return;
     }
 
-    // Close the dialog
-    setOpen(false)
+    setIsDeleting(true);
+    setError(null);
+
+    try {
+      // Call the API function to delete the event
+      console.log("Deleting event with ID:", id);
+      const successMessage = await deleteEvent(id);
+      console.log("Event deleted successfully:", successMessage);
+      
+      // Call the provided callback function (if it exists for other purposes)
+      if (typeof onCancelEvent === "function") {
+        onCancelEvent();
+      }
+      
+      // Call the refresh function passed from the parent dashboard page
+      if (typeof onRegistrationUpdate === "function") {
+        onRegistrationUpdate();
+      }
+
+      // Close the dialog
+      setOpen(false);
+    } catch (error) {
+      console.error("Failed to delete event:", error);
+      setError(error.message || "Failed to delete event. Please try again.");
+    } finally {
+      setIsDeleting(false);
+    }
   }
 
   return (
@@ -41,7 +72,11 @@ export default function Event({
         <div className="flex flex-col md:flex-row gap-4">
           <div className="md:w-1/4">
             <div className="aspect-square bg-muted rounded-lg flex items-center justify-center">
-              <Calendar className="h-12 w-12 text-muted-foreground" />
+            <img
+                src={gameImage}
+                alt={`${game} image`}
+                className="h-full w-full object-cover rounded-lg"
+              />
             </div>
           </div>
           <div className="flex-1">
@@ -67,17 +102,18 @@ export default function Event({
               <Dialog open={open} onOpenChange={setOpen}>
                 <DialogTrigger asChild>
                   <Button variant="destructive" size="sm">
-                    Cancel Registration
+                    Cancel Event
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-[425px]">
                   <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                       <AlertCircle className="h-5 w-5 text-destructive" />
-                      Cancel Registration
+                      Cancel Event
                     </DialogTitle>
                     <DialogDescription>
-                      Are you sure you want to cancel your registration? This action cannot be undone.
+                      Are you sure you want to cancel your event? 
+                      This will notify all registered participants and remove the event from the system.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="py-4">
@@ -94,14 +130,28 @@ export default function Event({
                       <p>
                         <span className="font-medium">Location:</span> {location}
                       </p>
+                      <p>
+                        <span className="font-medium">Participants:</span> {current}/{capacity}
+                      </p>
                     </div>
+                    
+                    {/* Error message display */}
+                    {error && (
+                      <div className="mt-4 p-2 bg-red-50 text-red-600 rounded-md text-sm">
+                        {error}
+                      </div>
+                    )}
                   </div>
                   <DialogFooter>
-                    <Button variant="outline" onClick={() => setOpen(false)}>
-                      Keep Registration
+                    <Button variant="outline" onClick={() => setOpen(false)} disabled={isDeleting}>
+                      Keep Event
                     </Button>
-                    <Button variant="destructive" onClick={handleCancelRegistration}>
-                      Cancel Registration
+                    <Button 
+                      variant="destructive" 
+                      onClick={handleCancelEvent} 
+                      disabled={isDeleting}
+                    >
+                      {isDeleting ? "Cancelling..." : "Cancel Event"}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -113,4 +163,3 @@ export default function Event({
     </Card>
   )
 }
-

@@ -2,6 +2,7 @@ package ca.mcgill.ecse321.gameorganizer.repositories;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -48,5 +49,12 @@ public interface RegistrationRepository extends JpaRepository<Registration, Inte
      * @return
      */
     boolean existsByAttendeeAndEventRegisteredFor(Account attendee, Event eventRegisteredFor);
+
+    /**
+     * Deletes all registrations associated with a specific event ID.
+     *
+     * @param eventId the ID of the event whose registrations are to be deleted
+     */
+    void deleteAllByEventRegisteredForId(UUID eventId);
 
 }

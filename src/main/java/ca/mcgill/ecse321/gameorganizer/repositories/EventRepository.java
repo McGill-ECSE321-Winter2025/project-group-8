@@ -1,13 +1,12 @@
 package ca.mcgill.ecse321.gameorganizer.repositories;
 
+import java.sql.Date;
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
-
-import java.sql.Date;
-import java.util.List;
-import java.util.UUID;
 
 import ca.mcgill.ecse321.gameorganizer.models.Event;
 
@@ -54,5 +53,8 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
     List<Event> findEventByFeaturedGameId(int featuredGameId);
     List<Event> findEventByFeaturedGameName(String featuredGameName);
     List<Event> findEventByHostId(int hostId);
-    List<Event> findEventByHostName(String hostUsername);
+    List<Event> findEventByHostName(String hostUsername); // Keep for potential future use?
+    List<Event> findEventByHostEmail(String hostEmail); // Add method to find by host email
+
+    void deleteAllByFeaturedGameId(int gameId); // Delete all events associated with a specific game ID
 }

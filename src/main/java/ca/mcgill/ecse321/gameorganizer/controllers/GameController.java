@@ -6,14 +6,7 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import ca.mcgill.ecse321.gameorganizer.dto.GameCreationDto;
 import ca.mcgill.ecse321.gameorganizer.dto.GameResponseDto;
@@ -33,6 +26,7 @@ import ca.mcgill.ecse321.gameorganizer.services.GameService;
  *
  * @author Alexander
  */
+
 @RestController
 public class GameController {
     @Autowired
@@ -49,7 +43,7 @@ public class GameController {
      * @param namePart Optional parameter to filter games by name containing text
      * @return List of games matching the filter criteria
      */
-    @GetMapping("/api/v1/games")
+    @GetMapping("/games")
     public ResponseEntity<List<GameResponseDto>> getAllGames(
             @RequestParam(required = false) String ownerId,
             @RequestParam(required = false) String category,

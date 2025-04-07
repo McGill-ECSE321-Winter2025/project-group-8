@@ -5,75 +5,123 @@ import { EventCard } from "../components/events-page/EventCard";
 import { DateFilterComponent } from "../components/events-page/DateFilterComponent";
 import CreateEventDialog from "../components/events-page/CreateEventDialog";
 import { AnimatePresence, motion } from "framer-motion";
+import { getAllEvents } from "../service/event-api";
+import { getRegistrationsByEmail } from "../service/registration-api.js"; // Import registration fetcher
+import { Loader2 } from "lucide-react";
 
-// Mock data is used here while waiting to really implement API calls
-const upcomingEvents = [
-  {
-    id: 4,
-    title: "Sahria Chkoba",
-    dateTime: "2025-04-05T18:00:00",
-    location: "Yessine's House, 789 Pine St",
-    featuredGame: "Cards",
-    featuredGameImage: "https://play-lh.googleusercontent.com/JQt2sr9XF-5JPXZVJ8fV3vGsOZTm-R6RrsNpwZL1x0f-W9Kis9U2FegyT-yVl0PCfA",
-    maxParticipants: 16,
-    participantCount: 8
+
+// Create card stagger animation variants (remains the same)
+const container = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1
+    }
   },
-  {
-    id: 1,
-    title: "Friday Night Strategy Games",
-    dateTime: "2025-03-15T19:00:00",
-    location: "Board Game Cafe, 123 Main St",
-    featuredGame: "Settlers of Catan",
-    featuredGameImage: "https://www.asdesjeux.com/cdn/shop/files/qzfkij6xaovkewqw1kht.png?v=1725899582",
-    maxParticipants: 6,
-    participantCount: 4
-  },
-  {
-    id: 2,
-    title: "Weekend Board Game Marathon",
-    dateTime: "2025-03-22T13:00:00",
-    location: "Community Center, 456 Oak Ave",
-    featuredGame: "Monopoly",
-    featuredGameImage: "https://i5.walmartimages.com/seo/Monopoly-The-Mega-Edition-Board-Game_71fb2957-622e-45ac-9f2e-9871836991c7.13d6146918d3670bb3661408d2ab6d89.jpeg",
-    maxParticipants: 20,
-    participantCount: 12
-  },
-  {
-    id: 3,
-    title: "Werewolf Game Night",
-    dateTime: "2025-04-05T18:00:00",
-    location: "Game Store, 789 Pine St",
-    featuredGame: "Werewolf",
-    featuredGameImage: "https://www.zygomatic-games.com/wp-content/uploads/2020/04/lmelg01en_face_20200616-802x1024.jpg",
-    maxParticipants: 16,
-    participantCount: 8
+  exit: {
+    opacity: 0,
+    transition: {
+      staggerChildren: 0.05,
+      staggerDirection: -1,
+      when: "afterChildren"
+    }
   }
-];
+};
+
+const item = {
+  hidden: { opacity: 0, scale: 0.8, y: 20 },
+  show: {
+    opacity: 1,
+    scale: 1,
+    y: 0,
+    transition: {
+      type: "spring",
+      stiffness: 300,
+      damping: 24
+    }
+  },
+  exit: {
+    opacity: 0,
+    scale: 0.8,
+    y: -20,
+    transition: {
+      duration: 0.3,
+      ease: "easeInOut"
+    }
+  }
+};
 
 export default function EventsPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [filteredEvents, setFilteredEvents] = useState(upcomingEvents);
+  const [allEvents, setAllEvents] = useState([]); // Store all fetched events
+  const [filteredEvents, setFilteredEvents] = useState([]); // Store currently filtered events
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [userRegistrations, setUserRegistrations] = useState([]); // Store full registration objects
   const [isSearchActive, setIsSearchActive] = useState(false);
-  const [displayedEvents, setDisplayedEvents] = useState(upcomingEvents);
+  const [displayedEvents, setDisplayedEvents] = useState([]);
+  const [isSearchTransitioning, setIsSearchTransitioning] = useState(false);
 
-  // Update displayed events with animation delay
+  // Function to fetch events and registrations
+  const fetchEvents = async () => {
+    setIsLoading(true);
+    setError(null);
+    const userEmail = localStorage.getItem("userEmail");
+
+    try {
+      // Fetch all events and user's registrations concurrently
+      const [eventData, registrationData] = await Promise.all([
+        getAllEvents(),
+        userEmail ? getRegistrationsByEmail(userEmail) : Promise.resolve([]) // Fetch regs only if email exists
+      ]);
+
+      console.log("Fetched Events Raw Data:", eventData);
+      console.log("Fetched Registrations Raw Data:", registrationData);
+
+      setAllEvents(eventData || []);
+      setFilteredEvents(eventData || []);
+      setDisplayedEvents(eventData || []);
+
+      // Store the full registration data
+      setUserRegistrations(registrationData || []);
+      console.log("User Registrations:", registrationData);
+
+    } catch (err) {
+      console.error("Failed to fetch events or registrations:", err);
+      setError(err.message || "Could not load page data.");
+      setAllEvents([]); // Clear on error
+      setFilteredEvents([]);
+      setDisplayedEvents([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch all events on component mount
+  useEffect(() => {
+    fetchEvents();
+  }, []); // Empty dependency array means run once on mount
+
+  // Update displayed events with animation delay (remains similar)
   useEffect(() => {
     if (!isSearchActive) {
       setDisplayedEvents(filteredEvents);
     }
   }, [filteredEvents, isSearchActive]);
 
-  // Filter events by date range
+  // Filter events by date range (now filters 'allEvents')
   const handleDateFilter = (filterValue) => {
     if (filterValue === "all") {
-      setFilteredEvents(upcomingEvents);
+      setFilteredEvents(allEvents); // Reset to all fetched events
       return;
     }
-    
+
     const now = new Date();
-    const filtered = upcomingEvents.filter(event => {
-      const eventDate = new Date(event.dateTime);
-      
+    const filtered = allEvents.filter(event => {
+      const eventDate = event.dateTime ? new Date(event.dateTime) : null;
+      if (!eventDate) return false;
+
       if (filterValue === "this-week") {
         const weekFromNow = new Date();
         weekFromNow.setDate(now.getDate() + 7);
@@ -86,16 +134,48 @@ export default function EventsPage() {
         const endOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 2, 0);
         return eventDate >= startOfNextMonth && eventDate <= endOfNextMonth;
       }
-      return true;
+      return false;
     });
-    
+
     setFilteredEvents(filtered);
   };
 
-  // Handle search activity state
+  // Handle search activity state with transition
   const handleSearchStateChange = (isActive) => {
-    setIsSearchActive(isActive);
+    if (isActive && !isSearchActive) {
+      setIsSearchTransitioning(true);
+      setTimeout(() => {
+        setIsSearchActive(true);
+        setIsSearchTransitioning(false);
+      }, 400);
+    } else if (!isActive) {
+      setIsSearchActive(false);
+    }
   };
+
+   // Helper to adapt backend event DTO to what the child Event component expects
+   const adaptEventData = (event) => {
+    if (!event) return null;
+    // Log the structure of host and featuredGame before accessing name
+    // console.log(`Adapting Event ID: ${event.eventId} - Host Object:`, event.host, "Featured Game Object:", event.featuredGame);
+    return {
+      id: event.eventId,
+      title: event.title,
+      dateTime: event.dateTime, // Pass raw date/time; formatting done in EventCard
+      location: event.location || 'N/A',
+      hostName: event.host?.name || 'Unknown Host', // Use hostName prop
+      game: event.featuredGame?.name || 'Unknown Game', // Use game prop
+      currentNumberParticipants: event.currentNumberParticipants,
+      maxParticipants: event.maxParticipants,
+      featuredGameImage: event.featuredGame?.image || "https://placehold.co/400x300/e9e9e9/1d1d1d?text=No+Image",
+      participants: {
+        current: event.currentNumberParticipants ?? 0,
+        capacity: event.maxParticipants ?? 0,
+      },
+      description: event.description || '',
+    };
+ };
+
 
   return (
     <div className="bg-background text-foreground p-6">
@@ -116,45 +196,77 @@ export default function EventsPage() {
 
       <div className="flex gap-4 mb-8">
         <div className="flex-grow">
-          <EventSearchBar onSearchStateChange={handleSearchStateChange} />
+        <EventSearchBar 
+          onSearchStateChange={handleSearchStateChange} 
+          adaptEventData={adaptEventData} 
+        />
         </div>
         <div className="w-48">
           <DateFilterComponent onFilterChange={handleDateFilter} />
         </div>
       </div>
 
-      {/* Display filtered events only when no search is active */}
-      {!isSearchActive && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <AnimatePresence>
-            {displayedEvents.map((event) => (
-              <motion.div
-                key={event.id}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ 
-                  opacity: 0, 
-                  scale: 0.8, 
-                  y: 20,
-                  transition: { duration: 0.3 }
-                }}
-                transition={{ 
-                  type: "spring", 
-                  stiffness: 300, 
-                  damping: 20 
-                }}
-                layout
-              >
-                <EventCard event={event} />
-              </motion.div>
-            ))}
-          </AnimatePresence>
+      {/* Event Card Grid - Conditional Rendering based on loading/error/data */}
+      {isLoading ? (
+        <div className="flex justify-center items-center py-10">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
+      ) : error ? (
+        <div className="text-center py-10 text-destructive">
+          <p>Error loading events: {error}</p>
+        </div>
+      ) : (
+        <AnimatePresence mode="wait">
+          {!isSearchActive && !isSearchTransitioning && displayedEvents.length > 0 ? (
+            <motion.div
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+              key="grid"
+              variants={container}
+              initial="hidden"
+              animate="show"
+              exit="exit"
+            >
+              {displayedEvents.map((event, index) => {
+                // Adapt event data for EventCard component
+                const adaptedEvent = adaptEventData(event);
+                if (!adaptedEvent) return null;
+
+                // Find the registration ID for this specific event
+                const registration = userRegistrations.find(reg => reg.eventId === adaptedEvent.id);
+                const registrationId = registration ? registration.id : null;
+                const isRegistered = !!registrationId;
+                // console.log(`Event ID: ${adaptedEvent.id}, Registration ID: ${registrationId}, Is Registered: ${isRegistered}`); // Optional log
+
+                return (
+                  <motion.div
+                    key={adaptedEvent.id} // Use unique eventId from backend
+                    variants={item}
+                    custom={index}
+                    layout
+                  >
+                    {/* Pass adaptedEvent, refresh function, registration status, and registration ID */}
+                    <EventCard
+                       event={adaptedEvent}
+                       onRegistrationUpdate={fetchEvents}
+                       isCurrentUserRegistered={isRegistered} // Pass registration status
+                       registrationId={registrationId} // Pass the specific ID for unregistering
+                    />
+                  </motion.div>
+                );
+              })}
+            </motion.div>
+          ) : !isSearchActive && !isSearchTransitioning && displayedEvents.length === 0 ? (
+             <motion.div key="no-events" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center py-10 text-muted-foreground">
+               No events found. {/* Simplified message */}
+             </motion.div>
+          ) : null}
+        </AnimatePresence>
       )}
 
       <CreateEventDialog
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
+        onEventAdded={fetchEvents} // Pass the fetch function as a prop
       />
     </div>
   );
