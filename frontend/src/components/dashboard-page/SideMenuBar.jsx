@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useContext } from "react"
+import { useState, useContext, useEffect } from "react"
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext.jsx";
 import { upgradeAccountToGameOwner, updateUsernamePassword } from '@/service/dashboard-api.js';
@@ -30,6 +30,7 @@ export default function SideMenuBar({ userType }) {
   const [upgradeSuccess, setUpgradeSuccess] = useState(false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [settingsError, setSettingsError] = useState(null);
+  const [isGameOwner, setIsGameOwner] = useState(false);
   
   async function handleSettingsSubmit(e) {
     e.preventDefault();
@@ -83,6 +84,15 @@ export default function SideMenuBar({ userType }) {
     setUpgradeSuccess(false);
 
     try {
+      // If user is already a game owner, just update the state
+      if (user?.gameOwner || user?.role === 'GAME_OWNER') {
+        setUpgradeSuccess(true);
+        setIsGameOwner(true);
+        localStorage.setItem('userRole', 'GAME_OWNER');
+        return;
+      }
+
+      console.log("Attempting to upgrade account for:", user.email);
       await upgradeAccountToGameOwner(user.email);
       setUpgradeSuccess(true);
     } catch (err) {
@@ -95,7 +105,7 @@ export default function SideMenuBar({ userType }) {
 
   return (
     <>
-      {isAuthenticated && user?.role !== 'GAME_OWNER' && (
+      {isAuthenticated && !(user?.gameOwner || user?.role === 'GAME_OWNER') && (
         <>
           <Button 
             variant="ghost" 

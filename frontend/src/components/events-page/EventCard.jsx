@@ -156,7 +156,6 @@ export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered
     }
   };
   
-
   const handleConfirmCancelRegistration = async () => {
      setError(null);
      try {
@@ -194,24 +193,23 @@ export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered
      }
   };
 
-
   const toggleDescription = () => {
     setShowDescription(!showDescription);
   };
 
-  // Safely format date/time
+  // Safely format date/time 
   const eventDate = event.dateTime ? new Date(event.dateTime) : null;
   const formattedDate = eventDate ? eventDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : 'Date N/A';
   const formattedTime = eventDate ? eventDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : 'Time N/A';
 
   return (
     <motion.div
-      className="rounded-lg overflow-hidden bg-white shadow flex flex-col h-full"
+      className="rounded-lg overflow-hidden bg-card text-card-foreground shadow flex flex-col h-full border border-border"
       whileHover={{ y: -5, boxShadow: "0 10px 25px rgba(0,0,0,0.1)" }}
       transition={{ type: "spring", stiffness: 300, damping: 20 }}
     >
       {/* Event Image */}
-      <div className="w-full h-48 bg-gray-200 relative flex-shrink-0">
+      <div className="w-full h-48 bg-muted relative flex-shrink-0">
         {event.featuredGameImage && event.featuredGameImage !== "https://placehold.co/400x300/e9e9e9/1d1d1d?text=No+Image" ? (
           <img
             src={event.featuredGameImage}
@@ -237,7 +235,7 @@ export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered
       {/* Event Details */}
       <div className="p-4 flex flex-col flex-grow">
         {/* Host Info */}
-        <div className="flex items-center text-gray-700 mb-2 text-sm">
+        <div className="flex items-center text-foreground mb-2 text-sm">
           <Users className="w-4 h-4 mr-2 flex-shrink-0" />
           <span className="font-medium truncate">
             Hosted by: {event.hostName || "Unknown Host"}
@@ -245,7 +243,7 @@ export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered
         </div>
 
         {/* Game Info */}
-        <div className="flex items-center text-gray-700 mb-2 text-sm">
+        <div className="flex items-center text-foreground mb-2 text-sm">
           <Gamepad2 className="w-4 h-4 mr-2 flex-shrink-0" />
           <span className="truncate">
             Featured Game: {event.game || "Unknown Game"}
@@ -253,7 +251,7 @@ export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered
         </div>
 
         {/* Location Info */}
-        <div className="flex items-center text-gray-700 mb-2 text-sm">
+        <div className="flex items-center text-foreground mb-2 text-sm">
           <MapPin className="w-4 h-4 mr-2 flex-shrink-0" />
           <span className="truncate">
             Location: {event.location || "Not specified"}
@@ -261,13 +259,13 @@ export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered
         </div>
 
         {/* Date and Time */}
-        <div className="flex items-center text-gray-700 mb-2 text-sm">
+        <div className="flex items-center text-foreground mb-2 text-sm">
           <Calendar className="w-4 h-4 mr-2 flex-shrink-0" />
           <span>{formattedDate} - {formattedTime}</span>
         </div>
 
         {/* Participants - Display directly from prop */}
-        <div className="flex items-center text-gray-700 mb-4 text-sm">
+        <div className="flex items-center text-foreground mb-4 text-sm">
           <Users className="w-4 h-4 mr-2 flex-shrink-0" />
           <span>
             {/* Try multiple fallback options for participant data */}
@@ -289,10 +287,14 @@ export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered
               transition={{ duration: 0.3 }}
               className="overflow-hidden"
             >
-              <Card className="bg-gray-50 border-border/50">
+              <Card className="bg-muted/50 border-border/50">
                 <CardContent className="pt-3 pb-3 px-4">
-                  <h4 className="font-semibold mb-1 text-sm flex items-center"><Info className="w-4 h-4 mr-1.5"/>Description</h4>
-                  <p className="text-gray-700 text-sm">{event.description || "No description available."}</p>
+                  <h4 className="font-semibold mb-1 text-sm flex items-center text-foreground">
+                    <Info className="w-4 h-4 mr-1.5"/>Description
+                  </h4>
+                  <p className="text-muted-foreground text-sm">
+                    {event.description || "No description available."}
+                  </p>
                 </CardContent>
               </Card>
             </motion.div>
@@ -305,7 +307,7 @@ export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered
         {/* Error Message */}
         {error && (
           <motion.div
-            className="text-red-500 text-sm mb-2 text-center"
+            className="text-destructive text-sm mb-2 text-center"
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
@@ -326,10 +328,10 @@ export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered
             {/* Only show register button if user is not the host AND hideRegisterButtons is false */}
             {!isUserEventHost && !hideRegisterButtons ? (
               <Button
-                className={`w-full text-white transition-all duration-300 text-sm ${
+                className={`w-full text-primary-foreground transition-all duration-300 text-sm ${
                   isRegistered
-                    ? "bg-red-500 hover:bg-red-600"
-                    : "bg-black hover:bg-gray-800"
+                    ? "bg-destructive hover:bg-destructive/90"
+                    : "bg-primary hover:bg-primary/90"
                 } ${isAnimating ? "scale-95" : "scale-100"}`}
                 onClick={handleRegisterClick}
                 disabled={isAnimating}
@@ -338,7 +340,7 @@ export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered
               </Button>
             ) : isUserEventHost ? (
               <Button
-                className="w-full text-muted-foreground bg-gray-100 cursor-not-allowed"
+                className="w-full text-muted-foreground bg-muted hover:bg-muted cursor-not-allowed"
                 disabled={true}
               >
                 You are hosting this event
