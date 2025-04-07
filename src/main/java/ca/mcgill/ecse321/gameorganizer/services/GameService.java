@@ -66,11 +66,11 @@ public class GameService {
     private RegistrationRepository  registrationRepository;
     private EventRepository eventRepository;
     private GameInstanceRepository gameInstanceRepository;
-
+    private BorrowRequestRepository borrowRequestRepository;
     private LendingRecordRepository lendingRecordRepository;
 
     @Autowired
-    public GameService(GameRepository gameRepository, ReviewRepository reviewRepository, AccountRepository accountRepository, RegistrationRepository registrationRepository, EventRepository eventRepository, GameInstanceRepository gameInstanceRepository, LendingRecordRepository lendingRecordRepository) {
+    public GameService(GameRepository gameRepository, ReviewRepository reviewRepository, AccountRepository accountRepository, RegistrationRepository registrationRepository, EventRepository eventRepository, GameInstanceRepository gameInstanceRepository, LendingRecordRepository lendingRecordRepository, BorrowRequestRepository borrowRequestRepository) {
 
         this.gameRepository = gameRepository;
         this.reviewRepository = reviewRepository;
@@ -78,8 +78,8 @@ public class GameService {
         this.registrationRepository = registrationRepository;
         this.eventRepository = eventRepository;
         this.gameInstanceRepository = gameInstanceRepository;
-
         this.lendingRecordRepository = lendingRecordRepository;
+        this.borrowRequestRepository = borrowRequestRepository;
 
     }
 

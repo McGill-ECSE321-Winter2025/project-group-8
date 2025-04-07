@@ -8,11 +8,17 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 import ca.mcgill.ecse321.gameorganizer.dto.response.UserSummaryDto;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
@@ -22,6 +28,7 @@ import ca.mcgill.ecse321.gameorganizer.services.RegistrationService;
 import ca.mcgill.ecse321.gameorganizer.dto.response.RegistrationResponseDto;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Controller for user-related endpoints.
@@ -34,6 +41,8 @@ public class UserController {
     @Autowired
     private AccountRepository accountRepository;
     
+    @Autowired
+    private RegistrationService registrationService;
 
     private static final Logger logger = LoggerFactory.getLogger(UserController.class);
 
@@ -88,6 +97,9 @@ public class UserController {
         }
         
         try {
+            // Get the email from the authentication principal
+            String email = authentication.getName();
+            
             // Find account by email
             Account account = accountRepository.findByEmail(email)
                     .orElseThrow(() -> new IllegalArgumentException("User with email " + email + " does not exist"));
@@ -139,7 +151,7 @@ public class UserController {
                     .body("User not found: " + e.getMessage());
         } catch (Exception e) {
             // Other errors
-            System.err.println("Error in searchUserByEmail: " + e.getMessage());
+            System.err.println("Error in getCurrentUser: " + e.getMessage());
             e.printStackTrace();
             
             // Clear isAuthenticated cookie using ResponseCookie
@@ -170,5 +182,6 @@ public class UserController {
                 "[REDACTED]" : cookie.getValue();
             sb.append(cookie.getName()).append("=").append(value).append("; ");
         }
+        return sb.toString();
     }
 } 
