@@ -111,7 +111,7 @@ public interface LendingRecordRepository extends JpaRepository<LendingRecord, In
      * @return page of lending records for the specified borrower
      */
     Page<LendingRecord> findByRequest_Requester(Account requester, Pageable pageable);
-    
+
     /**
      * Advanced filter method to find lending records based on multiple criteria.
      * Uses native query with dynamic conditions.
@@ -161,4 +161,5 @@ public interface LendingRecordRepository extends JpaRepository<LendingRecord, In
             @Param("gameId") Integer gameId,
             Pageable pageable);
 
+    List<LendingRecord> findByRequestRequesterEmail(String email);
 }

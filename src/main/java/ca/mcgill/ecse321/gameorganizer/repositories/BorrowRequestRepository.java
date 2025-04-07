@@ -110,6 +110,9 @@ public interface BorrowRequestRepository extends JpaRepository<BorrowRequest, In
         @Param("startDate") Date startDate,
         @Param("endDate") Date endDate);
 
+
+    List<BorrowRequest> findBorrowRequestsByRequesterEmail(String email);
+
     /**
      * Finds all borrow requests associated with a specific game instance.
      *
@@ -132,4 +135,5 @@ public interface BorrowRequestRepository extends JpaRepository<BorrowRequest, In
         @Param("gameInstanceId") int gameInstanceId,
         @Param("startDate") Date startDate,
         @Param("endDate") Date endDate);
+
 }

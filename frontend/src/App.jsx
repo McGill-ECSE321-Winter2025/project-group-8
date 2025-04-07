@@ -39,7 +39,7 @@ function App() {
           <Route path="/events"         element={<ProtectedRoute><EventsPage /></ProtectedRoute>} />
           <Route path="/profile"        element={<ProtectedRoute><UserProfilePage /></ProtectedRoute>}/>
           <Route path="/user-search"    element={<ProtectedRoute><UserSearchPage /></ProtectedRoute>}/>
-          <Route path="/dashboard/*"    element={<ProtectedRoute><DashboardPage /></ProtectedRoute>}/>
+          <Route path="/dashboard"    element={<ProtectedRoute><DashboardPage /></ProtectedRoute>}/>
         </Routes>
         <Toaster position="top-right" richColors expand={true} /> {/* Added from origin/dev-Yessine-D3 */}
       </div>
