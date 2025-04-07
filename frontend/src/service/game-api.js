@@ -164,7 +164,7 @@ export const getGameById = async (id) => {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`http://localhost:8080/api/v1/games/${id}`, {
+  const response = await fetch(`http://localhost:8080/api/games/${id}`, {
     method: "GET",
     headers,
   });
@@ -234,6 +234,95 @@ export const getGameReviews = async (gameId) => {
 };
 
 /**
+ * Submits a new review for a game.
+ * @param {Object} reviewData - The review data to submit
+ * @param {number} reviewData.rating - Rating from 1-5
+ * @param {string} reviewData.comment - Review comment text
+ * @param {number} reviewData.gameId - ID of the game being reviewed
+ * @param {string} [reviewData.reviewerId] - Email of the reviewer (optional, uses current user if not provided)
+ * @returns {Promise<Object>} A promise that resolves to the created review
+ * @throws {ApiError} For API-related errors
+ */
+export const submitReview = async (reviewData) => {
+  if (!reviewData.gameId) {
+    throw new Error("Game ID is required to submit a review.");
+  }
+
+  if (!reviewData.rating) {
+    throw new Error("Rating is required to submit a review.");
+  }
+
+  console.log("submitReview: Submitting review:", reviewData);
+
+  try {
+    const response = await apiClient('/reviews', {
+      method: "POST",
+      skipPrefix: false,
+      body: reviewData
+    });
+    console.log("submitReview: Successfully submitted review:", response);
+    return response;
+  } catch (error) {
+    console.error("submitReview: Failed to submit review:", error);
+    throw error;
+  }
+};
+
+/**
+ * Updates an existing review.
+ * @param {number} reviewId - ID of the review to update
+ * @param {Object} reviewData - Updated review data
+ * @returns {Promise<Object>} A promise that resolves to the updated review
+ * @throws {ApiError} For API-related errors
+ */
+export const updateReview = async (reviewId, reviewData) => {
+  if (!reviewId) {
+    throw new Error("Review ID is required to update a review.");
+  }
+
+  console.log(`updateReview: Updating review ${reviewId}:`, reviewData);
+
+  try {
+    const response = await apiClient(`/reviews/${reviewId}`, {
+      method: "PUT",
+      skipPrefix: false,
+      body: reviewData
+    });
+    console.log(`updateReview: Successfully updated review ${reviewId}:`, response);
+    return response;
+  } catch (error) {
+    console.error(`updateReview: Failed to update review ${reviewId}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Deletes a review by its ID.
+ * @param {number} reviewId - ID of the review to delete
+ * @returns {Promise<Object>} A promise that resolves when the review is deleted
+ * @throws {ApiError} For API-related errors
+ */
+export const deleteReview = async (reviewId) => {
+  if (!reviewId) {
+    throw new Error("Review ID is required to delete a review.");
+  }
+
+  console.log(`deleteReview: Deleting review ${reviewId}`);
+
+  try {
+    const response = await apiClient(`/reviews/${reviewId}`, {
+      method: "DELETE",
+      skipPrefix: false
+    });
+    console.log(`deleteReview: Successfully deleted review ${reviewId}`);
+    return response;
+  } catch (error) {
+    console.error(`deleteReview: Failed to delete review ${reviewId}:`, error);
+    throw error;
+  }
+};
+
+/**
  * Deletes a game by its ID. Requires authentication.
  * @param {string|number} gameId - The ID of the game to delete.
  * @returns {Promise<void>} A promise that resolves when the game is deleted.
@@ -272,9 +361,13 @@ export const updateGameInstance = async (instanceId, data) => {
     throw new Error("Instance ID is required to update game instance.");
   }
   
-  // Try direct endpoint for game instances without nesting under games
-  const endpoint = `/game-instances/${instanceId}`;
-  console.log(`updateGameInstance: Using direct endpoint ${endpoint}`);
+  if (!data.gameId) {
+    throw new Error("Game ID is required to update game instance.");
+  }
+  
+  // Use the same pattern as createGameInstance and getGameInstances
+  const endpoint = `/games/${data.gameId}/instances/${instanceId}`;
+  console.log(`updateGameInstance: Using endpoint ${endpoint}`);
   
   try {
     const response = await apiClient(endpoint, { 

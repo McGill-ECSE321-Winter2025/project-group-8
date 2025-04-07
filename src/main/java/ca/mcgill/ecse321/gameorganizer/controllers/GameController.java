@@ -2,6 +2,7 @@ package ca.mcgill.ecse321.gameorganizer.controllers;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -250,6 +251,62 @@ public class GameController {
             return ResponseEntity.ok(instances);
         } catch (ResourceNotFoundException e) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
+    }
+
+    /**
+     * Creates a new game instance (copy)
+     * 
+     * @param id ID of the game
+     * @param instanceData Data for the new instance
+     * @return The created game instance
+     */
+    @PostMapping("/{id}/instances")
+    public ResponseEntity<GameInstanceResponseDto> createGameInstance(
+            @PathVariable int id,
+            @RequestBody Map<String, Object> instanceData) {
+        try {
+            // Add gameId to the instance data
+            instanceData.put("gameId", id);
+            
+            // Call service method to create the instance
+            GameInstanceResponseDto createdInstance = service.createGameInstance(instanceData);
+            return new ResponseEntity<>(createdInstance, HttpStatus.CREATED);
+        } catch (ResourceNotFoundException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        } catch (ForbiddenException | UnauthedException e) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, e.getMessage());
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
+    }
+
+    /**
+     * Updates a specific game instance
+     * 
+     * @param id ID of the game
+     * @param instanceId ID of the instance to update
+     * @param instanceData Updated instance data
+     * @return The updated game instance
+     */
+    @PutMapping("/{id}/instances/{instanceId}")
+    public ResponseEntity<GameInstanceResponseDto> updateGameInstance(
+            @PathVariable int id,
+            @PathVariable int instanceId,
+            @RequestBody Map<String, Object> instanceData) {
+        try {
+            // Add gameId to the instance data
+            instanceData.put("gameId", id);
+            
+            // Call service method to update the instance
+            GameInstanceResponseDto updatedInstance = service.updateGameInstance(instanceId, instanceData);
+            return ResponseEntity.ok(updatedInstance);
+        } catch (ResourceNotFoundException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        } catch (ForbiddenException | UnauthedException e) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, e.getMessage());
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
         }

@@ -4,6 +4,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.Map;
 
 import org.slf4j.Logger; // Added Logger import
 import org.slf4j.LoggerFactory; // Added LoggerFactory import
@@ -627,22 +628,86 @@ public class GameService {
             .collect(Collectors.toList());
     }
 
-    //submit game review
-
-    //remove game from collection
     /**
-     * Removes the chosen game from the collection of it's owner
-     *
-     * @param aGame The game we are removing
-     * @return ResponseEntity with removal confirmation message
+     * Creates a new game instance (copy) for a game
+     * @param instanceData Map containing instance data (gameId, condition, location)
+     * @return GameInstanceResponseDto with created instance data
+     * @throws ResourceNotFoundException if game not found
      */
     @Transactional
-    // Note: removeGameFromCollection seems redundant with deleteGame.
-    // If kept, it needs similar authorization. Let's assume deleteGame is sufficient for now.
-    // If removeGameFromCollection is needed with different logic (e.g., just unsetting owner),
-    // it should be secured appropriately.
-    // @PreAuthorize("@gameService.isOwnerOfGame(#aGame.id, authentication.principal.username)") // Example if Game had ID readily available
-    // public ResponseEntity<String> removeGameFromCollection(Game aGame){ ... }
+    @PreAuthorize("hasAuthority('ROLE_GAME_OWNER')")
+    public GameInstanceResponseDto createGameInstance(Map<String, Object> instanceData) {
+        // Check required fields
+        if (!instanceData.containsKey("gameId")) {
+            throw new IllegalArgumentException("Game ID is required");
+        }
+        
+        // Get the game
+        int gameId = Integer.parseInt(instanceData.get("gameId").toString());
+        Game game = gameRepository.findGameById(gameId);
+        if (game == null) {
+            throw new ResourceNotFoundException("Game with ID " + gameId + " not found");
+        }
+        
+        // Get the authenticated user
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+        Account account = accountRepository.findByEmail(username)
+            .orElseThrow(() -> new UnauthedException("Authenticated user account not found"));
+        
+        if (!(account instanceof GameOwner)) {
+            throw new ForbiddenException("Only game owners can create game instances");
+        }
+        
+        GameOwner owner = (GameOwner) account;
+        
+        // Create new instance
+        GameInstance instance = new GameInstance();
+        instance.setGame(game);
+        instance.setOwner(owner);
+        instance.setAcquiredDate(new Date()); // Set current date
+        
+        // Optional fields
+        if (instanceData.containsKey("condition") && instanceData.get("condition") != null) {
+            instance.setCondition((String) instanceData.get("condition"));
+        } else {
+            instance.setCondition("Excellent"); // Default
+        }
+        
+        if (instanceData.containsKey("location") && instanceData.get("location") != null) {
+            instance.setLocation((String) instanceData.get("location"));
+        } else {
+            instance.setLocation("Home"); // Default
+        }
+        
+        if (instanceData.containsKey("available") && instanceData.get("available") != null) {
+            instance.setAvailable((Boolean) instanceData.get("available"));
+        } else {
+            instance.setAvailable(true); // Default to available
+        }
+        
+        // Save instance
+        gameInstanceRepository.save(instance);
+        
+        // Create and return DTO
+        GameInstanceResponseDto dto = new GameInstanceResponseDto();
+        dto.setId(instance.getId());
+        dto.setGameId(game.getId());
+        dto.setGameName(game.getName());
+        dto.setCondition(instance.getCondition());
+        dto.setAvailable(instance.isAvailable());
+        dto.setLocation(instance.getLocation());
+        dto.setAcquiredDate(instance.getAcquiredDate());
+        
+        GameInstanceResponseDto.AccountDto ownerDto = new GameInstanceResponseDto.AccountDto(
+            owner.getId(),
+            owner.getName(),
+            owner.getEmail()
+        );
+        dto.setOwner(ownerDto);
+        
+        return dto;
+    }
 
     /**
      * Retrieves a review by its ID.
@@ -948,6 +1013,68 @@ public class GameService {
         Game game = getGameById(gameId);
         Date currentDate = new Date();
         return gameRepository.findAvailableGames(currentDate).contains(game);
+    }
+
+    /**
+     * Updates a game instance with the provided data
+     * @param instanceId The ID of the instance to update
+     * @param instanceData Map containing the update data (condition, location, available)
+     * @return GameInstanceResponseDto with updated instance data
+     * @throws ResourceNotFoundException if instance not found
+     * @throws ForbiddenException if user is not the owner
+     */
+    @Transactional
+    @PreAuthorize("isAuthenticated()")
+    public GameInstanceResponseDto updateGameInstance(int instanceId, Map<String, Object> instanceData) {
+        // Find the instance
+        GameInstance instance = gameInstanceRepository.findById(instanceId)
+            .orElseThrow(() -> new ResourceNotFoundException("Game instance with ID " + instanceId + " not found"));
+        
+        // Check authorization - only owner can update
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+        
+        if (instance.getOwner() == null || !instance.getOwner().getEmail().equals(username)) {
+            throw new ForbiddenException("You can only update your own game instances");
+        }
+        
+        // Update instance fields
+        if (instanceData.containsKey("condition") && instanceData.get("condition") != null) {
+            instance.setCondition((String) instanceData.get("condition"));
+        }
+        
+        if (instanceData.containsKey("location") && instanceData.get("location") != null) {
+            instance.setLocation((String) instanceData.get("location"));
+        }
+        
+        if (instanceData.containsKey("available") && instanceData.get("available") != null) {
+            instance.setAvailable((Boolean) instanceData.get("available"));
+        }
+        
+        // Save updated instance
+        gameInstanceRepository.save(instance);
+        
+        // Create and return DTO
+        GameInstanceResponseDto dto = new GameInstanceResponseDto();
+        dto.setId(instance.getId());
+        dto.setGameId(instance.getGame().getId());
+        dto.setGameName(instance.getGame().getName());
+        dto.setCondition(instance.getCondition());
+        dto.setAvailable(instance.isAvailable());
+        dto.setLocation(instance.getLocation());
+        dto.setAcquiredDate(instance.getAcquiredDate());
+        
+        if (instance.getOwner() != null) {
+            GameInstanceResponseDto.AccountDto ownerDto = 
+                new GameInstanceResponseDto.AccountDto(
+                    instance.getOwner().getId(),
+                    instance.getOwner().getName(),
+                    instance.getOwner().getEmail()
+                );
+            dto.setOwner(ownerDto);
+        }
+        
+        return dto;
     }
 
 }

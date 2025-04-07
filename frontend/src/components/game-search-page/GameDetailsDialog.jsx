@@ -8,14 +8,17 @@ import {
   Dialog,
 } from '../ui/dialog';
 import { Button } from '../ui/button';
-import { Users, Calendar, Star, MessageSquare, User, Loader2 } from 'lucide-react';
+import { Users, Calendar, Star, MessageSquare, User, Loader2, PenSquare } from 'lucide-react';
 import Tag from '../common/Tag.jsx';
 import GameOwnerTag from '../common/GameOwnerTag.jsx';
 import { useSearchParams } from 'react-router-dom';
 import { getGameReviews } from '../../service/game-api.js';
+import { useAuth } from '../../context/AuthContext.jsx';
+import ReviewForm from './ReviewForm.jsx';
 
 export const GameDetailsDialog = ({ game, onRequestGame }) => {
   const [searchParams] = useSearchParams();
+  const { user, isAuthenticated } = useAuth();
   const fromUserId = searchParams.get('fromUser');
   const [selectedInstance, setSelectedInstance] = useState(null);
   const [instances, setInstances] = useState([]);
@@ -25,8 +28,15 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
   const [isLoadingReviews, setIsLoadingReviews] = useState(false);
   const [reviewsError, setReviewsError] = useState(null);
   const [averageRating, setAverageRating] = useState(0);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [editingReview, setEditingReview] = useState(null);
   
   if (!game) return null;
+  
+  // Check if the current user has already reviewed this game
+  const userReview = isAuthenticated && user ? reviews.find(review => 
+    review.reviewer && review.reviewer.email === user.email
+  ) : null;
   
   // Fetch reviews when game changes
   useEffect(() => {
@@ -108,6 +118,62 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
       </div>
     );
   };
+  
+  // Handle adding a new review or editing an existing review
+  const handleAddReview = () => {
+    setEditingReview(null);
+    setShowReviewForm(true);
+  };
+  
+  // Handle editing the user's existing review
+  const handleEditReview = (review) => {
+    setEditingReview(review);
+    setShowReviewForm(true);
+  };
+  
+  // Handle submission of a review (new or edited)
+  const handleReviewSubmitted = (newReview, isDeleted = false) => {
+    setShowReviewForm(false);
+    setEditingReview(null);
+    
+    if (isDeleted) {
+      // Remove the deleted review from the list
+      setReviews(reviews.filter(review => review.id !== editingReview.id));
+      
+      // Recalculate average rating
+      if (reviews.length > 1) {
+        const remainingReviews = reviews.filter(review => review.id !== editingReview.id);
+        const ratingSum = remainingReviews.reduce((sum, review) => sum + review.rating, 0);
+        setAverageRating((ratingSum / remainingReviews.length).toFixed(1));
+      } else {
+        setAverageRating(0);
+      }
+    } else if (newReview) {
+      if (editingReview) {
+        // Update existing review in the list
+        setReviews(reviews.map(review => 
+          review.id === newReview.id ? newReview : review
+        ));
+      } else {
+        // Add new review to the list
+        setReviews([...reviews, newReview]);
+      }
+      
+      // Recalculate average rating
+      const updatedReviews = editingReview 
+        ? reviews.map(review => review.id === newReview.id ? newReview : review)
+        : [...reviews, newReview];
+      
+      const ratingSum = updatedReviews.reduce((sum, review) => sum + review.rating, 0);
+      setAverageRating((ratingSum / updatedReviews.length).toFixed(1));
+    }
+  };
+  
+  // Cancel review form
+  const handleCancelReview = () => {
+    setShowReviewForm(false);
+    setEditingReview(null);
+  };
 
   return (
     <DialogContent className="sm:max-w-[95%] md:max-w-[90%] lg:max-w-[80%] xl:max-w-6xl overflow-y-auto max-h-[90vh]">
@@ -175,45 +241,89 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
           
           {/* Reviews Section */}
           <div className="space-y-3">
-            <h4 className="text-sm font-medium flex items-center gap-2">
-              <MessageSquare className="h-4 w-4" /> Reviews
-              {isLoadingReviews && <Loader2 className="h-4 w-4 animate-spin ml-2" />}
-            </h4>
+            <div className="flex justify-between items-center">
+              <h4 className="text-sm font-medium flex items-center gap-2">
+                <MessageSquare className="h-4 w-4" /> Reviews
+                {isLoadingReviews && <Loader2 className="h-4 w-4 animate-spin ml-2" />}
+              </h4>
+              
+              {isAuthenticated && !showReviewForm && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={userReview ? () => handleEditReview(userReview) : handleAddReview}
+                  className="flex items-center gap-1"
+                >
+                  <PenSquare className="h-3 w-3" />
+                  {userReview ? "Edit Review" : "Add Review"}
+                </Button>
+              )}
+            </div>
             
-            {isLoadingReviews ? (
-              <div className="flex justify-center items-center h-20">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : reviewsError ? (
-              <p className="text-sm text-red-500">{reviewsError}</p>
-            ) : reviews.length > 0 ? (
-              <div className="space-y-4 max-h-60 overflow-y-auto pr-2">
-                {reviews.map(review => (
-                  <div key={review.id} className="border rounded-md p-3">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <div className="font-medium flex items-center gap-1">
-                            <User className="h-4 w-4 text-muted-foreground" />
-                            {review.reviewer?.name || 'Anonymous'}
+            {/* Review Form */}
+            {showReviewForm && (
+              <ReviewForm
+                gameId={game.id}
+                existingReview={editingReview}
+                onReviewSubmitted={handleReviewSubmitted}
+                onCancel={handleCancelReview}
+              />
+            )}
+            
+            {/* Reviews List */}
+            {!showReviewForm && (
+              isLoadingReviews ? (
+                <div className="flex justify-center items-center h-20">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : reviewsError ? (
+                <p className="text-sm text-red-500">{reviewsError}</p>
+              ) : reviews.length > 0 ? (
+                <div className="space-y-4 max-h-60 overflow-y-auto pr-2">
+                  {reviews.map(review => {
+                    const isUserReview = isAuthenticated && user && review.reviewer?.email === user.email;
+                    
+                    return (
+                      <div key={review.id} className={`border rounded-md p-3 ${isUserReview ? 'border-primary/50 bg-primary/5' : ''}`}>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <div className="font-medium flex items-center gap-1">
+                                <User className="h-4 w-4 text-muted-foreground" />
+                                {review.reviewer?.name || 'Anonymous'}
+                                {isUserReview && <span className="text-xs bg-primary/20 text-primary px-1.5 py-0.5 rounded-full">You</span>}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {formatDate(review.dateSubmitted)}
+                              </div>
+                            </div>
+                            <div className="mt-1">
+                              {renderStars(review.rating)}
+                            </div>
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            {formatDate(review.dateSubmitted)}
-                          </div>
+                          
+                          {isUserReview && !showReviewForm && (
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => handleEditReview(review)}
+                              className="h-8 w-8 p-0"
+                            >
+                              <PenSquare className="h-4 w-4" />
+                              <span className="sr-only">Edit</span>
+                            </Button>
+                          )}
                         </div>
-                        <div className="mt-1">
-                          {renderStars(review.rating)}
-                        </div>
+                        {review.comment && (
+                          <p className="text-sm mt-2">{review.comment}</p>
+                        )}
                       </div>
-                    </div>
-                    {review.comment && (
-                      <p className="text-sm mt-2">{review.comment}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No reviews yet.</p>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No reviews yet. Be the first to review this game!</p>
+              )
             )}
           </div>
         </div>
@@ -248,62 +358,50 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
                       <h4 className="font-medium">Owner: {instance.owner?.name || 'Unknown Owner'}</h4>
                       {selectedInstance?.id === instance.id && (
                         <svg className="h-4 w-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
                         </svg>
                       )}
                     </div>
-                    <div className="flex items-center gap-1 mt-1 text-sm">
-                      <span className={`font-medium ${instance.available ? 'text-green-600' : 'text-orange-600'}`}>
-                        {instance.available ? 'Available for borrowing' : 'Currently unavailable'}
-                      </span>
+                    <div className="mt-2 text-sm flex flex-col gap-1">
+                      {instance.condition && (
+                        <div>
+                          <span className="text-muted-foreground">Condition:</span> {instance.condition}
+                        </div>
+                      )}
+                      {instance.location && (
+                        <div>
+                          <span className="text-muted-foreground">Location:</span> {instance.location}
+                        </div>
+                      )}
+                      <div>
+                        <span className="text-muted-foreground">Status:</span>{' '}
+                        <span className={instance.available ? 'text-green-600' : 'text-red-500'}>
+                          {instance.available ? 'Available' : 'Not Available'}
+                        </span>
+                      </div>
                     </div>
-                    {instance.condition && (
-                      <div className="text-xs mt-1">
-                        Condition: {instance.condition}
-                      </div>
-                    )}
-                    {instance.acquiredDate && (
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Added: {formatDate(instance.acquiredDate)}
-                      </div>
-                    )}
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-muted-foreground">No copies found for this game.</p>
+                <p className="text-sm text-muted-foreground">No copies available.</p>
               )}
             </div>
             
-            <div className="mt-6">
+            {isAuthenticated && instances.some(instance => instance.available) && (
               <Button 
-                className="w-full mb-2" 
                 onClick={handleRequestWithInstance} 
-                disabled={!selectedInstance || !selectedInstance.available || isLoadingInstances}
+                disabled={!selectedInstance}
+                className="w-full"
               >
-                {selectedInstance ? "Request to Borrow" : "Select a copy first"}
+                Request Selected Copy
               </Button>
-            </div>
-          </div>
-          
-          {/* Availability Summary */}
-          <div className="bg-muted/50 p-4 rounded-md">
-            <h4 className="text-sm font-medium mb-2">Availability Summary</h4>
-            <div className="space-y-1 text-sm">
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-                <span>Available for borrowing</span>
-              </div>
-              <div className="text-green-600 font-medium">
-                {isLoadingInstances ? 'Loading...' 
-                  : instancesError ? 'Error loading copies' 
-                  : `${instances.filter(i => i.available).length} of ${instances.length} ${instances.length === 1 ? 'copy' : 'copies'} available`}
-              </div>
-              {selectedInstance && (
-                <div className="flex items-center gap-2 mt-2 p-2 rounded bg-primary/10">
-                  <span className="font-medium">Selected: Copy from {selectedInstance.owner?.name || 'Unknown'}</span>
-                </div>
-              )}
-            </div>
+            )}
+            
+            {!isAuthenticated && (
+              <p className="text-sm text-muted-foreground text-center">
+                Please log in to request a copy of this game.
+              </p>
+            )}
           </div>
         </div>
       </div>

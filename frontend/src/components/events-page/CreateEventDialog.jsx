@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "../../ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "../../ui/dialog";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
 import { Textarea } from "../../ui/textarea";
@@ -29,6 +29,9 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
   // Track last fetched email to prevent redundant fetches
   const lastFetchedEmailRef = useRef(null);
 
+  // Add state to track input focus
+  const [isInputFocused, setIsInputFocused] = useState(false);
+
   const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm({
     defaultValues: {
       title: "",
@@ -50,9 +53,19 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
     };
   }, []);
 
+  // Debug loading state
+  useEffect(() => {
+    if (isLoadingUserGames) {
+      console.log("Loading user games...");
+    } else {
+      console.log(`User games loaded: ${userGames.length} games available`);
+    }
+  }, [isLoadingUserGames, userGames.length]);
+
   // Load user's games when dialog opens
   useEffect(() => {
-    if (open && userEmail && lastFetchedEmailRef.current !== userEmail) {
+    if (open && userEmail) {
+      // Always load games when the dialog opens to ensure fresh data
       const loadUserGames = async () => {
         setIsLoadingUserGames(true);
         lastFetchedEmailRef.current = userEmail;
@@ -61,6 +74,7 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
           const games = await getGamesByOwner(userEmail);
           
           if (isMountedRef.current) {
+            console.log(`Successfully loaded ${games?.length || 0} games for user ${userEmail}`);
             setUserGames(games || []);
           }
         } catch (error) {
@@ -84,10 +98,19 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
 
   // Filter user's games based on search term
   useEffect(() => {
-    // Clear results if search term is cleared
-    if (!watchedGameSearchTerm) {
+    // If no games are loaded, don't try to filter
+    if (userGames.length === 0) {
       setGameSearchResults([]);
-      if (selectedGameId) setSelectedGameId(null);
+      return;
+    }
+
+    // If search term is empty, show all user games in the dropdown if input is focused
+    if (!watchedGameSearchTerm) {
+      if (isInputFocused) {
+        setGameSearchResults(userGames);
+      } else {
+        setGameSearchResults([]);
+      }
       return;
     }
 
@@ -103,19 +126,13 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
       const filteredGames = userGames.filter(game => 
         game.name.toLowerCase().includes(searchTerm)
       );
+      console.log(`Filtered ${filteredGames.length} games from ${userGames.length} total games using term: ${searchTerm}`);
       setGameSearchResults(filteredGames);
     };
 
-    const debounceTimer = setTimeout(() => {
-      if (watchedGameSearchTerm.length > 1 && !selectedGameId) {
-        filterUserGames();
-      } else {
-        setGameSearchResults([]);
-      }
-    }, 300);
-
-    return () => clearTimeout(debounceTimer);
-  }, [watchedGameSearchTerm, selectedGameId, userGames]);
+    // Reduced debounce timer to make search more responsive
+    filterUserGames();
+  }, [watchedGameSearchTerm, selectedGameId, userGames, isInputFocused]);
 
   const handleGameSelect = useCallback((game) => {
     setSelectedGameId(game.id);
@@ -184,6 +201,32 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
     onOpenChange(false);
   }, [reset, onOpenChange]);
 
+  // Custom UI helper function to handle input focus
+  const handleInputFocus = useCallback(() => {
+    setIsInputFocused(true);
+    // When input is focused and we have games but no search text, show all games
+    if (userGames.length > 0 && !selectedGameId && !watchedGameSearchTerm) {
+      setGameSearchResults(userGames);
+    }
+  }, [userGames, selectedGameId, watchedGameSearchTerm]);
+
+  // Handle input blur
+  const handleInputBlur = useCallback(() => {
+    // Use timeout to allow click events on dropdown items to fire first
+    setTimeout(() => setIsInputFocused(false), 200);
+  }, []);
+
+  // Reset state when dialog opens to ensure a fresh start
+  useEffect(() => {
+    if (open) {
+      // Clear any selected game and search results when dialog opens
+      // but don't reset form inputs that might be partially filled
+      setSelectedGameId(null);
+      setGameSearchResults([]);
+      setSubmitError("");
+    }
+  }, [open]);
+
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
       if (!isOpen) handleCancel();
@@ -192,6 +235,9 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
       <DialogContent className="sm:max-w-[525px]">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold">Create New Event</DialogTitle>
+          <DialogDescription>
+            Fill out the form below to create a new event featuring one of your games.
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={onSubmit} className="space-y-4 py-4">
@@ -230,17 +276,27 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
             <div className="flex items-center gap-2">
               <Input
                 id="gameSearchTermInput"
-                placeholder="Search your games..."
+                placeholder={isLoadingUserGames ? "Loading your games..." : "Search your games..."}
                 {...register("gameSearchTermInput")}
                 onChange={(e) => {
                   setValue("gameSearchTermInput", e.target.value);
                   if (selectedGameId) setSelectedGameId(null);
                 }}
+                onFocus={handleInputFocus}
+                onBlur={handleInputBlur}
                 autoComplete="off"
                 className={!selectedGameId && submitError.includes("select") ? "border-red-500" : ""}
                 disabled={isLoadingUserGames} // Disable while loading user games
               />
               {isSearchingGames && <Loader2 className="h-4 w-4 animate-spin" />}
+            </div>
+            
+            {/* Debug info - will help troubleshoot the loading state */}
+            <div className="text-xs text-muted-foreground mt-1">
+              {isLoadingUserGames ? 
+                "Loading your games..." : 
+                `${userGames.length} games available for selection`
+              }
             </div>
             
             {/* Display no games message if needed */}
@@ -250,24 +306,43 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
               </p>
             )}
             
+            {/* Display selected game */}
+            {selectedGameId && (
+              <div className="text-sm font-medium text-green-600 mt-1">
+                Selected game: {userGames.find(g => g.id === selectedGameId)?.name}
+              </div>
+            )}
+            
             {/* Display error if submit attempted without selection */}
             {submitError && submitError.includes("select") && (
               <p className="text-red-500 text-sm">{submitError}</p>
             )}
 
-            {/* Search Results Dropdown - Now showing only user's games */}
-            {gameSearchResults.length > 0 && !selectedGameId && (
-              <ul className="absolute z-10 w-full bg-background border border-border rounded-md mt-1 max-h-40 overflow-y-auto shadow-lg">
-                {gameSearchResults.map((game) => (
-                  <li
-                    key={game.id}
-                    className="px-3 py-2 hover:bg-accent cursor-pointer text-sm"
-                    onClick={() => handleGameSelect(game)}
-                  >
-                    {game.name}
-                  </li>
-                ))}
-              </ul>
+            {/* Search Results Dropdown - Shows all or filtered games */}
+            {!selectedGameId && !isLoadingUserGames && (
+              <div className="relative">
+                {gameSearchResults.length > 0 && isInputFocused && (
+                  <ul className="absolute z-10 w-full bg-background border border-border rounded-md mt-1 max-h-40 overflow-y-auto shadow-lg">
+                    {/* Show header if displaying all games */}
+                    {!watchedGameSearchTerm && gameSearchResults.length === userGames.length && userGames.length > 0 && (
+                      <li className="px-3 py-1 text-xs text-muted-foreground border-b">
+                        All your games
+                      </li>
+                    )}
+                    
+                    {/* Show filtered results */}
+                    {gameSearchResults.map((game) => (
+                      <li
+                        key={game.id}
+                        className="px-3 py-2 hover:bg-accent cursor-pointer text-sm"
+                        onClick={() => handleGameSelect(game)}
+                      >
+                        {game.name}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             )}
           </div>
 

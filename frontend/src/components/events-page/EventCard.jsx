@@ -38,6 +38,7 @@ export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered
   const handleRegisterClick = async (e) => {
     setError(null);
 
+    // If already registered, show cancel confirmation
     if (isRegistered) {
       setIsCancelConfirmOpen(true);
       return;
@@ -66,15 +67,25 @@ export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered
       });
     } catch (error) {
       setIsAnimating(false);
-      const errorMsg =  "⚠️ Event is at full capacity!";
-      if (errorMsg.includes("full capacity")) {
+      
+      // Check if this is the "already registered" error
+      if (error.message && error.message.includes("already exists")) {
+        // User is already registered for this event
+        setError("You are already registered for this event");
+        setIsRegistered(true); // Update the UI state to show registered
+        toast.warning("You are already registered for this event");
+        
+        // Refresh to get the registration data
+        if (onRegistrationUpdate) {
+          onRegistrationUpdate();
+        }
+      } else if (error.message && error.message.includes("full capacity")) {
+        // Event is at full capacity
         setError("⚠️ Event is at full capacity!");
         toast.error("Event is at full capacity!");
-      } else if (errorMsg.includes("already registered")) {
-        setError("❌ You are already registered for this event!");
-        setIsRegistered(true); // Sync state
-        toast.warning("You are already registered for this event!");
       } else {
+        // Generic error
+        const errorMsg = error.message || "Something went wrong. Please try again.";
         setError(errorMsg);
         toast.error(errorMsg);
       }

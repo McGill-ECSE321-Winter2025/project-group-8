@@ -46,7 +46,7 @@ export default function DashboardBorrowRequests({ userType }) {
             return { 
               ...req, 
               requestedGameName: game.name, 
-              gameImage: game.imageUrl,
+              gameImage: game.image || game.imageUrl || null, // Try both image field names
               requesterName: user.name // Use current user's name for sent requests
             };
           } catch (error) {
@@ -76,7 +76,7 @@ export default function DashboardBorrowRequests({ userType }) {
               return { 
                 ...req, 
                 requestedGameName: game.name, 
-                gameImage: game.imageUrl, 
+                gameImage: game.image || game.imageUrl || null, // Try both image field names
                 requesterName: req.requesterName
               };
             } catch (error) {

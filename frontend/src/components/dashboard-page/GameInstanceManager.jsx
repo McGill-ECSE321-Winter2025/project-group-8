@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Edit, Plus, Check, X } from "lucide-react";
-import { getGameInstances, updateGameInstance, createGameInstance } from "@/service/game-api.js";
+import { Loader2, Edit, Plus, Check, X, Trash2 } from "lucide-react";
+import { getGameInstances, updateGameInstance, createGameInstance, deleteGame } from "@/service/game-api.js";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import {
@@ -41,6 +41,9 @@ export default function GameInstanceManager({ gameId, gameName, refreshGames }) 
   const [editingInstance, setEditingInstance] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
   const { user } = useAuth();
 
   const editForm = useForm({
@@ -140,6 +143,33 @@ export default function GameInstanceManager({ gameId, gameName, refreshGames }) 
     }
   };
 
+  // Handle deleting a game
+  const handleDeleteGame = async () => {
+    if (!gameId) {
+      console.error("Game ID is missing!");
+      setDeleteError("Cannot delete game: ID missing.");
+      return;
+    }
+
+    setIsDeleting(true);
+    setDeleteError(null);
+
+    try {
+      await deleteGame(gameId);
+      toast.success(`Game "${gameName}" deleted successfully`);
+      setIsDeleteModalOpen(false);
+      if (refreshGames) {
+        refreshGames(); // Refresh the list in the parent component
+      }
+    } catch (err) {
+      console.error(`Failed to delete game "${gameName}" (ID: ${gameId}):`, err);
+      setDeleteError(err.message || `Failed to delete ${gameName}. Please try again.`);
+      toast.error(`Failed to delete ${gameName}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   // Condition options
   const conditionOptions = [
     { value: "New", label: "New" },
@@ -151,7 +181,7 @@ export default function GameInstanceManager({ gameId, gameName, refreshGames }) 
 
   return (
     <div className="space-y-4">
-      {isLoading && (
+      {isLoading && !isDeleting && (
         <div className="flex justify-center items-center py-6">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
         </div>
@@ -165,21 +195,32 @@ export default function GameInstanceManager({ gameId, gameName, refreshGames }) 
         <>
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-medium">Your Copies of {gameName}</h3>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => {
-                addForm.reset({
-                  condition: "Excellent",
-                  location: "Home"
-                });
-                setIsAddModalOpen(true);
-              }}
-              className="flex items-center gap-1"
-            >
-              <Plus className="h-4 w-4" />
-              Add Copy
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => {
+                  addForm.reset({
+                    condition: "Excellent",
+                    location: "Home"
+                  });
+                  setIsAddModalOpen(true);
+                }}
+                className="flex items-center gap-1"
+              >
+                <Plus className="h-4 w-4" />
+                Add Copy
+              </Button>
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                onClick={() => setIsDeleteModalOpen(true)}
+                className="flex items-center gap-1"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete Game
+              </Button>
+            </div>
           </div>
 
           {instances.length === 0 ? (
@@ -236,11 +277,16 @@ export default function GameInstanceManager({ gameId, gameName, refreshGames }) 
       <Dialog 
         open={isEditModalOpen} 
         onOpenChange={(open) => {
-          // When closing, first blur any active element to ensure proper focus management
-          if (!open && document.activeElement instanceof HTMLElement) {
-            document.activeElement.blur();
+          if (!open) {
+            // First blur any active element to ensure proper focus management
+            if (document.activeElement instanceof HTMLElement) {
+              document.activeElement.blur();
+            }
+            // Short timeout to ensure focus is removed before dialog close
+            setTimeout(() => setIsEditModalOpen(false), 10);
+          } else {
+            setIsEditModalOpen(open);
           }
-          setIsEditModalOpen(open);
         }}
       >
         <DialogContent className="sm:max-w-[425px]">
@@ -347,11 +393,16 @@ export default function GameInstanceManager({ gameId, gameName, refreshGames }) 
       <Dialog 
         open={isAddModalOpen} 
         onOpenChange={(open) => {
-          // When closing, first blur any active element to ensure proper focus management
-          if (!open && document.activeElement instanceof HTMLElement) {
-            document.activeElement.blur();
+          if (!open) {
+            // First blur any active element to ensure proper focus management
+            if (document.activeElement instanceof HTMLElement) {
+              document.activeElement.blur();
+            }
+            // Short timeout to ensure focus is removed before dialog close
+            setTimeout(() => setIsAddModalOpen(false), 10);
+          } else {
+            setIsAddModalOpen(open);
           }
-          setIsAddModalOpen(open);
         }}
       >
         <DialogContent className="sm:max-w-[425px]">
@@ -423,6 +474,48 @@ export default function GameInstanceManager({ gameId, gameName, refreshGames }) 
               </DialogFooter>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Game Dialog */}
+      <Dialog 
+        open={isDeleteModalOpen} 
+        onOpenChange={(open) => {
+          if (!open) {
+            // First blur any active element to ensure proper focus management
+            if (document.activeElement instanceof HTMLElement) {
+              document.activeElement.blur();
+            }
+            // Short timeout to ensure focus is removed before dialog close
+            setTimeout(() => setIsDeleteModalOpen(false), 10);
+          } else {
+            setIsDeleteModalOpen(open);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Delete Game</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{gameName}"? This action cannot be undone and will remove all copies of this game.
+              {deleteError && <p className="text-red-500 text-sm mt-2">{deleteError}</p>}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)} disabled={isDeleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteGame} disabled={isDeleting}>
+              {isDeleting ? (
+                <>Deleting...</>
+              ) : (
+                <>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

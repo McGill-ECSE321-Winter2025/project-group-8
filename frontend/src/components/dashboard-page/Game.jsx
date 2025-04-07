@@ -9,51 +9,20 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import { Trash2, Edit, Package } from "lucide-react";
-import { deleteGame } from "../../service/game-api.js"; // Keep single import
+import { Package } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion"; // Import Framer Motion
 import GameInstanceManager from "./GameInstanceManager.jsx"; // Import the new component
 
 // Combined props: pass the whole game object and the refresh callback
 export default function Game({ game, refreshGames }) {
-  // State from HEAD for better feedback
-  const [open, setOpen] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false); // Loading state for deletion
-  const [deleteError, setDeleteError] = useState(null); // Error state for deletion
-  const [showInstances, setShowInstances] = useState(false); // State for showing instances dialog
+  // State for game instances dialog
+  const [showInstances, setShowInstances] = useState(false);
 
   // Use game.id from the game prop
   const gameId = game?.id;
   const gameName = game?.name || "this game"; // Use game name or placeholder
   const imageSrc = game?.image || "https://upload.wikimedia.org/wikipedia/commons/1/14/No_Image_Available.jpg.svg?height=300&width=400"; // Use origin's placeholder
-
-  // handleDelete logic from HEAD, adapted for game prop and refreshGames
-  const handleDelete = async () => {
-    if (!gameId) {
-      console.error("Game ID is missing!");
-      setDeleteError("Cannot delete game: ID missing.");
-      return;
-    }
-
-    setIsDeleting(true);
-    setDeleteError(null);
-
-    try {
-      await deleteGame(gameId);
-      // Consider adding toast notification here if desired
-      setOpen(false); // Close dialog on success
-      if (refreshGames) {
-        refreshGames(); // Refresh the list in the parent component
-      }
-    } catch (err) {
-      console.error(`Failed to delete game "${gameName}" (ID: ${gameId}):`, err);
-      setDeleteError(err.message || `Failed to delete ${gameName}. Please try again.`);
-    } finally {
-      setIsDeleting(false);
-    }
-  };
 
   // JSX structure using Framer Motion from origin/dev-Yessine-D3
   return (
@@ -89,55 +58,6 @@ export default function Game({ game, refreshGames }) {
                   <Package className="h-4 w-4" />
                   Manage Copies
                 </Button>
-                {/* Dialog structure from HEAD */}
-                <Dialog 
-                  open={open} 
-                  onOpenChange={(openState) => {
-                    // When closing, first blur any active element to ensure proper focus management
-                    if (!openState && document.activeElement instanceof HTMLElement) {
-                      document.activeElement.blur();
-                    }
-                    setOpen(openState);
-                  }}
-                >
-                  <DialogTrigger asChild>
-                    <Button 
-                      variant="destructive" 
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation(); // Prevent opening the instances dialog
-                      }}
-                    >
-                      Remove
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                      <DialogTitle>Delete Game</DialogTitle>
-                      <DialogDescription>
-                        Are you sure you want to delete "{gameName}"? This action cannot be undone.
-                        {/* Error display from HEAD */}
-                        {deleteError && <p className="text-red-500 text-sm mt-2">{deleteError}</p>}
-                      </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter className="mt-4">
-                      <Button variant="outline" onClick={() => setOpen(false)} disabled={isDeleting}>
-                        Cancel
-                      </Button>
-                      {/* Delete button with loading state from HEAD */}
-                      <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
-                        {isDeleting ? (
-                          <>Deleting...</>
-                        ) : (
-                          <>
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                          </>
-                        )}
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
               </div>
             </div>
           </CardContent>

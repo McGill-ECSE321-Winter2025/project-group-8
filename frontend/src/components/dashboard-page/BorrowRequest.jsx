@@ -3,11 +3,16 @@ import { Button } from "@/components/ui/button.jsx";
 import { Card, CardContent } from "@/components/ui/card.jsx";
 import { Badge } from "@/components/ui/badge.jsx"; // Import Badge
 import { actOnBorrowRequest } from '@/service/dashboard-api.js'; // Assuming toast is available globally or via context
+import { useAuth } from "@/context/AuthContext"; // Import useAuth to check user type
 // import { toast } from 'react-toastify'; // Example: if using react-toastify
 
 export default function BorrowRequest({ id, name, requester, date, endDate, status, refreshRequests, imageSrc }) { // Add imageSrc prop
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const { user } = useAuth(); // Get user from auth context
+  
+  // Check if user is a game owner
+  const isGameOwner = user?.gameOwner === true;
 
   const handleAction = async (status) => {
     if (!id) {
@@ -33,6 +38,11 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
     }
   };
 
+  // Handle image error by falling back to placeholder
+  const handleImageError = (e) => {
+    e.target.src = "https://placehold.co/200x200/e9e9e9/1d1d1d?text=No+Image";
+  };
+
   return <Card>
     <CardContent className="p-4">
       <div className="flex flex-col md:flex-row gap-4">
@@ -41,6 +51,7 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
             src={imageSrc || "https://placehold.co/200x200/e9e9e9/1d1d1d?text=No+Image"}
             alt={`Cover art for ${name}`}
             className="w-full h-full object-cover rounded-lg aspect-square"
+            onError={handleImageError}
           />
         </div>
         <div className="flex-1">
@@ -69,14 +80,27 @@ export default function BorrowRequest({ id, name, requester, date, endDate, stat
               <span className="font-medium">End Date:</span> {endDate}
             </div>
           </div>
-          <div className="flex gap-2 mt-4">
-            <Button variant="positive" size="sm" onClick={() => handleAction('Approved')} disabled={isLoading}>
-              {isLoading ? 'Processing...' : 'Accept'}
-            </Button>
-            <Button variant="destructive" size="sm" onClick={() => handleAction('Declined')} disabled={isLoading}>
-              {isLoading ? 'Processing...' : 'Decline'}
-            </Button>
-          </div>
+          
+          {/* Only show action buttons for game owners and if status is Pending */}
+          {isGameOwner && status === 'Pending' && (
+            <div className="flex gap-2 mt-4">
+              <Button variant="positive" size="sm" onClick={() => handleAction('Approved')} disabled={isLoading}>
+                {isLoading ? 'Processing...' : 'Accept'}
+              </Button>
+              <Button variant="destructive" size="sm" onClick={() => handleAction('Declined')} disabled={isLoading}>
+                {isLoading ? 'Processing...' : 'Decline'}
+              </Button>
+            </div>
+          )}
+          
+          {/* Show message when request is already processed or user can't take action */}
+          {(status !== 'Pending' || !isGameOwner) && (
+            <div className="text-sm italic text-muted-foreground mt-4">
+              {!isGameOwner 
+                ? "" 
+                : `This request has been ${status.toLowerCase()}.`}
+            </div>
+          )}
         </div>
       </div>
     </CardContent>
