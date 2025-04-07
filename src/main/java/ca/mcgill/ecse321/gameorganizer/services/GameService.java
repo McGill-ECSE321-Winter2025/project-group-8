@@ -195,6 +195,7 @@ public class GameService {
             new Date()
         );
         game.setOwner(owner);
+        game.setCategory(gameDto.getCategory());
         game = gameRepository.save(game);
 
         // Create the initial game instance
@@ -994,6 +995,26 @@ public class GameService {
         Game game = getGameById(gameId);
         Date currentDate = new Date();
         return gameRepository.findAvailableGames(currentDate).contains(game);
+    }
+
+    /**
+     * Check if a game is available for a specific date range
+     * @param gameId The ID of the game to check
+     * @param startDate The start date of the borrowing period
+     * @param endDate The end date of the borrowing period
+     * @return true if the game is available for the specified period, false otherwise
+     */
+    @Transactional
+    public boolean isGameAvailableForPeriod(int gameId, Date startDate, Date endDate) {
+        // Get the game
+        Game game = getGameById(gameId);
+        
+        // Find any approved requests that overlap with the requested period
+        List<BorrowRequest> overlappingRequests = borrowRequestRepository
+            .findOverlappingApprovedRequests(gameId, startDate, endDate);
+        
+        // No overlapping approved requests means the game is available for this period
+        return overlappingRequests.isEmpty();
     }
 
     /**

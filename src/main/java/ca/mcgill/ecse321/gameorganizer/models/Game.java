@@ -127,6 +127,7 @@ public class Game {
                this.maxPlayers == game.maxPlayers &&
                (this.name != null ? this.name.equals(game.name) : game.name == null) &&
                (this.image != null ? this.image.equals(game.image) : game.image == null) &&
-               (this.dateAdded != null ? this.dateAdded.equals(game.dateAdded) : game.dateAdded == null);
+               (this.dateAdded != null ? this.dateAdded.equals(game.dateAdded) : game.dateAdded == null) &&
+               (this.category != null ? this.category.equals(game.category) : game.category == null);
     }
 }

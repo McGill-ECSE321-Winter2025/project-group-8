@@ -496,5 +496,43 @@ export const deleteGameInstance = async (gameId, instanceId) => {
   }
 };
 
+/**
+ * Checks if a game is available for a specific date range.
+ * @param {number} gameId - The ID of the game to check.
+ * @param {Date} startDate - The start date of the borrowing period.
+ * @param {Date} endDate - The end date of the borrowing period.
+ * @returns {Promise<boolean>} A promise that resolves to a boolean indicating whether the game is available.
+ * @throws {ApiError} For API-related errors.
+ */
+export const checkGameAvailability = async (gameId, startDate, endDate) => {
+  if (!gameId) {
+    throw new Error("Game ID is required to check availability.");
+  }
+  
+  if (!startDate || !endDate) {
+    throw new Error("Start date and end date are required to check availability.");
+  }
+  
+  // Convert dates to milliseconds for API call
+  const startTimestamp = startDate.getTime();
+  const endTimestamp = endDate.getTime();
+  
+  const endpoint = `/games/${gameId}/availability?startDate=${startTimestamp}&endDate=${endTimestamp}`;
+  console.log(`checkGameAvailability: Checking availability for game ${gameId} from ${startDate} to ${endDate}`);
+
+  try {
+    const isAvailable = await apiClient(endpoint, { 
+      method: "GET",
+      skipPrefix: false
+    });
+    console.log(`checkGameAvailability: Game ${gameId} is ${isAvailable ? 'available' : 'not available'} for the requested period`);
+    return isAvailable;
+  } catch (error) {
+    console.error(`checkGameAvailability: Failed to check availability for game ${gameId}:`, error);
+    // Default to false (unavailable) on error to be safe
+    return false;
+  }
+};
+
 // Add other game-related API functions here as needed, using apiClient
 // e.g., getGameById, updateGame, deleteGame, getGameReviews, submitReview etc.

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -18,20 +18,53 @@ import {
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
-import { useForm } from "react-hook-form";
+import { Alert, AlertDescription } from '../ui/alert';
+import { AlertCircle } from 'lucide-react';
+import { useForm, useWatch } from "react-hook-form";
 import { createBorrowRequest } from '../../service/borrow_request-api.js';
+import { checkGameAvailability } from '../../service/game-api.js';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 
 export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game, gameInstance }) => {
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
+  const [isAvailable, setIsAvailable] = useState(null);
+
+  // Format dates to YYYY-MM-DD for the date input
+  const formatDateForInput = (date) => {
+    if (!date) return '';
+    return new Date(date).toISOString().split('T')[0];
+  };
+  
+  // Format time to HH:MM for the time input
+  const formatTimeForInput = (date) => {
+    if (!date) return '';
+    const d = new Date(date);
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
+  
+  // Get initial date/time from pre-selected dates if available
+  const initialDate = gameInstance?.requestStartDate ? formatDateForInput(gameInstance.requestStartDate) : '';
+  const initialTime = gameInstance?.requestStartDate ? formatTimeForInput(gameInstance.requestStartDate) : '';
+  
+  // Calculate initial duration in hours if both start and end dates are provided
+  const calculateInitialDuration = () => {
+    if (gameInstance?.requestStartDate && gameInstance?.requestEndDate) {
+      const start = new Date(gameInstance.requestStartDate);
+      const end = new Date(gameInstance.requestEndDate);
+      const durationHours = (end - start) / (1000 * 60 * 60);
+      return durationHours.toString();
+    }
+    return '1';
+  };
 
   const form = useForm({
     defaultValues: {
-      date: '',
-      time: '',
-      duration: '1',
+      date: initialDate,
+      time: initialTime,
+      duration: calculateInitialDuration(),
       players: game?.minPlayers || 1,
       message: '',
     }
@@ -39,6 +72,53 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game, gameInst
 
   // Get today's date in YYYY-MM-DD format
   const today = new Date().toISOString().split('T')[0];
+  
+  // Watch date, time, and duration fields for changes to check availability
+  const date = useWatch({ control: form.control, name: "date" });
+  const time = useWatch({ control: form.control, name: "time" });
+  const duration = useWatch({ control: form.control, name: "duration" });
+  
+  // Check availability when date or time changes
+  useEffect(() => {
+    const checkAvailability = async () => {
+      // Only check if we have all required data
+      if (!game?.id || !date || !time || !duration) {
+        setIsAvailable(null);
+        return;
+      }
+      
+      try {
+        setIsCheckingAvailability(true);
+        
+        const startDateTime = new Date(`${date}T${time}`);
+        const endDateTime = new Date(startDateTime);
+        endDateTime.setHours(endDateTime.getHours() + parseFloat(duration));
+        
+        if (isNaN(startDateTime.getTime()) || isNaN(endDateTime.getTime())) {
+          setIsAvailable(null);
+          return;
+        }
+        
+        // Check availability for the selected dates
+        const available = await checkGameAvailability(game.id, startDateTime, endDateTime);
+        setIsAvailable(available);
+        
+        // If the selected gameInstance is marked as unavailable, show a warning toast
+        if (!gameInstance?.available) {
+          toast.warning("This game copy is marked as generally unavailable. Your request may be rejected.");
+        }
+      } catch (error) {
+        console.error("Error checking game availability:", error);
+        setIsAvailable(null);
+      } finally {
+        setIsCheckingAvailability(false);
+      }
+    };
+    
+    // Debounce the availability check
+    const timeoutId = setTimeout(checkAvailability, 500);
+    return () => clearTimeout(timeoutId);
+  }, [game?.id, date, time, duration]);
 
   const handleSubmit = async (data) => {
     if (!user?.id) {
@@ -66,6 +146,12 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game, gameInst
       }
       if (endDateTime <= startDateTime) {
         throw new Error("End date/time must be after the start date/time.");
+      }
+      
+      // Check availability one more time before submitting
+      const available = await checkGameAvailability(game.id, startDateTime, endDateTime);
+      if (!available) {
+        throw new Error("This game is not available for the selected time period. Please select a different date or time.");
       }
 
       const requestData = {
@@ -127,6 +213,25 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game, gameInst
             )}
           </div>
         )}
+        
+        {isAvailable === false && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              This game is not available for the selected time period.
+              Please choose a different date or time.
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        {isAvailable === true && (
+          <Alert variant="success" className="mb-4 bg-green-50 text-green-800 border-green-200">
+            <AlertCircle className="h-4 w-4 text-green-600" />
+            <AlertDescription className="text-green-700">
+              Great! This game is available for the selected time period.
+            </AlertDescription>
+          </Alert>
+        )}
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
@@ -163,7 +268,7 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game, gameInst
                 )}
               />
             </div>
-
+            
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -226,8 +331,11 @@ export const RequestGameDialog = ({ open, onOpenChange, onSubmit, game, gameInst
             />
 
             <DialogFooter className="gap-2 mt-4">
-              <Button type="submit" disabled={isSubmitting || !gameInstance}>
-                {isSubmitting ? "Submitting..." : "Submit Request"}
+              <Button 
+                type="submit" 
+                disabled={isSubmitting || !gameInstance || isAvailable === false || isCheckingAvailability}
+              >
+                {isSubmitting ? "Submitting..." : (isCheckingAvailability ? "Checking Availability..." : "Submit Request")}
               </Button>
               <Button
                 type="button"
