@@ -8,47 +8,50 @@ import {
   Dialog,
 } from '../ui/dialog';
 import { Button } from '../ui/button';
-import { Users, Calendar, Star, MessageSquare, User, Loader2, PenSquare, Check, AlertCircle, Copy } from 'lucide-react';
+import { Users, Calendar, Star, MessageSquare, User, Loader2, PenSquare, Check, AlertCircle } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Alert, AlertDescription } from '../ui/alert';
 import Tag from '../common/Tag.jsx';
 import GameOwnerTag from '../common/GameOwnerTag.jsx';
-import { useSearchParams } from 'react-router-dom';
-import { getGameReviews, checkGameAvailability, copyGame } from '../../service/game-api.js';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { getGameReviews, checkGameAvailability } from '../../service/game-api.js';
 import { useAuth } from '../../context/AuthContext.jsx';
 import ReviewForm from './ReviewForm.jsx';
 import { toast } from 'sonner';
 import { checkUserCanReviewGame } from '../../service/dashboard-api.js';
 import { Tooltip, TooltipTrigger, TopTooltipContent } from '../ui/tooltip.jsx';
-import { useNavigate } from 'react-router-dom';
 
 export const GameDetailsDialog = ({ game, onRequestGame }) => {
-  const [searchParams] = useSearchParams();
-  const { user, isAuthenticated } = useAuth();
-  const fromUserId = searchParams.get('fromUser');
+  const [params, setParams] = useSearchParams();
+  const { isAuthenticated, user } = useAuth();
+  const navigate = useNavigate();
+  
+  // States for interacting with the game
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState('');
+  const [reviews, setReviews] = useState([]);
+  const [editingReview, setEditingReview] = useState(null);
+  const [borrowingGame, setBorrowingGame] = useState(false);
+  const [borrowSuccess, setBorrowSuccess] = useState(false);
+  const [borrowError, setBorrowError] = useState(null);
+  const [canReview, setCanReview] = useState(false);
+  const [showLoginAlert, setShowLoginAlert] = useState(false);
   const [selectedInstance, setSelectedInstance] = useState(null);
   const [instances, setInstances] = useState([]);
   const [isLoadingInstances, setIsLoadingInstances] = useState(false);
   const [instancesError, setInstancesError] = useState(null);
-  const [reviews, setReviews] = useState([]);
   const [isLoadingReviews, setIsLoadingReviews] = useState(false);
   const [reviewsError, setReviewsError] = useState(null);
   const [averageRating, setAverageRating] = useState(0);
   const [showReviewForm, setShowReviewForm] = useState(false);
-  const [editingReview, setEditingReview] = useState(null);
   const [userCanReview, setUserCanReview] = useState(false);
   const [isCheckingReviewEligibility, setIsCheckingReviewEligibility] = useState(false);
-  
-  // New state for game copying
-  const [isCopyingGame, setIsCopyingGame] = useState(false);
   
   // New state for availability checking
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [isAvailable, setIsAvailable] = useState(null);
   const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
-  
-  const navigate = useNavigate();
   
   if (!game) return null;
   
@@ -278,40 +281,6 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
     setEditingReview(null);
   };
 
-  // Function to handle copying a game to the user's collection
-  const handleCopyGame = async () => {
-    if (!game?.id) return;
-    
-    try {
-      setIsCopyingGame(true);
-      
-      // Create a copy of the game in the user's collection
-      const defaultInstanceData = {
-        condition: "Good",
-        location: "Home",
-        name: `${game.name} (Copy)`
-      };
-      
-      await copyGame(game.id, defaultInstanceData);
-      toast.success("Game added to your collection!");
-      
-      // Refresh instances if needed
-      // This could trigger a refetch of the game details in a parent component
-    } catch (error) {
-      console.error("Failed to copy game:", error);
-      
-      if (error.name === 'UnauthorizedError') {
-        toast.error("Please log in to add games to your collection");
-      } else if (error.name === 'ForbiddenError') {
-        toast.error("You don't have permission to add games to your collection");
-      } else {
-        toast.error("Failed to add game to your collection");
-      }
-    } finally {
-      setIsCopyingGame(false);
-    }
-  };
-
   return (
     <DialogContent className="sm:max-w-[95%] md:max-w-[90%] lg:max-w-[80%] xl:max-w-6xl overflow-y-auto max-h-[90vh]">
       <DialogHeader>
@@ -326,7 +295,7 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
           <div className="flex-1">
             <DialogTitle className="text-2xl mb-2">{game.name}</DialogTitle>
             <div className="mb-2 flex items-center gap-2">
-              <Tag text={game.category} variant="primary" fromUserId={fromUserId} />
+              <Tag text={game.category} variant="primary" fromUserId={params.get('fromUser')} />
               {!isLoadingReviews && !reviewsError && reviews.length > 0 && (
                 <div className="flex items-center gap-1 text-sm">
                   <span className="flex items-center">
@@ -629,21 +598,6 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
             <DialogFooter className="flex-col sm:flex-row gap-2">
               {isAuthenticated ? (
                 <>
-                  {/* Button to add a copy of the game to user's collection */}
-                  <Button 
-                    variant="outline" 
-                    className="flex items-center gap-2"
-                    onClick={handleCopyGame}
-                    disabled={isCopyingGame}
-                  >
-                    {isCopyingGame ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
-                    Add to My Collection
-                  </Button>
-                
                   {/* Button to borrow the game */}
                   <Button
                     onClick={handleRequestWithInstance}
@@ -663,7 +617,7 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
                   onClick={() => navigate("/login")}
                   variant="default"
                 >
-                  Login to Borrow or Copy
+                  Login to Borrow
                 </Button>
               )}
             </DialogFooter>
