@@ -362,7 +362,7 @@ public class GameService {
      * @throws IllegalArgumentException if no game is found with the given ID
      */
     @Transactional
-    @PreAuthorize("@gameService.isOwnerOfGame(#id, authentication.principal.username)")
+    @PreAuthorize("@gameService.hasAccessToGame(#id, authentication.principal.username)")
     public GameResponseDto updateGame(int id, GameCreationDto updateDto) {
        try {
             Game game = gameRepository.findGameById(id);
@@ -399,7 +399,7 @@ public class GameService {
         } catch (IllegalArgumentException | ResourceNotFoundException e) {
             throw e; // Re-throw validation/not found errors
         } catch (org.springframework.security.access.AccessDeniedException e) {
-             throw new ForbiddenException("Access denied: You are not the owner of this game.");
+             throw new ForbiddenException("Access denied: You need to either be the creator of this game or have a copy of it in your collection to edit it.");
         } catch (UnauthedException e) {
              // Handle case where authenticated user somehow isn't in DB (shouldn't happen if @PreAuthorize works)
              throw e;
@@ -421,7 +421,7 @@ public class GameService {
      * @throws RuntimeException For any other unexpected errors during deletion.
      */
     @Transactional
-    @PreAuthorize("@gameService.isOwnerOfGame(#id, authentication.principal.username)")
+    @PreAuthorize("@gameService.hasAccessToGame(#id, authentication.principal.username)")
     public ResponseEntity<String> deleteGame(int id) {
         try {
             Game gameToDelete = gameRepository.findGameById(id);
@@ -493,7 +493,7 @@ public class GameService {
         } catch (ResourceNotFoundException e) {
             throw e; // Re-throw not found error
         } catch (org.springframework.security.access.AccessDeniedException e) {
-             throw new ForbiddenException("Access denied: You are not the owner of this game.");
+             throw new ForbiddenException("Access denied: You need to either be the creator of this game or have a copy of it in your collection to delete it.");
         } catch (UnauthedException e) { // Although PreAuthorize should handle this, keep for safety
              throw e;
         } catch (Exception e) {
@@ -930,6 +930,51 @@ public class GameService {
         } catch (Exception e) {
             // Log error
             logger.error("Error during isOwnerOfGame check for game {}: {}", gameId, e.getMessage(), e);
+            return false; // Deny on error
+        }
+    }
+
+    /**
+     * Checks if the given user has access to edit a game.
+     * A user has access if they either:
+     * 1. Are the original creator/owner of the game, OR
+     * 2. Have at least one instance (copy) of the game in their collection
+     * 
+     * @param gameId ID of the game to check
+     * @param username Email of the user to check
+     * @return true if the user has edit access, false otherwise
+     */
+    public boolean hasAccessToGame(int gameId, String username) {
+        if (username == null) return false;
+        try {
+            // First check if they're the owner (faster check)
+            if (isOwnerOfGame(gameId, username)) {
+                return true;
+            }
+            
+            // If not the owner, check if they have an instance of this game
+            Game game = gameRepository.findGameById(gameId);
+            if (game == null) {
+                throw new ResourceNotFoundException("Game with ID " + gameId + " does not exist");
+            }
+            
+            Account user = accountRepository.findByEmail(username).orElse(null);
+            if (user == null || !(user instanceof GameOwner)) {
+                return false; // User doesn't exist or isn't a game owner
+            }
+            
+            GameOwner gameOwner = (GameOwner) user;
+            
+            // Check if the user has any instances of this game
+            List<GameInstance> userInstances = gameInstanceRepository.findByGameAndOwner(game, gameOwner);
+            return !userInstances.isEmpty(); // Has access if they have at least one instance
+            
+        } catch (ResourceNotFoundException e) {
+            // Re-throw resource not found exception
+            throw e;
+        } catch (Exception e) {
+            // Log error
+            logger.error("Error during hasAccessToGame check for game {}: {}", gameId, e.getMessage(), e);
             return false; // Deny on error
         }
     }
