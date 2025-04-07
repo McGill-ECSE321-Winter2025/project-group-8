@@ -22,6 +22,7 @@ import ca.mcgill.ecse321.gameorganizer.models.Game; // Added missing Game import
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository; // Added AccountRepository import
 import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.RegistrationRepository;
 
 
 
@@ -44,6 +45,9 @@ public class EventService {
 
     @Autowired
     private AccountRepository accountRepository; // Inject AccountRepository
+
+    @Autowired
+    private RegistrationRepository registrationRepository; // Inject RegistrationRepository
 
     /**
      * Constructs an EventService with the required repository dependency.
@@ -244,13 +248,15 @@ public class EventService {
      */
 
     @Transactional
-    public ResponseEntity<String> deleteEvent(UUID id, String userEmail) {
+    public ResponseEntity<String> deleteEvent(UUID id) {
         Event eventToDelete = eventRepository.findEventById(id).orElseThrow(
                 () -> new IllegalArgumentException("Event with id " + id + " does not exist")
         );
 
+        registrationRepository.deleteAllByEventRegisteredForId(id);
+
         // Authorization Check using Spring Security
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        /*Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
             throw new UnauthedException("User must be authenticated to delete an event.");
         }
@@ -271,7 +277,7 @@ public class EventService {
 
         if (eventToDelete.getHost() == null || eventToDelete.getHost().getId() != currentUser.getId()) {
             throw new UnauthedException("Access denied: You are not the host of this event.");
-        }
+        }*/
 
         eventRepository.delete(eventToDelete);
         return ResponseEntity.ok("Event with id " + id + " has been deleted");

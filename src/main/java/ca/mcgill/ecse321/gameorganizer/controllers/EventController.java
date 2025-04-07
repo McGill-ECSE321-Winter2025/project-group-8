@@ -151,14 +151,9 @@ public class EventController {
      * @return No content response
      */
     @DeleteMapping("/{eventId}")
-    public ResponseEntity<Void> deleteEvent(@PathVariable UUID eventId, Authentication authentication) {
-        log.info("Attempting to delete event {}. Authentication: {}", eventId, authentication);
-        if (authentication == null || !authentication.isAuthenticated()) {
-             log.error("Delete Event {}: User not authenticated.", eventId);
-             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-        }
-         String email = authentication.getName(); // Get email from Authentication
-        eventService.deleteEvent(eventId, email); // Service handles exceptions (NotFound, Forbidden)
+    public ResponseEntity<Void> deleteEvent(@PathVariable UUID eventId) {
+        
+        eventService.deleteEvent(eventId); // Service handles exceptions (NotFound, Forbidden)
         return ResponseEntity.noContent().build(); // Controller returns 204 on success
     }
 

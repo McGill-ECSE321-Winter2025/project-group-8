@@ -13,57 +13,47 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { deleteEvent } from "../../service/event-api" // Import deleteEvent function
+import { unregisterFromEvent } from "../../service/event-api"; // Import the API function
 
-export default function Event({
-  id, // Make sure we get the event ID
+export default function EventRegistered({
   name,
   date,
   time,
   location,
   game,
   participants: { current, capacity },
-  onCancelRegistration: onCancelEvent, // Keep this if used elsewhere
-  onRegistrationUpdate, // Add the refresh prop
+  onCancelRegistration, // Keep this if used elsewhere
+  onRegistrationUpdate, // For refreshing parent component
+  registrationId, // This prop is now properly passed from DashboardEvents
   gameImage,
 }) {
   const [open, setOpen] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false) // Track deletion state
-  const [error, setError] = useState(null) // Track error state
 
-  const handleCancelEvent = async () => {
-    if (!id) {
-      setError("Event ID is missing. Cannot delete event.");
-      return;
-    }
-
-    setIsDeleting(true);
-    setError(null);
-
+  const handleCancelRegistration = async () => {
     try {
-      // Call the API function to delete the event
-      console.log("Deleting event with ID:", id);
-      const successMessage = await deleteEvent(id);
-      console.log("Event deleted successfully:", successMessage);
+      // Log the registration ID being used for debugging
+      console.log("Attempting to unregister with ID:", registrationId);
       
-      // Call the provided callback function (if it exists for other purposes)
-      if (typeof onCancelEvent === "function") {
-        onCancelEvent();
-      }
-      
-      // Call the refresh function passed from the parent dashboard page
-      if (typeof onRegistrationUpdate === "function") {
-        onRegistrationUpdate();
-      }
-
-      // Close the dialog
-      setOpen(false);
+      // Call the API function with the registrationId
+      const successMessage = await unregisterFromEvent(registrationId);
+      console.log("Unregistration successful:", successMessage);
     } catch (error) {
-      console.error("Failed to delete event:", error);
-      setError(error.message || "Failed to delete event. Please try again.");
-    } finally {
-      setIsDeleting(false);
+      console.error("Error during unregistration:", error.message);
+      alert(`Failed to unregister: ${error.message}`); // Notify the user
     }
+
+    // Call the provided callback function (if it exists for other purposes)
+    if (typeof onCancelRegistration === "function") {
+      onCancelRegistration();
+    }
+    
+    // Call the refresh function passed from the parent dashboard page
+    if (typeof onRegistrationUpdate === "function") {
+      onRegistrationUpdate();
+    }
+
+    // Close the dialog
+    setOpen(false)
   }
 
   return (
@@ -72,7 +62,7 @@ export default function Event({
         <div className="flex flex-col md:flex-row gap-4">
           <div className="md:w-1/4">
             <div className="aspect-square bg-muted rounded-lg flex items-center justify-center">
-            <img
+              <img
                 src={gameImage}
                 alt={`${game} image`}
                 className="h-full w-full object-cover rounded-lg"
@@ -102,18 +92,17 @@ export default function Event({
               <Dialog open={open} onOpenChange={setOpen}>
                 <DialogTrigger asChild>
                   <Button variant="destructive" size="sm">
-                    Cancel Event
+                    Cancel Registration
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-[425px]">
                   <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                       <AlertCircle className="h-5 w-5 text-destructive" />
-                      Cancel Event
+                      Cancel Registration
                     </DialogTitle>
                     <DialogDescription>
-                      Are you sure you want to cancel your event? 
-                      This will notify all registered participants and remove the event from the system.
+                      Are you sure you want to cancel your registration? 
                     </DialogDescription>
                   </DialogHeader>
                   <div className="py-4">
@@ -130,28 +119,14 @@ export default function Event({
                       <p>
                         <span className="font-medium">Location:</span> {location}
                       </p>
-                      <p>
-                        <span className="font-medium">Participants:</span> {current}/{capacity}
-                      </p>
                     </div>
-                    
-                    {/* Error message display */}
-                    {error && (
-                      <div className="mt-4 p-2 bg-red-50 text-red-600 rounded-md text-sm">
-                        {error}
-                      </div>
-                    )}
                   </div>
                   <DialogFooter>
-                    <Button variant="outline" onClick={() => setOpen(false)} disabled={isDeleting}>
-                      Keep Event
+                    <Button variant="outline" onClick={() => setOpen(false)}>
+                      Keep Registration
                     </Button>
-                    <Button 
-                      variant="destructive" 
-                      onClick={handleCancelEvent} 
-                      disabled={isDeleting}
-                    >
-                      {isDeleting ? "Cancelling..." : "Cancel Event"}
+                    <Button variant="destructive" onClick={handleCancelRegistration}>
+                      Cancel Registration
                     </Button>
                   </DialogFooter>
                 </DialogContent>
