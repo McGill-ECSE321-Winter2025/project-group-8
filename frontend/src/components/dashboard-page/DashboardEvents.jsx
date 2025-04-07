@@ -206,10 +206,10 @@ export default function DashboardEvents({ userType }) {
                 <h3 className="text-xl font-semibold mb-4">Hosting</h3>
                  {hostedEvents.length > 0 ? (
                    <div className="space-y-4">
-                     {hostedEvents.map(event => {
+                     {hostedEvents.map((event, index) => {
                         const adapted = adaptEventData(event); // Adapt hosted event
                         // Render EventCard for hosted events
-                        return adapted ? <EventCard key={`hosted-${adapted.id}`} event={adapted} onRegistrationUpdate={fetchDashboardEvents} isCurrentUserRegistered={false} /> : null;
+                        return adapted ? <EventCard key={`hosted-${adapted.id || index}`} event={adapted} onRegistrationUpdate={fetchDashboardEvents} isCurrentUserRegistered={false} /> : null;
                      })}
                    </div>
                 ) : (
@@ -223,7 +223,7 @@ export default function DashboardEvents({ userType }) {
               <h3 className="text-xl font-semibold mb-4">Attending</h3>
                  {attendedRegistrations.length > 0 ? (
                    <div className="space-y-4">
-                     {attendedRegistrations.map(registration => {
+                     {attendedRegistrations.map((registration, index) => {
                        const event = registration.event; // Get the event object from registration
                        const registrationId = registration.id; // Get the registration ID
                        // Adapt the event data, passing the registrationId
@@ -233,7 +233,7 @@ export default function DashboardEvents({ userType }) {
                        // Render EventCard for attended events
                        return (
                          <EventCard
-                           key={`attended-${adaptedEvent.id}`}
+                           key={`attended-${adaptedEvent.id || index}`}
                            event={adaptedEvent}
                            onRegistrationUpdate={fetchDashboardEvents} // Pass refresh function
                            isCurrentUserRegistered={true} // Always true for this list
