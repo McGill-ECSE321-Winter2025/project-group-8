@@ -764,4 +764,69 @@ export const getGamesAvailableForEvents = async (userId) => {
   }
 };
 
+/**
+ * Fetches a specific game instance by its ID.
+ * @param {number} instanceId - The ID of the instance to fetch.
+ * @returns {Promise<Object>} A promise that resolves to the game instance object.
+ * @throws {ApiError} For API-related errors.
+ */
+export const getGameInstanceById = async (instanceId) => {
+  if (!instanceId) {
+    throw new Error("Instance ID is required to fetch the game instance.");
+  }
+  
+  const parsedInstanceId = parseInt(instanceId);
+  console.log("getGameInstanceById: Fetching instance with ID:", parsedInstanceId);
+  
+  try {
+    // Try first approach: Get all user's game instances and filter
+    const userInstances = await getUserGameInstances();
+    console.log(`getGameInstanceById: Checking among ${userInstances.length} user instances`);
+    
+    const matchingInstance = userInstances.find(inst => inst.id === parsedInstanceId);
+    if (matchingInstance) {
+      console.log(`getGameInstanceById: Found instance ${parsedInstanceId} in user's instances:`, matchingInstance);
+      return matchingInstance;
+    }
+    
+    // Second approach: Try to get all instances of all games and search through them
+    // This is less efficient but might find instances not owned by the current user
+    console.log("getGameInstanceById: Attempting to find instance in all games");
+    // Get all games the user can see (this could be a lot)
+    const games = await apiClient("/games", { 
+      method: "GET",
+      skipPrefix: false 
+    });
+    
+    // For each game, check if it has the instance we're looking for
+    for (const game of games) {
+      if (!game.instances || game.instances.length === 0) continue;
+      
+      const instance = game.instances.find(inst => inst.id === parsedInstanceId);
+      if (instance) {
+        console.log(`getGameInstanceById: Found instance ${parsedInstanceId} in game ${game.id}:`, instance);
+        return instance;
+      }
+      
+      // If the game doesn't have instances yet, try to fetch them specifically
+      try {
+        const instances = await getGameInstances(game.id);
+        const matchedInstance = instances.find(inst => inst.id === parsedInstanceId);
+        if (matchedInstance) {
+          console.log(`getGameInstanceById: Found instance ${parsedInstanceId} in game ${game.id}'s instances:`, matchedInstance);
+          return matchedInstance;
+        }
+      } catch (e) {
+        console.error(`getGameInstanceById: Error fetching instances for game ${game.id}:`, e);
+      }
+    }
+    
+    // If all attempts fail, throw an error
+    throw new Error(`Instance with ID ${parsedInstanceId} not found`);
+  } catch (error) {
+    console.error(`getGameInstanceById: Failed to fetch instance ${parsedInstanceId}:`, error);
+    throw error;
+  }
+};
+
 // Add other game-related API functions here as needed, using apiClient

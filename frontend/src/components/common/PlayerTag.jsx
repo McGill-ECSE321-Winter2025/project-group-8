@@ -12,9 +12,9 @@ import {
 import { XIcon } from 'lucide-react';
 
 /**
- * A special Game Owner tag with a tooltip explaining what it means
+ * A special Player tag with a tooltip explaining what it means
  */
-const GameOwnerTag = ({ className }) => {
+const PlayerTag = ({ className }) => {
   const [showFullDialog, setShowFullDialog] = useState(false);
 
   // Handler for when the tag is clicked
@@ -51,8 +51,8 @@ const GameOwnerTag = ({ className }) => {
         <TooltipTrigger asChild>
           <div className="inline-block cursor-help" onClick={blockPropagation}>
             <Tag 
-              text="Game Owner" 
-              variant="owner" 
+              text="Player" 
+              variant="player" 
               className={className} 
               interactive={true}
               onClick={handleTagClick}
@@ -82,33 +82,33 @@ const GameOwnerTag = ({ className }) => {
           {/* Content area with propagation blocking */}
           <div onClick={blockPropagation} className="select-none">
             <DialogHeader>
-              <DialogTitle className="text-xl text-center text-purple-800">
-                What is a Game Owner?
+              <DialogTitle className="text-xl text-center text-blue-800">
+                What is a Player?
               </DialogTitle>
               <DialogDescription className="text-center">
-                Game Owners are members who share their board game collections
+                Players are members who engage with the gaming community
               </DialogDescription>
             </DialogHeader>
             
             <div className="space-y-4 py-2">
               <p>
-                Game Owners can share their board games with the community for events and borrowing, 
-                creating more opportunities for everyone to discover and enjoy new games.
+                Players can borrow games from Game Owners, participate in gaming events, 
+                and connect with other game enthusiasts in the community.
               </p>
 
               <div>
-                <h4 className="font-medium mb-2">Benefits include:</h4>
+                <h4 className="font-medium mb-2">As a Player, you can:</h4>
                 <ul className="list-disc pl-5 space-y-2">
-                  <li>Earn reputation points when others play your games</li>
-                  <li>Get priority access to community events</li>
-                  <li>Meet other gamers interested in your collection</li>
-                  <li>Help build a stronger gaming community</li>
+                  <li>Borrow games from the community collection</li>
+                  <li>Join various gaming events and meet new friends</li>
+                  <li>Rate games you've played and leave reviews</li>
+                  <li>Upgrade to Game Owner status anytime</li>
                 </ul>
               </div>
 
-              <div className="bg-purple-50 p-4 rounded-md">
+              <div className="bg-blue-50 p-4 rounded-md">
                 <p className="font-medium text-center">
-                  To become a Game Owner and share your collection, visit your User Settings.
+                  Want to share your own games? Consider becoming a Game Owner in your User Settings.
                 </p>
               </div>
             </div>
@@ -119,4 +119,4 @@ const GameOwnerTag = ({ className }) => {
   );
 };
 
-export default GameOwnerTag; 
+export default PlayerTag; 

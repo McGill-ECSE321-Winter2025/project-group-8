@@ -190,6 +190,14 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
   }, [game?.id, game?.instances]);
   
   const handleRequestWithInstance = () => {
+    // Check if the user is trying to borrow their own copy
+    if (selectedInstance && selectedInstance.owner && 
+        isAuthenticated && user && 
+        (selectedInstance.owner.id === user.id || selectedInstance.owner.email === user.email)) {
+      toast.error("You cannot borrow your own copy of a game.");
+      return;
+    }
+    
     // If both dates are selected and game is available for those dates
     if ((startDate && endDate && isAvailable) || (!startDate && !endDate && selectedInstance)) {
       // Pass the selected dates to the request form if they exist
@@ -341,7 +349,7 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
               {game.owner && (
                 <div className="flex items-center gap-2 mt-2">
                   <User className="h-4 w-4 text-muted-foreground" />
-                  <span>Owner: {game.owner.name || game.owner.email || 'Unknown'}</span>
+                  <span>Created by: {game.owner.name || game.owner.email || 'Unknown'}</span>
                 </div>
               )}
               {game.dateAdded && (
@@ -544,12 +552,16 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
                 instances.map(instance => {
                   const isDateRangeSelected = startDate && endDate;
                   const isActuallyAvailable = isDateRangeSelected ? isAvailable === true : instance.available;
+                  // Check if the current user is the owner of this instance
+                  const isUserOwnInstance = isAuthenticated && user && instance.owner && 
+                    (instance.owner.id === user.id || instance.owner.email === user.email);
                   
                   return (
                     <div
                       key={instance.id}
                       onClick={() => {
-                        if (isActuallyAvailable || !isDateRangeSelected) {
+                        // Allow selection only if the user doesn't own this instance and it's available
+                        if ((isActuallyAvailable || !isDateRangeSelected) && !isUserOwnInstance) {
                           setSelectedInstance(instance);
                         }
                       }}
@@ -557,10 +569,14 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
                         border rounded-md p-3 transition-colors
                         ${selectedInstance?.id === instance.id 
                           ? 'border-primary bg-primary/5'
-                          : (isActuallyAvailable || !isDateRangeSelected)
-                            ? 'hover:border-primary/50' 
-                            : 'opacity-60'}
-                        ${(isActuallyAvailable || !isDateRangeSelected) ? 'cursor-pointer' : 'cursor-not-allowed'}
+                          : isUserOwnInstance
+                            ? 'opacity-50 border-dashed border-gray-300 bg-gray-50'
+                            : (isActuallyAvailable || !isDateRangeSelected)
+                              ? 'hover:border-primary/50' 
+                              : 'opacity-60'}
+                        ${(isActuallyAvailable || !isDateRangeSelected) && !isUserOwnInstance 
+                          ? 'cursor-pointer' 
+                          : 'cursor-not-allowed'}
                       `}
                     >
                       <div className="flex justify-between items-center">
@@ -584,7 +600,11 @@ export const GameDetailsDialog = ({ game, onRequestGame }) => {
                         )}
                         <div>
                           <span className="text-muted-foreground">Status:</span>{' '}
-                          {(!isActuallyAvailable && isDateRangeSelected && isAvailable === false) ? (
+                          {isUserOwnInstance ? (
+                            <span className="text-amber-600">
+                              Your Copy (Cannot Borrow)
+                            </span>
+                          ) : (!isActuallyAvailable && isDateRangeSelected && isAvailable === false) ? (
                             <span className="text-red-500">
                               Unavailable for Selected Dates
                             </span>

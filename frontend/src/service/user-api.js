@@ -12,7 +12,7 @@ export const getUserProfile = async () => {
 };
 
 /**
- * Fetches user information by email
+ * Fetches user information by email (exact match)
  * @param {string} email - The email of the user to retrieve
  * @returns {Promise<Object>} - The user information
  */
@@ -22,23 +22,227 @@ export async function getUserInfoByEmail(email) {
       throw new Error("Email is required");
     }
     
-    // Use the correct API endpoint based on the backend controller
-    const response = await apiClient(`/api/account/${email}`, {
+    // Use the correct API endpoint for finding a user by exact email
+    const response = await apiClient(`/api/users/email/${email}`, {
       method: 'GET',
     });
 
     // If response is not what we expect, throw an error
-    if (!response || (response.error && !response.username)) {
+    if (!response || (response.error && !response.name)) {
       throw new Error(response.error || "Invalid response from server");
     }
 
-    return response;
+    // Fetch additional user game data
+    const userData = await enrichUserWithGameData(response);
+    return userData;
   } catch (error) {
     console.error(`Error fetching user info for ${email}:`, error);
     // Format the error appropriately
     const formattedError = new Error(`User with email ${email} not found`);
     formattedError.name = "NotFoundError";
     throw formattedError;
+  }
+}
+
+/**
+ * Enriches a user object with game data (played, borrowed, owned)
+ * @param {Object} user - The user object to enrich
+ * @returns {Promise<Object>} - The enriched user object with game data
+ */
+async function enrichUserWithGameData(user) {
+  try {
+    if (!user || !user.id) {
+      return user; // Return as is if no valid user
+    }
+    
+    // Fetch games played (now includes all borrowed games)
+    const gamesPlayed = await getUserGamesPlayed(user.id);
+    
+    // Fetch games owned (only for game owners)
+    const gamesOwned = user.gameOwner ? await getUserGamesOwned(user.id) : [];
+    
+    // Return enriched user object
+    return {
+      ...user,
+      gamesPlayed,
+      gamesOwned
+    };
+  } catch (error) {
+    console.error(`Error enriching user data for user ID ${user.id}:`, error);
+    // Return original user data if enrichment fails
+    return user;
+  }
+}
+
+/**
+ * Fetches the games played by a user
+ * @param {number} userId - The ID of the user
+ * @returns {Promise<Array>} - Array of game names played by the user
+ */
+export async function getUserGamesPlayed(userId) {
+  try {
+    const response = await apiClient(`/api/users/${userId}/games/played`, {
+      method: 'GET',
+    });
+    
+    if (!response || !Array.isArray(response)) {
+      return [];
+    }
+    
+    // Depending on the response format, extract game names
+    return response.map(game => typeof game === 'string' ? game : game.name || 'Unknown Game');
+  } catch (error) {
+    console.error(`Error fetching games played for user ${userId}:`, error);
+    return [];
+  }
+}
+
+/**
+ * Fetches the games borrowed by a user
+ * @param {number} userId - The ID of the user
+ * @returns {Promise<Array>} - Array of game names borrowed by the user
+ */
+export async function getUserGamesBorrowed(userId) {
+  try {
+    const response = await apiClient(`/api/users/${userId}/games/borrowed`, {
+      method: 'GET',
+    });
+    
+    if (!response || !Array.isArray(response)) {
+      return [];
+    }
+    
+    // Depending on the response format, extract game names
+    return response.map(game => typeof game === 'string' ? game : game.name || 'Unknown Game');
+  } catch (error) {
+    console.error(`Error fetching games borrowed for user ${userId}:`, error);
+    return [];
+  }
+}
+
+/**
+ * Fetches the games owned by a user (for game owners)
+ * @param {number} userId - The ID of the user
+ * @returns {Promise<Array>} - Array of game names owned by the user
+ */
+export async function getUserGamesOwned(userId) {
+  try {
+    const response = await apiClient(`/api/users/${userId}/games/owned`, {
+      method: 'GET',
+    });
+    
+    if (!response || !Array.isArray(response)) {
+      return [];
+    }
+    
+    // Depending on the response format, extract game names
+    return response.map(game => typeof game === 'string' ? game : game.name || 'Unknown Game');
+  } catch (error) {
+    console.error(`Error fetching games owned for user ${userId}:`, error);
+    return [];
+  }
+}
+
+/**
+ * Searches for users by name, email, or both
+ * @param {object} searchParams - Search parameters
+ * @param {string} searchParams.term - The search term to look for in names or emails
+ * @param {boolean} [searchParams.gameOwnerOnly=false] - Whether to only return game owners
+ * @returns {Promise<Array>} Array of users matching search criteria
+ */
+export const searchUsers = async (searchParams) => {
+  try {
+    if (!searchParams || !searchParams.term || searchParams.term.trim() === '') {
+      return [];
+    }
+    
+    // Convert parameters to query string for GET request
+    const queryParams = new URLSearchParams();
+    queryParams.append('term', searchParams.term);
+    
+    if (searchParams.gameOwnerOnly) {
+      queryParams.append('gameOwnerOnly', 'true');
+    }
+    
+    const response = await apiClient(`/api/users/search?${queryParams.toString()}`, {
+      method: 'GET',
+    });
+    
+    if (!response || !Array.isArray(response)) {
+      return [];
+    }
+    
+    // Enrich each user with game data
+    const enrichedUsers = await Promise.all(
+      response.map(user => enrichUserWithGameData(user))
+    );
+    
+    return enrichedUsers;
+  } catch (error) {
+    console.error('Error searching users:', error);
+    return [];
+  }
+};
+
+/**
+ * Searches for users by name
+ * @param {string} name - The name to search for
+ * @returns {Promise<Array>} - Array of users matching the name
+ */
+export async function searchUsersByName(name) {
+  try {
+    if (!name || name.trim() === '') {
+      return [];
+    }
+    
+    const response = await apiClient(`/api/users/name/${name}`, {
+      method: 'GET',
+    });
+    
+    if (!response || !Array.isArray(response)) {
+      return [];
+    }
+    
+    // Enrich each user with game data
+    const enrichedUsers = await Promise.all(
+      response.map(user => enrichUserWithGameData(user))
+    );
+    
+    return enrichedUsers;
+  } catch (error) {
+    console.error(`Error searching users by name ${name}:`, error);
+    return [];
+  }
+}
+
+/**
+ * Searches for users by email (partial match)
+ * @param {string} email - The email to search for
+ * @returns {Promise<Array>} - Array of users matching the email
+ */
+export async function searchUsersByEmail(email) {
+  try {
+    if (!email || email.trim() === '') {
+      return [];
+    }
+    
+    const response = await apiClient(`/api/users/email/search/${email}`, {
+      method: 'GET',
+    });
+    
+    if (!response || !Array.isArray(response)) {
+      return [];
+    }
+    
+    // Enrich each user with game data
+    const enrichedUsers = await Promise.all(
+      response.map(user => enrichUserWithGameData(user))
+    );
+    
+    return enrichedUsers;
+  } catch (error) {
+    console.error(`Error searching users by email ${email}:`, error);
+    return [];
   }
 }
 
@@ -73,20 +277,6 @@ export const updateUserProfile = async (userData) => {
   return apiClient('/profile/update', {
     method: 'POST',
     body: userData
-  });
-};
-
-/**
- * Searches for users
- * @param {object} searchParams - Search parameters
- * @returns {Promise<Array>} Array of users matching search criteria
- */
-export const searchUsers = async (searchParams) => {
-  return apiClient('/users/search', {
-    method: 'POST',
-    body: searchParams,
-    skipPrefix: false
-
   });
 };
 
