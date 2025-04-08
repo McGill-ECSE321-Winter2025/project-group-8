@@ -56,6 +56,9 @@ public class TestSecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/users/*/games").permitAll()
                 .requestMatchers(HttpMethod.GET, "/lending-records/**").authenticated()
                 .requestMatchers(HttpMethod.GET, "/borrowrequests/**").authenticated()
+                // Explicitly allow auth-test endpoint
+                .requestMatchers("/api/events/auth-test").permitAll()
+                .requestMatchers("/api/events/auth-debug").permitAll()
                 // Account management
                 .requestMatchers(HttpMethod.PUT, "/account/**").authenticated()
                 .requestMatchers(HttpMethod.DELETE, "/account/**").authenticated()

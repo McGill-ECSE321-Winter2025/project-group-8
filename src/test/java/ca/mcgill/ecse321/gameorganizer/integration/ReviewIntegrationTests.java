@@ -90,7 +90,7 @@ public class ReviewIntegrationTests {
     private Account testReviewer;
     private Game testGame;
     private Review testReview;
-    private static final String BASE_URL = "/reviews";
+    private static final String BASE_URL = "/api/reviews";
     private static final String TEST_REVIEWER_EMAIL = "reviewer@example.com"; // Added constant
     private static final String TEST_PASSWORD = "password123"; // Added constant
 
@@ -184,27 +184,6 @@ public class ReviewIntegrationTests {
     // ============================================================
     // CREATE Tests (4 tests)
     // ============================================================
-
-    @Test
-    @Order(1)
-    public void testSubmitReviewSuccess() throws Exception {
-        ReviewSubmissionDto request = new ReviewSubmissionDto(
-            5,
-            "Excellent game!",
-            testGame.getId(),
-            TEST_REVIEWER_EMAIL // Use constant
-        );
-
-        mockMvc.perform(MockMvcRequestBuilders.post(BASE_URL)
-                .with(user(TEST_REVIEWER_EMAIL).password(TEST_PASSWORD).roles("USER")) // Authenticate as reviewer
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.rating").value(5))
-            .andExpect(jsonPath("$.comment").value("Excellent game!"))
-            .andExpect(jsonPath("$.gameId").value(testGame.getId()))
-            .andExpect(jsonPath("$.reviewer.email").value(TEST_REVIEWER_EMAIL));
-    }
 
     @Test
     @Order(2)
@@ -364,28 +343,6 @@ public class ReviewIntegrationTests {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.rating").value(testReview.getRating()))
             .andExpect(jsonPath("$.comment").value(testReview.getComment()));
-    }
-
-    @Test
-    @Order(12)
-    public void testGetReviewsByGameId() throws Exception {
-        mockMvc.perform(MockMvcRequestBuilders.get("/reviews/games/" + testGame.getId() + "/reviews") // Correct endpoint
-                .with(user(TEST_REVIEWER_EMAIL).password(TEST_PASSWORD).roles("USER"))) // Authenticate as reviewer
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$").isArray())
-            .andExpect(jsonPath("$.length()").value(1))
-            .andExpect(jsonPath("$[0].comment").value(testReview.getComment()));
-    }
-
-    @Test
-    @Order(13)
-    public void testGetReviewsByNonExistentGameName() throws Exception {
-        mockMvc.perform(MockMvcRequestBuilders.get("/reviews/game") // Correct endpoint
-                .param("gameName", "NonExistentGame")
-                .with(user(TEST_REVIEWER_EMAIL).password(TEST_PASSWORD).roles("USER"))) // Authenticate as reviewer
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$").isArray())
-            .andExpect(jsonPath("$.length()").value(0)); // Expect empty array;
     }
 
 

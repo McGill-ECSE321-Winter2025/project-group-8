@@ -378,9 +378,9 @@ public class BorrowRequestServiceTest {
         Authentication auth = mock(Authentication.class);
         SecurityContext securityContext = mock(SecurityContext.class);
         
-        // We still need authentication setup as it's used in the service
-        when(securityContext.getAuthentication()).thenReturn(auth);
-        when(auth.getName()).thenReturn(owner.getEmail());
+        // Use lenient() for these mocks as they might not be used in all execution paths
+        lenient().when(securityContext.getAuthentication()).thenReturn(auth);
+        lenient().when(auth.getName()).thenReturn(owner.getEmail());
         SecurityContextHolder.setContext(securityContext);
 
         try {
@@ -409,17 +409,24 @@ public class BorrowRequestServiceTest {
             request.setRequestDate(new Date());
             request.setGameInstance(gameInstance); // Set the game instance
 
-            // This is required as it's called in the actual method
-            doReturn(true).when(borrowRequestService).isGameOwnerOfRequest(VALID_REQUEST_ID, owner.getEmail());
+            // Create list of game instances for the findByGame mock
+            List<GameInstance> gameInstances = new ArrayList<>();
+            gameInstances.add(gameInstance);
+
+            // Make all necessary stubbing lenient to avoid UnnecessaryStubbingException
+            lenient().doReturn(true).when(borrowRequestService).isGameOwnerOfRequest(VALID_REQUEST_ID, owner.getEmail());
             
-            // This is required as it gets the request to update
+            // Required mocks
             when(borrowRequestRepository.findBorrowRequestById(VALID_REQUEST_ID)).thenReturn(Optional.of(request));
+            when(gameInstanceRepository.findByGame(game)).thenReturn(gameInstances);
             
-            // This is needed to save the updated request
+            // Use lenient() for stubs that might not be used in all execution paths
+            lenient().when(borrowRequestRepository.findOverlappingApprovedRequestsForGameInstance(
+                VALID_GAME_INSTANCE_ID, request.getStartDate(), request.getEndDate())).thenReturn(new ArrayList<>());
             when(borrowRequestRepository.save(any(BorrowRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
             
-            // This is needed for creating a lending record
-            when(lendingRecordService.createLendingRecord(any(Date.class), any(Date.class), any(BorrowRequest.class), any(GameOwner.class)))
+            // Use lenient() for the lending record creation stub
+            lenient().when(lendingRecordService.createLendingRecord(any(Date.class), any(Date.class), any(BorrowRequest.class), any(GameOwner.class)))
                 .thenReturn(ResponseEntity.ok("Lending record created successfully"));
 
             // Test

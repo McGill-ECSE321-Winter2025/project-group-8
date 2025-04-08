@@ -84,7 +84,7 @@ public class LendingRecordIntegrationTests {
     private BorrowRequest dummyRequest;
     private LendingRecord testRecord;
 
-    private static final String BASE_URL = "/api/lending-records";
+    private static final String BASE_URL = "/lending-records";
     private static final String OWNER_EMAIL = "owner@example.com"; // Keep for auth, setup uses unique now
     private static final String BORROWER_EMAIL = "borrower@example.com"; // Keep for auth, setup uses unique now
     private static final String TEST_PASSWORD = "pass";

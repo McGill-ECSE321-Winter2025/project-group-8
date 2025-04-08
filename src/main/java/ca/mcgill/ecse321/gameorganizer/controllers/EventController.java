@@ -82,6 +82,13 @@ public class EventController {
             @RequestParam(required = false, defaultValue = "0") int maxParticipants) { 
         
         log.info("Received request to update event ID: {}", eventId);
+        
+        // Validate maxParticipants if provided
+        if (maxParticipants < 0) {
+            log.error("Error updating event {}: maxParticipants cannot be negative", eventId);
+            throw new IllegalArgumentException("maxParticipants cannot be negative");
+        }
+        
         try {
             // Pass java.util.Date to the service
             Event updatedEvent = eventService.updateEvent(
@@ -130,5 +137,37 @@ public class EventController {
         return ResponseEntity.ok(eventResponses);
     }
     
-    // ... (other controller methods remain largely the same) ...
+    @GetMapping("/by-game-name")
+    public ResponseEntity<List<EventResponse>> getEventsByGameName(@RequestParam String gameName) {
+        log.info("Received request to get events by game name: {}", gameName);
+        List<Event> events = eventService.findEventsByGameName(gameName);
+        List<EventResponse> eventResponses = events.stream()
+            .map(EventResponse::new)
+            .collect(Collectors.toList());
+        log.info("Returning {} events for game name {}", eventResponses.size(), gameName);
+        return ResponseEntity.ok(eventResponses);
+    }
+    
+    @GetMapping("/auth-test")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<String> authTest() {
+        log.info("Received request to auth-test endpoint");
+        return ResponseEntity.ok("Authentication test successful.");
+    }
+    
+    @GetMapping("/auth-debug")
+    public ResponseEntity<String> authDebug() {
+        log.info("Received request to auth-debug endpoint");
+        String authInfo = "Authentication present: " + 
+            (org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication() != null);
+        
+        if (org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication() != null) {
+            authInfo += ", Username: " + 
+                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getName() +
+                ", Authorities: " + 
+                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getAuthorities();
+        }
+        
+        return ResponseEntity.ok(authInfo);
+    }
 }
