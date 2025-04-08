@@ -45,7 +45,7 @@ The build system documentation can be found [here](https://github.com/McGill-ECS
 | Name                              | Role                  | Deliverable 1 (hrs) | Deliverable 2 (hrs) | Deliverable 3 (hrs) | Total Hours |
 |-----------------------------------|-----------------------|---------------------|---------------------|---------------------|-------------|
 | Alexander Kudinov                | Backend Developer     | 7                   | 15                   | 27                  | 49           |
-| Shayan Yamanidouzi Sorkhabi       | Frontend Developer    | 6                   | 15                   | 25                   | 46           |
+| Shayan Yamanidouzi Sorkhabi       | Frontend Developer    | 6                   | 15                   | 28                   | 49           |
 | Jiwoong Choi                      | Test Lead            | 2                   | 18                   | 28                   | 48           |
 | Youssef El Kesti                  | Scrum Master         | 6                   | 14                   | 31                  | 51           |
 | David Wang                        | Project Manager      | 5.5                   | 15                   | 28                   | 48.5           |
