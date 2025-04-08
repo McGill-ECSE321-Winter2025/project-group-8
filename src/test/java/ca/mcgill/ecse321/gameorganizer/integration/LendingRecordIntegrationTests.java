@@ -434,7 +434,7 @@ public class LendingRecordIntegrationTests {
         Date pastEnd = new Date(System.currentTimeMillis() - 7 * 24 * 60 * 60 * 1000); // 7 days ago
 
         // Make sure we use the properly saved game - dummyGame is already saved from setup
-        BorrowRequest overdueRequest = new BorrowRequest(pastStart, pastEnd, BorrowRequestStatus.APPROVED, new java.util.Date(), dummyGame);
+        BorrowRequest overdueRequest = new BorrowRequest(pastStart, pastEnd, BorrowRequestStatus.APPROVED, new java.util.Date(), dummyGame, null);
         overdueRequest.setRequester(testBorrower);
         overdueRequest.setResponder(testOwner);
         overdueRequest = borrowRequestRepository.save(overdueRequest);
@@ -457,7 +457,7 @@ public class LendingRecordIntegrationTests {
         Date pastEnd = new Date(System.currentTimeMillis() - 7 * 24 * 60 * 60 * 1000);
         
         // Make sure we use the properly saved game - dummyGame is already saved from setup
-        BorrowRequest overdueRequest = new BorrowRequest(pastStart, pastEnd, BorrowRequestStatus.APPROVED, new java.util.Date(), dummyGame);
+        BorrowRequest overdueRequest = new BorrowRequest(pastStart, pastEnd, BorrowRequestStatus.APPROVED, new java.util.Date(), dummyGame, null);
         overdueRequest.setRequester(testBorrower);
         overdueRequest.setResponder(testOwner);
         overdueRequest = borrowRequestRepository.save(overdueRequest);
