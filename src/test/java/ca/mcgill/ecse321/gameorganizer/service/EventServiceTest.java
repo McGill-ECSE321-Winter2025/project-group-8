@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 import java.util.*;
+import java.lang.reflect.Field;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -40,6 +41,7 @@ import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
 import ca.mcgill.ecse321.gameorganizer.services.EventService;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException;
 import org.springframework.http.HttpStatus;
+import ca.mcgill.ecse321.gameorganizer.repositories.RegistrationRepository;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -185,25 +187,37 @@ public class EventServiceTest {
     @Test
     public void testCreateEventHostNotFound() {
         // Setup
-        when(accountRepository.findByEmail(anyString())).thenReturn(Optional.empty());
+        // Mock the security context first to avoid NullPointerException
+        Authentication authentication = mock(Authentication.class);
+        SecurityContext securityContext = mock(SecurityContext.class);
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+        when(authentication.getName()).thenReturn("nonexistent@email.com");
+        SecurityContextHolder.setContext(securityContext);
         
-        // Create request with necessary fields including location
-        CreateEventRequest request = new CreateEventRequest();
-        request.setTitle(VALID_TITLE);
-        request.setDateTime(new java.util.Date());
-        request.setLocation(VALID_LOCATION); // Set location to avoid validation errors
-        request.setDescription(VALID_DESCRIPTION);
-        request.setMaxParticipants(VALID_MAX_PARTICIPANTS);
-        
-        // Create and set a Game object
-        Game game = new Game();
-        game.setId(VALID_GAME_ID);
-        request.setFeaturedGame(game);
-        
-        // Test & Verify
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, 
-            () -> eventService.createEvent(request));
-        assertEquals("Host not found", exception.getMessage());
+        try {
+            // Now mock the repository to return empty for the host
+            when(accountRepository.findByEmail(anyString())).thenReturn(Optional.empty());
+            
+            // Create request with necessary fields including location
+            CreateEventRequest request = new CreateEventRequest();
+            request.setTitle(VALID_TITLE);
+            request.setDateTime(new java.util.Date());
+            request.setLocation(VALID_LOCATION); // Set location to avoid validation errors
+            request.setDescription(VALID_DESCRIPTION);
+            request.setMaxParticipants(VALID_MAX_PARTICIPANTS);
+            
+            // Create and set a Game object
+            Game game = new Game();
+            game.setId(VALID_GAME_ID);
+            request.setFeaturedGame(game);
+            
+            // Test & Verify
+            IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, 
+                () -> eventService.createEvent(request));
+            assertEquals("Authenticated user account not found.", exception.getMessage());
+        } finally {
+            SecurityContextHolder.clearContext(); // Important to clear context after the test
+        }
     }
 
     @Test
@@ -440,11 +454,24 @@ public class EventServiceTest {
             when(eventRepository.findEventById(VALID_EVENT_ID)).thenReturn(Optional.of(event));
             when(eventRepository.existsById(VALID_EVENT_ID)).thenReturn(true);
             
+            // Mock the registrationRepository to avoid NullPointerException
+            // First, get the private field
+            Field registrationRepoField = EventService.class.getDeclaredField("registrationRepository");
+            registrationRepoField.setAccessible(true);
+            
+            // Mock the repository and set it on the service
+            RegistrationRepository mockRegistrationRepo = mock(RegistrationRepository.class);
+            when(mockRegistrationRepo.findByEventRegisteredFor(any(Event.class))).thenReturn(new ArrayList<>());
+            registrationRepoField.set(eventService, mockRegistrationRepo);
+            
             // Test - since deleteEvent is void, we just verify it doesn't throw an exception
             eventService.deleteEvent(VALID_EVENT_ID);
             
             // Verify
             verify(eventRepository).delete(event);
+            verify(mockRegistrationRepo).findByEventRegisteredFor(event);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            fail("Failed to setup test: " + e.getMessage());
         } finally {
             SecurityContextHolder.clearContext();
         }

@@ -378,10 +378,9 @@ public class BorrowRequestServiceTest {
         Authentication auth = mock(Authentication.class);
         SecurityContext securityContext = mock(SecurityContext.class);
         
-        // Make all authentication mocking lenient to avoid UnnecessaryStubbingException
+        // Use lenient() for these mocks as they might not be used in all execution paths
         lenient().when(securityContext.getAuthentication()).thenReturn(auth);
         lenient().when(auth.getName()).thenReturn(owner.getEmail());
-        lenient().when(auth.isAuthenticated()).thenReturn(true);
         SecurityContextHolder.setContext(securityContext);
 
         try {
@@ -409,19 +408,25 @@ public class BorrowRequestServiceTest {
             request.setEndDate(new Date(System.currentTimeMillis() + 86400000));
             request.setRequestDate(new Date());
             request.setGameInstance(gameInstance); // Set the game instance
-            
+
+            // Create list of game instances for the findByGame mock
             List<GameInstance> gameInstances = new ArrayList<>();
             gameInstances.add(gameInstance);
 
-            // Use doReturn for the spy method and make it lenient
+            // Make all necessary stubbing lenient to avoid UnnecessaryStubbingException
             lenient().doReturn(true).when(borrowRequestService).isGameOwnerOfRequest(VALID_REQUEST_ID, owner.getEmail());
             
+            // Required mocks
             when(borrowRequestRepository.findBorrowRequestById(VALID_REQUEST_ID)).thenReturn(Optional.of(request));
             when(gameInstanceRepository.findByGame(game)).thenReturn(gameInstances);
-            when(borrowRequestRepository.findOverlappingApprovedRequestsForGameInstance(
+            
+            // Use lenient() for stubs that might not be used in all execution paths
+            lenient().when(borrowRequestRepository.findOverlappingApprovedRequestsForGameInstance(
                 VALID_GAME_INSTANCE_ID, request.getStartDate(), request.getEndDate())).thenReturn(new ArrayList<>());
             when(borrowRequestRepository.save(any(BorrowRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
-            when(lendingRecordService.createLendingRecord(any(Date.class), any(Date.class), any(BorrowRequest.class), any(GameOwner.class)))
+            
+            // Use lenient() for the lending record creation stub
+            lenient().when(lendingRecordService.createLendingRecord(any(Date.class), any(Date.class), any(BorrowRequest.class), any(GameOwner.class)))
                 .thenReturn(ResponseEntity.ok("Lending record created successfully"));
 
             // Test
