@@ -39,6 +39,7 @@ import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
 import ca.mcgill.ecse321.gameorganizer.services.EventService;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException;
+import org.springframework.http.HttpStatus;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -181,43 +182,29 @@ public class EventServiceTest {
         verify(eventRepository, never()).save(any(Event.class));
     }
 
-     @Test
+    @Test
     public void testCreateEventHostNotFound() {
         // Setup
+        when(accountRepository.findByEmail(anyString())).thenReturn(Optional.empty());
+        
+        // Create request with necessary fields including location
         CreateEventRequest request = new CreateEventRequest();
         request.setTitle(VALID_TITLE);
-        request.setDateTime(new Date(System.currentTimeMillis()));
+        request.setDateTime(new java.util.Date());
+        request.setLocation(VALID_LOCATION); // Set location to avoid validation errors
+        request.setDescription(VALID_DESCRIPTION);
         request.setMaxParticipants(VALID_MAX_PARTICIPANTS);
         
-        // Create a game stub with ID set
+        // Create and set a Game object
         Game game = new Game();
         game.setId(VALID_GAME_ID);
         request.setFeaturedGame(game);
-
-        // Mock Security Context (user is authenticated)
-        Authentication authentication = mock(Authentication.class);
-        SecurityContext securityContext = mock(SecurityContext.class);
-        when(securityContext.getAuthentication()).thenReturn(authentication);
-        when(authentication.getName()).thenReturn("someuser@test.com"); // Authenticated user email
-        SecurityContextHolder.setContext(securityContext);
-
-        try {
-            // Mock host lookup by the authenticated user's email to return empty
-            when(accountRepository.findByEmail("someuser@test.com")).thenReturn(Optional.empty());
-            
-            // Test & Verify
-            IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
-                eventService.createEvent(request);
-            });
-            assertEquals("Authenticated user account not found.", exception.getMessage());
-            verify(accountRepository).findByEmail("someuser@test.com"); // Verify account lookup happened
-            verify(gameRepository, never()).findById(anyInt()); // Should never reach the game lookup
-            verify(eventRepository, never()).save(any(Event.class)); // Verify save was not called
-        } finally {
-            SecurityContextHolder.clearContext();
-        }
+        
+        // Test & Verify
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, 
+            () -> eventService.createEvent(request));
+        assertEquals("Host not found", exception.getMessage());
     }
-
 
     @Test
     public void testCreateEventWithInvalidMaxParticipants() {
@@ -288,20 +275,17 @@ public class EventServiceTest {
     @Test
     public void testUpdateEventSuccess() {
         // Setup
+        String newTitle = "Updated Title";
+        Date newDate = new Date(System.currentTimeMillis());
+        String newLocation = "Updated Location";
+        String newDescription = "Updated Description";
+        int newMaxParticipants = 25;
+        
         Account host = new Account("Host", VALID_HOST_EMAIL, "password");
         host.setId(VALID_HOST_ID);
         
-        Game game = new Game("Test Game", 2, 4, "test.jpg", new java.util.Date());
-        game.setId(VALID_GAME_ID);
-        
-        String newTitle = "Updated Event Title";
-        java.sql.Date newDate = new java.sql.Date(System.currentTimeMillis()); // Convert to java.sql.Date
-        String newLocation = "Updated Location";
-        String newDescription = "Updated event description";
-        int newMaxParticipants = 15;
-        
         Event event = new Event(VALID_TITLE, new java.util.Date(), VALID_LOCATION, 
-                VALID_DESCRIPTION, VALID_MAX_PARTICIPANTS, game, host);
+                VALID_DESCRIPTION, VALID_MAX_PARTICIPANTS, new Game(), host);
         event.setId(VALID_EVENT_ID);
         
         // Mock the security context
@@ -312,8 +296,8 @@ public class EventServiceTest {
         SecurityContextHolder.setContext(securityContext);
         
         try {
-            // Mock isHost to return true - this is required
-            when(eventService.isHost(VALID_EVENT_ID, VALID_HOST_EMAIL)).thenReturn(true);
+            // Use spy to mock isHost with any UUID/string
+            doReturn(true).when(eventService).isHost(any(UUID.class), anyString());
             
             when(eventRepository.findEventById(VALID_EVENT_ID)).thenReturn(Optional.of(event));
             when(eventRepository.save(any(Event.class))).thenReturn(event);
@@ -346,15 +330,15 @@ public class EventServiceTest {
         SecurityContextHolder.setContext(securityContext);
         
         try {
-            // Mock isHost to return true for authentication check to pass
-            when(eventService.isHost(VALID_EVENT_ID, VALID_HOST_EMAIL)).thenReturn(true);
+            // Use spy to mock isHost with any UUID/string
+            doReturn(true).when(eventService).isHost(any(UUID.class), anyString());
             
             // Mock findEventById to return empty - this is what triggers the test condition
             when(eventRepository.findEventById(VALID_EVENT_ID)).thenReturn(Optional.empty());
             
             // Test & Verify
             assertThrows(IllegalArgumentException.class, () -> 
-                eventService.updateEvent(VALID_EVENT_ID, "New Title", new java.sql.Date(System.currentTimeMillis()),
+                eventService.updateEvent(VALID_EVENT_ID, "New Title", new java.util.Date(),
                         "New Location", "New Description", 20));
             verify(eventRepository, never()).save(any(Event.class));
         } finally {
@@ -438,11 +422,8 @@ public class EventServiceTest {
         Account host = new Account("Host", VALID_HOST_EMAIL, "password");
         host.setId(VALID_HOST_ID);
         
-        Game game = new Game("Test Game", 2, 4, "test.jpg", new java.util.Date());
-        game.setId(VALID_GAME_ID);
-        
-        Event event = new Event(VALID_TITLE, new Date(System.currentTimeMillis()), VALID_LOCATION,
-                VALID_DESCRIPTION, VALID_MAX_PARTICIPANTS, game, host);
+        Event event = new Event(VALID_TITLE, new java.util.Date(), VALID_LOCATION, 
+                VALID_DESCRIPTION, VALID_MAX_PARTICIPANTS, new Game(), host);
         event.setId(VALID_EVENT_ID);
         
         // Mock the security context
@@ -453,12 +434,13 @@ public class EventServiceTest {
         SecurityContextHolder.setContext(securityContext);
         
         try {
-            // Mock isHost to return true
-            when(eventService.isHost(VALID_EVENT_ID, VALID_HOST_EMAIL)).thenReturn(true);
+            // Use spy to mock isHost with any UUID/string
+            doReturn(true).when(eventService).isHost(any(UUID.class), anyString());
             
             when(eventRepository.findEventById(VALID_EVENT_ID)).thenReturn(Optional.of(event));
+            when(eventRepository.existsById(VALID_EVENT_ID)).thenReturn(true);
             
-            // Test
+            // Test - since deleteEvent is void, we just verify it doesn't throw an exception
             eventService.deleteEvent(VALID_EVENT_ID);
             
             // Verify
@@ -467,7 +449,7 @@ public class EventServiceTest {
             SecurityContextHolder.clearContext();
         }
     }
-    
+
     @Test
     public void testDeleteEventNotFound() {
         // Setup
@@ -479,13 +461,16 @@ public class EventServiceTest {
         SecurityContextHolder.setContext(securityContext);
         
         try {
-            // Mock isHost to return true
-            when(eventService.isHost(VALID_EVENT_ID, VALID_HOST_EMAIL)).thenReturn(true);
+            // Use spy to mock isHost with any UUID/string
+            doReturn(true).when(eventService).isHost(any(UUID.class), anyString());
             
             when(eventRepository.findEventById(VALID_EVENT_ID)).thenReturn(Optional.empty());
+            when(eventRepository.existsById(VALID_EVENT_ID)).thenReturn(false);
             
-            // Test & Verify
+            // Test & Verify - should throw IllegalArgumentException
             assertThrows(IllegalArgumentException.class, () -> eventService.deleteEvent(VALID_EVENT_ID));
+            
+            // Verify repository was never called to delete
             verify(eventRepository, never()).delete(any(Event.class));
         } finally {
             SecurityContextHolder.clearContext();

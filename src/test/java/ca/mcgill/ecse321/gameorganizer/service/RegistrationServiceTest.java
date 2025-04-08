@@ -79,23 +79,29 @@ public class RegistrationServiceTest {
     public void testCreateRegistrationSuccess() {
         // Setup
         Date registrationDate = new Date();
-        Account attendee = new Account("Attendee", "attendee@test.com", "password");
+        
+        // Create attendee with proper email
+        Account attendee = new Account();
+        attendee.setName("Attendee");
         attendee.setEmail("attendee@test.com"); // Explicitly set email to ensure it's not null
+        attendee.setPassword("password");
+        
         Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
-        Event event = new Event("Game Night", new Date(), "Location", "Description", 10, game, new Account());
+        Account host = new Account();
+        host.setName("Host");
+        host.setEmail("host@test.com");
+        
+        Event event = new Event("Game Night", new Date(), "Location", "Description", 10, game, host);
         UUID eventId = UUID.randomUUID(); // Generate UUID
         event.setId(eventId); // Set UUID on event
+        event.setCurrentNumberParticipants(5); // Set current participants
 
         Registration registration = new Registration(registrationDate);
         registration.setId(VALID_REGISTRATION_ID);
         registration.setAttendee(attendee);
         registration.setEventRegisteredFor(event);
 
-        when(registrationRepository.save(any(Registration.class))).thenReturn(registration);
-        when(accountRepository.findByEmail(attendee.getEmail())).thenReturn(Optional.of(attendee)); // Mock finding authenticated user
-        when(eventRepository.findEventById(any(UUID.class))).thenReturn(Optional.of(event)); // Corrected mock to return Optional<Event>
-
-        // Setup Security Context
+        // Setup Security Context properly
         Authentication auth = mock(Authentication.class);
         when(auth.getName()).thenReturn(attendee.getEmail());
         SecurityContext securityContext = new SecurityContextImpl();
@@ -103,18 +109,25 @@ public class RegistrationServiceTest {
         SecurityContextHolder.setContext(securityContext);
 
         try {
+            // Setup mocks
+            when(registrationRepository.save(any(Registration.class))).thenReturn(registration);
+            when(accountRepository.findByEmail(attendee.getEmail())).thenReturn(Optional.of(attendee));
+            when(eventRepository.findEventById(any(UUID.class))).thenReturn(Optional.of(event));
+            // Add mock for exists check
+            when(registrationRepository.existsByAttendeeAndEventRegisteredFor(attendee, event)).thenReturn(false);
+
             // Test
-            Registration result = registrationService.createRegistration(registrationDate, event); // Ensure signature: (Date, Event)
+            Registration result = registrationService.createRegistration(registrationDate, event);
 
             // Verify
             assertNotNull(result);
             assertEquals(VALID_REGISTRATION_ID, result.getId());
             assertEquals(attendee, result.getAttendee());
             assertEquals(event, result.getEventRegisteredFor());
+            verify(registrationRepository).save(any(Registration.class));
         } finally {
             SecurityContextHolder.clearContext(); // Clear context after test
         }
-        verify(registrationRepository).save(any(Registration.class));
     }
 
     @Test

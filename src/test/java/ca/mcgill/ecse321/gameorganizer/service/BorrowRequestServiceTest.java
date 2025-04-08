@@ -46,11 +46,13 @@ import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.BorrowRequestRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.GameInstanceRepository;
 import ca.mcgill.ecse321.gameorganizer.services.LendingRecordService; // Import LendingRecordService
 import ca.mcgill.ecse321.gameorganizer.services.BorrowRequestService;
 import org.springframework.test.context.ContextConfiguration;
 import ca.mcgill.ecse321.gameorganizer.TestJwtConfig;
 import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;
+import ca.mcgill.ecse321.gameorganizer.models.GameInstance;
 
 @ExtendWith(MockitoExtension.class)
 @ContextConfiguration(initializers = TestJwtConfig.Initializer.class)
@@ -65,8 +67,11 @@ public class BorrowRequestServiceTest {
     @Mock
     private AccountRepository accountRepository;
 
-    @Mock // Add mock for LendingRecordService
+    @Mock
     private LendingRecordService lendingRecordService;
+
+    @Mock
+    private GameInstanceRepository gameInstanceRepository;
 
     @Spy
     @InjectMocks
@@ -76,6 +81,7 @@ public class BorrowRequestServiceTest {
     private static final int VALID_GAME_ID = 1;
     private static final int VALID_REQUESTER_ID = 2;
     private static final int VALID_REQUEST_ID = 3;
+    private static final int VALID_GAME_INSTANCE_ID = 4;
 
     @Test
     public void testCreateBorrowRequestSuccess() {
@@ -86,7 +92,7 @@ public class BorrowRequestServiceTest {
         CreateBorrowRequestDto requestDto = new CreateBorrowRequestDto(
             VALID_REQUESTER_ID,
             VALID_GAME_ID,
-            0, // gameInstanceId
+            VALID_GAME_INSTANCE_ID, // Use game instance ID constant
             startDate,
             endDate
         );
@@ -95,6 +101,12 @@ public class BorrowRequestServiceTest {
         Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
         game.setId(VALID_GAME_ID);
         game.setOwner(owner);
+
+        GameInstance gameInstance = new GameInstance();
+        gameInstance.setId(VALID_GAME_INSTANCE_ID);
+        gameInstance.setGame(game);
+        gameInstance.setOwner(owner);
+        gameInstance.setAvailable(true);
 
         Account requester = new Account("Requester", "requester@test.com", "password");
         requester.setId(VALID_REQUESTER_ID);
@@ -106,7 +118,8 @@ public class BorrowRequestServiceTest {
         savedRequest.setStartDate(startDate);
         savedRequest.setEndDate(endDate);
         savedRequest.setStatus(BorrowRequestStatus.PENDING);
-        savedRequest.setRequestDate(new Date()); // Corrected: Pass the date object
+        savedRequest.setRequestDate(new Date());
+        savedRequest.setGameInstance(gameInstance);
 
         // Mock authentication
         Authentication authentication = mock(Authentication.class);
@@ -119,7 +132,8 @@ public class BorrowRequestServiceTest {
         try {
             when(accountRepository.findByEmail(requester.getEmail())).thenReturn(Optional.of(requester));
             when(gameRepository.findById(VALID_GAME_ID)).thenReturn(Optional.of(game));
-            when(borrowRequestRepository.findOverlappingApprovedRequests(VALID_GAME_ID, startDate, endDate))
+            when(gameInstanceRepository.findById(VALID_GAME_INSTANCE_ID)).thenReturn(Optional.of(gameInstance));
+            when(borrowRequestRepository.findOverlappingApprovedRequestsForGameInstance(VALID_GAME_INSTANCE_ID, startDate, endDate))
                     .thenReturn(new ArrayList<>());
             when(borrowRequestRepository.save(any(BorrowRequest.class))).thenReturn(savedRequest);
 
@@ -131,9 +145,11 @@ public class BorrowRequestServiceTest {
             assertEquals(VALID_REQUEST_ID, result.getId());
             assertEquals(VALID_GAME_ID, result.getRequestedGameId());
             assertEquals(VALID_REQUESTER_ID, result.getRequesterId());
+            assertEquals(VALID_GAME_INSTANCE_ID, result.getGameInstanceId());
             assertEquals("PENDING", result.getStatus());
             verify(borrowRequestRepository).save(any(BorrowRequest.class));
             verify(accountRepository).findByEmail(requester.getEmail());
+            verify(gameInstanceRepository).findById(VALID_GAME_INSTANCE_ID);
         } finally {
             SecurityContextHolder.clearContext(); // Clean up security context
         }
@@ -257,17 +273,26 @@ public class BorrowRequestServiceTest {
         // Setup
         BorrowRequest request = new BorrowRequest();
         request.setId(VALID_REQUEST_ID);
+        
         // Need to set game and requester properly here too for consistency
         GameOwner owner = new GameOwner("Owner", "owner@test.com", "password");
         Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
         game.setOwner(owner);
+        
+        GameInstance gameInstance = new GameInstance();
+        gameInstance.setId(VALID_GAME_INSTANCE_ID);
+        gameInstance.setGame(game);
+        gameInstance.setOwner(owner);
+        
         Account requester = new Account("Requester", "requester@test.com", "password");
+        
         request.setRequestedGame(game);
         request.setRequester(requester);
         request.setStatus(BorrowRequestStatus.PENDING);
         request.setStartDate(new Date()); // Add dates
         request.setEndDate(new Date(System.currentTimeMillis() + 86400000));
         request.setRequestDate(new Date()); // Add request date
+        request.setGameInstance(gameInstance); // Set the game instance
 
         when(borrowRequestRepository.findBorrowRequestById(VALID_REQUEST_ID)).thenReturn(Optional.of(request));
 
@@ -278,6 +303,7 @@ public class BorrowRequestServiceTest {
         assertNotNull(result);
         assertEquals(VALID_REQUEST_ID, result.getId());
         assertEquals("PENDING", result.getStatus());
+        assertEquals(VALID_GAME_INSTANCE_ID, result.getGameInstanceId());
         verify(borrowRequestRepository).findBorrowRequestById(VALID_REQUEST_ID);
     }
 
@@ -363,21 +389,37 @@ public class BorrowRequestServiceTest {
             BorrowRequest request = new BorrowRequest();
             request.setId(VALID_REQUEST_ID);
             request.setStatus(BorrowRequestStatus.PENDING);
+            
             Game game = new Game("Test Game", 2, 4, "test.jpg", new Date());
             game.setId(VALID_GAME_ID);
             game.setOwner(owner); // Set owner on game
+            
+            GameInstance gameInstance = new GameInstance();
+            gameInstance.setId(VALID_GAME_INSTANCE_ID);
+            gameInstance.setGame(game);
+            gameInstance.setOwner(owner);
+            gameInstance.setAvailable(true); // Make sure instance is available
+            
             Account requester = new Account("Requester", "requester@test.com", "password");
             requester.setId(VALID_REQUESTER_ID);
+            
             request.setRequestedGame(game);
             request.setRequester(requester);
             request.setStartDate(new Date());
             request.setEndDate(new Date(System.currentTimeMillis() + 86400000));
             request.setRequestDate(new Date());
+            request.setGameInstance(gameInstance); // Set the game instance
+            
+            List<GameInstance> gameInstances = new ArrayList<>();
+            gameInstances.add(gameInstance);
 
             // Use doReturn for the spy method and make it lenient
             lenient().doReturn(true).when(borrowRequestService).isGameOwnerOfRequest(VALID_REQUEST_ID, owner.getEmail());
             
             when(borrowRequestRepository.findBorrowRequestById(VALID_REQUEST_ID)).thenReturn(Optional.of(request));
+            when(gameInstanceRepository.findByGame(game)).thenReturn(gameInstances);
+            when(borrowRequestRepository.findOverlappingApprovedRequestsForGameInstance(
+                VALID_GAME_INSTANCE_ID, request.getStartDate(), request.getEndDate())).thenReturn(new ArrayList<>());
             when(borrowRequestRepository.save(any(BorrowRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
             when(lendingRecordService.createLendingRecord(any(Date.class), any(Date.class), any(BorrowRequest.class), any(GameOwner.class)))
                 .thenReturn(ResponseEntity.ok("Lending record created successfully"));

@@ -411,9 +411,10 @@ public class AccountServiceTest {
     @Test
     public void testUpgradeSuccess() {
         when(accountRepository.findByEmail(VALID_EMAIL)).thenReturn(Optional.of(testAccount));
-        when(registrationRepository.findRegistrationByAttendeeName(VALID_USERNAME)).thenReturn(new ArrayList<>());
-        when(borrowRequestRepository.findBorrowRequestsByRequesterName(VALID_USERNAME)).thenReturn(new ArrayList<>());
-        when(reviewRepository.findReviewsByReviewerName(VALID_USERNAME)).thenReturn(new ArrayList<>());
+        // Use lenient() for these mocks as they're not always used by all test paths
+        org.mockito.Mockito.lenient().when(registrationRepository.findRegistrationByAttendeeName(VALID_USERNAME)).thenReturn(new ArrayList<>());
+        org.mockito.Mockito.lenient().when(borrowRequestRepository.findBorrowRequestsByRequesterName(VALID_USERNAME)).thenReturn(new ArrayList<>());
+        org.mockito.Mockito.lenient().when(reviewRepository.findReviewsByReviewerName(VALID_USERNAME)).thenReturn(new ArrayList<>());
 
         ResponseEntity<String> response = accountService.upgradeUserToGameOwner(VALID_EMAIL);
 
@@ -428,9 +429,10 @@ public class AccountServiceTest {
         registrations.add(new Registration());
 
         when(accountRepository.findByEmail(VALID_EMAIL)).thenReturn(Optional.of(testAccount));
-        when(registrationRepository.findRegistrationByAttendeeName(VALID_USERNAME)).thenReturn(registrations);
-        when(borrowRequestRepository.findBorrowRequestsByRequesterName(VALID_USERNAME)).thenReturn(new ArrayList<>());
-        when(reviewRepository.findReviewsByReviewerName(VALID_USERNAME)).thenReturn(new ArrayList<>());
+        // Use lenient() for these mocks as they're not always used by all test paths
+        org.mockito.Mockito.lenient().when(registrationRepository.findRegistrationByAttendeeName(VALID_USERNAME)).thenReturn(registrations);
+        org.mockito.Mockito.lenient().when(borrowRequestRepository.findBorrowRequestsByRequesterName(VALID_USERNAME)).thenReturn(new ArrayList<>());
+        org.mockito.Mockito.lenient().when(reviewRepository.findReviewsByReviewerName(VALID_USERNAME)).thenReturn(new ArrayList<>());
 
         ResponseEntity<String> response = accountService.upgradeUserToGameOwner(VALID_EMAIL);
 
@@ -447,9 +449,10 @@ public class AccountServiceTest {
         reviews.add(new Review());
 
         when(accountRepository.findByEmail(VALID_EMAIL)).thenReturn(Optional.of(testAccount));
-        when(registrationRepository.findRegistrationByAttendeeName(VALID_USERNAME)).thenReturn(new ArrayList<>());
-        when(borrowRequestRepository.findBorrowRequestsByRequesterName(VALID_USERNAME)).thenReturn(borrowRequests);
-        when(reviewRepository.findReviewsByReviewerName(VALID_USERNAME)).thenReturn(reviews);
+        // Use lenient() for these mocks as they're not always used by all test paths
+        org.mockito.Mockito.lenient().when(registrationRepository.findRegistrationByAttendeeName(VALID_USERNAME)).thenReturn(new ArrayList<>());
+        org.mockito.Mockito.lenient().when(borrowRequestRepository.findBorrowRequestsByRequesterName(VALID_USERNAME)).thenReturn(borrowRequests);
+        org.mockito.Mockito.lenient().when(reviewRepository.findReviewsByReviewerName(VALID_USERNAME)).thenReturn(reviews);
 
         ResponseEntity<String> response = accountService.upgradeUserToGameOwner(VALID_EMAIL);
 

@@ -226,4 +226,52 @@ public class EventService {
             throw new ForbiddenException("Access denied: You are not the host of this event.");
        }
     }
+    
+    /**
+     * Find events by featured game name
+     * 
+     * @param gameName the name of the game to search for
+     * @return list of events featuring the game with the specified name
+     * @throws IllegalArgumentException if the game name is empty
+     */
+    @Transactional(readOnly = true)
+    public List<Event> findEventsByGameName(String gameName) {
+        logger.debug("DEBUG SERVICE: Finding events by game name: {}", gameName);
+        if (gameName == null || gameName.trim().isEmpty()) {
+            throw new IllegalArgumentException("Game name cannot be empty");
+        }
+        return eventRepository.findEventByFeaturedGameName(gameName);
+    }
+    
+    /**
+     * Find events by location containing the specified text
+     * 
+     * @param locationText the text to search for in event locations
+     * @return list of events with locations containing the specified text
+     * @throws IllegalArgumentException if the location text is empty
+     */
+    @Transactional(readOnly = true)
+    public List<Event> findEventsByLocationContaining(String locationText) {
+        logger.debug("DEBUG SERVICE: Finding events by location containing: {}", locationText);
+        if (locationText == null || locationText.trim().isEmpty()) {
+            throw new IllegalArgumentException("Location search text cannot be empty");
+        }
+        return eventRepository.findEventByLocationContaining(locationText);
+    }
+    
+    /**
+     * Find events by minimum number of players for the featured game
+     * 
+     * @param minPlayers the minimum number of players
+     * @return list of events with featured games requiring at least the specified number of players
+     * @throws IllegalArgumentException if minPlayers is less than 1
+     */
+    @Transactional(readOnly = true)
+    public List<Event> findEventsByGameMinPlayers(int minPlayers) {
+        logger.debug("DEBUG SERVICE: Finding events by game min players: {}", minPlayers);
+        if (minPlayers < 1) {
+            throw new IllegalArgumentException("Minimum players must be at least 1");
+        }
+        return eventRepository.findByFeaturedGameMinPlayersGreaterThanEqual(minPlayers);
+    }
 }

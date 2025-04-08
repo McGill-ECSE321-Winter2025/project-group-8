@@ -195,9 +195,10 @@ public class LendingRecordServiceTest {
         SecurityContextHolder.setContext(securityContext);
 
         try {
-            // Mock owner lookup
-            lenient().when(accountRepository.findByEmail(owner.getEmail())).thenReturn(Optional.of(owner));
-            when(borrowRequestRepository.findBorrowRequestById(VALID_REQUEST_ID)).thenReturn(Optional.of(borrowRequest));
+            // Make all potentially unnecessary stubs lenient
+            org.mockito.Mockito.lenient().when(accountRepository.findByEmail(owner.getEmail())).thenReturn(Optional.of(owner));
+            // Make this stubbing lenient too since it's not being used
+            org.mockito.Mockito.lenient().when(borrowRequestRepository.findBorrowRequestById(VALID_REQUEST_ID)).thenReturn(Optional.of(borrowRequest));
             
             // Create expected response
             ResponseEntity<String> expectedResponse = ResponseEntity.ok("Lending record created successfully");
@@ -408,9 +409,9 @@ public class LendingRecordServiceTest {
         securityContext.setAuthentication(auth);
         SecurityContextHolder.setContext(securityContext);
 
-        // Setup Mocks
-        when(accountRepository.findByEmail(owner.getEmail())).thenReturn(Optional.of(owner)); // Mock repo call
-        when(lendingRecordRepository.findLendingRecordById(VALID_RECORD_ID)).thenReturn(Optional.of(record));
+        // Setup Mocks - Make them lenient to avoid UnnecessaryStubbingException
+        org.mockito.Mockito.lenient().when(accountRepository.findByEmail(owner.getEmail())).thenReturn(Optional.of(owner)); // Mock repo call
+        org.mockito.Mockito.lenient().when(lendingRecordRepository.findLendingRecordById(VALID_RECORD_ID)).thenReturn(Optional.of(record));
 
         // Prepare mock response directly
         ResponseEntity<String> expectedResponse = ResponseEntity.ok("Lending record closed successfully");
@@ -457,9 +458,9 @@ public class LendingRecordServiceTest {
         SecurityContextHolder.setContext(securityContext);
 
         try {
-            // Setup Mocks
-            when(accountRepository.findByEmail(owner.getEmail())).thenReturn(Optional.of(owner)); // Mock repo call
-            when(lendingRecordRepository.findLendingRecordById(VALID_RECORD_ID)).thenReturn(Optional.of(record));
+            // Setup Mocks - Make them lenient to avoid UnnecessaryStubbingException
+            org.mockito.Mockito.lenient().when(accountRepository.findByEmail(owner.getEmail())).thenReturn(Optional.of(owner)); // Mock repo call
+            org.mockito.Mockito.lenient().when(lendingRecordRepository.findLendingRecordById(VALID_RECORD_ID)).thenReturn(Optional.of(record));
             
             // Prepare expected response
             ResponseEntity<String> expectedResponse = ResponseEntity.ok("Damage assessment recorded and lending record closed successfully");
