@@ -1175,6 +1175,28 @@ public class GameService {
         // Convert to DTOs
         return instances.stream()
                 .map(GameInstanceResponseDto::new)
+                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Retrieves all game instances owned by a specific GameOwner.
+     *
+     * @param owner The GameOwner whose instances are to be retrieved.
+     * @return List of game instance DTOs owned by the specified user.
+     * @throws IllegalArgumentException if the owner is null.
+     */
+    @Transactional
+    public List<GameInstanceResponseDto> getGameInstancesByOwner(GameOwner owner) {
+        if (owner == null) {
+            throw new IllegalArgumentException("Owner cannot be null when fetching game instances.");
+        }
+        
+        // Get all instances owned by this user
+        List<GameInstance> instances = gameInstanceRepository.findByOwner(owner);
+        
+        // Convert to DTOs
+        return instances.stream()
+                .map(GameInstanceResponseDto::new)
                 .collect(Collectors.toList());
     }
 

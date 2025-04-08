@@ -614,26 +614,64 @@ export const copyGame = async (gameId, instanceData = {}) => {
 };
 
 /**
- * Fetches all game instances owned by the current user.
- * This is useful for showing the user's collection regardless of who created the original game.
+ * Fetches all game instances owned by a specific user email.
+ * @param {string} ownerEmail - The email of the owner.
+ * @returns {Promise<Array>} A promise that resolves to an array of game instance objects.
+ * @throws {ApiError} For API-related errors.
+ */
+export const getInstancesByOwnerEmail = async (ownerEmail) => {
+  if (!ownerEmail) {
+    throw new Error("Owner email is required to fetch game instances.");
+  }
+  const endpoint = `/games/instances?ownerId=${encodeURIComponent(ownerEmail)}`;
+  console.log("getInstancesByOwnerEmail: Fetching instances for owner:", ownerEmail);
+
+  try {
+    const instances = await apiClient(endpoint, { 
+      method: "GET",
+      skipPrefix: false // Use /api prefix
+    });
+    console.log(`getInstancesByOwnerEmail: Successfully fetched ${instances.length} instances for owner ${ownerEmail}:`, instances);
+    // Ensure the response includes gameImage if the backend DTO was updated
+    return instances.map(inst => ({
+      ...inst,
+      // Attempt to map gameImage if it exists, otherwise keep original structure
+      image: inst.gameImage || inst.image || null 
+    }));
+  } catch (error) {
+    console.error(`getInstancesByOwnerEmail: Failed to fetch instances for owner ${ownerEmail}:`, error);
+    // Return empty array on error to prevent UI break, but log the error
+    return []; 
+  }
+};
+
+
+/**
+ * Fetches all game instances owned by the current authenticated user.
+ * Uses the combined /api/games/instances?my=true endpoint.
  * 
  * @returns {Promise<Array>} A promise that resolves to an array of game instance objects
  * @throws {UnauthorizedError} If the user is not authenticated
  * @throws {ApiError} For other API-related errors
  */
 export const getUserGameInstances = async () => {
-  console.log("getUserGameInstances: Fetching all game instances for current user");
+  console.log("getUserGameInstances: Fetching all game instances for current authenticated user");
   
   try {
-    const instances = await apiClient("/games/instances/my", {
+    // Use the combined endpoint with my=true parameter
+    const instances = await apiClient("/games/instances?my=true", { 
       method: "GET",
-      skipPrefix: false
+      skipPrefix: false 
     });
-    
     console.log(`getUserGameInstances: Successfully fetched ${instances.length} instances:`, instances);
-    return instances;
+    // Ensure the response includes gameImage if the backend DTO was updated
+    return instances.map(inst => ({
+      ...inst,
+      // Attempt to map gameImage if it exists, otherwise keep original structure
+      image: inst.gameImage || inst.image || null 
+    }));
   } catch (error) {
-    console.error("getUserGameInstances: Failed to fetch user's game instances:", error);
+    console.error("getUserGameInstances: Failed to fetch current user's game instances:", error);
     
     if (error.name === 'UnauthorizedError') {
       console.error("getUserGameInstances: Authentication error - user not logged in or session expired");

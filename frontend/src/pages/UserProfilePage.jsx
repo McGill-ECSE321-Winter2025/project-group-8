@@ -5,11 +5,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { EventCard } from "../components/events-page/EventCard"; // Assuming EventCard is reusable
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { getUserInfoByEmail } from "../service/user-api.js";
-import { getUserGameInstances } from "../service/game-api.js"; // Change to getUserGameInstances
-import { getEventsByHostEmail } from "../service/event-api.js";
-import { getRegistrationsByEmail } from "../service/registration-api.js"; // Import the registration API
+ import { Badge } from "@/components/ui/badge";
+ import { getUserInfoByEmail } from "../service/user-api.js";
+ import { getUserGameInstances, getInstancesByOwnerEmail } from "../service/game-api.js"; // Import getInstancesByOwnerEmail
+ import { getEventsByHostEmail } from "../service/event-api.js";
+ import { getRegistrationsByEmail } from "../service/registration-api.js"; // Import the registration API
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext"; // Import useAuth
 
@@ -123,16 +123,16 @@ export default function UserProfilePage() {
       const accountData = await getUserInfoByEmail(emailToFetch);
       console.log("User info data:", accountData);
       
-      setUserInfo(accountData);
-
-      // If user is a game owner, fetch their game instances (only for own profile)
-      if (accountData && accountData.gameOwner && isOwnProfile) {
-        try {
-          // We can only get game instances for the current authenticated user
-          const instancesData = await getUserGameInstances();
-          console.log(`Retrieved ${instancesData?.length || 0} game instances:`, instancesData);
-          setGameInstances(instancesData || []);
-        } catch (instancesError) {
+       setUserInfo(accountData);
+ 
+       // If the profile user is a game owner, fetch their game instances
+       if (accountData && accountData.gameOwner) { // Remove isOwnProfile check
+         try {
+           // Fetch instances for the profile user's email instead of current user
+           const instancesData = await getInstancesByOwnerEmail(emailToFetch);
+           console.log(`Retrieved ${instancesData?.length || 0} game instances for ${emailToFetch}:`, instancesData);
+           setGameInstances(instancesData || []);
+         } catch (instancesError) {
            console.error("Failed to fetch game instances:", instancesError);
            // Don't set error state here - just log it as we want to continue even if games can't be fetched
         }
@@ -265,20 +265,20 @@ export default function UserProfilePage() {
       </div>
 
       {/* Tabs for different sections */}
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="mb-6">
-          {userInfo.gameOwner && isOwnProfile && (
-             <TabsTrigger value="games">Game Collection</TabsTrigger>
-          )}
-          <TabsTrigger value="hosting">Hosting</TabsTrigger>
+       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+         <TabsList className="mb-6">
+           {userInfo.gameOwner && ( // Remove isOwnProfile check
+              <TabsTrigger value="games">Game Collection</TabsTrigger>
+           )}
+           <TabsTrigger value="hosting">Hosting</TabsTrigger>
           <TabsTrigger value="registered">Registered Events</TabsTrigger>
-        </TabsList>
-
-        {/* Games Tab - Only render if owner and viewing own profile */}
-        {userInfo.gameOwner && isOwnProfile && (
-          <TabsContent value="games">
-            <div>
-              <div className="flex items-center justify-between mb-4">
+         </TabsList>
+ 
+         {/* Games Tab - Render if profile user is owner */}
+         {userInfo.gameOwner && ( // Remove isOwnProfile check
+           <TabsContent value="games">
+             <div>
+               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-2xl font-semibold">Game Collection</h2>
               </div>
               {gameInstances && gameInstances.length > 0 ? (
