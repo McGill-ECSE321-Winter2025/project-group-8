@@ -51,6 +51,14 @@ public interface RegistrationRepository extends JpaRepository<Registration, Inte
     boolean existsByAttendeeAndEventRegisteredFor(Account attendee, Event eventRegisteredFor);
 
     /**
+     * Finds all registrations associated with a specific event.
+     *
+     * @param event the event whose registrations are to be found
+     * @return List of registrations for the given event
+     */
+    List<Registration> findByEventRegisteredFor(Event event);
+
+    /**
      * Deletes all registrations associated with a specific event ID.
      *
      * @param eventId the ID of the event whose registrations are to be deleted

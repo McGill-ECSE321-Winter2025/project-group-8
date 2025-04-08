@@ -3,7 +3,6 @@ package ca.mcgill.ecse321.gameorganizer.services;
 import java.util.Date; // Changed from java.sql.Date
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,15 +14,16 @@ import org.springframework.transaction.annotation.Transactional;
 
 import ca.mcgill.ecse321.gameorganizer.dto.request.CreateEventRequest;
 import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException;
-import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.GameInstance;
+import ca.mcgill.ecse321.gameorganizer.models.Registration; // Import added
 import ca.mcgill.ecse321.gameorganizer.repositories.AccountRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.EventRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameInstanceRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
+import ca.mcgill.ecse321.gameorganizer.repositories.RegistrationRepository;
 
 @Service
 public class EventService {
@@ -41,6 +41,20 @@ public class EventService {
 
     @Autowired
     private GameInstanceRepository gameInstanceRepository;
+
+    private final RegistrationRepository registrationRepository; // Added repository
+
+    @Autowired
+    public EventService(EventRepository eventRepository, AccountRepository accountRepository,
+                        GameRepository gameRepository, GameInstanceRepository gameInstanceRepository,
+                        RegistrationRepository registrationRepository) { // Added to constructor
+        this.eventRepository = eventRepository;
+        this.accountRepository = accountRepository;
+        this.gameRepository = gameRepository;
+        this.gameInstanceRepository = gameInstanceRepository;
+        this.registrationRepository = registrationRepository; // Assign repository
+    }
+
 
     @PreAuthorize("isAuthenticated()")
     @Transactional
@@ -216,7 +230,20 @@ public class EventService {
             );
             logger.debug("DEBUG SERVICE: Found event to delete: {}", event.getTitle());
             // Authorization handled by PreAuthorize
-            eventRepository.delete(event);
+
+            // --- Added Step: Delete associated registrations ---
+            logger.info("Finding registrations for event {}...", event.getId());
+            List<Registration> registrationsToDelete = registrationRepository.findByEventRegisteredFor(event);
+            if (!registrationsToDelete.isEmpty()) {
+                logger.info("Deleting {} registrations for event {}...", registrationsToDelete.size(), event.getId());
+                registrationRepository.deleteAll(registrationsToDelete);
+                logger.info("Deleted registrations for event {}.", event.getId());
+            } else {
+                logger.info("No registrations found for event {}.", event.getId());
+            }
+            // --- End Added Step ---
+
+            eventRepository.delete(event); // Now delete the event itself
             logger.debug("DEBUG SERVICE: Deleted event with ID: {}", id);
         } catch (IllegalArgumentException e) {
              logger.error("ERROR SERVICE: Invalid argument deleting event {}: {}", id, e.getMessage());
@@ -224,6 +251,9 @@ public class EventService {
         } catch (org.springframework.security.access.AccessDeniedException e) {
             logger.error("ERROR SERVICE: Access denied deleting event {}: {}", id, e.getMessage());
             throw new ForbiddenException("Access denied: You are not the host of this event.");
+       } catch (Exception e) { // Catch broader exceptions during cascade delete
+            logger.error("ERROR SERVICE: Unexpected error deleting event {} or its registrations: {}", id, e.getMessage(), e);
+            throw new RuntimeException("An unexpected error occurred while deleting the event and its registrations.", e);
        }
     }
     
