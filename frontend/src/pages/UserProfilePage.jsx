@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { getUserInfoByEmail } from "../service/user-api.js";
 import { getGamesByOwner } from "../service/game-api.js";
 import { getEventsByHostEmail } from "../service/event-api.js";
+import { getRegistrationsByEmail } from "../service/registration-api.js"; // Import the registration API
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext"; // Import useAuth
 
@@ -41,6 +42,7 @@ export default function UserProfilePage() {
   const [userInfo, setUserInfo] = useState(null); // Includes name, events, isGameOwner
   const [ownedGamesList, setOwnedGamesList] = useState([]);
   const [hostedEventsList, setHostedEventsList] = useState([]);
+  const [registeredEventsList, setRegisteredEventsList] = useState([]); // New state for registered events
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   
@@ -72,10 +74,13 @@ export default function UserProfilePage() {
     setUserInfo(null);
     setOwnedGamesList([]);
     setHostedEventsList([]);
+    setRegisteredEventsList([]); // Clear registered events list
 
     try {
-      // Fetch basic account info (name, type, registered events)
+      // Fetch basic account info (name, type)
       const accountData = await getUserInfoByEmail(emailToFetch);
+      console.log("User info data:", accountData);
+      
       setUserInfo(accountData);
 
       // If user is a game owner, fetch their games
@@ -91,10 +96,38 @@ export default function UserProfilePage() {
       
       // Fetch events that the user is hosting
       try {
+        console.log(`Fetching hosted events for ${emailToFetch}`);
         const hostedEvents = await getEventsByHostEmail(emailToFetch);
+        console.log(`Retrieved ${hostedEvents?.length || 0} hosted events`);
         setHostedEventsList(hostedEvents || []);
       } catch (eventsError) {
         console.error("Failed to fetch hosted events:", eventsError);
+        // Don't set error, just log it to avoid blocking the UI
+      }
+      
+      // Fetch events that the user is registered for (similarly to hosted events)
+      try {
+        console.log(`Fetching registered events for ${emailToFetch}`);
+        const registrations = await getRegistrationsByEmail(emailToFetch);
+        console.log(`Retrieved ${registrations?.length || 0} registrations:`, registrations);
+        
+        // Extract events from registrations
+        const regEvents = [];
+        if (Array.isArray(registrations)) {
+          for (const reg of registrations) {
+            if (reg.event) {
+              regEvents.push({
+                ...reg.event,
+                registrationId: reg.id // Store registration ID for potential unregister action
+              });
+            }
+          }
+        }
+        
+        console.log(`Processed ${regEvents.length} registered events`);
+        setRegisteredEventsList(regEvents);
+      } catch (regError) {
+        console.error("Failed to fetch registered events:", regError);
         // Don't set error, just log it to avoid blocking the UI
       }
     } catch (accountError) {
@@ -121,12 +154,14 @@ export default function UserProfilePage() {
       // If the user is hosting events, start on that tab, otherwise go to the default tab
       if (hostedEventsList.length > 0) {
         setActiveTab("hosting");
+      } else if (registeredEventsList.length > 0) {
+        setActiveTab("registered");
       } else {
         const userType = userInfo.gameOwner ? "owner" : "player";
         setActiveTab(userType === 'owner' ? "games" : "registered");
       }
     }
-  }, [userInfo, activeTab, hostedEventsList.length]);
+  }, [userInfo, activeTab, hostedEventsList.length, registeredEventsList.length]);
 
   // Loading state
   if (isLoading) {
@@ -269,67 +304,76 @@ export default function UserProfilePage() {
           </div>
         </TabsContent>
 
-        {/* Registered Tab - Use events from userInfo */}
+        {/* Registered Tab - Use directly fetched registered events list instead of userInfo.events */}
         <TabsContent value="registered">
           <div>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-semibold">Events Attending</h2>
             </div>
-            {userInfo.events && userInfo.events.length > 0 ? (
+            
+            {console.log('Registered events list:', registeredEventsList)}
+            
+            {registeredEventsList && registeredEventsList.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {userInfo.events.map((registration) => {
-                   // Adapt event data from registration.event for EventCard component
-                   const event = registration.event;
-                   if (!event) {
-                     console.error("Missing event data in registration:", registration);
+                {registeredEventsList.map((event, index) => {
+                   console.log(`Processing registered event ${index}:`, event);
+                   
+                   try {
+                     const adaptedEvent = {
+                       id: event.id || event.eventId,
+                       eventId: event.id || event.eventId, // Add explicit eventId property as backup
+                       title: event.title,
+                       name: event.title, // add name as backup
+                       dateTime: event.dateTime,
+                       location: event.location || 'No location specified',
+                       // Properly map host information
+                       host: event.host ? { 
+                         name: event.host.name,
+                         email: event.host.email
+                       } : { name: 'Unknown Host' },
+                       hostName: event.host ? event.host.name : 'Unknown Host',
+                       hostEmail: event.host ? event.host.email : null,
+                       // Properly map game information
+                       featuredGame: event.featuredGame ? { name: event.featuredGame.name } : { name: 'Unknown Game' },
+                       game: event.featuredGame ? event.featuredGame.name : 'Unknown Game',
+                       featuredGameImage: event.featuredGame?.image || "https://placehold.co/400x300/e9e9e9/1d1d1d?text=No+Image",
+                       // Participants info - multiple formats to ensure compatibility
+                       maxParticipants: event.maxParticipants || 0,
+                       currentNumberParticipants: event.currentNumberParticipants || 0,
+                       participants: {
+                         current: event.currentNumberParticipants || 0,
+                         capacity: event.maxParticipants || 0
+                       },
+                       description: event.description || 'No description available',
+                     };
+                     
+                     console.log(`Successfully created adapted event ${index}:`, adaptedEvent);
+                     
+                     return <EventCard 
+                       key={`reg-${event.registrationId || index}`}
+                       event={adaptedEvent}
+                       isCurrentUserRegistered={isOwnProfile}
+                       registrationId={isOwnProfile ? event.registrationId : null}
+                       hideRegisterButtons={true}
+                       onRegistrationUpdate={() => {
+                         // Ensure we stay on the registered events tab
+                         setActiveTab("registered"); 
+                         // Refresh the data
+                         fetchData(profileEmail || currentUser?.email);
+                       }}
+                     />;
+                   } catch (error) {
+                     console.error(`Error processing registered event ${index}:`, error);
                      return null;
                    }
-                   
-                   const adaptedEvent = {
-                     id: event.eventId || event.id,
-                     eventId: event.eventId || event.id, // Add explicit eventId property as backup
-                     title: event.title,
-                     name: event.title, // add name as backup
-                     dateTime: event.dateTime,
-                     location: event.location,
-                     // Properly map host information
-                     host: event.host ? { 
-                       name: event.host.name,
-                       email: event.host.email
-                     } : { name: 'Unknown Host' },
-                     hostName: event.host ? event.host.name : 'Unknown Host',
-                     hostEmail: event.host ? event.host.email : null,
-                     // Properly map game information
-                     featuredGame: event.featuredGame ? { name: event.featuredGame.name } : { name: 'Unknown Game' },
-                     game: event.featuredGame ? event.featuredGame.name : 'Unknown Game',
-                     featuredGameImage: event.featuredGame?.image || "https://placehold.co/400x300/e9e9e9/1d1d1d?text=No+Image",
-                     // Participants info - multiple formats to ensure compatibility
-                     maxParticipants: event.maxParticipants,
-                     currentNumberParticipants: event.currentNumberParticipants,
-                     participants: {
-                       current: event.currentNumberParticipants,
-                       capacity: event.maxParticipants
-                     },
-                     description: event.description,
-                   };
-                   
-                   return <EventCard 
-                     key={adaptedEvent.id} 
-                     event={adaptedEvent}
-                     isCurrentUserRegistered={isOwnProfile}
-                     registrationId={isOwnProfile ? registration.id : null}
-                     hideRegisterButtons={true}
-                     onRegistrationUpdate={() => {
-                       // Ensure we stay on the registered events tab
-                       setActiveTab("registered"); 
-                       // Refresh the data
-                       fetchData(profileEmail || currentUser?.email);
-                     }}
-                   />;
                 })}
               </div>
             ) : (
-              <p className="text-muted-foreground">Not registered for any events.</p>
+              <p className="text-muted-foreground">
+                {isLoading 
+                  ? "Loading registered events..." 
+                  : "Not registered for any events."}
+              </p>
             )}
           </div>
         </TabsContent>
