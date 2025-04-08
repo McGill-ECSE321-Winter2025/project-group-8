@@ -55,7 +55,7 @@ public class LendingRecordRepositoryTest {
         borrower = new Account("Test Borrower", "borrower@test.com", "password123");
         borrower = entityManager.persist(borrower);
 
-        request = new BorrowRequest(startDate, endDate, BorrowRequestStatus.APPROVED, new Date(), game);
+        request = new BorrowRequest(startDate, endDate, BorrowRequestStatus.APPROVED, new Date(), game, null);
         request.setRequester(borrower);
         request.setResponder(owner);
         request = entityManager.persist(request);
@@ -117,7 +117,7 @@ public class LendingRecordRepositoryTest {
         Date pastStart = new Date(System.currentTimeMillis() - 14 * 24 * 60 * 60 * 1000); // 14 days ago
         Date pastEnd = new Date(System.currentTimeMillis() - 7 * 24 * 60 * 60 * 1000); // 7 days ago
         
-        BorrowRequest overdueRequest = new BorrowRequest(pastStart, pastEnd, BorrowRequestStatus.APPROVED, new Date(), game);
+        BorrowRequest overdueRequest = new BorrowRequest(pastStart, pastEnd, BorrowRequestStatus.APPROVED, new Date(), game, null);
         overdueRequest.setRequester(borrower);
         overdueRequest.setResponder(owner);
         overdueRequest = entityManager.persist(overdueRequest);

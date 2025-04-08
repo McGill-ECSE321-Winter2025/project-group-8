@@ -86,6 +86,7 @@ public class BorrowRequestServiceTest {
         CreateBorrowRequestDto requestDto = new CreateBorrowRequestDto(
             VALID_REQUESTER_ID,
             VALID_GAME_ID,
+            0, // gameInstanceId
             startDate,
             endDate
         );
@@ -146,6 +147,7 @@ public class BorrowRequestServiceTest {
         CreateBorrowRequestDto requestDto = new CreateBorrowRequestDto(
             VALID_REQUESTER_ID,
             VALID_GAME_ID,
+            0, // gameInstanceId
             startDate,
             endDate
         );
@@ -181,6 +183,7 @@ public class BorrowRequestServiceTest {
         CreateBorrowRequestDto requestDto = new CreateBorrowRequestDto(
             VALID_REQUESTER_ID,
             VALID_GAME_ID,
+            0, // gameInstanceId
             startDate,
             endDate
         );
@@ -217,6 +220,7 @@ public class BorrowRequestServiceTest {
         CreateBorrowRequestDto requestDto = new CreateBorrowRequestDto(
             VALID_REQUESTER_ID,
             VALID_GAME_ID,
+            0, // gameInstanceId
             startDate,
             endDate
         );
@@ -505,6 +509,7 @@ public class BorrowRequestServiceTest {
         CreateBorrowRequestDto requestDto = new CreateBorrowRequestDto(
             VALID_REQUESTER_ID,
             VALID_GAME_ID,
+            0, // gameInstanceId
             startDate,
             endDate
         );
