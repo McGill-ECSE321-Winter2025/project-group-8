@@ -63,7 +63,7 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
   // Log component re-renders
   logState(`Render #${renderCount.current}, isLoadingUserGames=${isLoadingUserGames}, gamesCount=${userGames.length}`);
 
-  const { register, handleSubmit, formState: { errors }, reset, setValue, watch, control } = useForm({
+  const { register, handleSubmit, formState: { errors, isValid, isDirty }, reset, setValue, watch, control } = useForm({
     defaultValues: {
       title: "",
       dateTime: "",
@@ -72,6 +72,7 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
       maxParticipants: "",
       gameSearchTermInput: "",
     },
+    mode: "onChange",
   });
 
   const userEmail = user?.email;
@@ -442,14 +443,20 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
       console.log("Using game instance ID:", gameInstanceId);
     }
     
-    // Build a payload with explicitly named fields
+    // Convert the local dateTime string to a proper ISO string (UTC)
+    const localDateTime = new Date(formData.dateTime);
+    const isoDateTimeString = localDateTime.toISOString();
+    console.log(`[CreateEventDialog] Converted local dateTime '${formData.dateTime}' to ISO string '${isoDateTimeString}'`);
+
+    // Build a payload with explicitly named fields, using the ISO string
     const payload = {
       ...formData,
+      dateTime: isoDateTimeString, // Use the ISO string
       featuredGame: {
         id: gameId
       },
       // Only include gameInstanceId if it exists and this is a borrowed game
-      ...(selectedGame.isBorrowed && gameInstanceId && { 
+      ...(selectedGame.isBorrowed && gameInstanceId && {
         gameInstanceId: gameInstanceId,
         isBorrowed: true
       })
@@ -472,7 +479,27 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
       console.error("Create event error:", error);
       
       if (isMountedRef.current) {
-        const errorMsg = error.message || "Failed to create event. Please try again.";
+        // Extract the specific error message from the API response
+        let errorMsg = "Failed to create event. Please try again.";
+        
+        if (error.message) {
+          // Try to parse JSON error messages
+          if (error.message.includes("Event description cannot be empty")) {
+            errorMsg = "Event description cannot be empty.";
+            setValue("description", "", { shouldValidate: true });
+          } else if (error.message.includes("API error:")) {
+            try {
+              const jsonStr = error.message.replace("API error:", "").trim();
+              const parsedError = JSON.parse(jsonStr);
+              errorMsg = parsedError.error || errorMsg;
+            } catch (e) {
+              errorMsg = error.message;
+            }
+          } else {
+            errorMsg = error.message;
+          }
+        }
+        
         setSubmitError(errorMsg);
         toast.error(errorMsg);
       }
@@ -521,6 +548,15 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
       setGameLoadError("");
     }
   }, [open]);
+
+  // Add a new useEffect to trigger form validation when selectedGameId changes
+  useEffect(() => {
+    // When a game is selected or unselected, trigger form validation
+    if (selectedGameId) {
+      // Force form validation to update
+      handleSubmit(() => {})();
+    }
+  }, [selectedGameId, handleSubmit]);
 
   const renderGameSelector = () => {
     // Show debug info in development environment
@@ -629,7 +665,10 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
                   <Label htmlFor="title" className="text-base font-medium">Event Title <span className="text-red-500">*</span></Label>
                   <Input
                     id="title"
-                    {...register("title", { required: "Title is required" })}
+                    {...register("title", { 
+                      required: "Title is required",
+                      minLength: { value: 3, message: "Title must be at least 3 characters" } 
+                    })}
                     className={`h-11 px-4 ${errors.title ? "border-red-500" : ""}`}
                     placeholder="Enter event title..."
                   />
@@ -645,7 +684,14 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
                     <Input
                       id="dateTime"
                       type="datetime-local"
-                      {...register("dateTime", { required: "Date and time is required" })}
+                      {...register("dateTime", { 
+                        required: "Date and time is required",
+                        validate: value => {
+                          const date = new Date(value);
+                          const now = new Date();
+                          return date > now || "Event date must be in the future";
+                        }
+                      })}
                       className={`h-11 ${errors.dateTime ? "border-red-500" : ""}`}
                     />
                     {errors.dateTime && <p className="text-red-500 text-sm mt-1">{errors.dateTime.message}</p>}
@@ -664,7 +710,8 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
                       {...register("maxParticipants", {
                         required: "Maximum participants is required",
                         valueAsNumber: true,
-                        min: { value: 1, message: "Must be greater than 0" }
+                        min: { value: 1, message: "Must be greater than 0" },
+                        max: { value: 100, message: "Must be less than 100" }
                       })}
                       className={`h-11 ${errors.maxParticipants ? "border-red-500" : ""}`}
                     />
@@ -863,13 +910,17 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
           <Card>
             <CardContent className="pt-6">
               <div className="space-y-2">
-                <Label htmlFor="description" className="text-base font-medium">Description</Label>
+                <Label htmlFor="description" className="text-base font-medium">Description <span className="text-red-500">*</span></Label>
                 <Textarea
                   id="description"
-                  {...register("description")}
-                  className="min-h-[120px] resize-none"
+                  {...register("description", { 
+                    required: "Description is required",
+                    minLength: { value: 10, message: "Description must be at least 10 characters" } 
+                  })}
+                  className={`min-h-[120px] resize-none ${errors.description ? "border-red-500" : ""}`}
                   placeholder="Describe your event... What makes it special? What should attendees know?"
                 />
+                {errors.description && <p className="text-red-500 text-sm mt-1">{errors.description.message}</p>}
               </div>
             </CardContent>
           </Card>
@@ -899,7 +950,7 @@ export default function CreateEventDialog({ open, onOpenChange, onEventAdded }) 
             </Button>
             <Button 
               type="submit" 
-              disabled={isLoading || isLoadingUserGames || (userGames.length === 0 && !gameLoadError)}
+              disabled={isLoading || isLoadingUserGames || (userGames.length === 0 && !gameLoadError) || !isDirty || !isValid || !selectedGameId}
               className="flex-1"
             >
               {isLoading ? (

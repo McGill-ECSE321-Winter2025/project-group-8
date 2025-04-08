@@ -10,6 +10,7 @@ import { getRegistrationsByEmail } from "../../service/registration-api.js"; // 
 import { UnauthorizedError } from "@/service/apiClient"; // Import UnauthorizedError
 import { useAuth } from "@/context/AuthContext"; // Import useAuth
 import { Loader2 } from "lucide-react"; // Import loader
+import { formatDateTimeForDisplay } from '@/lib/dateUtils.js'; // Import the new utility
 
 export default function DashboardEvents({ userType }) {
   const [hostedEvents, setHostedEvents] = useState([]);
@@ -47,7 +48,7 @@ export default function DashboardEvents({ userType }) {
     try {
       // Fetch hosted events only if the user is an owner
       let hosted = [];
-      if (userType === "owner" && user?.gameOwner) { // Check gameOwner status from context
+      if (userType === "owner") {
         try {
           console.log(`[DashboardEvents] Fetching events hosted by ${userEmail}`);
           hosted = await getEventsByHostEmail(userEmail);
@@ -179,36 +180,15 @@ export default function DashboardEvents({ userType }) {
     };
   };
 
-  // Function to format date and time for Event component
-  const formatDateAndTime = (dateTimeString) => {
-    if (!dateTimeString) return { date: "Unknown", time: "Unknown" };
-    
-    try {
-      const dateTime = new Date(dateTimeString);
-      const date = dateTime.toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      });
-      const time = dateTime.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit'
-      });
-      
-      return { date, time };
-    } catch (error) {
-      console.error("Error formatting date/time:", error);
-      return { date: "Unknown", time: "Unknown" };
-    }
-  };
+  // formatDateAndTime function is no longer needed here
 
   return (
     <>
       <TabsContent value="events" className="space-y-6">
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold">My Events</h2>
-          {/* Only show Create Event button if user is owner (checked via prop and auth context) */}
-          {userType === "owner" && user?.gameOwner && (
+          {/* Only show Create Event button if user is owner (checked via prop) */}
+          {userType === "owner" && (
              <Button onClick={() => setIsCreateDialogOpen(true)}>Create Event</Button>
           )}
         </div>
@@ -224,7 +204,7 @@ export default function DashboardEvents({ userType }) {
         ) : (
           <div className="space-y-8">
             {/* Events Hosting Section (only if owner - checked via prop and auth context) */}
-            {userType === "owner" && user?.gameOwner && (
+            {userType === "owner" && (
               <div>
                 <h3 className="text-xl font-semibold mb-4">Hosting</h3>
                  {hostedEvents.length > 0 ? (
@@ -233,8 +213,8 @@ export default function DashboardEvents({ userType }) {
                         const adapted = adaptEventData(event); // Adapt hosted event
                         if (!adapted) return null;
                         
-                        // Format the date and time
-                        const { date, time } = formatDateAndTime(adapted.dateTime);
+                        // Use the utility function here before passing to Event component
+                        const { date, time } = formatDateTimeForDisplay(adapted.dateTime);
                         
                         // Use the Event component for hosted events
                         return (

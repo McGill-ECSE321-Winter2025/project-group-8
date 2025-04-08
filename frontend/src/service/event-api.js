@@ -367,9 +367,9 @@ export const getEventsByHostEmail = async (hostEmail) => {
 
   try {
     // Using the correct endpoint based on backend API
-    const events = await apiClient(`/events/by-host-email?hostEmail=${encodeURIComponent(hostEmail)}`, {
+    const events = await apiClient(`/events/by-host?email=${encodeURIComponent(hostEmail)}`, {
       method: "GET",
-      skipPrefix: false, // Assuming /api/events/by-host-email
+      skipPrefix: false, // Assuming /api/events/by-host
       responseType: 'text' // Get as text first to better handle parsing errors
     });
     
@@ -496,9 +496,10 @@ export const updateEvent = async (eventId, eventData) => {
   }
   
   if (eventData.dateTime) {
-    // Convert JS Date to SQL Date format (YYYY-MM-DD)
+    // Convert JS Date to ISO datetime format (YYYY-MM-DDTHH:MM:SS.sssZ)
+    // The backend expects a full ISO datetime string, not just a date
     const date = new Date(eventData.dateTime);
-    const formattedDate = date.toISOString().split('T')[0]; 
+    const formattedDate = date.toISOString(); 
     params.append('dateTime', formattedDate);
   }
   

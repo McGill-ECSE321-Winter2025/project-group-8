@@ -73,12 +73,22 @@ export default function Event({
       <CardContent className="p-4">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="md:w-1/4">
-            <div className="aspect-square bg-muted rounded-lg flex items-center justify-center">
-            <img
-                src={gameImage}
-                alt={`${game} image`}
-                className="h-full w-full object-cover rounded-lg"
-              />
+            <div className="aspect-square bg-muted rounded-lg flex items-center justify-center overflow-hidden">
+              {gameImage ? (
+                <img
+                  src={gameImage}
+                  alt={`${game} image`}
+                  className="h-full w-full object-cover rounded-lg"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = "https://placehold.co/400x400?text=Game";
+                  }}
+                />
+              ) : (
+                <div className="h-full w-full flex items-center justify-center bg-gray-100">
+                  <span className="text-sm text-gray-500">No image available</span>
+                </div>
+              )}
             </div>
           </div>
           <div className="flex-1">

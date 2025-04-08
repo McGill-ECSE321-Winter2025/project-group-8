@@ -19,8 +19,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Calendar, AlertCircle, Users, MapPin, Gamepad2, Info } from "lucide-react";
-import { cn } from '@/components/lib/utils';
+import { cn } from '@/lib/utils'; // Corrected path assuming utils is in lib
 import { toast } from "sonner";
+import { formatDateTimeForDisplay } from '@/lib/dateUtils.js'; // Import the new utility
 
 // Accept onRegistrationUpdate, isCurrentUserRegistered, registrationId, and hideRegisterButtons props
 export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered, registrationId, hideRegisterButtons = false }) {
@@ -197,10 +198,8 @@ export function EventCard({ event, onRegistrationUpdate, isCurrentUserRegistered
     setShowDescription(!showDescription);
   };
 
-  // Safely format date/time 
-  const eventDate = event.dateTime ? new Date(event.dateTime) : null;
-  const formattedDate = eventDate ? eventDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : 'Date N/A';
-  const formattedTime = eventDate ? eventDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : 'Time N/A';
+  // Use the utility function for formatting
+  const { date: formattedDate, time: formattedTime } = formatDateTimeForDisplay(event.dateTime);
 
   return (
     <motion.div

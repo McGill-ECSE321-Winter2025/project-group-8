@@ -98,7 +98,21 @@ export default function UpdateEventDialog({ open, onOpenChange, onEventUpdated, 
         
         // Format date and time for the datetime-local input
         const dateObj = new Date(event.dateTime);
-        const formattedDateTime = dateObj.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:MM
+        
+        // Adjust for timezone - convert from UTC to local time
+        // The datetime-local input expects local time in YYYY-MM-DDTHH:MM format
+        // without timezone info, so we need to adjust the dateObj first
+        const year = dateObj.getFullYear();
+        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const day = String(dateObj.getDate()).padStart(2, '0');
+        const hours = String(dateObj.getHours()).padStart(2, '0');
+        const minutes = String(dateObj.getMinutes()).padStart(2, '0');
+        
+        // Create local datetime string in required format
+        const formattedDateTime = `${year}-${month}-${day}T${hours}:${minutes}`;
+        
+        console.log("Original dateTime:", event.dateTime);
+        console.log("Converted to local formatted datetime:", formattedDateTime);
         
         // Populate form with event data
         setValue("title", event.title || "");

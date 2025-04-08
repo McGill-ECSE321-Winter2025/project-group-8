@@ -4,7 +4,7 @@ import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Event;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 
-import java.sql.Date;
+import java.util.Date; // Changed from java.sql.Date
 import java.util.UUID;
 import lombok.Data;
 
@@ -14,7 +14,7 @@ public class EventResponse {
     public EventResponse(Event event) {
         this.eventId = event.getId();
         this.title = event.getTitle();
-        this.dateTime = (Date) event.getDateTime();
+        this.dateTime = event.getDateTime(); // Use java.util.Date directly
         this.location = event.getLocation();
         this.description = event.getDescription();
         this.currentNumberParticipants = event.getCurrentNumberParticipants();
@@ -32,7 +32,7 @@ public class EventResponse {
 
     private UUID eventId;
     private String title;
-    private Date dateTime;
+    private Date dateTime; // Changed from java.sql.Date
     private String location;
     private String description;
     private int currentNumberParticipants;

@@ -25,7 +25,8 @@ export default function Game({ game, refreshGames }) {
   // Use game.id from the game prop
   const gameId = game?.id;
   const gameName = game?.name || "this game"; // Use game name or placeholder
-  const imageSrc = game?.image || "https://upload.wikimedia.org/wikipedia/commons/1/14/No_Image_Available.jpg.svg?height=300&width=400"; // Use origin's placeholder
+  
+  // Removed the default image as we'll handle it with conditional rendering
 
   // JSX structure using Framer Motion from origin/dev-Yessine-D3
   return (
@@ -43,11 +44,21 @@ export default function Game({ game, refreshGames }) {
           >
             <CardContent className="p-0">
               <div className="aspect-[4/3] relative">
-                <img
-                  src={imageSrc}
-                  alt={gameName}
-                  className="object-cover w-full h-full rounded-t-lg"
-                />
+                {game?.image ? (
+                  <img
+                    src={game?.image}
+                    alt={gameName}
+                    className="object-cover w-full h-full rounded-t-lg"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = "https://placehold.co/400x300?text=Game";
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gray-100 rounded-t-lg">
+                    <span className="text-sm text-gray-500">No image available</span>
+                  </div>
+                )}
               </div>
               <div className="p-4">
                 <h3 className="font-semibold text-lg">{gameName}</h3>

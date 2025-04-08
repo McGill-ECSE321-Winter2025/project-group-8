@@ -1,6 +1,6 @@
 package ca.mcgill.ecse321.gameorganizer.repositories;
 
-import java.sql.Date;
+import java.util.Date; // Changed from java.sql.Date
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -42,7 +42,7 @@ public interface EventRepository extends JpaRepository<Event, UUID> {
      */
     List<Event> findEventByTitleContaining(String title);
 
-    List<Event> findEventByDateTime(Date dateTime);
+    List<Event> findEventByDateTime(Date dateTime); // Now expects java.util.Date
     List<Event> findEventByLocation(String location);
     List<Event> findEventByLocationContaining(String location);
     List<Event> findEventByDescription(String description);
