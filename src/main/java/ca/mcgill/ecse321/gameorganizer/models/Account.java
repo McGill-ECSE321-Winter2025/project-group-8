@@ -1,5 +1,6 @@
 package ca.mcgill.ecse321.gameorganizer.models;
 
+import java.time.LocalDateTime;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -10,6 +11,10 @@ import jakarta.persistence.InheritanceType;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import com.fasterxml.jackson.annotation.JsonIdentityInfo;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 
 /**
  * Represents a user account in the game organization system.
@@ -22,6 +27,8 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
+@JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "password", "resetPasswordToken", "resetPasswordTokenExpiry"})
 public class Account {
 
     @Id
@@ -37,6 +44,11 @@ public class Account {
     @Column(nullable = false)
     private String password;
 
+
+    @Column(unique = true)
+    private String resetPasswordToken;
+
+    private LocalDateTime resetPasswordTokenExpiry;
     // Methods
 
     /**

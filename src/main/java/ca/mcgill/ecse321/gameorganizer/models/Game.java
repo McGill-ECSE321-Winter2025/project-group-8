@@ -1,13 +1,21 @@
 package ca.mcgill.ecse321.gameorganizer.models;
 
 import java.util.Date;
+import java.util.Set; // Import Set
 
+import com.fasterxml.jackson.annotation.JsonIdentityInfo; // Import CascadeType
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.ObjectIdGenerators;
+
+import jakarta.persistence.CascadeType; // Import FetchType
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
+import jakarta.persistence.GenerationType; // Import OneToMany
 import jakarta.persistence.Id;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -23,6 +31,8 @@ import lombok.Setter;
 @NoArgsConstructor
 @Getter
 @Setter
+@JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Game {
 
     /** Unique identifier for the game */
@@ -30,7 +40,6 @@ public class Game {
     @GeneratedValue(strategy = GenerationType.AUTO)
     private int id;
 
-    @Column(unique = true) // Should make names unique in db
     /** Name of the game */
     private String name;
 
@@ -49,10 +58,19 @@ public class Game {
     /** Category or genre of the game */
     private String category;
 
+    /** Description of the game */
+    @Column(length = 1000) // Optional: Allow longer descriptions
+    private String description;
+
     /** Owner of the game */
-    @ManyToOne
+    @ManyToOne // Assuming owner is mandatory, add (optional = false) if needed
+    @JsonIgnoreProperties("games")
     private GameOwner owner;
 
+    /** Reviews associated with this game */
+    @OneToMany(mappedBy = "gameReviewed", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @JsonIgnoreProperties("gameReviewed")
+    private Set<Review> reviews;
 
 
     /**
@@ -112,6 +130,7 @@ public class Game {
                this.maxPlayers == game.maxPlayers &&
                (this.name != null ? this.name.equals(game.name) : game.name == null) &&
                (this.image != null ? this.image.equals(game.image) : game.image == null) &&
-               (this.dateAdded != null ? this.dateAdded.equals(game.dateAdded) : game.dateAdded == null);
+               (this.dateAdded != null ? this.dateAdded.equals(game.dateAdded) : game.dateAdded == null) &&
+               (this.category != null ? this.category.equals(game.category) : game.category == null);
     }
 }

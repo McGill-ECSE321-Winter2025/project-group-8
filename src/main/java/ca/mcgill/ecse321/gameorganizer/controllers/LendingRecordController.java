@@ -1,8 +1,5 @@
 package ca.mcgill.ecse321.gameorganizer.controllers;
 
-import ca.mcgill.ecse321.gameorganizer.dto.LendingHistoryFilterDto;
-import ca.mcgill.ecse321.gameorganizer.dto.LendingRecordResponseDto;
-import ca.mcgill.ecse321.gameorganizer.dto.UpdateLendingRecordStatusDto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -11,8 +8,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.ControllerAdvice;
 
 import ca.mcgill.ecse321.gameorganizer.models.LendingRecord;
 import ca.mcgill.ecse321.gameorganizer.models.LendingRecord.LendingStatus;
@@ -20,8 +15,13 @@ import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.services.LendingRecordService;
 import ca.mcgill.ecse321.gameorganizer.services.AccountService;
+import ca.mcgill.ecse321.gameorganizer.dto.request.LendingHistoryFilterDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.UpdateLendingRecordStatusDto;
+import ca.mcgill.ecse321.gameorganizer.dto.response.LendingRecordResponseDto;
+import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException; // Import
 import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
 import ca.mcgill.ecse321.gameorganizer.exceptions.InvalidOperationException;
+import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException; // Import
 
 import java.util.Date;
 import java.util.List;
@@ -38,12 +38,12 @@ import java.util.Collections;
  * @author @YoussGm3o8
  */
 @RestController
-@RequestMapping("/api/v1/lending-records")
+@RequestMapping("/api/lending-records")
 public class LendingRecordController {
 
     @Autowired
     private LendingRecordService lendingRecordService;
-    
+
     @Autowired
     private AccountService accountService;
     
@@ -131,14 +131,52 @@ public class LendingRecordController {
     }
 
     /**
+     * Retrieves a lending record by its associated borrow request ID.
+     * 
+     * @param requestId The ID of the borrow request
+     * @return ResponseEntity containing the lending record if found
+     */
+    @GetMapping("/request/{requestId}")
+    public ResponseEntity<LendingRecordResponseDto> getLendingRecordByRequestId(@PathVariable int requestId) {
+        try {
+            LendingRecord record = lendingRecordService.getLendingRecordByRequestId(requestId);
+            return ResponseEntity.ok(convertToResponseDto(record));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    /**
      * Retrieves lending records by owner.
      * 
      * @param ownerId The ID of the game owner
      * @return ResponseEntity containing lending records for the owner
      */
     @GetMapping("/owner/{ownerId}")
-    public ResponseEntity<List<LendingRecordResponseDto>> getLendingHistoryByOwner(@PathVariable int ownerId) {
+    public ResponseEntity<List<LendingRecordResponseDto>> getLendingHistoryByOwner(
+            @PathVariable int ownerId,
+            @RequestParam(required = false) Integer userId) {
+
         try {
+            // Log the request
+            System.out.println("Fetching lending records for owner ID: " + ownerId);
+            
+            // Log authentication information
+            try {
+                var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+                if (authentication != null) {
+                    System.out.println("Auth principal: " + authentication.getPrincipal());
+                    System.out.println("Auth authorities: " + authentication.getAuthorities());
+                    System.out.println("Auth name: " + authentication.getName());
+                } else {
+                    System.out.println("No authentication found in SecurityContextHolder");
+                }
+            } catch (Exception e) {
+                System.out.println("Error accessing authentication: " + e.getMessage());
+            }
+            
             GameOwner owner = (GameOwner) accountService.getAccountById(ownerId);
             List<LendingRecord> records = lendingRecordService.getLendingRecordsByOwner(owner);
             
@@ -146,9 +184,15 @@ public class LendingRecordController {
                     .map(this::convertToResponseDto)
                     .collect(Collectors.toList());
             
+            System.out.println("Found " + recordDtos.size() + " lending records for owner ID: " + ownerId);
             return ResponseEntity.ok(recordDtos);
         } catch (IllegalArgumentException e) {
+            System.out.println("Error retrieving lending records for owner: " + e.getMessage());
             return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            System.out.println("Unexpected error retrieving lending records: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
@@ -231,8 +275,28 @@ public class LendingRecordController {
      * @return ResponseEntity containing lending records for the borrower
      */
     @GetMapping("/borrower/{borrowerId}")
-    public ResponseEntity<List<LendingRecordResponseDto>> getLendingRecordsByBorrower(@PathVariable int borrowerId) {
+    public ResponseEntity<List<LendingRecordResponseDto>> getLendingRecordsByBorrower(
+            @PathVariable int borrowerId,
+            @RequestParam(required = false) Integer userId) {
+            
         try {
+            // Log the request
+            System.out.println("Fetching lending records for borrower ID: " + borrowerId);
+            
+            // Log authentication information
+            try {
+                var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+                if (authentication != null) {
+                    System.out.println("Auth principal: " + authentication.getPrincipal());
+                    System.out.println("Auth authorities: " + authentication.getAuthorities());
+                    System.out.println("Auth name: " + authentication.getName());
+                } else {
+                    System.out.println("No authentication found in SecurityContextHolder");
+                }
+            } catch (Exception e) {
+                System.out.println("Error accessing authentication: " + e.getMessage());
+            }
+            
             Account borrower = accountService.getAccountById(borrowerId);
             List<LendingRecord> records = lendingRecordService.getLendingRecordsByBorrower(borrower);
             
@@ -240,9 +304,15 @@ public class LendingRecordController {
                     .map(this::convertToResponseDto)
                     .collect(Collectors.toList());
             
+            System.out.println("Found " + recordDtos.size() + " lending records for borrower ID: " + borrowerId);
             return ResponseEntity.ok(recordDtos);
         } catch (IllegalArgumentException e) {
+            System.out.println("Error retrieving lending records for borrower: " + e.getMessage());
             return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            System.out.println("Unexpected error retrieving lending records: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
@@ -283,13 +353,16 @@ public class LendingRecordController {
      * @return ResponseEntity with the result of the operation
      */
     @PostMapping("/{id}/mark-returned")
-    public ResponseEntity<String> markGameAsReturned(
-            @PathVariable int id,
-            @RequestParam(required = false) Integer userId) {
+    public ResponseEntity<String> markGameAsReturned(@PathVariable int id) { // Removed userId parameter
         try {
+            // Service now uses authenticated user for audit/checks if needed
             // Update the status to OVERDUE as a placeholder for "Pending Return Confirmation"
-            return lendingRecordService.updateStatus(id, LendingStatus.OVERDUE, userId, 
+            // Note: The service's updateStatus now requires a reason.
+            return lendingRecordService.updateStatus(id, LendingStatus.OVERDUE,
                     "Game marked as returned by borrower, awaiting owner confirmation");
+        } catch (ForbiddenException | UnauthedException e) {
+             // Re-throw auth exceptions for handler (e.g., GlobalExceptionHandler)
+             throw e;
         } catch (IllegalArgumentException | IllegalStateException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
@@ -312,16 +385,16 @@ public class LendingRecordController {
             @PathVariable int id,
             @RequestParam(required = false, defaultValue = "false") boolean isDamaged,
             @RequestParam(required = false) String damageNotes,
-            @RequestParam(required = false, defaultValue = "0") int damageSeverity,
-            @RequestParam(required = false) Integer userId) {
+            @RequestParam(required = false, defaultValue = "0") int damageSeverity) { // Removed userId parameter
         
         try {
             // Validate damage severity
             damageSeverity = validateDamageSeverity(damageSeverity);
             
             // Close the lending record with damage assessment
+            // Service now uses authenticated user for audit/checks if needed
             ResponseEntity<String> result = lendingRecordService.closeLendingRecordWithDamageAssessment(
-                    id, isDamaged, damageNotes, damageSeverity, userId, "Confirmed return of game");
+                    id, isDamaged, damageNotes, damageSeverity, "Confirmed return of game");
             
             // Create successful response
             Map<String, Object> response = new HashMap<>();
@@ -339,21 +412,17 @@ public class LendingRecordController {
             
             return ResponseEntity.ok(response);
             
-        } catch (IllegalArgumentException e) {
-            // Handle validation errors
+        } catch (ForbiddenException | UnauthedException e) {
+             // Re-throw auth exceptions for handler
+             throw e;
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            // Handle validation errors or state errors like already closed records
             return ResponseEntity.badRequest().body(Map.of(
                 "success", false,
                 "message", e.getMessage(),
                 "recordId", id
             ));
-        } catch (IllegalStateException e) {
-            // Handle state errors like already closed records
-            return ResponseEntity.badRequest().body(Map.of(
-                "success", false,
-                "message", e.getMessage(),
-                "recordId", id
-            ));
-        } catch (Exception e) {
+        } catch (Exception e) { // Catch unexpected errors
             // Other errors
             return ResponseEntity.badRequest().body(Map.of(
                 "success", false,
@@ -432,6 +501,11 @@ public class LendingRecordController {
     public ResponseEntity<String> updateEndDate(@PathVariable int id, @RequestBody Date newEndDate) {
         try {
             return lendingRecordService.updateEndDate(id, newEndDate);
+        } catch (ForbiddenException | UnauthedException e) {
+            // Re-throw auth exceptions for handler
+            throw e;
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (IllegalArgumentException | IllegalStateException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
@@ -495,12 +569,17 @@ public class LendingRecordController {
     @DeleteMapping("/{id}")
     public ResponseEntity<String> deleteLendingRecord(@PathVariable int id) {
         try {
-            // The service returns a ResponseEntity<String>
+            // Service now throws exceptions on failure or returns ResponseEntity on success
             return lendingRecordService.deleteLendingRecord(id);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.notFound().build();
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (ForbiddenException | UnauthedException e) {
+            // Re-throw auth exceptions for handler
+            throw e;
+        } catch (ResourceNotFoundException e) { // Catch specific not found from service
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        } catch (IllegalStateException e) { // Catch specific state errors (e.g., deleting active)
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        } catch (Exception e) { // Catch unexpected errors
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("An unexpected error occurred: " + e.getMessage());
         }
     }
 
@@ -563,17 +642,13 @@ public class LendingRecordController {
     @PutMapping("/{id}/status")
     public ResponseEntity<Map<String, Object>> updateLendingRecordStatus(
             @PathVariable int id,
-            @RequestBody UpdateLendingRecordStatusDto statusDto) {
+            @RequestBody UpdateLendingRecordStatusDto statusDto) { // userId removed from DTO processing
         try {
             // Basic validation
             if (statusDto.getNewStatus() == null || statusDto.getNewStatus().trim().isEmpty()) {
-                return ResponseEntity.badRequest().body(
-                    Map.of(
-                        "success", false, 
-                        "message", "Status cannot be empty", 
-                        "recordId", id
-                    )
-                );
+                 return ResponseEntity.badRequest().body(
+                     Map.of("success", false, "message", "Status cannot be empty", "recordId", id)
+                 );
             }
             
             // Try to parse the status enum value
@@ -581,60 +656,85 @@ public class LendingRecordController {
             try {
                 newStatus = LendingStatus.valueOf(statusDto.getNewStatus().toUpperCase());
             } catch (IllegalArgumentException e) {
-                return ResponseEntity.badRequest().body(
-                    Map.of(
-                        "success", false, 
-                        "message", "Invalid status: " + statusDto.getNewStatus() + 
-                                  ". Valid values are: " + 
-                                  String.join(", ", 
-                                      Arrays.stream(LendingStatus.values())
-                                           .map(Enum::name)
-                                           .collect(Collectors.toList())),
-                        "recordId", id
-                    )
-                );
+                 return ResponseEntity.badRequest().body(
+                     Map.of(
+                         "success", false,
+                         "message", "Invalid status: " + statusDto.getNewStatus() + ". Valid values are: " +
+                                    String.join(", ", Arrays.stream(LendingStatus.values()).map(Enum::name).collect(Collectors.toList())),
+                         "recordId", id
+                     )
+                 );
             }
             
-            // Call the service to update the status with audit information
+            // Call the service to update the status (userId is handled by service now)
             ResponseEntity<String> serviceResult = lendingRecordService.updateStatus(
-                    id, newStatus, statusDto.getUserId(), statusDto.getReason());
+                    id, newStatus, statusDto.getReason()); // Removed userId from call
             
-            // Return a structured response with both the service message and additional data
+            // Return a structured response
             return ResponseEntity.status(serviceResult.getStatusCode()).body(
                 Map.of(
-                    "success", serviceResult.getStatusCode().is2xxSuccessful(), 
+                    "success", serviceResult.getStatusCode().is2xxSuccessful(),
                     "message", serviceResult.getBody(),
                     "recordId", id,
                     "newStatus", newStatus.name()
                 )
             );
-        } catch (IllegalArgumentException e) {
-            // Record not found or other validation error
-            return ResponseEntity.status(404).body(
-                Map.of(
-                    "success", false, 
-                    "message", e.getMessage(),
-                    "recordId", id
-                )
-            );
-        } catch (IllegalStateException e) {
-            // Invalid state transition
-            return ResponseEntity.badRequest().body(
-                Map.of(
-                    "success", false, 
-                    "message", e.getMessage(),
-                    "recordId", id
-                )
-            );
+        } catch (ForbiddenException | UnauthedException e) {
+             // Re-throw auth exceptions for handler
+             throw e;
+        } catch (ResourceNotFoundException e) { // Catch specific not found from service
+             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                 Map.of("success", false, "message", e.getMessage(), "recordId", id)
+             );
+        } catch (IllegalArgumentException | IllegalStateException e) { // Catch validation/state errors
+             return ResponseEntity.badRequest().body(
+                 Map.of("success", false, "message", e.getMessage(), "recordId", id)
+             );
+        } catch (Exception e) { // Catch unexpected errors
+             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                 Map.of("success", false, "message", "An unexpected error occurred: " + e.getMessage(), "recordId", id)
+             );
+        }
+    }
+
+    /**
+     * Checks if the current authenticated user can review a specific game.
+     * A user can only review a game if they have borrowed and returned it.
+     * 
+     * @param gameId The ID of the game to check
+     * @return Map containing a boolean "canReview" flag
+     */
+    @GetMapping("/can-review")
+    public ResponseEntity<Map<String, Boolean>> canUserReviewGame(@RequestParam int gameId) {
+        try {
+            // Get authenticated user
+            var authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated() 
+                    || authentication instanceof org.springframework.security.authentication.AnonymousAuthenticationToken) {
+                return ResponseEntity.ok(Map.of("canReview", false));
+            }
+            
+            String username = authentication.getName();
+            Account user = accountService.getAccountByEmail(username);
+            
+            if (user == null) {
+                return ResponseEntity.ok(Map.of("canReview", false));
+            }
+            
+            // Get user's lending records
+            List<LendingRecord> userRecords = lendingRecordService.getLendingRecordsByBorrower(user);
+            
+            // Check if user has a closed (returned) lending record for this game
+            boolean hasReturnedGame = userRecords.stream()
+                .anyMatch(record -> record.getRequest() != null 
+                    && record.getRequest().getRequestedGame() != null 
+                    && record.getRequest().getRequestedGame().getId() == gameId
+                    && record.getStatus() == LendingStatus.CLOSED);
+            
+            return ResponseEntity.ok(Map.of("canReview", hasReturnedGame));
         } catch (Exception e) {
-            // Unexpected error
-            return ResponseEntity.status(500).body(
-                Map.of(
-                    "success", false, 
-                    "message", "An unexpected error occurred: " + e.getMessage(),
-                    "recordId", id
-                )
-            );
+            System.out.println("Error checking if user can review game " + gameId + ": " + e.getMessage());
+            return ResponseEntity.ok(Map.of("canReview", false));
         }
     }
 
@@ -649,7 +749,8 @@ public class LendingRecordController {
         LendingRecordResponseDto.GameInfo gameInfo = new LendingRecordResponseDto.GameInfo(
                 record.getRequest().getRequestedGame().getId(),
                 record.getRequest().getRequestedGame().getName(),
-                record.getRequest().getRequestedGame().getCategory());
+                record.getRequest().getRequestedGame().getCategory(),
+                record.getRequest().getRequestedGame().getImage());
         
         // Create borrower info
         LendingRecordResponseDto.UserInfo borrowerInfo = new LendingRecordResponseDto.UserInfo(

@@ -6,8 +6,12 @@ import java.util.Date;
 
 import org.junit.jupiter.api.Test;
 
-import ca.mcgill.ecse321.gameorganizer.dto.LendingRecordResponseDto.GameInfo;
-import ca.mcgill.ecse321.gameorganizer.dto.LendingRecordResponseDto.UserInfo;
+import ca.mcgill.ecse321.gameorganizer.dto.request.LendingHistoryFilterDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.UpdateLendingRecordStatusDto;
+import ca.mcgill.ecse321.gameorganizer.dto.response.LendingRecordDto;
+import ca.mcgill.ecse321.gameorganizer.dto.response.LendingRecordResponseDto;
+import ca.mcgill.ecse321.gameorganizer.dto.response.LendingRecordResponseDto.GameInfo;
+import ca.mcgill.ecse321.gameorganizer.dto.response.LendingRecordResponseDto.UserInfo;
 
 /**
  * Test class for the LendingRecord DTOs.
@@ -121,7 +125,7 @@ public class LendingRecordDtoTests {
         // Create test data
         Date startDate = new Date();
         Date endDate = new Date(startDate.getTime() + 86400000 * 7); // 7 days later
-        GameInfo game = new GameInfo(1, "Test Game", "Strategy");
+        GameInfo game = new GameInfo(1, "Test Game", "Strategy", null);
         UserInfo borrower = new UserInfo(2, "Test Borrower", "borrower@test.com");
         UserInfo owner = new UserInfo(3, "Test Owner", "owner@test.com");
         
@@ -160,7 +164,7 @@ public class LendingRecordDtoTests {
     @Test
     public void testGameInfoInnerClass() {
         // Test the GameInfo inner class of LendingRecordResponseDto
-        GameInfo gameInfo = new GameInfo(1, "Test Game", "Strategy");
+        GameInfo gameInfo = new GameInfo(1, "Test Game", "Strategy", null);
         
         assertEquals(1, gameInfo.getId());
         assertEquals("Test Game", gameInfo.getName());
@@ -182,7 +186,7 @@ public class LendingRecordDtoTests {
         // Create test data
         Date startDate = new Date();
         Date endDate = new Date(startDate.getTime() + 86400000 * 7); // 7 days later
-        GameInfo game = new GameInfo(1, "Test Game", "Strategy");
+        GameInfo game = new GameInfo(1, "Test Game", "Strategy", null);
         UserInfo borrower = new UserInfo(2, "Test Borrower", "borrower@test.com");
         UserInfo owner = new UserInfo(3, "Test Owner", "owner@test.com");
         

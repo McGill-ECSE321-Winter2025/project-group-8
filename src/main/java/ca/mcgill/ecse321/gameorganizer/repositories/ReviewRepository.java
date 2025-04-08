@@ -86,4 +86,6 @@ public interface ReviewRepository extends JpaRepository<Review, Integer> {
      * @return Optional containing the review if found, empty otherwise
      */
     List<Review> findReviewsByReviewerName(String username);
+
+    List<Review> findReviewsByReviewerEmail(String email);
 }

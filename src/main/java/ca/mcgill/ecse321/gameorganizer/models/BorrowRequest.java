@@ -38,9 +38,12 @@ public class BorrowRequest {
     private Game requestedGame;
 
     @ManyToOne
-    private Account requester;
+    private GameInstance gameInstance;
 
     @ManyToOne
+    private Account requester;
+
+    @ManyToOne(optional = true) // Allow responder to be null initially
     private GameOwner responder;
 
     // Methods
@@ -53,13 +56,15 @@ public class BorrowRequest {
      * @param aStatus       The current status of the request
      * @param aRequestDate  The date when the request was made
      * @param aRequestedGame The game being requested to borrow
+     * @param aGameInstance The specific game instance being requested
      */
-    public BorrowRequest(Date aStartDate, Date aEndDate, BorrowRequestStatus aStatus, Date aRequestDate, Game aRequestedGame) {
+    public BorrowRequest(Date aStartDate, Date aEndDate, BorrowRequestStatus aStatus, Date aRequestDate, Game aRequestedGame, GameInstance aGameInstance) {
         startDate = aStartDate;
         endDate = aEndDate;
         status = aStatus;
         requestDate = aRequestDate;
         requestedGame = aRequestedGame;
+        gameInstance = aGameInstance;
     }
 
     /**

@@ -1,24 +1,20 @@
 package ca.mcgill.ecse321.gameorganizer.config;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
-import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-import ca.mcgill.ecse321.gameorganizer.middleware.UserAuthInterceptor;
-
 @Configuration
-@Profile("!test")
 public class WebConfig implements WebMvcConfigurer {
-
-    @Autowired
-    private UserAuthInterceptor userAuthInterceptor;
-
     @Override
-    public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(userAuthInterceptor)
-                .addPathPatterns("/**")
-                .excludePathPatterns("/login", "/reset-password", "/register", "/account");
+    public void addCorsMappings(CorsRegistry registry) {
+        registry.addMapping("/**") // Apply to all endpoints
+                // Use allowedOriginPatterns for flexibility during development
+                .allowedOriginPatterns("http://localhost:*")
+                // Or list specific origins: .allowedOrigins("http://localhost:5173", "http://localhost:xxxx")
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS") // Allowed methods
+                .allowedHeaders("*") // Allow all headers
+                .allowCredentials(true) // IMPORTANT: Allow cookies/auth headers
+                .maxAge(3600); // Cache preflight response for 1 hour
     }
 }
