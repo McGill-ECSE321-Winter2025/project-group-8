@@ -10,6 +10,7 @@ public class GameInstanceResponseDto {
     private int id;
     private int gameId;
     private String gameName;
+    private String gameImage; // Add field for game image
     private String condition;
     private boolean available;
     private String location;
@@ -32,6 +33,7 @@ public class GameInstanceResponseDto {
         this.id = id;
         this.gameId = gameId;
         this.gameName = gameName;
+        // No gameImage in this constructor, maybe add later if needed
         this.condition = condition;
         this.available = available;
         this.location = location;
@@ -48,6 +50,7 @@ public class GameInstanceResponseDto {
         this.id = instance.getId();
         this.gameId = instance.getGame().getId();
         this.gameName = instance.getGame().getName();
+        this.gameImage = instance.getGame().getImage(); // Get image from parent Game
         this.condition = instance.getCondition();
         this.available = instance.isAvailable();
         this.location = instance.getLocation();
@@ -86,6 +89,14 @@ public class GameInstanceResponseDto {
 
     public void setGameName(String gameName) {
         this.gameName = gameName;
+    }
+
+    public String getGameImage() { // Add getter for gameImage
+        return gameImage;
+    }
+
+    public void setGameImage(String gameImage) { // Add setter for gameImage
+        this.gameImage = gameImage;
     }
 
     public String getCondition() {
@@ -162,4 +173,4 @@ public class GameInstanceResponseDto {
         public String getEmail() { return email; }
         public void setEmail(String email) { this.email = email; }
     }
-} 
+}

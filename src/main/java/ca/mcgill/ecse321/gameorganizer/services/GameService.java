@@ -1,11 +1,11 @@
 package ca.mcgill.ecse321.gameorganizer.services;
 
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.Collections;
 
 import org.slf4j.Logger; // Added Logger import
 import org.slf4j.LoggerFactory; // Added LoggerFactory import
@@ -42,11 +42,6 @@ import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.LendingRecordRepository; // Import added
 import ca.mcgill.ecse321.gameorganizer.repositories.RegistrationRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
-
-import ca.mcgill.ecse321.gameorganizer.repositories.GameInstanceRepository;
-import ca.mcgill.ecse321.gameorganizer.models.GameInstance;
-import ca.mcgill.ecse321.gameorganizer.repositories.LendingRecordRepository;
-import ca.mcgill.ecse321.gameorganizer.models.LendingRecord;
 
 
 /**
@@ -197,6 +192,7 @@ public class GameService {
         );
         game.setOwner(owner);
         game.setCategory(gameDto.getCategory());
+        game.setDescription(gameDto.getDescription()); // Set description during creation
         game = gameRepository.save(game);
 
         // Create the initial game instance
@@ -389,6 +385,7 @@ public class GameService {
         game.setMaxPlayers(updateDto.getMaxPlayers());
         game.setImage(updateDto.getImage());
         game.setCategory(updateDto.getCategory());
+        game.setDescription(updateDto.getDescription()); // Set description during update
 
         // Save the updated game
             gameRepository.save(game);
@@ -1171,6 +1168,28 @@ public class GameService {
         }
         
         GameOwner owner = (GameOwner) account;
+        
+        // Get all instances owned by this user
+        List<GameInstance> instances = gameInstanceRepository.findByOwner(owner);
+        
+        // Convert to DTOs
+        return instances.stream()
+                .map(GameInstanceResponseDto::new)
+                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Retrieves all game instances owned by a specific GameOwner.
+     *
+     * @param owner The GameOwner whose instances are to be retrieved.
+     * @return List of game instance DTOs owned by the specified user.
+     * @throws IllegalArgumentException if the owner is null.
+     */
+    @Transactional
+    public List<GameInstanceResponseDto> getGameInstancesByOwner(GameOwner owner) {
+        if (owner == null) {
+            throw new IllegalArgumentException("Owner cannot be null when fetching game instances.");
+        }
         
         // Get all instances owned by this user
         List<GameInstance> instances = gameInstanceRepository.findByOwner(owner);

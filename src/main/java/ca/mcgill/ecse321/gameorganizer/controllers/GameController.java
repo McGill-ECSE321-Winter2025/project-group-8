@@ -1,29 +1,37 @@
 package ca.mcgill.ecse321.gameorganizer.controllers;
 
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
+import ca.mcgill.ecse321.gameorganizer.dto.request.GameCreationDto;
+import ca.mcgill.ecse321.gameorganizer.dto.request.GameSearchCriteria;
+import ca.mcgill.ecse321.gameorganizer.dto.request.ReviewSubmissionDto; // Import
+import ca.mcgill.ecse321.gameorganizer.dto.response.GameInstanceResponseDto; // Import
+import ca.mcgill.ecse321.gameorganizer.dto.response.GameResponseDto; // Import
+import ca.mcgill.ecse321.gameorganizer.dto.response.ReviewResponseDto; // Import
+import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException;
+import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException;
+import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException;
 import ca.mcgill.ecse321.gameorganizer.models.Account;
 import ca.mcgill.ecse321.gameorganizer.models.Game;
 import ca.mcgill.ecse321.gameorganizer.models.GameOwner;
 import ca.mcgill.ecse321.gameorganizer.services.AccountService;
 import ca.mcgill.ecse321.gameorganizer.services.GameService;
-import ca.mcgill.ecse321.gameorganizer.dto.request.GameCreationDto;
-import ca.mcgill.ecse321.gameorganizer.dto.request.GameSearchCriteria;
-import ca.mcgill.ecse321.gameorganizer.dto.request.ReviewSubmissionDto;
-import ca.mcgill.ecse321.gameorganizer.dto.response.GameResponseDto;
-import ca.mcgill.ecse321.gameorganizer.dto.response.GameInstanceResponseDto;
-import ca.mcgill.ecse321.gameorganizer.dto.response.ReviewResponseDto;
-import ca.mcgill.ecse321.gameorganizer.exceptions.ForbiddenException; // Import
-import ca.mcgill.ecse321.gameorganizer.exceptions.UnauthedException; // Import
-import ca.mcgill.ecse321.gameorganizer.exceptions.ResourceNotFoundException; // Import
-import org.springframework.web.server.ResponseStatusException; // Import
 
 /**
  * Controller that handles API endpoints for game operations.
@@ -242,17 +250,57 @@ public class GameController {
     }
 
     /**
-     * Get all instances for a specific game
+     * Get all instances for a specific game OR owned by a specific user.
+     * If 'id' path variable is present, gets instances for that game.
+     * If 'ownerId' request parameter is present, gets instances owned by that user.
+     * If 'my' request parameter is true, gets instances for the current user.
+     * If none are present, potentially returns all instances (or could be restricted).
+     * 
+     * @param id (Optional) Path variable for the game ID.
+     * @param ownerId (Optional) Request parameter for the owner's email.
+     * @param my (Optional) Request parameter to fetch current user's instances.
+     * @return List of game instances.
      */
-    @GetMapping("/{id}/instances")
-    public ResponseEntity<List<GameInstanceResponseDto>> getGameInstances(@PathVariable int id) {
+    @GetMapping({"/instances", "/{id}/instances"}) // Combine paths
+    public ResponseEntity<List<GameInstanceResponseDto>> getGameInstances(
+            @PathVariable(required = false) Integer id,
+            @RequestParam(required = false) String ownerId,
+            @RequestParam(required = false) Boolean my) {
         try {
-            List<GameInstanceResponseDto> instances = service.getInstancesByGameId(id);
+            List<GameInstanceResponseDto> instances;
+            if (id != null) {
+                // Fetch by game ID (original functionality)
+                instances = service.getInstancesByGameId(id);
+            } else if (ownerId != null && !ownerId.isEmpty()) {
+                // Fetch by owner email
+                Account account = accountService.getAccountByEmail(ownerId);
+                if (account instanceof GameOwner) {
+                    instances = service.getGameInstancesByOwner((GameOwner) account);
+                } else {
+                    throw new IllegalArgumentException("Specified ownerId does not belong to a GameOwner account.");
+                }
+            } else if (my != null && my) {
+                 // Fetch for current authenticated user
+                 instances = service.getGameInstancesByCurrentUser();
+            }
+            else {
+                // Optional: Decide what to do if no filter is provided.
+                // Could return all instances, or throw an error, or return empty list.
+                // Returning empty list for now to avoid exposing all instances unintentionally.
+                 instances = java.util.Collections.emptyList();
+                 // Alternatively, throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Please specify a game ID, owner ID, or 'my=true' to fetch instances.");
+            }
             return ResponseEntity.ok(instances);
         } catch (ResourceNotFoundException e) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        } catch (IllegalArgumentException e) {
+             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        } catch (UnauthedException e) { // Needed for getGameInstancesByCurrentUser
+             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, e.getMessage());
         } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error retrieving game instances");
+            // Log unexpected errors
+            // logger.error("Unexpected error retrieving game instances: {}", e.getMessage(), e); // Assuming logger is available
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error retrieving game instances: " + e.getMessage());
         }
     }
 
@@ -416,4 +464,6 @@ public class GameController {
                     "An unexpected error occurred while fetching your game instances: " + e.getMessage());
         }
     }
+
+    // Note: Removed the separate /instances/my endpoint as its functionality is merged into the combined /instances endpoint.
 }

@@ -3,22 +3,22 @@ package ca.mcgill.ecse321.gameorganizer.models;
 import java.util.Date;
 import java.util.Set; // Import Set
 
-import jakarta.persistence.CascadeType; // Import CascadeType
+import com.fasterxml.jackson.annotation.JsonIdentityInfo; // Import CascadeType
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.ObjectIdGenerators;
+
+import jakarta.persistence.CascadeType; // Import FetchType
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType; // Import FetchType
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
+import jakarta.persistence.GenerationType; // Import OneToMany
 import jakarta.persistence.Id;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToMany; // Import OneToMany
+import jakarta.persistence.OneToMany;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-
-import com.fasterxml.jackson.annotation.JsonIdentityInfo;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.ObjectIdGenerators;
 
 /**
  * Represents a board game in the system.
@@ -57,6 +57,10 @@ public class Game {
 
     /** Category or genre of the game */
     private String category;
+
+    /** Description of the game */
+    @Column(length = 1000) // Optional: Allow longer descriptions
+    private String description;
 
     /** Owner of the game */
     @ManyToOne // Assuming owner is mandatory, add (optional = false) if needed

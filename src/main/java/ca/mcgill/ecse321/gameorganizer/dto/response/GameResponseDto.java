@@ -16,6 +16,7 @@ public class GameResponseDto {
     private String image;
     private Date dateAdded;
     private String category;
+    private String description; // Add description field
     private AccountDto owner;
 
     // Default constructor
@@ -34,6 +35,7 @@ public class GameResponseDto {
         this.image = game.getImage();
         this.dateAdded = game.getDateAdded();
         this.category = game.getCategory();
+        this.description = game.getDescription(); // Map description from Game entity
         if (game.getOwner() != null) {
             this.owner = new AccountDto(game.getOwner());
         }
@@ -61,6 +63,9 @@ public class GameResponseDto {
 
     public String getCategory() { return category; }
     public void setCategory(String category) { this.category = category; }
+
+    public String getDescription() { return description; } // Add getter
+    public void setDescription(String description) { this.description = description; } // Add setter
 
     public AccountDto getOwner() { return owner; }
     public void setOwner(AccountDto owner) { this.owner = owner; }
