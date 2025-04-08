@@ -47,7 +47,7 @@ The build system documentation can be found [here](https://github.com/McGill-ECS
 | Alexander Kudinov                | Backend Developer     | 7                   | 15                   | 15                  | 37           |
 | Shayan Yamanidouzi Sorkhabi       | Frontend Developer    | 6                   | 15                   | 25                   | 46           |
 | Jiwoong Choi                      | Test Lead            | 2                   | 18                   | X                   | X           |
-| Youssef El Kesti                  | Scrum Master         | 6                   | 14                   | 17                  | 37           |
+| Youssef El Kesti                  | Scrum Master         | 6                   | 14                   | 31                  | 51           |
 | David Wang                        | Project Manager      | 5.5                   | 15                   | 25                   | 45.5           |
 | Yessine Chaari                    | DevOps               | 8.0                   | 15                   | 20                   | X           |
 | Rayan Baida                       | Fullstack Developer  | 7.5                   | 17                   | 22                   | 46.5           |
