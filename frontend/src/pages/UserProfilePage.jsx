@@ -7,26 +7,68 @@ import { EventCard } from "../components/events-page/EventCard"; // Assuming Eve
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { getUserInfoByEmail } from "../service/user-api.js";
-import { getGamesByOwner } from "../service/game-api.js";
+import { getUserGameInstances } from "../service/game-api.js"; // Change to getUserGameInstances
 import { getEventsByHostEmail } from "../service/event-api.js";
 import { getRegistrationsByEmail } from "../service/registration-api.js"; // Import the registration API
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext"; // Import useAuth
 
-// Define GameCard locally if it's specific to this page, otherwise import it
-const GameCard = ({ game }) => {
+// Define GameInstanceCard component for displaying game instances
+const GameInstanceCard = ({ instance }) => {
+  // Get the game information from the instance
+  const game = {
+    id: instance.gameId,
+    title: instance.gameName || "Unnamed Game", // The main game title
+    copyName: instance.name, // The specific copy/instance name
+    image: instance.image || instance.gameImage,
+    condition: instance.condition || "Not specified",
+    location: instance.location || "Not specified",
+    available: instance.available || false,
+    acquiredDate: instance.acquiredDate ? new Date(instance.acquiredDate).toLocaleDateString() : "Unknown"
+  };
+
   return (
     <Card className="overflow-hidden">
       <div className="h-40 overflow-hidden bg-muted flex items-center justify-center">
         {game.image ? (
-           <img src={game.image} alt={game.name} className="w-full h-full object-cover" />
+           <img src={game.image} alt={game.title} className="w-full h-full object-cover" />
         ) : (
            <span className="text-sm text-muted-foreground">No Image</span>
         )}
       </div>
       <CardContent className="p-4">
-        <h3 className="font-semibold text-lg truncate">{game.name}</h3>
-        {/* Add other game details if available/needed */}
+        {/* Game title displayed prominently */}
+        <h3 className="font-semibold text-lg truncate">{game.title}</h3>
+        
+        {/* Copy name displayed smaller if it exists and is different from title */}
+        {game.copyName && game.copyName !== game.title && (
+          <p className="text-sm text-muted-foreground mt-1 truncate">
+            "{game.copyName}"
+          </p>
+        )}
+        
+        <div className="mt-2 space-y-1 text-sm">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Condition:</span>
+            <span>{game.condition}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Location:</span>
+            <span>{game.location}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Status:</span>
+            <Badge variant={game.available ? "success" : "secondary"}>
+              {game.available ? "Available" : "Unavailable"}
+            </Badge>
+          </div>
+          {game.acquiredDate && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Acquired:</span>
+              <span>{game.acquiredDate}</span>
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
@@ -40,7 +82,7 @@ export default function UserProfilePage() {
 
   // State for fetched data
   const [userInfo, setUserInfo] = useState(null); // Includes name, events, isGameOwner
-  const [ownedGamesList, setOwnedGamesList] = useState([]);
+  const [gameInstances, setGameInstances] = useState([]); // Changed from ownedGamesList to gameInstances
   const [hostedEventsList, setHostedEventsList] = useState([]);
   const [registeredEventsList, setRegisteredEventsList] = useState([]); // New state for registered events
   const [isLoading, setIsLoading] = useState(true);
@@ -72,7 +114,7 @@ export default function UserProfilePage() {
     setIsLoading(true);
     setError(null);
     setUserInfo(null);
-    setOwnedGamesList([]);
+    setGameInstances([]); // Clear game instances
     setHostedEventsList([]);
     setRegisteredEventsList([]); // Clear registered events list
 
@@ -83,13 +125,15 @@ export default function UserProfilePage() {
       
       setUserInfo(accountData);
 
-      // If user is a game owner, fetch their games
-      if (accountData && accountData.gameOwner) {
+      // If user is a game owner, fetch their game instances (only for own profile)
+      if (accountData && accountData.gameOwner && isOwnProfile) {
         try {
-          const gamesData = await getGamesByOwner(emailToFetch);
-          setOwnedGamesList(gamesData || []);
-        } catch (gamesError) {
-           console.error("Failed to fetch owned games:", gamesError);
+          // We can only get game instances for the current authenticated user
+          const instancesData = await getUserGameInstances();
+          console.log(`Retrieved ${instancesData?.length || 0} game instances:`, instancesData);
+          setGameInstances(instancesData || []);
+        } catch (instancesError) {
+           console.error("Failed to fetch game instances:", instancesError);
            // Don't set error state here - just log it as we want to continue even if games can't be fetched
         }
       }
@@ -136,7 +180,7 @@ export default function UserProfilePage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isOwnProfile]);
 
   useEffect(() => {
     // Use profile email from URL params, or fall back to current user's email
@@ -223,28 +267,28 @@ export default function UserProfilePage() {
       {/* Tabs for different sections */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="mb-6">
-          {userInfo.gameOwner && (
-             <TabsTrigger value="games">Owned Games</TabsTrigger>
+          {userInfo.gameOwner && isOwnProfile && (
+             <TabsTrigger value="games">Game Collection</TabsTrigger>
           )}
           <TabsTrigger value="hosting">Hosting</TabsTrigger>
           <TabsTrigger value="registered">Registered Events</TabsTrigger>
         </TabsList>
 
-        {/* Games Tab - Only render if owner */}
-        {userInfo.gameOwner && (
+        {/* Games Tab - Only render if owner and viewing own profile */}
+        {userInfo.gameOwner && isOwnProfile && (
           <TabsContent value="games">
             <div>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-semibold">Games Owned</h2>
+                <h2 className="text-2xl font-semibold">Game Collection</h2>
               </div>
-              {ownedGamesList && ownedGamesList.length > 0 ? (
+              {gameInstances && gameInstances.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                  {ownedGamesList.map((game) => (
-                    <GameCard key={game.id} game={game} />
+                  {gameInstances.map((instance) => (
+                    <GameInstanceCard key={instance.id} instance={instance} />
                   ))}
                 </div>
               ) : (
-                <p className="text-muted-foreground">No games owned yet.</p>
+                <p className="text-muted-foreground">No game instances found in your collection.</p>
               )}
             </div>
           </TabsContent>
