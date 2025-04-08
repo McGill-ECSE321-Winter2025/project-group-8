@@ -1,11 +1,11 @@
 package ca.mcgill.ecse321.gameorganizer.services;
 
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.Collections;
 
 import org.slf4j.Logger; // Added Logger import
 import org.slf4j.LoggerFactory; // Added LoggerFactory import
@@ -42,11 +42,6 @@ import ca.mcgill.ecse321.gameorganizer.repositories.GameRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.LendingRecordRepository; // Import added
 import ca.mcgill.ecse321.gameorganizer.repositories.RegistrationRepository;
 import ca.mcgill.ecse321.gameorganizer.repositories.ReviewRepository;
-
-import ca.mcgill.ecse321.gameorganizer.repositories.GameInstanceRepository;
-import ca.mcgill.ecse321.gameorganizer.models.GameInstance;
-import ca.mcgill.ecse321.gameorganizer.repositories.LendingRecordRepository;
-import ca.mcgill.ecse321.gameorganizer.models.LendingRecord;
 
 
 /**
@@ -197,6 +192,7 @@ public class GameService {
         );
         game.setOwner(owner);
         game.setCategory(gameDto.getCategory());
+        game.setDescription(gameDto.getDescription()); // Set description during creation
         game = gameRepository.save(game);
 
         // Create the initial game instance
@@ -389,6 +385,7 @@ public class GameService {
         game.setMaxPlayers(updateDto.getMaxPlayers());
         game.setImage(updateDto.getImage());
         game.setCategory(updateDto.getCategory());
+        game.setDescription(updateDto.getDescription()); // Set description during update
 
         // Save the updated game
             gameRepository.save(game);

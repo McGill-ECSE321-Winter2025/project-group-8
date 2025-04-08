@@ -9,6 +9,7 @@ public class GameCreationDto {
     private int maxPlayers;
     private String image;
     private String category;
+    private String description; // Add description field
     private String ownerId;
     
     // Instance-specific fields
@@ -104,5 +105,14 @@ public class GameCreationDto {
 
     public void setInstanceName(String instanceName) {
         this.instanceName = instanceName;
+    }
+
+    // Getter and Setter for description
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
     }
 }
