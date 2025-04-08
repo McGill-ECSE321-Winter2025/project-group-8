@@ -45,10 +45,10 @@ The build system documentation can be found [here](https://github.com/McGill-ECS
 | Name                              | Role                  | Deliverable 1 (hrs) | Deliverable 2 (hrs) | Deliverable 3 (hrs) | Total Hours |
 |-----------------------------------|-----------------------|---------------------|---------------------|---------------------|-------------|
 | Alexander Kudinov                | Backend Developer     | 7                   | 15                   | 15                  | 37           |
-| Shayan Yamanidouzi Sorkhabi       | Frontend Developer    | 6                   | 15                   | X                   | X           |
+| Shayan Yamanidouzi Sorkhabi       | Frontend Developer    | 6                   | 15                   | 25                   | 46           |
 | Jiwoong Choi                      | Test Lead            | 2                   | 18                   | X                   | X           |
 | Youssef El Kesti                  | Scrum Master         | 6                   | 14                   | 17                  | 37           |
-| David Wang                        | Project Manager      | 5.5                   | 15                   | X                   | X           |
+| David Wang                        | Project Manager      | 5.5                   | 15                   | 25                   | 45.5           |
 | Yessine Chaari                    | DevOps               | 8.0                   | 15                   | 20                   | X           |
 | Rayan Baida                       | Fullstack Developer  | 7.5                   | 17                   | 22                   | 46.5           |
 - The details on the contribution of each member are available at [Team Contribution Report](https://github.com/McGill-ECSE321-Winter2025/project-group-8/wiki/Team-contributions#team-contributions), as well as [projects/Deliverable1](https://github.com/orgs/McGill-ECSE321-Winter2025/projects/22), [projects/Deliverable2](https://github.com/orgs/McGill-ECSE321-Winter2025/projects/34), [projects/Deliverable3](https://github.com/orgs/McGill-ECSE321-Winter2025/projects/37) and [meeting minutes](https://github.com/McGill-ECSE321-Winter2025/project-group-8/wiki/Project-report#meeting-minutes)
