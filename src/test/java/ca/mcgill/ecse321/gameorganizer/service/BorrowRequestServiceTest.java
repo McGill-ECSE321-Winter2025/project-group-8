@@ -378,10 +378,9 @@ public class BorrowRequestServiceTest {
         Authentication auth = mock(Authentication.class);
         SecurityContext securityContext = mock(SecurityContext.class);
         
-        // Make all authentication mocking lenient to avoid UnnecessaryStubbingException
-        lenient().when(securityContext.getAuthentication()).thenReturn(auth);
-        lenient().when(auth.getName()).thenReturn(owner.getEmail());
-        lenient().when(auth.isAuthenticated()).thenReturn(true);
+        // We still need authentication setup as it's used in the service
+        when(securityContext.getAuthentication()).thenReturn(auth);
+        when(auth.getName()).thenReturn(owner.getEmail());
         SecurityContextHolder.setContext(securityContext);
 
         try {
@@ -409,18 +408,17 @@ public class BorrowRequestServiceTest {
             request.setEndDate(new Date(System.currentTimeMillis() + 86400000));
             request.setRequestDate(new Date());
             request.setGameInstance(gameInstance); // Set the game instance
-            
-            List<GameInstance> gameInstances = new ArrayList<>();
-            gameInstances.add(gameInstance);
 
-            // Use doReturn for the spy method and make it lenient
-            lenient().doReturn(true).when(borrowRequestService).isGameOwnerOfRequest(VALID_REQUEST_ID, owner.getEmail());
+            // This is required as it's called in the actual method
+            doReturn(true).when(borrowRequestService).isGameOwnerOfRequest(VALID_REQUEST_ID, owner.getEmail());
             
+            // This is required as it gets the request to update
             when(borrowRequestRepository.findBorrowRequestById(VALID_REQUEST_ID)).thenReturn(Optional.of(request));
-            when(gameInstanceRepository.findByGame(game)).thenReturn(gameInstances);
-            when(borrowRequestRepository.findOverlappingApprovedRequestsForGameInstance(
-                VALID_GAME_INSTANCE_ID, request.getStartDate(), request.getEndDate())).thenReturn(new ArrayList<>());
+            
+            // This is needed to save the updated request
             when(borrowRequestRepository.save(any(BorrowRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            
+            // This is needed for creating a lending record
             when(lendingRecordService.createLendingRecord(any(Date.class), any(Date.class), any(BorrowRequest.class), any(GameOwner.class)))
                 .thenReturn(ResponseEntity.ok("Lending record created successfully"));
 
