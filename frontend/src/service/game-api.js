@@ -736,7 +736,7 @@ export const getGamesAvailableForEvents = async (userId) => {
       console.error("getGamesAvailableForEvents: Error fetching borrowed games:", error);
       // Continue with whatever games we have
     }
-    return [];
+    return allAccessibleGames;
   } catch (error) {
     console.error("getGamesAvailableForEvents: Error fetching games:", error);
   }
