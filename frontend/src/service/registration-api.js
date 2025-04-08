@@ -23,11 +23,21 @@ export const getRegistrationsByEmail = async (email, retryCount = 0) => {
   }
 
   try {
-    // Use the correct API endpoint path
-    const registrations = await apiClient(`/registrations/user/${encodeURIComponent(email)}`, {
+    console.log(`[RegistrationAPI] Fetching registrations for ${email}`);
+    
+    // Use the correct API endpoint path - ensure it matches the backend controller
+    const registrations = await apiClient(`/api/registrations/user/${encodeURIComponent(email)}`, {
       method: "GET",
       skipPrefix: false
     });
+    
+    if (!Array.isArray(registrations)) {
+      console.warn(`[RegistrationAPI] Registration response is not an array:`, registrations);
+      return [];
+    }
+    
+    console.log(`[RegistrationAPI] Retrieved ${registrations.length} registrations for ${email}`);
+    
     return registrations;
   } catch (error) {
     // If unauthorized error and we haven't exceeded max retries, try again
@@ -37,7 +47,7 @@ export const getRegistrationsByEmail = async (email, retryCount = 0) => {
     }
     
     console.error(`Failed to fetch registrations for user ${email}:`, error);
-    throw error; // Re-throw the specific error from apiClient
+    return []; // Return empty array instead of throwing to prevent UI breaking
   }
 };
 

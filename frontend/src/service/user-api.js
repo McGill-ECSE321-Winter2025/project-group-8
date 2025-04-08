@@ -22,6 +22,8 @@ export async function getUserInfoByEmail(email) {
       throw new Error("Email is required");
     }
     
+    console.log(`[UserAPI] Fetching user info for ${email}`);
+    
     // Use the correct API endpoint for finding a user by exact email
     const response = await apiClient(`/api/users/email/${email}`, {
       method: 'GET',
@@ -32,8 +34,24 @@ export async function getUserInfoByEmail(email) {
       throw new Error(response.error || "Invalid response from server");
     }
 
-    // Fetch additional user game data
+    console.log(`[UserAPI] Successfully fetched basic user data for ${email}`);
+    
+    // Fetch additional user game data and registrations
     const userData = await enrichUserWithGameData(response);
+    
+    // Check if events data is already present
+    if (userData.events && Array.isArray(userData.events)) {
+      console.log(`[UserAPI] User data already contains ${userData.events.length} events/registrations`);
+    } else {
+      console.log(`[UserAPI] No events found in user data, fetching registrations separately`);
+      
+      // Fetch registrations separately if they're not in the response
+      const registrations = await fetchUserRegistrations(email);
+      userData.events = registrations || [];
+      
+      console.log(`[UserAPI] Added ${userData.events.length} registrations to user data`);
+    }
+    
     return userData;
   } catch (error) {
     console.error(`Error fetching user info for ${email}:`, error);
@@ -71,6 +89,38 @@ async function enrichUserWithGameData(user) {
     console.error(`Error enriching user data for user ID ${user.id}:`, error);
     // Return original user data if enrichment fails
     return user;
+  }
+}
+
+/**
+ * Fetch user registrations by email
+ * @param {string} email - The email of the user
+ * @returns {Promise<Array>} - Array of registration objects
+ */
+async function fetchUserRegistrations(email) {
+  try {
+    if (!email) {
+      return [];
+    }
+    
+    console.log(`[UserAPI] Fetching registrations for user ${email}`);
+    
+    // Use the registration API to get user's registrations
+    const registrations = await apiClient(`/api/registrations/user/${encodeURIComponent(email)}`, {
+      method: 'GET',
+      skipPrefix: false // Explicitly set skipPrefix to false to match registration-api.js
+    });
+    
+    console.log(`[UserAPI] Retrieved ${Array.isArray(registrations) ? registrations.length : 0} registrations for ${email}`);
+    
+    if (!Array.isArray(registrations)) {
+      console.warn(`[UserAPI] Registrations response is not an array:`, registrations);
+    }
+    
+    return Array.isArray(registrations) ? registrations : [];
+  } catch (error) {
+    console.error(`Error fetching registrations for ${email}:`, error);
+    return [];
   }
 }
 
