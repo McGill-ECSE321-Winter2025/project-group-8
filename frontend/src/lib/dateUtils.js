@@ -78,5 +78,3 @@ export const formatDateTimeForDisplay = (dateTimeInput) => {
     return { date: "Format Error", time: "Format Error", tz: "Error" };
   }
 };
-
-// Add other date utilities if needed...

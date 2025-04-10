@@ -98,18 +98,48 @@ public class LendingRecordService {
                 throw new IllegalArgumentException("The borrow request already has a lending record associated with it");
             }
 
-            // Validate dates
+            // Validate dates - only check that end date is not before start date
             Date now = new Date();
             if (endDate.before(startDate)) {
                 throw new IllegalArgumentException("End date cannot be before start date");
             }
-            // Allow a margin of 1 second for the start date (to account for processing delays)
-            if (startDate.getTime() < now.getTime() - 1000) {
-                throw new IllegalArgumentException("Start date cannot be in the past");
+            
+            // Handle past dates scenario
+            Date effectiveStartDate = startDate;
+            Date effectiveEndDate = endDate;
+            LendingStatus initialStatus = LendingStatus.ACTIVE;
+            
+            // If both start and end dates are in the past
+            if (startDate.before(now) && endDate.before(now)) {
+                log.info("Both start date {} and end date {} are in the past for request {}. Setting record to OVERDUE status.", 
+                         startDate, endDate, request.getId());
+                
+                // Use original dates but set status to OVERDUE
+                initialStatus = LendingStatus.OVERDUE;
+            }
+            // If only start date is in the past
+            else if (startDate.before(now)) {
+                log.info("Start date {} is in the past for request {}. Adjusting to current time {}.", 
+                         startDate, request.getId(), now);
+                effectiveStartDate = now;
+                
+                // If adjusting start date would put it after end date, adjust end date too
+                if (effectiveStartDate.after(endDate)) {
+                    log.info("Adjusted start date would be after end date {}. Setting end date to 24 hours after start.", endDate);
+                    // Set end date to 24 hours after start date
+                    effectiveEndDate = new Date(effectiveStartDate.getTime() + 86400000); // +24 hours
+                }
+            }
+            
+            // If end date is in the past (after any adjustments), set status to OVERDUE
+            if (effectiveEndDate.before(now)) {
+                log.info("End date {} has already passed for request {}. Setting status to OVERDUE.", 
+                         effectiveEndDate, request.getId());
+                initialStatus = LendingStatus.OVERDUE;
             }
 
-            // Create and save new lending record
-            LendingRecord record = new LendingRecord(startDate, endDate, LendingStatus.ACTIVE, request, owner);
+            // Create and save new lending record with adjusted dates and status
+            LendingRecord record = new LendingRecord(effectiveStartDate, effectiveEndDate, initialStatus, request, owner);
             lendingRecordRepository.save(record);
             
             // Find all game instances for the requested game and set the first available one to unavailable

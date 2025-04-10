@@ -114,6 +114,9 @@ public class BorrowRequestController {
            return ResponseEntity.ok(borrowRequestService.updateBorrowRequestStatus(id, status));
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Borrow request with ID " + id + " not found.");
+        } catch (IllegalStateException e) {
+            // Properly handle the IllegalStateException from the service
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
         }
     }
 

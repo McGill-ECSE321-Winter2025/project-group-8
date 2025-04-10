@@ -123,12 +123,29 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     // Check if token needs refresh - for example if it's nearing expiration
                     // Check if token is expired or about to expire (within 15 minutes)
                     Date expiration = jwtUtil.extractExpiration(token);
-                    boolean needsRefresh = expiration != null && 
-                        (expiration.getTime() - System.currentTimeMillis() < 15 * 60 * 1000);
-                    
-                    if (needsRefresh) {
-                        log.debug("Token needs refresh. Generating new token.");
+
+                    // Check if time manipulation is active
+                    boolean timeManipulationActive = false;
+                    try {
+                        timeManipulationActive = ca.mcgill.ecse321.gameorganizer.config.TimeManipulationFilter.isTimeManipulationActive();
+                    } catch (Exception e) {
+                        log.debug("Error checking time manipulation status: {}", e.getMessage());
+                    }
+
+                    // Only check for token refresh if time manipulation is not active
+                    boolean needsRefresh = false;
+                    if (!timeManipulationActive) {
+                        needsRefresh = expiration != null && 
+                            (expiration.getTime() - System.currentTimeMillis() < 15 * 60 * 1000);
                         
+                        if (needsRefresh) {
+                            log.debug("Token needs refresh. Generating new token.");
+                        }
+                    } else {
+                        log.debug("Time manipulation is active - skipping token refresh check");
+                    }
+
+                    if (needsRefresh) {
                         // In a real implementation, you would use your userRepository to get the Account entity
                         // For this fix, we'll assume Account is not needed (or fetch it based on the username)
                         String refreshedToken = jwtUtil.generateToken(userDetails, null);

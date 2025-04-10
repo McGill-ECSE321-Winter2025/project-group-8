@@ -274,14 +274,53 @@ public class JwtUtil {
              return true; // Treat as expired if expiration cannot be extracted
         }
         
+        // Get current time, potentially adjusted for time manipulation
         Date now = new Date();
+        
+        // Check if time manipulation is active in the current request
+        boolean timeManipulationActive = false;
+        long timeOffsetMs = 0;
+        
+        try {
+            // Import TimeManipulationFilter statically to check if time manipulation is active
+            timeManipulationActive = ca.mcgill.ecse321.gameorganizer.config.TimeManipulationFilter.isTimeManipulationActive();
+            timeOffsetMs = ca.mcgill.ecse321.gameorganizer.config.TimeManipulationFilter.getCurrentTimeOffsetMs();
+            
+            if (timeManipulationActive) {
+                logger.info("Time manipulation active when checking token expiration. Offset: {}ms", timeOffsetMs);
+                
+                // For expiration checking with time manipulation, we need to adjust the comparison
+                // If testing with future time (positive offset), tokens would appear expired sooner
+                // If testing with past time (negative offset), tokens would appear to last longer
+                
+                // Instead of adjusting 'now', we adjust the token expiration
+                // For time manipulation, this makes more sense for testing
+                long adjustedExpirationTime = expirationDate.getTime() - timeOffsetMs;
+                expirationDate = new Date(adjustedExpirationTime);
+                
+                logger.debug("Token expiration adjusted for time manipulation: original={}, adjusted={}", 
+                         new Date(expirationDate.getTime() + timeOffsetMs), expirationDate);
+            }
+        } catch (Exception e) {
+            // If TimeManipulationFilter is not available, just continue with normal validation
+            logger.debug("Time manipulation check failed, continuing with normal validation: {}", e.getMessage());
+        }
+        
         boolean expired = expirationDate.before(now);
+        
         if (expired) {
             // Log details only when confirmed expired
             logger.warn("Token is expired. Expiration: {}, Current: {}", expirationDate, now);
+            if (timeManipulationActive) {
+                logger.warn("Note: Time manipulation is active with offset: {}ms", timeOffsetMs);
+            }
         } else {
             logger.debug("Token is valid. Expiration: {}, Current: {}", expirationDate, now);
+            if (timeManipulationActive) {
+                logger.debug("Note: Time manipulation is active with offset: {}ms", timeOffsetMs);
+            }
         }
+        
         return expired;
     }
 

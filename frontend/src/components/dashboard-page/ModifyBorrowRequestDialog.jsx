@@ -136,6 +136,13 @@ export default function ModifyBorrowRequestDialog({ open, onOpenChange, requestI
           return;
         }
         
+        // For demo purposes - skip regular availability check for past dates
+        if (startDateTime < new Date()) {
+          // Just set availability to true for past dates
+          setIsAvailable(true);
+          return;
+        }
+        
         // Check availability for the selected dates
         const available = await checkGameAvailability(gameId, startDateTime, endDateTime);
         setIsAvailable(available);
@@ -176,8 +183,13 @@ export default function ModifyBorrowRequestDialog({ open, onOpenChange, requestI
         throw new Error("End date/time must be after the start date/time.");
       }
       
-      // Check availability one more time before submitting
-      const available = await checkGameAvailability(gameId, startDateTime, endDateTime);
+      // Skip availability check for past dates in demo mode
+      let available = true;
+      if (startDateTime >= new Date()) {
+        // Only check availability for future dates
+        available = await checkGameAvailability(gameId, startDateTime, endDateTime);
+      }
+      
       if (!available) {
         throw new Error("This game is not available for the selected time period. Please select a different date or time.");
       }
@@ -292,7 +304,6 @@ export default function ModifyBorrowRequestDialog({ open, onOpenChange, requestI
                 name="date"
                 rules={{
                   required: 'Date is required',
-                  validate: (value) => new Date(value) >= new Date(today) || 'Date must be today or in the future'
                 }}
                 render={({ field }) => (
                   <FormItem>

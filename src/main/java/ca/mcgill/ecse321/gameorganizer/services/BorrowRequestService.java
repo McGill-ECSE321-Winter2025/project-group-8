@@ -99,6 +99,9 @@ public class BorrowRequestService {
             throw new IllegalArgumentException("End date must be after start date.");
         }
 
+        // For demo purposes, allow same-day requests
+        // No validation for start date being in the future
+
         Game game = gameOpt.get();
         // Account requester is already fetched from authentication context
 
